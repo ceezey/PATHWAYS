@@ -30,6 +30,7 @@ import type {
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PrismaService } from '../../prisma/prisma.service'
+import { prismaDiagnosticCode } from '../../prisma/transaction-diagnostic'
 import { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import { ParticipantsService } from '../participants/participants.service'
 import { StorageService } from '../storage/storage.service'
@@ -286,27 +287,36 @@ export class ImportsService {
     if (!source.answerKey && holdsScores(selectPartColumns(parsed, source.part))) {
       throw new ConflictException("Mark the correct answers for this survey's total score first.")
     }
-    return this.upload(
-      identity,
-      projectId,
-      {
-        formId: source.formId,
-        clientImportId: partImportId(
-          source.clientImportId,
-          partCode,
-          source.formVersion,
-          source.attempt,
-        ),
-        ...(source.sourceSheetName ? { sheetName: source.sourceSheetName } : {}),
-      },
-      {
-        buffer,
-        originalname: source.originalFileName,
-        mimetype: fileContentType(source.fileType),
-        size: buffer.length,
-      },
-      { parentBatchId: source.parentId, part: source.part },
-    )
+    const start = () =>
+      this.upload(
+        identity,
+        projectId,
+        {
+          formId: source.formId,
+          clientImportId: partImportId(
+            source.clientImportId,
+            partCode,
+            source.formVersion,
+            source.attempt,
+          ),
+          ...(source.sourceSheetName ? { sheetName: source.sourceSheetName } : {}),
+        },
+        {
+          buffer,
+          originalname: source.originalFileName,
+          mimetype: fileContentType(source.fileType),
+          size: buffer.length,
+        },
+        { parentBatchId: source.parentId, part: source.part },
+      )
+    try {
+      return await start()
+    } catch (error) {
+      // Two people pressing Start race on the part's unique key; the second takes the child the first made.
+      if (!(error instanceof ConflictException) && prismaDiagnosticCode(error) !== 'P2002')
+        throw error
+      return start()
+    }
   }
 
   async resumeUpload(identity: ApplicationIdentity, projectId: string, batchId: string) {

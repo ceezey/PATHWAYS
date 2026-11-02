@@ -211,6 +211,13 @@ SELECT pg_temp.refused('OTHER assessment sourced from another person''s survey',
  VALUES(%L,%L,%L,%L,%L,%L,'OTHER',85,100,'2026-10-01',%L)$i$,pg_temp.u(802),pg_temp.u(1),pg_temp.u(41),pg_temp.u(61),pg_temp.u(81),pg_temp.u(602),pg_temp.u(21)),
  '23514','Source must be a validated nondummy submission');
 
+-- A stage dated after a completed enrollment ended keeps its survey and its score: the submission is validated, then the assessment.
+SELECT pg_temp.accepted('the import actor validates the survey of a completed enrollee', format($i$UPDATE pathways.form_submissions
+ SET status='VALIDATED',submitted_at=now(),validated_by_id=%L,validated_at=now() WHERE id=%L$i$,pg_temp.u(21),pg_temp.u(621)));
+SELECT pg_temp.accepted('OTHER assessment dated after a completed enrollment ended', format($i$INSERT INTO pathways.assessment_results(
+ id,organization_id,project_id,activity_id,enrollment_id,source_submission_id,type,score,maximum_score,assessment_date,recorded_by_id)
+ VALUES(%L,%L,%L,%L,%L,%L,'OTHER',2,3,'2026-10-01',%L)$i$,pg_temp.u(803),pg_temp.u(1),pg_temp.u(41),pg_temp.u(61),pg_temp.u(87),pg_temp.u(621),pg_temp.u(21)));
+
 -- Participation on a not started activity sourced from an imported survey.
 SELECT pg_temp.accepted('participation on a not started activity sourced from an imported survey', format($i$INSERT INTO pathways.beneficiary_activity_participations(
  id,organization_id,project_id,enrollment_id,activity_id,participation_date,recorded_by_id,source_submission_id)

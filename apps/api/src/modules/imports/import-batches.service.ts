@@ -49,7 +49,7 @@ async function readPartSummaries(
   const children = await tx.dataImportBatch.findMany({
     where: { organizationId: actor.organizationId, parentBatchId: batch.id },
     select: batchSelection,
-    orderBy: { formVersion: 'desc' },
+    orderBy: [{ formVersion: 'desc' }, { createdAt: 'desc' }],
     take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
   })
   const warnings = await warningRowCounts(
@@ -62,7 +62,9 @@ async function readPartSummaries(
     const form =
       (await findStageForm(tx, actor, batch.projectId, part.code, ['PUBLISHED'])) ??
       (await findStageForm(tx, actor, batch.projectId, part.code, ['DRAFT']))
-    const child = children.find((item) => item.partCode === part.code)
+    // A failed attempt only stands in when the part has no other batch.
+    const ofPart = children.filter((item) => item.partCode === part.code)
+    const child = ofPart.find((item) => item.status !== 'FAILED') ?? ofPart[0]
     summaries.push({
       code: part.code,
       name: part.name,
@@ -70,12 +72,15 @@ async function readPartSummaries(
       formName: form?.name ?? null,
       formStatus: form ? (form.status as 'PUBLISHED' | 'DRAFT') : 'NONE',
       batch: child
-        ? mapBatch(
-            child,
-            warnings.get(child.id) ?? 0,
-            actor.userId,
-            await readWaitingRows(tx, child),
-          )
+        ? {
+            ...mapBatch(
+              child,
+              warnings.get(child.id) ?? 0,
+              actor.userId,
+              await readWaitingRows(tx, child),
+            ),
+            ...registrationCounts(child, await readBatchRowCounts(tx, child.id)),
+          }
         : null,
     })
   }
@@ -198,13 +203,13 @@ export async function readBatchRows(
     projectId: batch.projectId,
     importBatchId: batch.id,
   }
-  // Held rows wait for a person: unprocessed rows with a reason, and invalid registration rows a reviewer can resolve.
+  // Held rows wait for a person: unprocessed rows with a reason, and invalid registration or survey-part rows a reviewer can resolve.
   const where = query.held
     ? {
         ...scope,
         OR: [
           { status: 'UNPROCESSED' as const, processingErrorCode: { not: null } },
-          ...(batch.form.formType === 'BENEFICIARY_REGISTRATION'
+          ...(batch.form.formType === 'BENEFICIARY_REGISTRATION' || batch.parentBatchId
             ? [{ status: 'INVALID' as const }]
             : []),
         ],
@@ -268,9 +273,9 @@ export async function mapStoredBatch(
   }
 }
 
-/** Processed registration rows by outcome, for registration batches only; LINKED counts as updated. */
+/** Processed rows by outcome, for registration batches and survey parts only; LINKED counts as updated. */
 function registrationCounts(batch: BatchRow, counts: BatchRowCounts) {
-  if (batch.form.formType !== 'BENEFICIARY_REGISTRATION') return {}
+  if (batch.form.formType !== 'BENEFICIARY_REGISTRATION' && !batch.parentBatchId) return {}
   const count = (...outcomes: string[]) =>
     countRows(counts, (row) => row.outcome !== null && outcomes.includes(row.outcome))
   return {

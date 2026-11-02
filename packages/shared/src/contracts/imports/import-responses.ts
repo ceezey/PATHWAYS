@@ -70,7 +70,7 @@ const importBatchBase = z.object({
     // Rows held back until the row they depend on is processed.
     waiting: z.number().int(),
   }),
-  // Processed registration rows by outcome; present only on registration batches, counts only.
+  // Processed rows by outcome; present only on registration batches and survey parts, counts only.
   registrationCounts: z
     .object({
       created: z.number().int().nonnegative(),

@@ -72,6 +72,7 @@ export async function updateFormDefinition(
   return mapForm(await findForm(tx, actor, current.projectId, current.id), actor)
 }
 
+// shortcut: the answer-key gate clears on a bare confirm of the field, upgrade if the key itself must be proved
 // Confirming a needs-check field is a review step, so it leaves the last editor unchanged and the editor may still publish.
 export async function confirmDraftCheck(
   tx: Tx,
@@ -178,6 +179,7 @@ export async function publishFormVersion(
   }
   // A stage survey of an imported file needs its answer key and a mapped activity and journey stage.
   if (current.formField_form.some((field) => field.code === 'stage_date')) {
+    // shortcut: a summary that fails to parse passes this gate, and the start check is the backstop, upgrade if publish must be strict
     const summary = draftSummaryResponse.safeParse(current.importDraftSummary).data
     if (summary?.needsCheck.some((item) => item.reason === 'ANSWER_KEY_NEEDED')) {
       throw new ConflictException('Mark the correct answers for the total score first.')

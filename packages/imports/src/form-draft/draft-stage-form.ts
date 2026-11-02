@@ -131,6 +131,7 @@ export function draftStageForm(input: {
 
   return {
     definition: {
+      // shortcut: the code and name are not slugged because part codes are DHIS2 UIDs, upgrade if parts can carry other text
       code: `stage_${input.part.code.toLowerCase()}`,
       name: input.part.name,
       formType: 'TRAINING_SURVEY',

@@ -30,8 +30,9 @@ const sameText = (a: unknown, b: unknown) =>
 const dayOf = (date: Date) => date.toISOString().slice(0, 10)
 
 /**
- * The person a stage row names: the registration row of the same file row gives the ID, and a delta file has none,
- * so the stage's own ID is used. The profile and enrollment are those of the batch's project.
+ * The person a stage row names: the registration row of the same file row decides, by the person its outcome names
+ * (the submission it wrote or the person it matched), else by its ID as the reviewer left it. A delta file has no
+ * registration row, so the stage's own ID is used. The profile and enrollment are those of the batch's project.
  */
 export async function findStagePerson(
   tx: Tx,
@@ -48,9 +49,19 @@ export async function findStagePerson(
       importBatchId: parentBatchId,
       rowNumber,
     },
-    select: { status: true, normalizedData: true },
+    select: {
+      id: true,
+      status: true,
+      normalizedData: true,
+      resolutionData: true,
+      matchedBeneficiaryId: true,
+    },
   })
-  const source = parent ? ((parent.normalizedData ?? {}) as Values) : values
+  // A reviewer's values replace the file's, and a resolution never rewrites normalizedData.
+  const resolvedValues = (parent?.resolutionData as { values?: Values } | null)?.values
+  const source = parent
+    ? { ...((parent.normalizedData ?? {}) as Values), ...resolvedValues }
+    : values
   const identifierType = canonicalIdentifierType(
     source.external_identifier_type ?? context.identifierType,
   )
@@ -58,8 +69,22 @@ export async function findStagePerson(
     typeof source.external_identifier_value === 'string'
       ? normalizeIdentifier(source.external_identifier_value)
       : ''
-  const known =
-    identifierType && identifier
+  const written = parent?.matchedBeneficiaryId
+    ? null
+    : parent
+      ? await tx.formSubmission.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: batch.projectId,
+            importRowId: parent.id,
+          },
+          select: { enrollment: { select: { beneficiaryId: true } } },
+        })
+      : null
+  const outcomeId = parent?.matchedBeneficiaryId ?? written?.enrollment?.beneficiaryId
+  const known = outcomeId
+    ? { beneficiaryId: outcomeId }
+    : identifierType && identifier
       ? await tx.beneficiaryIdentifier.findUnique({
           where: {
             organizationId_identifierType_normalizedValue: {
@@ -92,7 +117,7 @@ export async function findStagePerson(
             beneficiaryId: known.beneficiaryId,
           },
         },
-        select: { id: true, enrollmentDate: true, endedDate: true },
+        select: { id: true, status: true, enrollmentDate: true, endedDate: true },
       })
     : null
   return { parent, identifier, known, profile, enrollment }
@@ -210,13 +235,6 @@ export async function promoteStageInTx(
   }
   const stageDate = values.stage_date
   if (typeof stageDate !== 'string' || !stageDate) return hold('STAGE_DATE_MISSING')
-  if (
-    stageDate < dayOf(enrollment.enrollmentDate) ||
-    (enrollment.endedDate && stageDate > dayOf(enrollment.endedDate))
-  ) {
-    return hold('STAGE_DATE_OUTSIDE_ENROLLMENT')
-  }
-
   // The latest validated answers of this person on any version of the form are what the file is compared with.
   const stored = await readStageBaseline(
     tx,
@@ -260,6 +278,15 @@ export async function promoteStageInTx(
     }
   }
 
+  // A date inside the enrollment, or after a completed one ended, is kept; the compare above comes first so a repeat is unchanged.
+  const afterEnd = !!enrollment.endedDate && stageDate > dayOf(enrollment.endedDate)
+  if (
+    stageDate < dayOf(enrollment.enrollmentDate) ||
+    (afterEnd && enrollment.status !== 'COMPLETED')
+  ) {
+    return hold('STAGE_DATE_OUTSIDE_ENROLLMENT')
+  }
+
   const submission = await insertValidatedSubmission(
     tx,
     actor,
@@ -277,12 +304,14 @@ export async function promoteStageInTx(
   }
   const eventDate = new Date(`${stageDate}T00:00:00.000Z`)
   // The first participation on the activity moves the current stage; a later stage of the same activity adds none.
+  // shortcut: two child batches sharing one activity can race on this check, upgrade to pg_advisory_xact_lock on enrollment and activity
   const taken = await tx.beneficiaryActivityParticipation.findFirst({
     where: scope,
     select: { id: true },
   })
   const earlierDate = stored?.get('stage_date')
-  if (!taken) {
+  // After a completed enrollment ended the stage was already terminal, so no participation or event is added.
+  if (!afterEnd && !taken) {
     const participation = await tx.beneficiaryActivityParticipation.create({
       data: {
         ...scope,
@@ -305,7 +334,7 @@ export async function promoteStageInTx(
         recordedById: actor.userId,
       },
     })
-  } else if (typeof earlierDate === 'string' && earlierDate !== stageDate) {
+  } else if (!afterEnd && typeof earlierDate === 'string' && earlierDate !== stageDate) {
     // A corrected date is a new event that corrects the original, as a journey correction does.
     // shortcut: a corrected stage date does not move the participation date, upgrade if the current stage must follow corrections
     const original = await tx.beneficiaryJourneyEvent.findFirst({
@@ -391,6 +420,7 @@ export async function promoteStageInTx(
       beneficiaryId: known.beneficiaryId,
       enrollmentId: enrollment.id,
       submissionId: submission.id,
+      ...(afterEnd ? { code: 'STAGE_AFTER_COMPLETION' } : {}),
     },
   })
 }

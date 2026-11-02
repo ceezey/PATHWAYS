@@ -23,6 +23,7 @@ import { detectFileParts, parseSecureImport } from '@pathways/imports/server'
 import { type FilePart, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { isRowCountsQuery } from './batch-row-counts.harness'
 import { partImportId } from './import-parts.service'
 
 const parentId = '50000000-0000-4000-8000-0000000000a1'
@@ -248,7 +249,7 @@ describe('starting the parts of a file', () => {
 
   it('missing permission is 403 before any row is staged', async () => {
     const message =
-      'Importing surveys needs the record participation, record assessment and read participant records permissions.'
+      'Importing surveys needs the record participation, record assessment, read participant records, read journeys and read assessment details permissions.'
     state.actor = actor
     await expect(service.startFilePart(actor, projectId, parentId, LST)).rejects.toThrow(message)
     expect(tx.dataImportBatch.findFirst).not.toHaveBeenCalled()
@@ -303,6 +304,71 @@ describe('starting the parts of a file', () => {
       ['TQFHPAzCaeI', 'NONE', null],
     ])
     expect(detail.parts[0].formName).toBe(`Form ${LST}`)
+  })
+
+  it('a person who cannot read journeys or assessment details cannot start a survey', async () => {
+    for (const missing of ['journeys.read', 'assessments.detail.read']) {
+      const limited = {
+        ...officer,
+        permissions: officer.permissions.filter((name) => name !== missing),
+      }
+      state.actor = limited
+      await expect(service.startFilePart(limited, projectId, parentId, LST)).rejects.toThrow(
+        'Importing surveys needs',
+      )
+    }
+  })
+
+  it('detail shows the newest live child with its created and unchanged counts', async () => {
+    const live = child({
+      id: '50000000-0000-4000-8000-0000000000d1',
+      formVersion: 1,
+      partCode: LST,
+    })
+    const failed = child(
+      { id: '50000000-0000-4000-8000-0000000000d2', formVersion: 2, partCode: LST },
+      'FAILED',
+    )
+    setup.children = [failed, live]
+    tx.digitalForm.findFirst.mockResolvedValue({
+      id: stageFormId,
+      name: 'LST',
+      status: 'PUBLISHED',
+    })
+    tx.$queryRaw.mockImplementation(async (sql) =>
+      isRowCountsQuery(sql)
+        ? (sql as { values: unknown[] }).values[0] === live.id
+          ? [
+              { status: 'PROCESSED', outcome: 'CREATED', warned: false, rows: 3 },
+              { status: 'PROCESSED', outcome: 'UNCHANGED', warned: false, rows: 2 },
+            ]
+          : []
+        : [{ waiting: 1 }],
+    )
+
+    const detail = await service.getBatch(officer, projectId, parentId)
+
+    expect(tx.dataImportBatch.findMany.mock.calls.at(-1)?.[0].orderBy).toEqual([
+      { formVersion: 'desc' },
+      { createdAt: 'desc' },
+    ])
+    expect(detail.parts[0].batch).toMatchObject({
+      id: live.id,
+      registrationCounts: { created: 3, updated: 0, unchanged: 2 },
+      totals: { waiting: 1 },
+    })
+  })
+
+  it('a unique conflict on start returns the child the other person made', async () => {
+    tx.dataImportBatch.create.mockImplementationOnce(async ({ data }) => {
+      setup.created.push(data)
+      throw Object.assign(new Error('unique'), { code: 'P2002' })
+    })
+    setup.existingVersion = 1
+
+    const result = await start()
+
+    expect(result.id).toBe(setup.created[0].id)
   })
 
   it('resuming a child stages the same part columns', async () => {

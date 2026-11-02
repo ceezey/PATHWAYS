@@ -255,6 +255,10 @@ function fakeTx(): Tx {
     },
     formSubmission: {
       findFirst: async ({ where }: { where: Rec }) => {
+        if ('importRowId' in where) {
+          const own = find(store.submissions, where)
+          return own ? { enrollment: own.enrollment } : null
+        }
         const found = store.submissions
           .filter((item) => matches(item, where))
           .sort((a, b) => Number(b.submittedAt) - Number(a.submittedAt))[0]
@@ -420,6 +424,7 @@ beforeEach(() => {
         organizationId,
         projectId,
         beneficiaryId,
+        status: 'ACTIVE',
         enrollmentDate: new Date('2026-01-01T00:00:00Z'),
         endedDate: null,
       },
@@ -663,6 +668,125 @@ describe('promoteStageInTx', () => {
     store.audits.length = 0
     await promote()
     held('STAGE_DATE_OUTSIDE_ENROLLMENT')
+  })
+
+  it('an identical row is UNCHANGED whatever its dates', async () => {
+    withBaseline({ ...stageRow })
+    Object.assign(store.enrollments[0] as Rec, {
+      status: 'COMPLETED',
+      endedDate: new Date('2026-03-01T00:00:00Z'),
+    })
+    await firstStage()
+    expect(rowOf()).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'UNCHANGED' })
+    expect(store.audits.map((item) => item.action)).toEqual(['IMPORT_STAGE_UNCHANGED'])
+    expect(store.assessments).toHaveLength(0)
+  })
+
+  it('a date after a completed enrollment keeps the answers and the score but adds no stage', async () => {
+    Object.assign(store.enrollments[0] as Rec, {
+      status: 'COMPLETED',
+      endedDate: new Date('2026-03-01T00:00:00Z'),
+    })
+    await firstStage()
+    expect(store.submissions).toHaveLength(1)
+    expect(store.assessments).toEqual([expect.objectContaining({ type: 'OTHER', score: 2 })])
+    expect(store.participations).toHaveLength(0)
+    expect(store.events).toHaveLength(0)
+    expect(rowOf()).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'CREATED' })
+    expect(store.audits).toEqual([
+      expect.objectContaining({
+        action: 'IMPORT_STAGE_ROW_COMMITTED',
+        changes: expect.objectContaining({ code: 'STAGE_AFTER_COMPLETION' }),
+      }),
+    ])
+  })
+
+  it('a date before the start of a completed enrollment is still held', async () => {
+    Object.assign(store.enrollments[0] as Rec, {
+      status: 'COMPLETED',
+      endedDate: new Date('2026-03-01T00:00:00Z'),
+    })
+    ;(rowOf().normalizedData as Rec).stage_date = '2025-12-31'
+    await firstStage()
+    held('STAGE_DATE_OUTSIDE_ENROLLMENT')
+  })
+
+  it('a date after the end of an enrollment that is not completed is held', async () => {
+    Object.assign(store.enrollments[0] as Rec, {
+      status: 'WITHDRAWN',
+      endedDate: new Date('2026-03-01T00:00:00Z'),
+    })
+    await firstStage()
+    held('STAGE_DATE_OUTSIDE_ENROLLMENT')
+  })
+
+  describe('a registration row resolved by a reviewer', () => {
+    const otherId = '71000000-0000-4000-8000-000000000002'
+    // The reviewer registered the row as a new participant with a typed client ID.
+    const resolveParent = (withOutcome: boolean) => {
+      store.beneficiaries.push({ ...(store.beneficiaries[0] as Rec), id: otherId })
+      store.identifiers.push({
+        organizationId,
+        identifierType: 'STUDENT_ID',
+        normalizedValue: 'X-999',
+        beneficiaryId: otherId,
+      })
+      store.enrollments.push({
+        ...(store.enrollments[0] as Rec),
+        id: 'enrollment-other',
+        beneficiaryId: otherId,
+      })
+      Object.assign(store.rows.find((row) => row.id === 'parent-1') as Rec, {
+        resolutionData: { values: { external_identifier_value: 'X-999' } },
+      })
+      if (withOutcome) {
+        store.submissions.push({
+          id: 'registration',
+          organizationId,
+          projectId,
+          importRowId: 'parent-1',
+          enrollment: { beneficiaryId: otherId },
+          responses: [],
+        })
+      }
+    }
+
+    it.each([true, false])(
+      'does not put a survey carrying the file ID on the person who holds it (outcome %s)',
+      async (withOutcome) => {
+        resolveParent(withOutcome)
+        await firstStage()
+        expect(rowOf()).toMatchObject({
+          status: 'UNPROCESSED',
+          processingErrorCode: 'STAGE_IDENTITY_MISMATCH',
+        })
+        expect(store.submissions.filter((item) => item.beneficiaryId)).toHaveLength(0)
+        expect(store.assessments).toHaveLength(0)
+      },
+    )
+
+    it.each([true, false])(
+      'puts a survey carrying the typed ID on the resolved person (outcome %s)',
+      async (withOutcome) => {
+        resolveParent(withOutcome)
+        ;(rowOf().normalizedData as Rec).external_identifier_value = 'X-999'
+        await firstStage()
+        expect(rowOf()).toMatchObject({ status: 'PROCESSED' })
+        expect(store.submissions.at(-1)).toMatchObject({ beneficiaryId: otherId })
+      },
+    )
+
+    it('follows the matched person of an unchanged registration row', async () => {
+      resolveParent(false)
+      Object.assign(store.rows.find((row) => row.id === 'parent-1') as Rec, {
+        matchedBeneficiaryId: otherId,
+        resolutionData: null,
+      })
+      ;(rowOf().normalizedData as Rec).external_identifier_value = '2024-001'
+      await firstStage()
+      // The file ID is the matched person's own ID in the registration, so the survey lands on the matched person.
+      expect(store.submissions.at(-1)).toMatchObject({ beneficiaryId: otherId })
+    })
   })
 
   it('consent not given is held', async () => {

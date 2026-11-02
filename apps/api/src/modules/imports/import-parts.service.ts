@@ -12,6 +12,8 @@ const SURVEY_IMPORT_PERMISSIONS = [
   'participation.record',
   'assessments.record',
   'beneficiaries.records.read',
+  'journeys.read',
+  'assessments.detail.read',
 ] as const
 
 // A FAILED attempt keeps its key forever, so each part may spend up to this many keys per form version.
@@ -34,7 +36,7 @@ export function requireSurveyImportPermissions(actor: ApplicationIdentity) {
     )
   ) {
     throw new ForbiddenException(
-      'Importing surveys needs the record participation, record assessment and read participant records permissions.',
+      'Importing surveys needs the record participation, record assessment, read participant records, read journeys and read assessment details permissions.',
     )
   }
 }
