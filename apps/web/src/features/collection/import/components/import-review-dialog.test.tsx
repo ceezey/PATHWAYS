@@ -323,6 +323,20 @@ describe('import review dialog', () => {
     )
   })
 
+  it.each([
+    ['STAGE_CONSENT_MISSING', /Consent cannot be added here\./],
+    [
+      'STAGE_IDENTITY_MISMATCH',
+      /This survey row does not match the participant\. Upload a corrected file\./,
+    ],
+  ])('a survey row held %s needs a corrected file and cannot be saved', async (code, words) => {
+    await open(false, code)
+    expect(screen.getByText(words)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Confirm' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+  })
+
   it('an age that does not match the birth date offers the calculated value and sends it', async () => {
     api.getRowReview.mockResolvedValue({
       rowId: 'row-1',

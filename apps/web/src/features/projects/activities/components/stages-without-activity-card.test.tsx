@@ -114,6 +114,30 @@ describe('stages without an activity card', () => {
     expect(within(alert).getAllByText(/^(Pre-test|Post-test|Follow-up): Refused/)).toHaveLength(3)
   })
 
+  it('disables both buttons while a create runs and labels the pressed one', async () => {
+    let finish: (value: { id: string }) => void = () => {}
+    api.createActivity.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    show()
+    fireEvent.click(screen.getByRole('button', { name: 'Create activity for Pre-test' }))
+    const pressed = await screen.findByRole('button', { name: 'Create activity for Pre-test' })
+    await waitFor(() => expect(pressed.textContent).toBe('Creating...'))
+    const buttons = screen.getAllByRole('button') as HTMLButtonElement[]
+    expect(buttons.every((button) => button.disabled)).toBe(true)
+    expect(screen.getByRole('button', { name: 'Create all' }).textContent).toBe('Create all')
+    fireEvent.click(screen.getByRole('button', { name: 'Create all' }))
+    expect(api.createActivity).toHaveBeenCalledTimes(1)
+    finish({ id: 'new-s-1' })
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: 'Create all' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    )
+  })
+
   it('no dates shows the reason and no button', () => {
     show({ startDate: null })
     expect(screen.getByText("Set the project's dates first.")).toBeTruthy()

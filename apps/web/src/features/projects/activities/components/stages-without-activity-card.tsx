@@ -1,5 +1,6 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import { SectionCard } from '@/components/pathways'
@@ -34,6 +35,8 @@ export function StagesWithoutActivityCard({
   const [created, setCreated] = useState<ReadonlySet<string>>(new Set())
   const [errors, setErrors] = useState<string[]>([])
   const busy = useRef(false)
+  // Which button was pressed: a stage id, or 'all'; null when no create runs.
+  const [pending, setPending] = useState<string | null>(null)
   const usable = new Set(activities.filter((item) => item.status !== 'Cancelled').map((a) => a.id))
   const open = stages.filter(
     (stage) =>
@@ -44,9 +47,10 @@ export function StagesWithoutActivityCard({
   if (!canCreate || open.length === 0) return null
 
   // Each stage is sent once at a time, and a refused one stays listed for the next try.
-  const create = async (targets: JourneyStageConfig[]) => {
+  const create = async (targets: JourneyStageConfig[], pressed: string) => {
     if (busy.current || !startDate || !endDate || !context) return
     busy.current = true
+    setPending(pressed)
     setErrors([])
     try {
       for (const stage of targets) {
@@ -73,6 +77,7 @@ export function StagesWithoutActivityCard({
       }
     } finally {
       busy.current = false
+      setPending(null)
     }
   }
 
@@ -80,8 +85,17 @@ export function StagesWithoutActivityCard({
     <SectionCard
       actions={
         startDate && endDate ? (
-          <Button onClick={() => void create(open)} size="sm" type="button">
-            {copy.createAll}
+          <Button
+            className="gap-2"
+            disabled={pending !== null}
+            onClick={() => void create(open, 'all')}
+            size="sm"
+            type="button"
+          >
+            {pending === 'all' ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : null}
+            {pending === 'all' ? copy.creating : copy.createAll}
           </Button>
         ) : undefined
       }
@@ -103,12 +117,17 @@ export function StagesWithoutActivityCard({
             {startDate && endDate ? (
               <Button
                 aria-label={copy.createFor(stage.name)}
-                onClick={() => void create([stage])}
+                className="gap-2"
+                disabled={pending !== null}
+                onClick={() => void create([stage], stage.id)}
                 size="sm"
                 type="button"
                 variant="outline"
               >
-                {copy.create}
+                {pending === stage.id ? (
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                ) : null}
+                {pending === stage.id ? copy.creating : copy.create}
               </Button>
             ) : null}
           </li>

@@ -16,6 +16,7 @@ export const stagesWithoutActivity = {
   create: 'Create activity',
   createFor: (stage: string) => `Create activity for ${stage}`,
   createAll: 'Create all',
+  creating: 'Creating...',
   noDates: "Set the project's dates first.",
   refused: (stage: string, reason?: string) =>
     `${stage}: ${reason ?? 'The activity could not be created.'}`,

@@ -39,6 +39,14 @@ export const answerKeyCopy = {
   more: 'Each scored question adds one point. A row whose total score differs from the points is held for review.',
 }
 
+/** Why a held row cannot be saved in the review window, and what to do instead. */
+export const needsCorrectedFile: Record<string, string> = {
+  CONSENT_REQUIRED: 'Consent cannot be added here. Upload a corrected file with consent recorded.',
+  STAGE_CONSENT_MISSING: 'Consent cannot be added here.',
+  STAGE_IDENTITY_MISMATCH:
+    'This survey row does not match the participant. Upload a corrected file.',
+}
+
 /** Shown on the data consent item when participation consent copies its answer. */
 export const consentAnswersBoth = 'Participation consent takes the same answer from this column.'
 
