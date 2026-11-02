@@ -53,6 +53,7 @@ import {
   promoteClaimedGenericRow,
   promoteClaimedParticipationRow,
   promoteClaimedRegistrationRow,
+  promoteClaimedStageRow,
 } from './import-promotion.service'
 import { readRerunSource, recordRerun } from './import-rerun.service'
 import {
@@ -76,6 +77,7 @@ interface StartedPart {
 
 const REGISTRATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
 const PARTICIPATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
+const STAGE_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
 // One chunk promotes at most processingCheckpointRows rows. The verified-transaction
 // ceiling is 30 seconds; a 25-row registration chunk stays well inside it.
 const PROMOTION_CHUNK_TRANSACTION_TIMEOUT_MS = 30_000
@@ -374,7 +376,9 @@ export class ImportsService {
       ? 'REGISTRATION'
       : claim.participationHandler
         ? 'PARTICIPATION'
-        : 'GENERIC'
+        : claim.stageHandler
+          ? 'STAGE'
+          : 'GENERIC'
     const chunkSize = IMPORT_ENGINEERING_LIMITS.processingCheckpointRows
     for (let offset = 0; offset < claim.rowIds.length; offset += chunkSize) {
       const chunk = claim.rowIds.slice(offset, offset + chunkSize)
@@ -421,6 +425,15 @@ export class ImportsService {
           )
         } else if (claim.participationHandler) {
           await this.promoteParticipationRow(
+            identity,
+            projectId,
+            batchId,
+            rowId,
+            claim.claimId,
+            input.expectedValidationRevision,
+          )
+        } else if (claim.stageHandler) {
+          await this.promoteStageRow(
             identity,
             projectId,
             batchId,
@@ -630,6 +643,33 @@ export class ImportsService {
           validationRevision,
         ),
       { transactionTimeoutMs: PARTICIPATION_IMPORT_TRANSACTION_TIMEOUT_MS },
+    )
+  }
+
+  private promoteStageRow(
+    identity: ApplicationIdentity,
+    projectId: string,
+    batchId: string,
+    rowId: string,
+    claimId: string,
+    validationRevision: number,
+  ) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'imports.process',
+      (tx, actor) =>
+        promoteClaimedStageRow(
+          tx,
+          actor,
+          this.promotion,
+          projectId,
+          batchId,
+          rowId,
+          claimId,
+          validationRevision,
+        ),
+      { transactionTimeoutMs: STAGE_IMPORT_TRANSACTION_TIMEOUT_MS },
     )
   }
 

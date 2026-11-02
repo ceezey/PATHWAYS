@@ -69,7 +69,14 @@ async function readPartSummaries(
       formId: form?.id ?? null,
       formName: form?.name ?? null,
       formStatus: form ? (form.status as 'PUBLISHED' | 'DRAFT') : 'NONE',
-      batch: child ? mapBatch(child, warnings.get(child.id) ?? 0, actor.userId) : null,
+      batch: child
+        ? mapBatch(
+            child,
+            warnings.get(child.id) ?? 0,
+            actor.userId,
+            await readWaitingRows(tx, child),
+          )
+        : null,
     })
   }
   return summaries
@@ -105,6 +112,21 @@ export const readBatchRowCounts = (tx: Tx, batchId: string) =>
       WHERE import_batch_id=${batchId}::uuid
       GROUP BY 1, 2, 3
     `)
+
+/** True for a row of a stage batch whose registration row, the parent row with the same number, is not processed yet. */
+export const waitsForParent = (parentBatchId: string) => Prisma.sql`EXISTS (
+    SELECT 1 FROM pathways.data_import_rows p
+    WHERE p.import_batch_id=${parentBatchId}::uuid AND p.row_number=r.row_number AND p.status<>'PROCESSED')`
+
+/** The VALID rows of a stage batch that wait for their registration row; other batches have none. */
+async function readWaitingRows(tx: Tx, batch: Pick<BatchRow, 'id' | 'parentBatchId'>) {
+  if (!batch.parentBatchId) return 0
+  const [counted] = await tx.$queryRaw<Array<{ waiting: number }>>(Prisma.sql`
+      SELECT count(*)::int AS waiting FROM pathways.data_import_rows r
+      WHERE r.import_batch_id=${batch.id}::uuid AND r.status='VALID' AND ${waitsForParent(batch.parentBatchId)}
+    `)
+  return counted?.waiting ?? 0
+}
 
 export const countRows = (counts: BatchRowCounts, keep: (row: BatchRowCounts[number]) => boolean) =>
   counts.reduce((sum, row) => (keep(row) ? sum + row.rows : sum), 0)
@@ -145,6 +167,7 @@ export async function readBatchDetail(
       batch,
       countRows(counts, (row) => row.warned),
       actor.userId,
+      await readWaitingRows(tx, batch),
     ),
     ...registrationCounts(batch, counts),
     parts: await readPartSummaries(tx, actor, batch),
@@ -238,6 +261,7 @@ export async function mapStoredBatch(
       batch,
       countRows(counts, (row) => row.warned),
       actor.userId,
+      await readWaitingRows(tx, batch),
     ),
     ...registrationCounts(batch, counts),
   }

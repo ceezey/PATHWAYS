@@ -18,6 +18,7 @@ import {
   registrationMatchesByIdentifier,
 } from './import-promotion-context.service'
 import { safeRawData } from './imports.helpers'
+import type { FieldRow } from './imports.mapper'
 import { type ParticipantMatch, matchParticipant, rejectedBaseline } from './participant-match'
 
 export const registrationOutcomes = {
@@ -26,13 +27,14 @@ export const registrationOutcomes = {
   LINK: 'LINKED',
 } as const
 
-// Leaves a registration row unprocessed with the code a reviewer will see.
-async function holdRegistrationRow(
+// Leaves a row unprocessed with the code a reviewer will see.
+export async function holdImportRow(
   tx: Tx,
   actor: ApplicationIdentity,
   batch: PromotionContext['batch'],
   row: { id: string; rowNumber: number },
   code: string,
+  action = 'IMPORT_REGISTRATION_REVIEW_REQUIRED',
 ) {
   await tx.dataImportRow.update({
     where: { id: row.id },
@@ -45,7 +47,7 @@ async function holdRegistrationRow(
   })
   await writeAuditLog(tx, actor, {
     projectId: batch.projectId,
-    action: 'IMPORT_REGISTRATION_REVIEW_REQUIRED',
+    action,
     entityType: 'DataImportRow',
     entityId: row.id,
     changes: { importBatchId: batch.id, sourceRowNumber: row.rowNumber, code },
@@ -124,7 +126,7 @@ export async function promoteRegistrationInTx(
       values: values as Record<string, NormalizedValue>,
     })
     if (match.kind === 'HOLD' || match.kind === 'CHANGED') {
-      return holdRegistrationRow(tx, actor, batch, row, match.code)
+      return holdImportRow(tx, actor, batch, row, match.code)
     }
     if (match.kind === 'SAME' && match.enrolledHere) {
       await tx.dataImportRow.update({
@@ -160,7 +162,7 @@ export async function promoteRegistrationInTx(
           )
         : {}
     const matched = await matchedValues(tx, actor, match, { ...values, ...kept })
-    if (!matched) return holdRegistrationRow(tx, actor, batch, row, 'UNKNOWN_IDENTITY')
+    if (!matched) return holdImportRow(tx, actor, batch, row, 'UNKNOWN_IDENTITY')
     values = matched
     outcome = match.kind === 'SAME' ? 'LINKED' : 'CREATED'
   }
@@ -179,7 +181,7 @@ export async function promoteRegistrationInTx(
     ? await promotion.registration.promoteRegistration(tx, actor, registration, { form })
     : await promotion.registration.promoteRegistration(tx, actor, registration)
   if (result.kind === 'REVIEW') {
-    return holdRegistrationRow(tx, actor, batch, row, result.code)
+    return holdImportRow(tx, actor, batch, row, result.code)
   }
   await tx.dataImportRow.update({
     where: { id: row.id },
@@ -320,6 +322,58 @@ export async function promoteParticipationInTx(
   })
 }
 
+/** Writes an imported row's submission with its answers and validates it; beneficiaryId names the person of a survey that has no enrollment. */
+export async function insertValidatedSubmission(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: PromotionContext['batch'],
+  rowId: string,
+  fields: FieldRow[],
+  values: Record<string, unknown>,
+  beneficiaryId?: string,
+) {
+  const submission = await tx.formSubmission.create({
+    data: {
+      organizationId: actor.organizationId,
+      projectId: batch.projectId,
+      formId: batch.formId,
+      formVersion: batch.formVersion,
+      clientSubmissionId: rowId,
+      importBatchId: batch.id,
+      importRowId: rowId,
+      submittedById: actor.userId,
+      source: 'IMPORTED_DATASET',
+      status: 'DRAFT',
+      ...(beneficiaryId ? { beneficiaryId } : {}),
+    },
+    select: { id: true },
+  })
+  await tx.formResponseValue.createMany({
+    data: fields.map((field) => ({
+      organizationId: actor.organizationId,
+      projectId: batch.projectId,
+      formId: batch.formId,
+      submissionId: submission.id,
+      fieldId: field.id,
+      value:
+        values[field.code] === null
+          ? Prisma.JsonNull
+          : (values[field.code] as Prisma.InputJsonValue),
+    })),
+  })
+  const submittedAt = new Date()
+  await tx.formSubmission.update({
+    where: { id: submission.id },
+    data: {
+      status: 'VALIDATED',
+      submittedAt,
+      validatedById: batch.reviewedById,
+      validatedAt: submittedAt,
+    },
+  })
+  return { id: submission.id, submittedAt }
+}
+
 export async function promoteGenericInTx(
   tx: Tx,
   actor: ApplicationIdentity,
@@ -363,44 +417,14 @@ export async function promoteGenericInTx(
   const fields = context.fields ?? (await loadFormFields(tx, actor, batch))
   const verified = normalizeImportedRow(fields.map(formFieldContract), values)
   if (!verified.valid) throw new ConflictException('The normalized row no longer validates.')
-  const submission = await tx.formSubmission.create({
-    data: {
-      organizationId: actor.organizationId,
-      projectId: batch.projectId,
-      formId: batch.formId,
-      formVersion: batch.formVersion,
-      clientSubmissionId: row.id,
-      importBatchId: batch.id,
-      importRowId: row.id,
-      submittedById: actor.userId,
-      source: 'IMPORTED_DATASET',
-      status: 'DRAFT',
-    },
-    select: { id: true },
-  })
-  await tx.formResponseValue.createMany({
-    data: fields.map((field) => ({
-      organizationId: actor.organizationId,
-      projectId: batch.projectId,
-      formId: batch.formId,
-      submissionId: submission.id,
-      fieldId: field.id,
-      value:
-        verified.values[field.code] === null
-          ? Prisma.JsonNull
-          : (verified.values[field.code] as Prisma.InputJsonValue),
-    })),
-  })
-  const submittedAt = new Date()
-  await tx.formSubmission.update({
-    where: { id: submission.id },
-    data: {
-      status: 'VALIDATED',
-      submittedAt,
-      validatedById: batch.reviewedById,
-      validatedAt: submittedAt,
-    },
-  })
+  const { id: submissionId, submittedAt } = await insertValidatedSubmission(
+    tx,
+    actor,
+    batch,
+    row.id,
+    fields,
+    verified.values,
+  )
   await tx.dataImportRow.update({
     where: { id: row.id },
     data: {
@@ -415,7 +439,7 @@ export async function promoteGenericInTx(
     projectId: batch.projectId,
     action: 'IMPORT_ROW_PROMOTED',
     entityType: 'FormSubmission',
-    entityId: submission.id,
+    entityId: submissionId,
     changes: {
       importBatchId: batch.id,
       importRowId: row.id,

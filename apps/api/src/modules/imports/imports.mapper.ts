@@ -68,6 +68,7 @@ export function mapBatch(
   batch: BatchRow,
   warningRows: number,
   actorUserId: string,
+  waitingRows = 0,
 ): ImportBatchResponse {
   return {
     id: batch.id,
@@ -95,7 +96,7 @@ export function mapBatch(
       unprocessed: batch.unprocessedRows,
       failed: batch.failedRows,
       warnings: warningRows,
-      waiting: 0,
+      waiting: waitingRows,
     },
     failureCode: batch.failureCode,
     failureMessage: batch.status === 'FAILED' ? (batch.validationNotes ?? null) : null,

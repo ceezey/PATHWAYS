@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { ConflictException, ForbiddenException } from '@nestjs/common'
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
 import type { ProcessImportRequest } from '@pathways/shared'
+import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
@@ -11,6 +12,7 @@ import {
   mapStoredBatch,
   readBatchRowCounts,
   requireBatchWithHeaders,
+  waitsForParent,
 } from './import-batches.service'
 import { requireAllPartsStarted, requireSurveyImportPermissions } from './import-parts.service'
 import {
@@ -27,6 +29,7 @@ export interface ProcessingClaim {
   claimId: string
   registrationHandler: boolean
   participationHandler: boolean
+  stageHandler: boolean
   context?: PromotionContext
 }
 
@@ -56,6 +59,7 @@ export async function claimBatchRows(
       claimId: '',
       registrationHandler: false,
       participationHandler: false,
+      stageHandler: false,
     }
   }
   if (!['VALIDATED', 'PARTIALLY_PROCESSED', 'PROCESSING'].includes(batch.status)) {
@@ -96,19 +100,31 @@ export async function claimBatchRows(
       processingErrorCode: 'RETRY_LIMIT_EXCEEDED',
     },
   })
-  const candidates = await tx.dataImportRow.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      importBatchId: batch.id,
-      status: 'VALID',
-      mappingRevision: batch.mappingRevision,
-      validationRevision: batch.validationRevision,
-      processingAttempts: { lt: IMPORT_ENGINEERING_LIMITS.maxProcessingAttempts },
-    },
-    select: { id: true },
-    orderBy: { rowNumber: 'asc' },
-    take: IMPORT_ENGINEERING_LIMITS.processingClaimRows,
-  })
+  // A stage row waits while its registration row is not processed, so the person it names may not exist yet.
+  const candidates = batch.parentBatchId
+    ? await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT r.id::text AS id FROM pathways.data_import_rows r
+        WHERE r.organization_id=${actor.organizationId}::uuid AND r.import_batch_id=${batch.id}::uuid
+          AND r.status='VALID' AND r.mapping_revision=${batch.mappingRevision}
+          AND r.validation_revision=${batch.validationRevision}
+          AND r.processing_attempts < ${IMPORT_ENGINEERING_LIMITS.maxProcessingAttempts}
+          AND NOT ${waitsForParent(batch.parentBatchId)}
+        ORDER BY r.row_number
+        LIMIT ${IMPORT_ENGINEERING_LIMITS.processingClaimRows}
+      `)
+    : await tx.dataImportRow.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          importBatchId: batch.id,
+          status: 'VALID',
+          mappingRevision: batch.mappingRevision,
+          validationRevision: batch.validationRevision,
+          processingAttempts: { lt: IMPORT_ENGINEERING_LIMITS.maxProcessingAttempts },
+        },
+        select: { id: true },
+        orderBy: { rowNumber: 'asc' },
+        take: IMPORT_ENGINEERING_LIMITS.processingClaimRows,
+      })
   if (candidates.length === 0) {
     await reconcileBatch(tx, batch.id)
     return {
@@ -117,6 +133,7 @@ export async function claimBatchRows(
       claimId: '',
       registrationHandler: false,
       participationHandler: false,
+      stageHandler: false,
     }
   }
   const claimId = randomUUID()
@@ -152,6 +169,7 @@ export async function claimBatchRows(
     claimId,
     registrationHandler: batch.form.formType === 'BENEFICIARY_REGISTRATION',
     participationHandler: batch.form.formType === 'ACTIVITY_MONITORING',
+    stageHandler: Boolean(batch.parentBatchId),
     context: context ?? (await loadPromotionContext(tx, actor, promotion, batch)),
   }
 }

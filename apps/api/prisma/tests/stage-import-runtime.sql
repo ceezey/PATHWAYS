@@ -217,6 +217,92 @@ SELECT pg_temp.accepted('participation on a not started activity sourced from an
  VALUES(%L,%L,%L,%L,%L,'2026-10-01',%L,%L)$i$,pg_temp.u(851),pg_temp.u(1),pg_temp.u(41),pg_temp.u(81),pg_temp.u(61),pg_temp.u(21),pg_temp.u(601)));
 RESET SESSION AUTHORIZATION;
 
+-- A validated imported survey keeps passing the survey subject guard when the same actor updates it after its answers are written.
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.act_as(11,21);
+SELECT pg_temp.accepted('the import actor validates the survey it inserted', format($i$UPDATE pathways.form_submissions
+ SET status='VALIDATED',submitted_at=now(),validated_by_id=%L,validated_at=now() WHERE id=%L$i$,pg_temp.u(21),pg_temp.u(620)));
+RESET SESSION AUTHORIZATION;
+
+-- Journey progress of imported stages. Stages: entry, LST, Pre-Training and two tracks (branches) of Pre-Training.
+-- Forms 95 to 97 are the stage surveys of activities 62 (LST), 63 (Pre-Training) and 64 (track A).
+SET LOCAL session_replication_role = replica;
+-- Person 71's earlier test participation would be its latest, so it is removed here.
+DELETE FROM pathways.beneficiary_activity_participations WHERE id=pg_temp.u(851);
+INSERT INTO pathways.journey_stages(id,organization_id,project_id,code,name,stage_order,parent_stage_id,stage_type,created_by_id) VALUES
+ (pg_temp.u(411),pg_temp.u(1),pg_temp.u(41),'SI_ENTRY','Entry',1,NULL,'ENTRY',pg_temp.u(24)),
+ (pg_temp.u(412),pg_temp.u(1),pg_temp.u(41),'SI_LST','LST',2,NULL,'CORE',pg_temp.u(24)),
+ (pg_temp.u(413),pg_temp.u(1),pg_temp.u(41),'SI_PRE_TRAINING','Pre-Training',3,NULL,'CORE',pg_temp.u(24)),
+ (pg_temp.u(414),pg_temp.u(1),pg_temp.u(41),'SI_TRACK_A','Track A',4,pg_temp.u(413),'BRANCH',pg_temp.u(24)),
+ (pg_temp.u(415),pg_temp.u(1),pg_temp.u(41),'SI_TRACK_B','Track B',5,pg_temp.u(413),'BRANCH',pg_temp.u(24));
+INSERT INTO pathways.project_activities(id,organization_id,project_id,code,title,activity_type,created_by_id) VALUES
+ (pg_temp.u(62),pg_temp.u(1),pg_temp.u(41),'SI-ACT-2','Synthetic LST','IMPORTED_SURVEY',pg_temp.u(24)),
+ (pg_temp.u(63),pg_temp.u(1),pg_temp.u(41),'SI-ACT-3','Synthetic Pre-Training','IMPORTED_SURVEY',pg_temp.u(24)),
+ (pg_temp.u(64),pg_temp.u(1),pg_temp.u(41),'SI-ACT-4','Synthetic Track A','IMPORTED_SURVEY',pg_temp.u(24));
+INSERT INTO pathways.activity_journey_stage_mappings(organization_id,project_id,activity_id,stage_id,sequence_order,created_by_id) VALUES
+ (pg_temp.u(1),pg_temp.u(41),pg_temp.u(62),pg_temp.u(412),1,pg_temp.u(24)),
+ (pg_temp.u(1),pg_temp.u(41),pg_temp.u(63),pg_temp.u(413),2,pg_temp.u(24)),
+ (pg_temp.u(1),pg_temp.u(41),pg_temp.u(64),pg_temp.u(414),3,pg_temp.u(24));
+INSERT INTO pathways.digital_forms(id,organization_id,project_id,code,version,name,form_type,status,activity_id,journey_stage_id,published_by_id,published_at) VALUES
+ (pg_temp.u(95),pg_temp.u(1),pg_temp.u(41),'SI_LST',1,'LST','TRAINING_SURVEY','PUBLISHED',pg_temp.u(62),pg_temp.u(412),pg_temp.u(22),now()),
+ (pg_temp.u(96),pg_temp.u(1),pg_temp.u(41),'SI_PRE',1,'Pre-Training','TRAINING_SURVEY','PUBLISHED',pg_temp.u(63),pg_temp.u(413),pg_temp.u(22),now()),
+ (pg_temp.u(97),pg_temp.u(1),pg_temp.u(41),'SI_TRACK_A',1,'Track A','TRAINING_SURVEY','PUBLISHED',pg_temp.u(64),pg_temp.u(414),pg_temp.u(22),now());
+-- One processing batch per stage form (120 to 122) with the rows of the people below.
+INSERT INTO pathways.data_import_batches(id,organization_id,project_id,form_id,form_version,original_file_name,uploaded_by_id,status,
+ storage_status,validated_at,reviewed_by_id,mapping_revision,validated_mapping_revision,processing_claim_id,processing_claimed_at,
+ source_checksum,storage_bucket,storage_object_key)
+SELECT pg_temp.u(119+n),pg_temp.u(1),pg_temp.u(41),pg_temp.u(94+n),1,'synthetic.csv',pg_temp.u(21),'PROCESSING','STORED',now(),pg_temp.u(21),0,0,
+ pg_temp.u(990),now(),repeat('e',64),'imports','synthetic/'||(119+n) FROM generate_series(1,3) n;
+-- Rows 131 and 132 (LST), 133 and 134 (Pre-Training), 135 and 136 (track A); people 71 and 72, row 136 has no survey.
+INSERT INTO pathways.data_import_rows(id,organization_id,project_id,form_id,import_batch_id,row_number,raw_data,status,normalized_data,
+ validated_by_id,validated_at,processing_claim_id,processing_claimed_at,source_checksum)
+SELECT pg_temp.u(130+n),pg_temp.u(1),pg_temp.u(41),pg_temp.u(CASE WHEN n<=2 THEN 95 WHEN n<=4 THEN 96 ELSE 97 END),
+ pg_temp.u(CASE WHEN n<=2 THEN 120 WHEN n<=4 THEN 121 ELSE 122 END),n,'{}','PROCESSING','{}',pg_temp.u(21),now(),pg_temp.u(990),now(),repeat('f',64)
+FROM generate_series(1,6) n;
+SET LOCAL session_replication_role = origin;
+
+-- Each stage is written the way the stage promoter writes it: a survey naming the person, its validation, one participation
+-- sourced from it and one journey event of that participation. Person 71 is given the later stage first.
+CREATE FUNCTION pg_temp.stage_sql(sub_n integer, row_n integer, batch_n integer, ben_n integer, form_n integer, enrollment_n integer,
+ activity_n integer, stage_n integer, day date) RETURNS text LANGUAGE sql AS $$
+ SELECT pg_temp.sub_sql(sub_n,row_n,batch_n,ben_n,form_n,22)||';'||
+ format($i$UPDATE pathways.form_submissions SET status='VALIDATED',submitted_at=now(),validated_by_id=%L,validated_at=now() WHERE id=%L;
+  INSERT INTO pathways.beneficiary_activity_participations(id,organization_id,project_id,enrollment_id,activity_id,attendance_status,
+   progress_status,participation_date,source_submission_id,recorded_by_id)
+   VALUES(%L,%L,%L,%L,%L,'PRESENT','IN_PROGRESS',%L,%L,%L);
+  INSERT INTO pathways.beneficiary_journey_events(id,organization_id,project_id,enrollment_id,activity_id,stage_id,participation_id,
+   event_type,event_date,description,recorded_by_id) VALUES(%L,%L,%L,%L,%L,%L,%L,'PARTICIPATION',%L,'recorded',%L)$i$,
+  pg_temp.u(22),pg_temp.u(sub_n),pg_temp.u(sub_n+200),pg_temp.u(1),pg_temp.u(41),pg_temp.u(enrollment_n),pg_temp.u(activity_n),day,
+  pg_temp.u(sub_n),pg_temp.u(22),pg_temp.u(sub_n+300),pg_temp.u(1),pg_temp.u(41),pg_temp.u(enrollment_n),pg_temp.u(activity_n),
+  pg_temp.u(stage_n),pg_temp.u(sub_n+200),day,pg_temp.u(22))
+$$;
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.act_as(12,22);
+SELECT pg_temp.accepted('person 71 Pre-Training first', pg_temp.stage_sql(641,133,121,71,96,81,63,413,'2026-03-01'));
+SELECT pg_temp.accepted('person 71 LST second but dated earlier', pg_temp.stage_sql(642,131,120,71,95,81,62,412,'2026-02-01'));
+SELECT pg_temp.accepted('person 72 LST', pg_temp.stage_sql(643,132,120,72,95,82,62,412,'2026-02-01'));
+SELECT pg_temp.accepted('person 72 Pre-Training', pg_temp.stage_sql(644,134,121,72,96,82,63,413,'2026-03-01'));
+SELECT pg_temp.accepted('person 72 track A only', pg_temp.stage_sql(645,135,122,72,97,82,64,414,'2026-04-01'));
+-- The current stage follows the latest stage date, not the order the stages were imported in.
+SELECT pg_temp.ok('current stage follows the latest stage date', EXISTS(
+ SELECT FROM pathways.p05_beneficiary_progress(pg_temp.u(1),pg_temp.u(41),ARRAY[pg_temp.u(81),pg_temp.u(82)])
+ WHERE enrollment_id=pg_temp.u(81) AND stage_code='SI_PRE_TRAINING' AND participation_date='2026-03-01'));
+-- Two tracks branch from Pre-Training; a person on track A who took every stage they could has reached the whole path.
+SELECT pg_temp.ok('track branch counts once in progress', EXISTS(
+ SELECT FROM pathways.p05_beneficiary_progress(pg_temp.u(1),pg_temp.u(41),ARRAY[pg_temp.u(81),pg_temp.u(82)])
+ WHERE enrollment_id=pg_temp.u(82) AND path_length=4 AND reached=3
+  AND least(100,round(((reached+1)::numeric/path_length)*100))=100));
+
+-- A stage row that added its survey may become processed; one that added nothing (an unchanged stage) is refused at commit.
+UPDATE pathways.data_import_rows SET status='PROCESSED',processed_at=now(),processing_claim_id=NULL,processing_claimed_at=NULL,
+ registration_outcome='CREATED' WHERE id=pg_temp.u(131);
+SELECT pg_temp.accepted('processed stage row with its survey', 'SET CONSTRAINTS ALL IMMEDIATE');
+SET CONSTRAINTS ALL DEFERRED;
+UPDATE pathways.data_import_rows SET status='PROCESSED',processed_at=now(),processing_claim_id=NULL,processing_claimed_at=NULL,
+ registration_outcome='UNCHANGED',matched_beneficiary_id=pg_temp.u(71) WHERE id=pg_temp.u(136);
+SELECT pg_temp.refused('processed unchanged stage row without a survey', 'SET CONSTRAINTS ALL IMMEDIATE','P0001','Processed row requires one normalized submission');
+RESET SESSION AUTHORIZATION;
+
 SELECT 'STAGE_IMPORT_RUNTIME=PASS ('||current_setting('si.passed')||')' AS result \gset
 ROLLBACK;
 \echo :result

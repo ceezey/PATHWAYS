@@ -3,16 +3,18 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { requireBatchWithHeaders } from './import-batches.service'
-import type {
-  PromotionContext,
-  PromotionHandlers,
-  PromotionKind,
+import {
+  type PromotionContext,
+  type PromotionHandlers,
+  type PromotionKind,
+  loadPromotionContext,
 } from './import-promotion-context.service'
 import {
   promoteGenericInTx,
   promoteParticipationInTx,
   promoteRegistrationInTx,
 } from './import-row-promotion.service'
+import { promoteStageInTx } from './import-stage-promotion.service'
 
 /**
  * Promotes up to processingCheckpointRows claimed rows in one verified transaction.
@@ -69,6 +71,8 @@ export async function promoteChunkRows(
       await promoteRegistrationInTx(tx, actor, promotion, context, rowId, claimId)
     } else if (kind === 'PARTICIPATION') {
       await promoteParticipationInTx(tx, actor, promotion, context, rowId, claimId)
+    } else if (kind === 'STAGE') {
+      await promoteStageInTx(tx, actor, context, rowId, claimId)
     } else {
       await promoteGenericInTx(tx, actor, context, rowId, claimId)
     }
@@ -134,6 +138,32 @@ export async function promoteClaimedParticipationRow(
     rowId,
     claimId,
   )
+}
+
+export async function promoteClaimedStageRow(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  promotion: PromotionHandlers,
+  projectId: string,
+  batchId: string,
+  rowId: string,
+  claimId: string,
+  validationRevision: number,
+) {
+  const batch = await requireBatchWithHeaders(tx, actor, projectId, batchId)
+  if (
+    batch.status !== 'PROCESSING' ||
+    batch.processingClaimId !== claimId ||
+    batch.validationRevision !== validationRevision ||
+    batch.validatedMappingRevision !== batch.mappingRevision ||
+    !batch.reviewedById ||
+    !batch.parentBatchId
+  ) {
+    throw new ConflictException('The stage processing claim is stale.')
+  }
+  const context = await loadPromotionContext(tx, actor, promotion, batch)
+  if (!context) throw new ConflictException('The stage form version is unavailable.')
+  await promoteStageInTx(tx, actor, context, rowId, claimId)
 }
 
 export async function promoteClaimedGenericRow(
