@@ -178,7 +178,7 @@ export const importRowsPageResponse = z.object({
 })
 export type ImportRowsPageResponse = z.infer<typeof importRowsPageResponse>
 
-// Body of POST imports/projects/:projectId/batches/:batchId/parts/:partCode/draft-form.
+// Body of POST metadata/projects/:projectId/forms/drafts/from-stage/:batchId/:partCode.
 export const draftStageFormResponse = z.object({
   formId: z.string().nullable(),
   stageId: z.string(),

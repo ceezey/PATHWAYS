@@ -84,7 +84,7 @@ export type AutomaticImportMappingRequest = z.infer<typeof automaticImportMappin
 export const rerunImportRequest = z.object({ formId: uuidString }).strict()
 export type RerunImportRequest = z.infer<typeof rerunImportRequest>
 
-// Body of POST imports/projects/:projectId/batches/:batchId/parts/:partCode/draft-form.
+// Body of POST metadata/projects/:projectId/forms/drafts/from-stage/:batchId/:partCode.
 export const draftStageFormRequest = z.object({ activityId: uuidString.optional() }).strict()
 export type DraftStageFormRequest = z.infer<typeof draftStageFormRequest>
 

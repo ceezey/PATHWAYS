@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FormDefinitionExportService } from './form-definition-export.service'
+import { FormDraftFromStageService } from './form-draft-from-stage.service'
 import { MetadataController } from './metadata.controller'
 import { MetadataService } from './metadata.service'
 
@@ -38,6 +39,7 @@ beforeAll(async () => {
     providers: [
       { provide: MetadataService, useValue: metadata },
       { provide: FormDefinitionExportService, useValue: {} },
+      { provide: FormDraftFromStageService, useValue: {} },
     ],
   }).compile()
   app = module.createNestApplication({ logger: false })

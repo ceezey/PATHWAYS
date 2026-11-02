@@ -1,12 +1,21 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 import {
   type DraftColumn,
   FormDraftError,
   type SupportedImportFileType,
   draftStageForm,
+  parseSecureImport,
   selectPartColumns,
 } from '@pathways/imports/server'
 import {
+  type DraftStageFormRequest,
   type DraftStageFormResponse,
   type FilePart,
   filePart,
@@ -14,12 +23,16 @@ import {
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
-import { insertDraft } from '../metadata/form-definitions.service'
-import { assertDefinition } from '../metadata/metadata.helpers'
-import { requireBatchWithHeaders } from './import-batches.service'
+import { PrismaService } from '../../prisma/prisma.service'
+import { requireBatchWithHeaders } from '../imports/import-batches.service'
+import { checksum } from '../imports/imports.helpers'
+import { StorageService } from '../storage/storage.service'
+import { insertDraft } from './form-definitions.service'
+import { assertDefinition } from './metadata.helpers'
 
 const usableActivity = { archivedAt: null, status: { not: 'CANCELLED' } } as const
 const normalizedName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase()
@@ -269,4 +282,59 @@ export async function draftPartForm(
     drafted.summary,
   )
   return { formId: form.id, stageId, waitingForActivity: false }
+}
+
+// Stage drafts read the stored file of an import batch; imports never import metadata, so the route lives here.
+@Injectable()
+export class FormDraftFromStageService {
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(StorageService) private readonly storage: StorageService,
+  ) {}
+
+  /** Drafts the survey form of one part of a stored file, reading the part's own columns from the stored source. */
+  async draft(
+    identity: ApplicationIdentity,
+    projectId: string,
+    batchId: string,
+    partCode: string,
+    input: DraftStageFormRequest,
+  ) {
+    const source = await withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'forms.manage',
+      (tx, actor) => readPartSource(tx, actor, projectId, batchId, partCode),
+    )
+    if (!this.storage.isConfigured()) {
+      throw new ServiceUnavailableException('Private upload storage is not configured.')
+    }
+    let buffer: Buffer
+    try {
+      buffer = await this.storage.downloadPrivateFile(source.storageBucket, source.storageObjectKey)
+    } catch {
+      throw new ServiceUnavailableException('The private source object is unavailable.')
+    }
+    if (checksum(buffer) !== source.sourceChecksum) {
+      throw new ConflictException('The stored source checksum does not match its reservation.')
+    }
+    const parsed = await parseSecureImport(buffer, source.fileType, {}, source.sourceSheetName)
+    const columns = partColumns(parsed, source.part)
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'forms.manage',
+      (tx, actor) =>
+        draftPartForm(tx, actor, {
+          projectId,
+          batchId: source.batchId,
+          part: source.part,
+          parts: source.parts,
+          columns,
+          uploadDate: source.uploadDate,
+          activityId: input.activityId,
+        }),
+      { transactionTimeoutMs: 30_000 },
+    )
+  }
 }

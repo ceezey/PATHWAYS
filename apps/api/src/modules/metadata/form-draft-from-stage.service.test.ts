@@ -11,7 +11,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import type { StorageService } from '../storage/storage.service'
-import { ImportsService } from './imports.service'
+import { FormDraftFromStageService } from './form-draft-from-stage.service'
 
 const state = vi.hoisted(() => ({
   actor: undefined as unknown as ApplicationIdentity,
@@ -70,17 +70,37 @@ type StoredForm = Record<string, unknown> & {
   importDraftSummary: { needsCheck: unknown[] }
 }
 
+type Scope = { organizationId: string; projectId: string }
+type FormWhere = Partial<Scope> & {
+  id?: string
+  code?: string
+  status?: { in: string[] }
+  formField_form?: { some: { code: string; sourceNames: { has: string } } }
+}
+// Like Prisma, a filter the query leaves out matches every row, so a service that drops one is caught.
+const inScope = (row: Record<string, unknown>, where: Partial<Scope>) =>
+  (where.organizationId === undefined || row.organizationId === where.organizationId) &&
+  (where.projectId === undefined || row.projectId === where.projectId)
+
 // An in-memory store behind just the Prisma calls the stage draft makes.
 function fakeStore() {
   type Stage = Record<string, unknown> & { id: string; name: string; stageOrder: number }
   const stages: Stage[] = []
   const activities = new Map<string, Record<string, unknown>>([
-    [activityId, { projectId, status: 'NOT_STARTED', archivedAt: null }],
-    [secondActivityId, { projectId, status: 'IN_PROGRESS', archivedAt: null }],
-    [foreignActivityId, { projectId: otherProjectId, status: 'NOT_STARTED', archivedAt: null }],
-    [cancelledActivityId, { projectId, status: 'CANCELLED', archivedAt: null }],
+    [activityId, { organizationId, projectId, status: 'NOT_STARTED', archivedAt: null }],
+    [secondActivityId, { organizationId, projectId, status: 'IN_PROGRESS', archivedAt: null }],
+    [
+      foreignActivityId,
+      { organizationId, projectId: otherProjectId, status: 'NOT_STARTED', archivedAt: null },
+    ],
+    [cancelledActivityId, { organizationId, projectId, status: 'CANCELLED', archivedAt: null }],
   ])
-  const mappings: Array<{ activityId: string; stageId: string }> = []
+  const mappings: Array<{
+    organizationId: string
+    projectId: string
+    activityId: string
+    stageId: string
+  }> = []
   const forms = new Map<string, StoredForm>()
   const audits: Array<{ data: Record<string, unknown> & { changes: unknown } }> = []
   const batch = (id: string, owner: string, patch: Record<string, unknown> = {}) => ({
@@ -120,9 +140,11 @@ function fakeStore() {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => batches.get(where.id)),
     },
     journeyStage: {
-      findMany: vi.fn(async () => stages),
-      findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
-        stages.find((stage) => stage.id === where.id && !stage.archivedAt),
+      findMany: vi.fn(async ({ where }: { where: Scope }) =>
+        stages.filter((stage) => inScope(stage, where)),
+      ),
+      findFirst: vi.fn(async ({ where }: { where: Scope & { id: string } }) =>
+        stages.find((stage) => stage.id === where.id && inScope(stage, where)),
       ),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         const stage = {
@@ -139,9 +161,9 @@ function fakeStore() {
       findFirst: vi.fn(
         async ({
           where,
-        }: { where: { id: string; archivedAt: null; status?: { not: string } } }) => {
+        }: { where: Scope & { id: string; archivedAt: null; status?: { not: string } } }) => {
           const row = activities.get(where.id)
-          const usable = row && row.projectId === projectId && row.archivedAt === null
+          const usable = row && inScope(row, where) && row.archivedAt === where.archivedAt
           return usable && (!where.status || row.status !== where.status.not)
             ? { id: where.id }
             : null
@@ -149,35 +171,37 @@ function fakeStore() {
       ),
     },
     activityJourneyStageMapping: {
-      findMany: vi.fn(async ({ where }: { where: { stageId: string; activity?: unknown } }) =>
-        mappings.filter(
-          (mapping) =>
-            mapping.stageId === where.stageId &&
-            (!where.activity || activities.get(mapping.activityId)?.status !== 'CANCELLED'),
-        ),
+      findMany: vi.fn(
+        async ({ where }: { where: Scope & { stageId: string; activity?: unknown } }) =>
+          mappings.filter(
+            (mapping) =>
+              inScope(mapping, where) &&
+              mapping.stageId === where.stageId &&
+              (!where.activity || activities.get(mapping.activityId)?.status !== 'CANCELLED'),
+          ),
       ),
-      create: vi.fn(async ({ data }: { data: { activityId: string; stageId: string } }) => {
+      create: vi.fn(async ({ data }: { data: (typeof mappings)[number] }) => {
         mappings.push(data)
         return data
       }),
     },
     digitalForm: {
-      findFirst: vi.fn(
-        async ({ where }: { where: { id?: string; code?: string; formField_form?: unknown } }) => {
-          const all = [...forms.values()]
-          if (where.id) return forms.get(where.id) ?? null
-          if (where.formField_form) {
-            const found = all.find((form) =>
+      findFirst: vi.fn(async ({ where }: { where: FormWhere }) => {
+        const match = [...forms.values()].filter(
+          (form) =>
+            inScope(form, where) &&
+            (!where.id || form.id === where.id) &&
+            (!where.code || form.code === where.code) &&
+            (!where.status || where.status.in.includes(form.status as string)) &&
+            (!where.formField_form ||
               form.formField_form.some(
                 (field) =>
-                  field.code === 'stage_date' && field.sourceNames.includes(currentPartCode()),
-              ),
-            )
-            return found ?? null
-          }
-          return all.find((form) => form.code === where.code) ?? null
-        },
-      ),
+                  field.code === where.formField_form?.some.code &&
+                  field.sourceNames.includes(where.formField_form.some.sourceNames.has),
+              )),
+        )
+        return match.at(-1) ?? null
+      }),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         const id = `70000000-0000-4000-8000-00000000000${forms.size + 1}`
         forms.set(id, {
@@ -208,13 +232,9 @@ function fakeStore() {
   return { tx, stages, activities, mappings, forms, audits, batches }
 }
 
-// The part the running test drafts, read by the fake form lookup.
-let partInUse = ''
-const currentPartCode = () => partInUse
-
 describe('draft the stage forms of a participant file', () => {
   let store: ReturnType<typeof fakeStore>
-  let service: ImportsService
+  let service: FormDraftFromStageService
   const storage = { isConfigured: vi.fn(() => true), downloadPrivateFile: vi.fn() }
   const draft = (
     index: number,
@@ -222,21 +242,17 @@ describe('draft the stage forms of a participant file', () => {
     batch = batchId,
     code = parts[index].code,
   ) => {
-    partInUse = code
-    return service.draftStageForm(state.actor, projectId, batch, code, body)
+    return service.draft(state.actor, projectId, batch, code, body)
   }
 
   beforeEach(() => {
-    vi.stubEnv('UPLOADS_BUCKET', 'uploads')
     store = fakeStore()
     state.tx = store.tx as unknown as Tx
     state.actor = identity()
     storage.downloadPrivateFile.mockReset().mockResolvedValue(csv)
-    service = new ImportsService(
+    service = new FormDraftFromStageService(
       {} as PrismaService,
       storage as unknown as StorageService,
-      {} as never,
-      {} as never,
     )
   })
 
@@ -253,7 +269,7 @@ describe('draft the stage forms of a participant file', () => {
 
   it("drafts once a Project Manager's activity is mapped to the stage", async () => {
     const waiting = await draft(0)
-    store.mappings.push({ activityId, stageId: waiting.stageId })
+    store.mappings.push({ organizationId, projectId, activityId, stageId: waiting.stageId })
     const result = await draft(0)
     expect(result).toMatchObject({ stageId: waiting.stageId, waitingForActivity: false })
     expect(store.stages).toHaveLength(1)
@@ -283,6 +299,8 @@ describe('draft the stage forms of a participant file', () => {
   it('reuses a journey stage with the same name', async () => {
     store.stages.push({
       id: 'b1000000-0000-4000-8000-0000000000aa',
+      organizationId,
+      projectId,
       name: ' lst  SURVEY ',
       stageOrder: 4,
     })
@@ -322,8 +340,13 @@ describe('draft the stage forms of a participant file', () => {
 
   it('stage mapped to two activities waits for a choice', async () => {
     const waiting = await draft(0)
-    store.mappings.push({ activityId, stageId: waiting.stageId })
-    store.mappings.push({ activityId: secondActivityId, stageId: waiting.stageId })
+    store.mappings.push({ organizationId, projectId, activityId, stageId: waiting.stageId })
+    store.mappings.push({
+      organizationId,
+      projectId,
+      activityId: secondActivityId,
+      stageId: waiting.stageId,
+    })
     expect(await draft(0)).toEqual({
       formId: null,
       stageId: waiting.stageId,
