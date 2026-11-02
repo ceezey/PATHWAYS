@@ -155,3 +155,21 @@ export async function requireAllPartsStarted(
     throw new ConflictException('Start every survey in this file first.')
   }
 }
+
+/** Holds a survey part back until every part of its file has a batch, so no survey runs while a sibling is still unstarted. */
+export async function requireSiblingPartsStarted(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: { parentBatchId: string | null; projectId: string },
+) {
+  if (!batch.parentBatchId) return
+  const parent = await tx.dataImportBatch.findFirst({
+    where: {
+      id: batch.parentBatchId,
+      organizationId: actor.organizationId,
+      projectId: batch.projectId,
+    },
+    select: { id: true, fileParts: true },
+  })
+  if (parent) await requireAllPartsStarted(tx, actor, parent)
+}

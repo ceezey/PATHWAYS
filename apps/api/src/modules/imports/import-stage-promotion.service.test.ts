@@ -152,6 +152,8 @@ function fakeTx(): Tx {
     dataImportBatch: {
       findFirst: async ({ where }: { where: Rec }) => find(store.batches, where),
       findUnique: async ({ where }: { where: Rec }) => find(store.batches, where),
+      findMany: async ({ where }: { where: Rec }) =>
+        store.batches.filter((item) => matches(item, where)),
       update: async ({ where, data }: { where: Rec; data: Rec }) =>
         apply(find(store.batches, where) as Rec, data),
     },
@@ -966,6 +968,28 @@ describe('claiming a stage batch', () => {
 
   it('a stage row with no registration row does not wait', async () => {
     store.rows = store.rows.filter((row) => row.importBatchId !== parentId)
+    expect(await claimStage()).toMatchObject({ rowIds: ['row-1'] })
+  })
+
+  it('a survey is refused while a sibling survey of its file has no batch', async () => {
+    store.rows = store.rows.filter((row) => row.importBatchId !== parentId)
+    const part = (code: string) => ({
+      code,
+      name: code,
+      firstColumn: 1,
+      lastColumn: 2,
+      rows: 1,
+      branchOf: null,
+    })
+    ;(store.batches[0] as Rec).fileParts = [part('lst'), part('other')]
+    await expect(claimStage()).rejects.toThrow('Start every survey in this file first.')
+    expect(rowOf()).toMatchObject({ status: 'VALID' })
+    store.batches.push(
+      batchRecord('50000000-0000-4000-8000-000000000099', {
+        partCode: 'other',
+        parentBatchId: parentId,
+      }),
+    )
     expect(await claimStage()).toMatchObject({ rowIds: ['row-1'] })
   })
 

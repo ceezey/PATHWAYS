@@ -7,7 +7,7 @@ import type { Tx } from '../../common/prisma/transaction'
 import { currentBusinessDate } from '../../common/time/business-date'
 import type { requireBatchWithHeaders } from './import-batches.service'
 import { reconcileBatch } from './import-claims.service'
-import { requireSurveyImportPermissions } from './import-parts.service'
+import { requireSiblingPartsStarted, requireSurveyImportPermissions } from './import-parts.service'
 import { type TotalScoreRule, loadStageContext } from './import-promotion-context.service'
 import {
   type HeldRow,
@@ -127,8 +127,15 @@ export async function loadHeldStageRow(
   const uploadDate = currentBusinessDate(batch.createdAt)
   const { values: file, source } = await readFileValues(tx, actor, batch, row, fields, uploadDate)
   const person = await findStagePerson(tx, actor, context, row.rowNumber, file)
+  const firstError = (row.validationErrors as Array<{ code?: string }>)[0]?.code
+  const reason = (row.status === 'UNPROCESSED' ? row.processingErrorCode : firstError) ?? 'UNKNOWN'
+  // The person found by ID is shown only when the row is theirs: not on an identity hold, nor before its registration row is processed.
+  const theirs =
+    reason !== 'STAGE_IDENTITY_MISMATCH' && (!person.parent || person.parent.status === 'PROCESSED')
   const beneficiaryId =
-    person.known && person.profile && person.enrollment ? person.known.beneficiaryId : null
+    theirs && person.known && person.profile && person.enrollment
+      ? person.known.beneficiaryId
+      : null
   const stored = beneficiaryId
     ? await readStageBaseline(tx, actor, batch.projectId, stageForm.code, beneficiaryId)
     : null
@@ -138,8 +145,6 @@ export async function loadHeldStageRow(
     beneficiaryId && differing.length > 0
       ? await splitRejected(tx, actor, beneficiaryId, differing, file)
       : { kept: [], rejected: [] }
-  const firstError = (row.validationErrors as Array<{ code?: string }>)[0]?.code
-  const reason = (row.status === 'UNPROCESSED' ? row.processingErrorCode : firstError) ?? 'UNKNOWN'
   const { invalid, unusable } = invalidFields(row, fieldRows, file, source)
   if (dateHolds.has(reason)) invalid.add('stage_date')
   return {
@@ -209,6 +214,7 @@ export async function resolveHeldStage(
   if (identifierOf(resolution.values) !== identifierOf(held.file)) {
     throw identifierError('identifier_locked', 'The client ID is how the participant is found.')
   }
+  await requireSiblingPartsStarted(tx, actor, batch)
   const parent = await tx.dataImportRow.findFirst({
     where: {
       organizationId: actor.organizationId,

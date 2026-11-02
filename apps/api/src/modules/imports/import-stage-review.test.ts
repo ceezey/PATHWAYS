@@ -184,6 +184,8 @@ const fakeTx = {
   dataImportBatch: {
     findFirst: async ({ where }: { where: Rec }) => find(store.batches, where),
     findUnique: async ({ where }: { where: Rec }) => find(store.batches, where),
+    findMany: async ({ where }: { where: Rec }) =>
+      store.batches.filter((item) => matches(item, where)),
     update: wrote('batch.update', async ({ where, data }: { where: Rec; data: Rec }) => {
       const batch = find(store.batches, where) as Rec
       if (data.status === 'PROCESSING' && data.processedAt !== null) {
@@ -601,6 +603,21 @@ describe('review of a held stage', () => {
     ])
   })
 
+  it("shows nothing of another person's profile on an identity hold", async () => {
+    const result = await review(identityRow)
+    expect(result.reason).toBe('STAGE_IDENTITY_MISMATCH')
+    expect(result.participant).toBeNull()
+    expect(result.fields.every((item) => item.pathways === null)).toBe(true)
+  })
+
+  it('shows nothing of the person found by ID while the registration row is not processed', async () => {
+    ;(find(store.rows, { importBatchId: parentId, rowNumber: 2 }) as Rec).status = 'UNPROCESSED'
+    const result = await review(scoreRow)
+    expect(result.reason).toBe('TOTAL_SCORE_MISMATCH')
+    expect(result.participant).toBeNull()
+    expect(result.fields.every((item) => item.pathways === null)).toBe(true)
+  })
+
   it('a stage without a total score rule shows no answers', async () => {
     const plain = stageFields.find((item) => item.code === 'total_score') as Rec
     plain.rule = null
@@ -761,6 +778,26 @@ describe('resolving a held stage', () => {
     // Ben had no stage before, so the first one starts his participation.
     expect(store.participations.at(-1)).toMatchObject({ enrollmentId: benEnrollmentId })
     expect(store.events.at(-1)).toMatchObject({ enrollmentId: benEnrollmentId, stageId })
+  })
+
+  it('a survey row cannot be resolved while a sibling survey of its file has no batch', async () => {
+    const part = (code: string) => ({
+      code,
+      name: code,
+      firstColumn: 1,
+      lastColumn: 2,
+      rows: 1,
+      branchOf: null,
+    })
+    ;(find(store.batches, { id: parentId }) as Rec).fileParts = [part('lst'), part('other')]
+
+    await expect(
+      resolve(scoreRow, { choices: { total_score: 'CALCULATED' } }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: { message: 'Start every survey in this file first.' },
+    })
+    expect(written).toEqual([])
   })
 
   it('a survey row cannot be resolved while its registration row is held', async () => {

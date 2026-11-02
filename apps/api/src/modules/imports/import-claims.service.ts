@@ -14,7 +14,11 @@ import {
   requireBatchWithHeaders,
   waitsForParent,
 } from './import-batches.service'
-import { requireAllPartsStarted, requireSurveyImportPermissions } from './import-parts.service'
+import {
+  requireAllPartsStarted,
+  requireSiblingPartsStarted,
+  requireSurveyImportPermissions,
+} from './import-parts.service'
 import {
   MATCH_BY_IDENTIFIER_REFUSAL,
   type PromotionContext,
@@ -44,8 +48,10 @@ export async function claimBatchRows(
   await lockBatch(tx, actor, projectId, batchId)
   const batch = await requireBatchWithHeaders(tx, actor, projectId, batchId)
   // A survey writes participation and assessments, and a file's registration waits for its surveys to be started.
-  if (batch.partCode) requireSurveyImportPermissions(actor)
-  else await requireAllPartsStarted(tx, actor, batch)
+  if (batch.partCode) {
+    requireSurveyImportPermissions(actor)
+    await requireSiblingPartsStarted(tx, actor, batch)
+  } else await requireAllPartsStarted(tx, actor, batch)
   if (
     batch.validationRevision !== input.expectedValidationRevision ||
     batch.validatedMappingRevision !== batch.mappingRevision
