@@ -60,8 +60,10 @@ export function displayValue(value: unknown) {
   return text.length > 80 ? `${text.slice(0, 77)}...` : text
 }
 
+const scoreMismatch = 'The total score does not match the answer key'
+
 // Plain words for why a row is held; a Record keeps every hold code covered.
-const holdReasons: Record<ImportHoldCode, string> = {
+const holdReasons: Record<ImportHoldCode | 'TOTAL_SCORE_MISMATCH', string> = {
   CONSENT_REQUIRED: 'Consent is missing',
   GUARDIAN_CONSENT_REQUIRED: 'Under 18, waiting for guardian approval',
   AMBIGUOUS_IDENTITY: 'More than one participant could match',
@@ -74,11 +76,12 @@ const holdReasons: Record<ImportHoldCode, string> = {
   PROFILE_CHANGED: 'Values differ from PATHWAYS',
   IDENTITY_CONFLICT: 'Client ID belongs to a participant with different details',
   IDENTITY_MISSING: 'Client ID is missing',
-  STAGE_CHANGED: 'Values differ from this stage in PATHWAYS',
-  STAGE_DATE_MISSING: 'The stage date is missing',
-  STAGE_DATE_OUTSIDE_ENROLLMENT: 'The stage date is outside the enrollment period',
-  STAGE_IDENTITY_MISMATCH: 'The participant does not match the profile',
-  STAGE_CONSENT_MISSING: 'Consent is missing for this stage',
+  STAGE_CHANGED: 'Answers differ from PATHWAYS',
+  STAGE_DATE_MISSING: 'This survey has answers but no date',
+  STAGE_DATE_OUTSIDE_ENROLLMENT: "The survey date is outside this person's enrollment",
+  STAGE_IDENTITY_MISMATCH: "The name or ID differs from the participant's profile",
+  STAGE_CONSENT_MISSING: 'Consent is not recorded for this survey. Upload a corrected file.',
+  TOTAL_SCORE_MISMATCH: scoreMismatch,
 }
 
 const identityFields = ['first_name', 'last_name', 'birth_date', 'external_identifier_value']
@@ -104,6 +107,7 @@ const validationReasons: Record<string, string> = {
   CALCULATION_MISMATCH: 'File value does not match the calculated value',
   DUPLICATE_BUSINESS_KEY: 'This row repeats another row in the file',
   IDENTITY_CONFLICT: 'Client ID is used more than once',
+  TOTAL_SCORE_MISMATCH: scoreMismatch,
 }
 
 /** The plain reason for a real hold code, or undefined for any other code. */

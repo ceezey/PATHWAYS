@@ -170,6 +170,26 @@ describe('activitiesClient activity requests', () => {
     expect(isCurrent).toBe(context.isCurrent)
   })
 
+  it('sends the activity type when one is given', async () => {
+    request.requestFoundation.mockImplementation(acknowledge(false))
+    await client.createActivity(
+      {
+        projectId,
+        title: 'Survey stage',
+        description: '',
+        activityType: 'SURVEY',
+        startDate: '2026-03-01',
+        dueDate: '2026-04-01',
+        assignedUserIds: [],
+      },
+      context,
+    )
+    expect(JSON.parse(request.requestFoundation.mock.calls[0][1].body)).toMatchObject({
+      activityType: 'SURVEY',
+      assignedUserIds: [],
+    })
+  })
+
   it('refuses to create without a mutation context', async () => {
     await expect(
       client.createActivity({

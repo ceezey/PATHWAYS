@@ -97,3 +97,42 @@ export const importOutcomeMessage = (totals: {
   warnings: number
 }) =>
   `Imported ${totals.processed}. ${totals.unprocessed} held for review, ${totals.invalid} invalid, ${totals.warnings} with warnings.`
+
+/** What a person reads about the surveys in one client file. */
+export const fileParts = {
+  title: 'Surveys in this file',
+  description: 'Each survey needs a published form before the file can be processed.',
+  formState: { NONE: 'No form yet', DRAFT: 'Waiting to be published', PUBLISHED: 'Ready' },
+  counts: ['Created', 'Updated', 'Unchanged', 'Held', 'Waiting'],
+  activity: 'Activity',
+  activityLabel: (survey: string) => `Activity for ${survey}`,
+  waitingOption: 'Waiting for an activity',
+  prepare: 'Prepare survey forms',
+  needsActivity:
+    'This survey needs an activity. Choose one, or ask a Project Manager to create it on the Activities page.',
+  noFormReason:
+    'This survey has no form yet. Ask a Monitoring and Evaluation Officer or System Administrator to prepare it.',
+  openDraft: 'Open draft',
+  openDraftLabel: (survey: string) => `Open draft of ${survey}`,
+  process: 'Process file',
+  processWaiting: 'Process waiting',
+  waiting: (count: number) => `${count} waiting for their registration to be resolved`,
+  heldRows: 'Held rows',
+  showHeld: (survey: string) => `Show held rows of ${survey}`,
+  hideHeld: (survey: string) => `Hide held rows of ${survey}`,
+  uncovered: "This survey's form needs updating.",
+  prepareForm: 'Prepare form',
+  registrationFirst:
+    'The registration part needs its columns matched before the surveys can be processed.',
+  processed: 'The file was processed.',
+} as const
+
+/** Shown in the review window for a scored survey. */
+export const scoreAnswers = {
+  show: 'Show answers',
+  heads: ['Question', 'Answer', 'Key', 'Score'],
+  noAnswer: 'No answer',
+  anyAnswer: 'Any answer',
+  counted: 'Counted',
+  notCounted: 'Not counted',
+} as const

@@ -34,6 +34,7 @@ import {
   ChoiceCell,
   NotEditable,
   OwnValue,
+  ScoreAnswers,
   calculationHint,
   ownPayload,
 } from './import-review-cells'
@@ -363,6 +364,7 @@ export function ImportReviewDialog({
                 })}
               </TableBody>
             </Table>
+            {review.scoreDetail ? <ScoreAnswers detail={review.scoreDetail} /> : null}
           </>
         ) : null}
         {notice ? (

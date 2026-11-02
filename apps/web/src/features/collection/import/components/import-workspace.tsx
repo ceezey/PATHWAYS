@@ -21,6 +21,7 @@ import { ImportBatchSummary } from './import-batch-summary'
 import { ImportHeldList } from './import-held-list'
 import { ImportMappingCard } from './import-mapping-card'
 import { ImportOpenDraft } from './import-open-draft'
+import { ImportPartsCard } from './import-parts-card'
 import { ImportProcessingPanel } from './import-processing-panel'
 import { ImportRowsCard } from './import-rows-card'
 import { ImportUploadCard } from './import-upload-card'
@@ -156,7 +157,12 @@ function OwnedImportWorkspace({
                   intake={intake}
                   pending={pending}
                   batch={batch}
+                  onProcessWaiting={canProcess ? () => void process() : undefined}
                 />
+
+                {batch.fileParts?.length ? (
+                  <ImportPartsCard batch={batch} review={review} state={state} />
+                ) : null}
 
                 <ImportHeldList
                   batch={batch}

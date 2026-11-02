@@ -263,6 +263,7 @@ export interface CreateActivityInput {
   projectId: string
   title: string
   description: string
+  activityType?: string
   startDate: string
   dueDate: string
   timelineOverrideJustification?: string

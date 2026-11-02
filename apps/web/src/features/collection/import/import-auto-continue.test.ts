@@ -151,6 +151,25 @@ describe('automatic import processing', () => {
   })
 })
 
+describe('waiting rows', () => {
+  it('waiting rows count as handled', () => {
+    const batch = {
+      status: 'PARTIALLY_PROCESSED',
+      totals: {
+        rows: 10,
+        valid: 10,
+        invalid: 0,
+        processed: 6,
+        unprocessed: 0,
+        failed: 1,
+        waiting: 3,
+      },
+    } as ImportBatchDefinition
+    expect(importProcessingProgress(batch).handled).toBe(10)
+    expect(importProcessingComplete(batch)).toBe(true)
+  })
+})
+
 describe('processing failure note', () => {
   it('names a dropped connection in plain words and keeps a server reason as it is', () => {
     expect(processingFailureNote(new TypeError('Failed to fetch'))).toBe(

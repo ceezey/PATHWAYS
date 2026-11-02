@@ -274,4 +274,20 @@ describe('importsClient import requests', () => {
       if (!list) await expect(run(), name).resolves.toBe(sentinel)
     }
   })
+
+  it('starts a part of a stored file and drafts its stage form', async () => {
+    request.requestFoundation.mockResolvedValue({ id: 'child' })
+    await importsClient.startFilePart(projectId, batchId, 'survey a')
+    expect(request.requestFoundation).toHaveBeenLastCalledWith(
+      `${batchPath}/parts/survey%20a/start`,
+      { method: 'POST' },
+    )
+    await importsClient.draftStageForm(projectId, batchId, 'survey_a')
+    await importsClient.draftStageForm(projectId, batchId, 'survey_a', formId)
+    const [first, second] = request.requestFoundation.mock.calls.slice(-2)
+    const path = `/metadata/projects/${projectId}/forms/drafts/from-stage/${batchId}/survey_a`
+    expect(first[0]).toBe(path)
+    expect(JSON.parse(first[1].body)).toEqual({})
+    expect(JSON.parse(second[1].body)).toEqual({ activityId: formId })
+  })
 })

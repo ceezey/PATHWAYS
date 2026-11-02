@@ -52,3 +52,35 @@ describe('ImportBatchSummary re-run', () => {
     expect(screen.queryByRole('button', { name: 'Re-run import' })).toBeNull()
   })
 })
+
+describe('ImportBatchSummary waiting rows', () => {
+  afterEach(cleanup)
+
+  it('says how many rows wait and offers Process waiting', () => {
+    const onProcessWaiting = vi.fn()
+    render(
+      <ImportBatchSummary
+        batch={{ ...batch, totals: { ...batch.totals, waiting: 3 } }}
+        intake={{ rerun, rerunTarget: null }}
+        onProcessWaiting={onProcessWaiting}
+        pending={false}
+        review={{ loadBatch: vi.fn(), resume: vi.fn() }}
+      />,
+    )
+    expect(screen.getByText('3 waiting for their registration to be resolved')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Process waiting' }))
+    expect(onProcessWaiting).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no button to someone who cannot process', () => {
+    render(
+      <ImportBatchSummary
+        batch={{ ...batch, totals: { ...batch.totals, waiting: 3 } }}
+        intake={{ rerun, rerunTarget: null }}
+        pending={false}
+        review={{ loadBatch: vi.fn(), resume: vi.fn() }}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Process waiting' })).toBeNull()
+  })
+})
