@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
 import { excelSerialToIsoDate } from '../parser/excel-date'
+import { detectFileParts, registrationRange, selectPartColumns } from '../parser/file-parts'
 import { ImportParseError, type ImportSourceColumn, normalizeMatrix } from '../parser/matrix'
 import { normalizeNewlines } from '../parser/newlines'
 import { workbookGrid } from '../parser/workbook-grid'
@@ -69,15 +70,19 @@ export function readImportFile(
     }
     ;({ matrix, formulaGap, dateText } = grid)
   }
-  const { rows, sourceColumns } = normalizeMatrix(matrix)
-  // The header rows above the first data row, as normalizeMatrix counted them.
-  const headerRows = (rows[0]?.sourceRowNumber ?? 1) - 1
+  const whole = normalizeMatrix(matrix)
+  // A file with survey stages is checked on its registration columns only, as the server stages it.
+  const parts = detectFileParts(whole)
+  const { rows, sourceColumns } = parts.length
+    ? selectPartColumns(whole, registrationRange(parts))
+    : whole
+  const rowNumbers = rows.map((row) => row.sourceRowNumber)
   return {
     sourceColumns,
     rows: rows.map((row) => row.values),
-    rowNumbers: rows.map((row) => row.sourceRowNumber),
+    rowNumbers,
     formulaGap,
     shown: (rowIndex, key) =>
-      dateText[`${headerRows + rowIndex}:${Number(key.slice(7)) - 1}`] ?? null,
+      dateText[`${rowNumbers[rowIndex] - 1}:${Number(key.slice(7)) - 1}`] ?? null,
   }
 }

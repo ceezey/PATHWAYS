@@ -5,7 +5,7 @@ import {
   type SupportedImportFileType,
   type parseSecureImport,
 } from '@pathways/imports/server'
-import { type UploadImportRequest, hasAtomicPermission } from '@pathways/shared'
+import { type FilePart, type UploadImportRequest, hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -179,6 +179,7 @@ export async function stageUploadedRows(
   batchId: string,
   parsed: Awaited<ReturnType<typeof parseSecureImport>>,
   fault: W10FinalizationFault,
+  fileParts: FilePart[] = [],
 ) {
   await lockBatch(tx, actor, projectId, batchId)
   const batch = await requireBatchWithHeaders(tx, actor, projectId, batchId)
@@ -223,6 +224,7 @@ export async function stageUploadedRows(
     data: {
       storageStatus: 'STORED',
       sourceHeaders: parsed.sourceColumns as unknown as Prisma.InputJsonValue,
+      ...(fileParts.length ? { fileParts: fileParts as unknown as Prisma.InputJsonValue } : {}),
       status: 'UPLOADED',
       totalRows: parsed.rows.length,
       failureCode: null,

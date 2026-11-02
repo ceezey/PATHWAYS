@@ -12,7 +12,10 @@ import { readApiEnv } from '@pathways/config'
 import {
   IMPORT_ENGINEERING_LIMITS,
   ImportParseError,
+  detectFileParts,
   parseSecureImport,
+  registrationRange,
+  selectPartColumns,
 } from '@pathways/imports/server'
 import type {
   AutomaticImportMappingRequest,
@@ -448,14 +451,25 @@ export class ImportsService {
     identity: ApplicationIdentity,
     projectId: string,
     batchId: string,
-    parsed: Awaited<ReturnType<typeof parseSecureImport>>,
+    whole: Awaited<ReturnType<typeof parseSecureImport>>,
   ) {
+    // A file with survey stages stages only its registration columns; the stages are kept as parts.
+    const fileParts = detectFileParts(whole)
+    const parsed = fileParts.length ? selectPartColumns(whole, registrationRange(fileParts)) : whole
     return withAuthorizedOperation(
       this.prisma,
       identity,
       'imports.upload',
       (tx, actor) =>
-        stageUploadedRows(tx, actor, projectId, batchId, parsed, this.w10FinalizationFault),
+        stageUploadedRows(
+          tx,
+          actor,
+          projectId,
+          batchId,
+          parsed,
+          this.w10FinalizationFault,
+          fileParts,
+        ),
       { transactionTimeoutMs: STAGED_ROWS_TRANSACTION_TIMEOUT_MS },
     )
   }
