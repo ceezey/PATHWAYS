@@ -864,6 +864,15 @@ describe('promoteStageInTx', () => {
     expect(store.assessments[0]).toMatchObject({ score: 3 })
   })
 
+  it('a resolved row does not run ahead of a registration row that is still held', async () => {
+    ;(store.rows.find((row) => row.id === 'parent-1') as Rec).status = 'UNPROCESSED'
+    const code = await promote(1, { values: { ...stageRow }, beneficiaryId })
+    expect(code).toBe('STAGE_WAITING_FOR_REGISTRATION')
+    expect(rowOf()).toMatchObject({ status: 'PROCESSING' })
+    expect(store.audits).toHaveLength(0)
+    wroteNothing()
+  })
+
   it('a resolved row that finds another person than the reviewed one is held', async () => {
     const held = await promote(1, { values: { ...stageRow }, beneficiaryId: 'someone-else' })
     expect(held).toBe('STAGE_IDENTITY_MISMATCH')

@@ -763,6 +763,28 @@ describe('resolving a held stage', () => {
     expect(store.events.at(-1)).toMatchObject({ enrollmentId: benEnrollmentId, stageId })
   })
 
+  it('a survey row cannot be resolved while its registration row is held', async () => {
+    // Row 2 is the INVALID total score mismatch whose registration row is held.
+    const parent = find(store.rows, { importBatchId: parentId, rowNumber: 2 }) as Rec
+    parent.status = 'UNPROCESSED'
+
+    await expect(
+      resolve(scoreRow, { choices: { total_score: 'CALCULATED' } }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        message: 'This survey waits for its registration row. Resolve that row first.',
+      },
+    })
+    expect(written).toEqual([])
+    expect(rowOf(scoreRow)).toMatchObject({ status: 'INVALID' })
+
+    // A refused request is rolled back, which replaces the stored rows.
+    ;(find(store.rows, { importBatchId: parentId, rowNumber: 2 }) as Rec).status = 'PROCESSED'
+    await resolve(scoreRow, { choices: { total_score: 'CALCULATED' } })
+    expect(rowOf(scoreRow)).toMatchObject({ status: 'PROCESSED' })
+  })
+
   it('total score mismatch kept as the file has it stays invalid', async () => {
     await expect(resolve(scoreRow, { choices: { total_score: 'FILE' } })).rejects.toMatchObject({
       response: { errors: [expect.objectContaining({ code: 'TOTAL_SCORE_MISMATCH' })] },

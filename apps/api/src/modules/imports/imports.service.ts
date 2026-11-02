@@ -313,8 +313,7 @@ export class ImportsService {
       return await start()
     } catch (error) {
       // Two people pressing Start race on the part's unique key; the second takes the child the first made.
-      if (!(error instanceof ConflictException) && prismaDiagnosticCode(error) !== 'P2002')
-        throw error
+      if (prismaDiagnosticCode(error) !== 'P2002') throw error
       return start()
     }
   }

@@ -205,6 +205,8 @@ export async function promoteStageInTx(
   )
   // A registration row that failed will never create the person, so the stage row cannot wait for it.
   if (parent?.status === 'FAILED') return hold('STAGE_IDENTITY_MISMATCH')
+  // A reviewer's choice never runs ahead of the registration row, whose person it follows; nothing is written.
+  if (resolved && parent && parent.status !== 'PROCESSED') return 'STAGE_WAITING_FOR_REGISTRATION'
   if (!known || !profile || !enrollment) return hold('STAGE_IDENTITY_MISMATCH')
   if (resolved && known.beneficiaryId !== resolved.beneficiaryId) {
     return hold('STAGE_IDENTITY_MISMATCH')

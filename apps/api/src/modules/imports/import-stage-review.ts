@@ -44,9 +44,13 @@ const nextStep: Record<string, string> = {
   STAGE_CONSENT_MISSING: 'Consent is not recorded in the file, so upload a corrected file.',
   STAGE_IDENTITY_MISMATCH:
     'The survey row does not match the participant, so upload a corrected file.',
+  STAGE_WAITING_FOR_REGISTRATION: 'Resolve its registration row first.',
   STAGE_DATE_MISSING: 'Type the stage date.',
   STAGE_DATE_OUTSIDE_ENROLLMENT: "Type a stage date within the participant's enrollment.",
 }
+// A survey row is settled after its registration row, so the person it names is the one that row resolved to.
+export const STAGE_WAITING = 'STAGE_WAITING_FOR_REGISTRATION'
+const waitingMessage = 'This survey waits for its registration row. Resolve that row first.'
 const defaultStep = 'Open the import again to see where it stands, or upload a corrected file.'
 
 // The error a row that cannot be settled here answers with, as a row Phase 1 still sends to review does.
@@ -204,6 +208,17 @@ export async function resolveHeldStage(
   // A typed ID would send the write to another participant, so the ID that found the person stays.
   if (identifierOf(resolution.values) !== identifierOf(held.file)) {
     throw identifierError('identifier_locked', 'The client ID is how the participant is found.')
+  }
+  const parent = await tx.dataImportRow.findFirst({
+    where: {
+      organizationId: actor.organizationId,
+      importBatchId: stage.parentBatchId ?? '',
+      rowNumber: row.rowNumber,
+    },
+    select: { status: true },
+  })
+  if (parent && !['PROCESSED', 'FAILED'].includes(parent.status)) {
+    throw new ConflictException({ message: waitingMessage, code: STAGE_WAITING })
   }
   const claim = await claimBatchForResolution(tx, batch.id)
   await claimHeldRow(tx, actor, {
