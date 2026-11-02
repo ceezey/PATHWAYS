@@ -1,6 +1,8 @@
 import type {
   ApproveGuardianConsentRequest,
   AutomaticImportMappingRequest,
+  DraftStageFormRequest,
+  DraftStageFormResponse,
   ImportBatchDetailResponse,
   ImportBatchResponse,
   ImportRowResponse,
@@ -139,6 +141,27 @@ export const importsClient = {
         body: JSON.stringify({ expectedValidationRevision } satisfies ProcessImportRequest),
       },
     ) as Promise<ImportBatchResponse>
+  },
+
+  // Starts one survey of a stored file as its own batch, pinned to the survey's published form.
+  async startFilePart(projectId: string, batchId: string, partCode: string) {
+    return requestFoundation(
+      `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/parts/${encodeURIComponent(partCode)}/start`,
+      { method: 'POST' },
+    ) as Promise<ImportBatchResponse>
+  },
+
+  // Creates the survey's journey stage and drafts its form, or reports that it waits for an activity.
+  async draftStageForm(projectId: string, batchId: string, partCode: string, activityId?: string) {
+    return requestFoundation(
+      `/metadata/projects/${encodeURIComponent(projectId)}/forms/drafts/from-stage/${encodeURIComponent(batchId)}/${encodeURIComponent(partCode)}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(activityId ? { activityId } : {}),
+        } satisfies DraftStageFormRequest),
+      },
+    ) as Promise<DraftStageFormResponse>
   },
 
   async getRowReview(projectId: string, batchId: string, rowId: string) {

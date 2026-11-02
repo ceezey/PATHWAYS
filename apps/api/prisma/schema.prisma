@@ -1232,6 +1232,10 @@ model DataImportBatch {
   failedRows                  Int                 @default(0) @map("failed_rows")
   failureCode                 String?             @map("failure_code")
   sourceSheetName             String?             @map("source_sheet_name")
+  /// Child batches of one uploaded file; one live (not FAILED) per part and form version through the partial unique index data_import_batches_part_key (0083).
+  parentBatchId               String?             @map("parent_batch_id") @db.Uuid
+  partCode                    String?             @map("part_code")
+  fileParts                   Json?               @map("file_parts")
   validationNotes             String?             @map("validation_notes")
   uploadedAt                  DateTime            @default(now()) @map("uploaded_at") @db.Timestamptz(3)
   validatedAt                 DateTime?           @map("validated_at") @db.Timestamptz(3)
@@ -1245,6 +1249,8 @@ model DataImportBatch {
   form                        DigitalForm         @relation("DataImportBatch_form", fields: [organizationId, projectId, formId, formVersion], references: [organizationId, projectId, id, version], onDelete: Restrict, onUpdate: Restrict, map: "data_import_batches_form_fk")
   dataImportRow_importBatch   DataImportRow[]     @relation("DataImportRow_importBatch")
   metadataMapping_importBatch MetadataMapping[]   @relation("MetadataMapping_importBatch")
+  parentBatch                 DataImportBatch?    @relation("DataImportBatch_parentBatch", fields: [organizationId, projectId, parentBatchId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_batches_parent_fk")
+  partBatches                 DataImportBatch[]   @relation("DataImportBatch_parentBatch")
   formSubmission_importBatch  FormSubmission[]    @relation("FormSubmission_importBatch")
 
   @@unique([organizationId, projectId, id], map: "data_import_batches_scope_key")

@@ -102,9 +102,13 @@ export async function readBaseline(
   return { enrolledHere, identityOnly, stored }
 }
 
+// The part of a form the comparison reads, so a stage form compares like the registration form.
+type FormField = Pick<RegistrationImportForm['formField_form'][number], 'id' | 'code' | 'rule'>
+type FormFields = { formField_form: FormField[] }
+
 /** The form fields whose file value differs from the baseline, computed columns aside. */
 export function differingFields(
-  form: RegistrationImportForm,
+  form: FormFields,
   values: Record<string, NormalizedValue>,
   baseline: Baseline,
 ) {
@@ -120,10 +124,8 @@ export function differingFields(
   })
 }
 
-type FormField = RegistrationImportForm['formField_form'][number]
-
-// Splits the differing fields into those still to be decided and those whose file value the reviewer rejected before.
-async function splitRejected(
+/** Splits the differing fields into those still to be decided and those whose file value the reviewer rejected before. */
+export async function splitRejected(
   tx: Tx,
   actor: ApplicationIdentity,
   beneficiaryId: string,

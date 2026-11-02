@@ -1,11 +1,13 @@
 import { NotFoundException } from '@nestjs/common'
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
-import type {
-  ImportBatchDetailResponse,
-  ImportMappingResponse,
-  ImportRowResponse,
-  ImportRowsPageResponse,
-  ImportRowsQuery,
+import {
+  type ImportBatchDetailResponse,
+  type ImportMappingResponse,
+  type ImportPartSummary,
+  type ImportRowResponse,
+  type ImportRowsPageResponse,
+  type ImportRowsQuery,
+  filePart,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -14,11 +16,16 @@ import type { Tx } from '../../common/prisma/transaction'
 import { readBatchCoverage } from './batch-coverage'
 import { safeSourceColumns } from './imports.helpers'
 import { type BatchRow, batchSelection, mapBatch } from './imports.mapper'
+import { findStageForm } from './stage-form-lookup'
 
 export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, projectId: string) {
   const scopedProjectId = await requireScopedProject(tx, actor, projectId)
   const batches = await tx.dataImportBatch.findMany({
-    where: { organizationId: actor.organizationId, projectId: scopedProjectId },
+    where: {
+      organizationId: actor.organizationId,
+      projectId: scopedProjectId,
+      parentBatchId: null,
+    },
     select: batchSelection,
     orderBy: { createdAt: 'desc' },
     take: IMPORT_ENGINEERING_LIMITS.processingCheckpointRows,
@@ -29,6 +36,55 @@ export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, pro
     batches.map((batch) => batch.id),
   )
   return batches.map((batch) => mapBatch(batch, warnings.get(batch.id) ?? 0, actor.userId))
+}
+
+/** Each part of a file batch with its newest form and its newest batch; a part with no batch has not been started. */
+async function readPartSummaries(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: BatchRow,
+): Promise<ImportPartSummary[]> {
+  const parts = filePart.array().safeParse(batch.fileParts).data ?? []
+  if (parts.length === 0) return []
+  const children = await tx.dataImportBatch.findMany({
+    where: { organizationId: actor.organizationId, parentBatchId: batch.id },
+    select: batchSelection,
+    orderBy: [{ formVersion: 'desc' }, { createdAt: 'desc' }],
+    take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
+  })
+  const warnings = await warningRowCounts(
+    tx,
+    actor,
+    children.map((child) => child.id),
+  )
+  const summaries: ImportPartSummary[] = []
+  for (const part of parts) {
+    const form =
+      (await findStageForm(tx, actor, batch.projectId, part.code, ['PUBLISHED'])) ??
+      (await findStageForm(tx, actor, batch.projectId, part.code, ['DRAFT']))
+    // A failed attempt only stands in when the part has no other batch.
+    const ofPart = children.filter((item) => item.partCode === part.code)
+    const child = ofPart.find((item) => item.status !== 'FAILED') ?? ofPart[0]
+    summaries.push({
+      code: part.code,
+      name: part.name,
+      formId: form?.id ?? null,
+      formName: form?.name ?? null,
+      formStatus: form ? (form.status as 'PUBLISHED' | 'DRAFT') : 'NONE',
+      batch: child
+        ? {
+            ...mapBatch(
+              child,
+              warnings.get(child.id) ?? 0,
+              actor.userId,
+              await readWaitingRows(tx, child),
+            ),
+            ...registrationCounts(child, await readBatchRowCounts(tx, child.id)),
+          }
+        : null,
+    })
+  }
+  return summaries
 }
 
 /** Rows with at least one stored validation warning, per batch. */
@@ -61,6 +117,22 @@ export const readBatchRowCounts = (tx: Tx, batchId: string) =>
       WHERE import_batch_id=${batchId}::uuid
       GROUP BY 1, 2, 3
     `)
+
+/** True for a row of a stage batch whose registration row, the parent row with the same number, can still become processed. */
+export const waitsForParent = (parentBatchId: string) => Prisma.sql`EXISTS (
+    SELECT 1 FROM pathways.data_import_rows p
+    WHERE p.import_batch_id=${parentBatchId}::uuid AND p.row_number=r.row_number
+      AND p.status NOT IN ('PROCESSED','FAILED'))`
+
+/** The VALID rows of a stage batch that wait for their registration row; other batches have none. */
+async function readWaitingRows(tx: Tx, batch: Pick<BatchRow, 'id' | 'parentBatchId'>) {
+  if (!batch.parentBatchId) return 0
+  const [counted] = await tx.$queryRaw<Array<{ waiting: number }>>(Prisma.sql`
+      SELECT count(*)::int AS waiting FROM pathways.data_import_rows r
+      WHERE r.import_batch_id=${batch.id}::uuid AND r.status='VALID' AND ${waitsForParent(batch.parentBatchId)}
+    `)
+  return counted?.waiting ?? 0
+}
 
 export const countRows = (counts: BatchRowCounts, keep: (row: BatchRowCounts[number]) => boolean) =>
   counts.reduce((sum, row) => (keep(row) ? sum + row.rows : sum), 0)
@@ -101,8 +173,10 @@ export async function readBatchDetail(
       batch,
       countRows(counts, (row) => row.warned),
       actor.userId,
+      await readWaitingRows(tx, batch),
     ),
     ...registrationCounts(batch, counts),
+    parts: await readPartSummaries(tx, actor, batch),
     sourceHeaders: sourceColumns.map((column) => column.key),
     sourceColumns,
     mappings: mappings.map(
@@ -129,13 +203,13 @@ export async function readBatchRows(
     projectId: batch.projectId,
     importBatchId: batch.id,
   }
-  // Held rows wait for a person: unprocessed rows with a reason, and invalid registration rows a reviewer can resolve.
+  // Held rows wait for a person: unprocessed rows with a reason, and invalid registration or survey-part rows a reviewer can resolve.
   const where = query.held
     ? {
         ...scope,
         OR: [
           { status: 'UNPROCESSED' as const, processingErrorCode: { not: null } },
-          ...(batch.form.formType === 'BENEFICIARY_REGISTRATION'
+          ...(batch.form.formType === 'BENEFICIARY_REGISTRATION' || batch.parentBatchId
             ? [{ status: 'INVALID' as const }]
             : []),
         ],
@@ -193,14 +267,15 @@ export async function mapStoredBatch(
       batch,
       countRows(counts, (row) => row.warned),
       actor.userId,
+      await readWaitingRows(tx, batch),
     ),
     ...registrationCounts(batch, counts),
   }
 }
 
-/** Processed registration rows by outcome, for registration batches only; LINKED counts as updated. */
+/** Processed rows by outcome, for registration batches and survey parts only; LINKED counts as updated. */
 function registrationCounts(batch: BatchRow, counts: BatchRowCounts) {
-  if (batch.form.formType !== 'BENEFICIARY_REGISTRATION') return {}
+  if (batch.form.formType !== 'BENEFICIARY_REGISTRATION' && !batch.parentBatchId) return {}
   const count = (...outcomes: string[]) =>
     countRows(counts, (row) => row.outcome !== null && outcomes.includes(row.outcome))
   return {

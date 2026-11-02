@@ -6,7 +6,7 @@ import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-import { enumLabel } from '../../collection.copy'
+import { enumLabel, fileParts } from '../../collection.copy'
 import type { BatchIntake } from '../hooks/use-batch-intake'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
@@ -17,11 +17,14 @@ export function ImportBatchSummary({
   intake,
   pending,
   batch,
+  onProcessWaiting,
 }: {
   review: Pick<BatchReview, 'loadBatch' | 'resume'>
   intake: Pick<BatchIntake, 'rerun' | 'rerunTarget'>
   pending: boolean
   batch: NonNullable<ImportState['batch']>
+  // Given only to someone who may process, so the button follows the permission.
+  onProcessWaiting?: () => void
 }) {
   const { loadBatch, resume } = review
   const { rerun, rerunTarget } = intake
@@ -47,6 +50,16 @@ export function ImportBatchSummary({
             </div>
           ))}
         </div>
+        {batch.totals.waiting > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <p className="text-sm">{fileParts.waiting(batch.totals.waiting)}</p>
+            {onProcessWaiting ? (
+              <Button disabled={pending} onClick={onProcessWaiting} size="sm" variant="outline">
+                {fileParts.processWaiting}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         {rerunTarget ? (
           <p className="mt-4 text-sm text-muted-foreground">
             Version {rerunTarget.version} of this form is published. Re-run the same file against it

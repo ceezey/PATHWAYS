@@ -131,10 +131,12 @@ describe('BuilderView draft summary', () => {
       needsCheck,
       readOnly = false,
       startOn = '',
+      list = fields,
     }: {
       needsCheck: DraftSummaryResponse['needsCheck']
       readOnly?: boolean
       startOn?: string
+      list?: FormField[]
     }) => {
       const [selectedFieldId, setSelectedFieldId] = useState(startOn)
       return (
@@ -144,7 +146,7 @@ describe('BuilderView draft summary', () => {
           canPublish={false}
           deleteField={vi.fn()}
           draftSummary={{ ...summary, addedFields: ['civil_status'], needsCheck }}
-          fields={fields}
+          fields={list}
           formTitle="Registration"
           formType="OTHER"
           journeyStage=""
@@ -200,6 +202,32 @@ describe('BuilderView draft summary', () => {
       expect(scroll.mock.contexts[0]).toBe(section)
       vi.advanceTimersByTime(2000)
       expect(section.classList.contains('bg-warning-subtle')).toBe(false)
+    })
+
+    it('takes ANSWER_KEY_NEEDED to the answer key and focuses its first control', () => {
+      const score: FormField = {
+        ...choice,
+        id: 'score-field',
+        code: 'total_score',
+        label: 'Total score',
+        type: 'integer',
+        allowedValues: [],
+      }
+      render(
+        <Workspace
+          list={[choice, score]}
+          needsCheck={[{ fieldCode: 'total_score', reason: 'ANSWER_KEY_NEEDED' }]}
+        />,
+      )
+      Element.prototype.scrollIntoView = vi.fn()
+      fireEvent.click(screen.getByRole('button', { name: 'Go to total_score' }))
+      const key = document.getElementById('score-field-key') as HTMLDetailsElement
+      expect(key.open).toBe(true)
+      expect(key.contains(document.activeElement)).toBe(true)
+      expect(document.activeElement?.tagName).toBe('SELECT')
+      expect(
+        screen.getByText('Advanced Configuration (Import Metadata)').closest('details')?.open,
+      ).toBe(false)
     })
 
     it('only selects the field for a disability column that disagrees', () => {

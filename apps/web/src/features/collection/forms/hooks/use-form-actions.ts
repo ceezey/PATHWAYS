@@ -102,6 +102,24 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       setFormCode(saved.code)
       setSaveDialogOpen(false)
       setSavedNotice('Draft saved to the server.')
+      // The first saved answer key settles its needs-check item; the update route leaves the summary alone.
+      const keyMarked = saved.fields.some(
+        (field) => field.code === 'total_score' && field.rule?.kind === 'TOTAL_SCORE',
+      )
+      if (
+        keyMarked &&
+        saved.draftSummary?.needsCheck.some((item) => item.reason === 'ANSWER_KEY_NEEDED')
+      ) {
+        const cleared = await formsClient.confirmDraftCheck(
+          projectId,
+          saved.id,
+          'total_score',
+          saved.updatedAt,
+        )
+        if (!ticket.valid()) return
+        setForms((current) => [...current.filter((form) => form.id !== cleared.id), cleared])
+        setEditingBaseUpdatedAt(cleared.updatedAt)
+      }
     } catch (error) {
       if (ticket.valid())
         toast.error(error instanceof Error ? error.message : 'Form draft could not be saved.')

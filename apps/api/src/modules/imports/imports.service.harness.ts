@@ -106,9 +106,11 @@ export const tx = {
   digitalForm: { findFirst: vi.fn() },
   dataImportBatch: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    count: vi.fn(),
   },
   dataImportRow: {
     createMany: vi.fn(),

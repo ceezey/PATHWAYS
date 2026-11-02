@@ -223,6 +223,54 @@ describe('import workspace automatic processing', () => {
     }
   })
 
+  describe('rows waiting for their registration', () => {
+    const asRole = async (role: string, permissions: string[]) => {
+      state.profile = { ...state.profile, roles: [role], permissions }
+      const waiting = {
+        ...batchWith(100),
+        totals: { ...batchWith(100).totals, waiting: 2 },
+      }
+      api.getImportBatches.mockResolvedValue([waiting])
+      api.getImportBatch.mockResolvedValue(waiting)
+      render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+      fireEvent.click(await screen.findByText('notes.xlsx', {}, { timeout: 20000 }))
+      await screen.findByText(
+        '2 waiting for their registration to be resolved',
+        {},
+        { timeout: 20000 },
+      )
+    }
+    const restore = () => {
+      state.profile = {
+        ...state.profile,
+        roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+        permissions: ['imports.read', 'imports.process', 'forms.read'],
+      }
+    }
+
+    afterEach(restore)
+
+    it('a System Administrator sees no Process waiting', async () => {
+      await asRole('SYSTEM_ADMINISTRATOR', [
+        'imports.read',
+        'imports.process',
+        'imports.upload',
+        'forms.read',
+      ])
+      expect(screen.queryByRole('button', { name: 'Process waiting' })).toBeNull()
+    })
+
+    it('an officer who may upload and process sees Process waiting', async () => {
+      await asRole('MONITORING_AND_EVALUATION_OFFICER', [
+        'imports.read',
+        'imports.process',
+        'imports.upload',
+        'forms.read',
+      ])
+      expect(screen.getByRole('button', { name: 'Process waiting' })).toBeTruthy()
+    })
+  })
+
   it('upload refusal message shown', async () => {
     const refusal = 'You cannot register participants here, so this file was not accepted.'
     api.uploadImport.mockRejectedValue(new PathwaysClientError(refusal, 'forbidden', [], 403))

@@ -27,6 +27,7 @@ import { PathwaysClientError } from '@/lib/api/core/request'
 import { importsClient } from '@/lib/api/imports'
 import { cn } from '@/lib/utils'
 
+import { needsCorrectedFile } from '../../collection.copy'
 import { selectClass } from '../../forms/components/intake-controls'
 import { highlightMs } from '../../forms/components/reveal-intake-section'
 import { fieldsOfReason, headClass, reviewReason } from '../import.utils'
@@ -34,6 +35,7 @@ import {
   ChoiceCell,
   NotEditable,
   OwnValue,
+  ScoreAnswers,
   calculationHint,
   ownPayload,
 } from './import-review-cells'
@@ -127,8 +129,8 @@ export function ImportReviewDialog({
   }, [firstFlagged, id])
   const canSaveUpdate = Boolean(review?.participant) && canUpdate
   // Consent cannot be typed in, so a row without it waits for a corrected file.
-  const needsCorrectedFile = review?.reason === 'CONSENT_REQUIRED'
-  const canSave = !needsCorrectedFile && (canSaveUpdate || Boolean(review?.canAddNew))
+  const correctedFile = review ? needsCorrectedFile[review.reason] : undefined
+  const canSave = !correctedFile && (canSaveUpdate || Boolean(review?.canAddNew))
   const touch = (code: string) =>
     setErrors((current) => {
       const { [code]: _cleared, ...rest } = current
@@ -222,10 +224,8 @@ export function ImportReviewDialog({
           <DialogTitle>{review ? `Review row ${review.rowNumber}` : 'Review held row'}</DialogTitle>
           <DialogDescription>
             {review
-              ? `${review.participant?.displayName ? `${review.participant.displayName}: ` : ''}${reason ?? reviewReason(review.reason)}. ${
-                  needsCorrectedFile
-                    ? 'Consent cannot be added here. Upload a corrected file with consent recorded.'
-                    : 'Click the value to keep, or type your own.'
+              ? `${review.participant?.displayName ? `${review.participant.displayName}: ` : ''}${(reason ?? reviewReason(review.reason)).replace(/\.$/, '')}. ${
+                  correctedFile ?? 'Click the value to keep, or type your own.'
                 }`
               : 'Loading the row.'}
           </DialogDescription>
@@ -363,6 +363,7 @@ export function ImportReviewDialog({
                 })}
               </TableBody>
             </Table>
+            {review.scoreDetail ? <ScoreAnswers detail={review.scoreDetail} /> : null}
           </>
         ) : null}
         {notice ? (

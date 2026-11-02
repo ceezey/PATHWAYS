@@ -1,25 +1,17 @@
-import { createHash } from 'node:crypto'
 import { ConflictException, ForbiddenException } from '@nestjs/common'
 import type { SupportedImportFileType } from '@pathways/imports/server'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import { requireBatchWithHeaders } from './import-batches.service'
+import { uuidFromHash } from './imports.helpers'
 
 // A FAILED attempt keeps its key forever, so each re-run may spend up to this many keys.
 export const RERUN_MAX_ATTEMPTS = 5
 
-/** A v4-shaped UUID from the first 16 bytes of sha256(oldBatchId:formId:attempt), so a retry reuses its key. */
-export function rerunClientImportId(batchId: string, formId: string, attempt: number) {
-  const bytes = createHash('sha256')
-    .update(`${batchId}:${formId}:${attempt}`)
-    .digest()
-    .subarray(0, 16)
-  bytes[6] = (bytes[6] & 0x0f) | 0x40
-  bytes[8] = (bytes[8] & 0x3f) | 0x80
-  const hex = bytes.toString('hex')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-}
+/** The key of a re-run attempt, derived from sha256(oldBatchId:formId:attempt). */
+export const rerunClientImportId = (batchId: string, formId: string, attempt: number) =>
+  uuidFromHash(`${batchId}:${formId}:${attempt}`)
 
 /** Checks the uploader, the batch state and the target version, then returns the stored source to copy. */
 export async function readRerunSource(
@@ -30,6 +22,9 @@ export async function readRerunSource(
   formId: string,
 ) {
   const batch = await requireBatchWithHeaders(tx, actor, projectId, batchId)
+  if (batch.parentBatchId) {
+    throw new ConflictException('Start the survey again to move it to a newer form version.')
+  }
   if (batch.uploadedById !== actor.userId) throw new ForbiddenException('Re-run is unavailable.')
   if (!['UPLOADED', 'MAPPED'].includes(batch.status)) {
     throw new ConflictException('This import can no longer be re-run.')

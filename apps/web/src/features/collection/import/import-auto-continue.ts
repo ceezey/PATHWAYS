@@ -9,7 +9,7 @@ import type { ImportBatchDefinition } from '@/types/pathways'
  */
 
 export interface ImportProcessingProgress {
-  /** Rows the server has finished with: processed, held for review, or failed. */
+  /** Rows the server has finished with: processed, held for review, failed, or waiting for their registration. */
   handled: number
   /** Rows that passed validation and are eligible for processing. */
   total: number
@@ -37,7 +37,7 @@ export function importProcessingProgress(batch: ImportBatchDefinition): ImportPr
   const processed = count(batch.totals?.processed)
   const unprocessed = count(batch.totals?.unprocessed)
   const failed = count(batch.totals?.failed)
-  const handled = processed + unprocessed + failed
+  const handled = processed + unprocessed + failed + count(batch.totals?.waiting)
   return {
     handled,
     total: Math.max(count(batch.totals?.valid), handled),

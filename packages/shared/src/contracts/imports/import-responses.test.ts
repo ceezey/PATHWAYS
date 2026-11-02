@@ -25,12 +25,25 @@ const batch = {
   validationRevision: 1,
   validatedMappingRevision: 1,
   processingRevision: 0,
-  totals: { rows: 3, valid: 2, invalid: 1, processed: 0, unprocessed: 0, failed: 0, warnings: 1 },
+  totals: {
+    rows: 3,
+    valid: 2,
+    invalid: 1,
+    processed: 0,
+    unprocessed: 0,
+    failed: 0,
+    warnings: 1,
+    waiting: 0,
+  },
   failureCode: null,
   failureMessage: null,
   uploadedByCurrentUser: true,
   uploadedAt: '2026-10-13T00:00:00.000Z',
   updatedAt: '2026-10-13T00:00:00.000Z',
+  parentBatchId: null,
+  partCode: null,
+  fileParts: null,
+  parts: [],
 }
 const detail = {
   ...batch,
@@ -102,6 +115,28 @@ describe('import response contracts', () => {
         registrationCounts: { ...counts, created: -1 },
       }).success,
     ).toBe(false)
+  })
+
+  it('accept file parts and a part summary with its own batch', () => {
+    const fileParts = [
+      { code: 'pre', name: 'Pre-test', firstColumn: 3, lastColumn: 9, rows: 4, branchOf: null },
+    ]
+    const part = {
+      code: 'pre',
+      name: 'Pre-test',
+      formId: null,
+      formName: null,
+      formStatus: 'NONE',
+      batch: null,
+    }
+    const parts = [part, { ...part, formStatus: 'DRAFT', batch }]
+    const whole = { ...batch, partCode: 'pre', parentBatchId: uuid, fileParts, parts }
+    expect(importBatchResponse.safeParse(whole).success).toBe(true)
+    expect(
+      importBatchResponse.safeParse({ ...whole, parts: [{ ...part, batch: {} }] }).success,
+    ).toBe(false)
+    const { waiting: _waiting, ...noWaiting } = batch.totals
+    expect(importBatchResponse.safeParse({ ...batch, totals: noWaiting }).success).toBe(false)
   })
 
   it('reject an object that is missing required members', () => {

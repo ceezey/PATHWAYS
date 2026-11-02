@@ -11,6 +11,7 @@ import {
   Save,
   Trash2,
 } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 import { flushSync } from 'react-dom'
 
 import type { DraftSummaryResponse } from '@pathways/shared'
@@ -20,18 +21,38 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 
+import { answerKeyCopy } from '../../collection.copy'
 import {
   type CollectionMode,
   type FormField,
   dataTypeLabels,
   statusTone,
 } from '../../collection.utils'
+import { AnswerKeyEditor } from './answer-key-editor'
 import { DraftSummaryPanel, fieldImportBadges } from './draft-summary-panel'
 import { FieldEditor } from './field-editor'
 import { FormInfoPanel } from './form-info-panel'
 import { FormPreviewPanel } from './form-preview-panel'
 import { MetadataMapPanel } from './metadata-map-panel'
 import { revealIntakeSection, settledInIntake } from './reveal-intake-section'
+
+/** The answer key dropdown; it opens when a key is needed and then stays as the person left it. */
+function KeyPanel({ id, needed, children }: { id: string; needed: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(needed)
+  return (
+    <details
+      className="mt-4 border-t pt-2"
+      id={id}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
+        {answerKeyCopy.heading}
+      </summary>
+      {children}
+    </details>
+  )
+}
 
 export const BuilderView = ({
   addField,
@@ -260,6 +281,26 @@ export const BuilderView = ({
                   )}
                   updateField={updateField}
                 />
+              ) : null}
+              {selectedFieldId === field.id && field.code === 'total_score' ? (
+                <KeyPanel
+                  id={`${field.id}-key`}
+                  needed={
+                    !!draftSummary?.needsCheck.some(
+                      (item) =>
+                        item.fieldCode === field.code && item.reason === 'ANSWER_KEY_NEEDED',
+                    )
+                  }
+                >
+                  <div className="mt-2 rounded-md transition-colors" data-intake-section="key">
+                    <AnswerKeyEditor
+                      fields={fields}
+                      rule={field.rule?.kind === 'TOTAL_SCORE' ? field.rule : null}
+                      disabled={readOnly}
+                      onChange={(rule) => updateField(field.id, { rule })}
+                    />
+                  </div>
+                </KeyPanel>
               ) : null}
             </div>
           ))}

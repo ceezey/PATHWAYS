@@ -24,6 +24,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import { stageFixtureSheet } from '@pathways/imports/form-draft/futuremakers-stage-fixture'
 import { rolePermissions } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -377,6 +378,54 @@ describe('P03 import service', () => {
         }),
       }),
     )
+  })
+
+  it('upload of a file with parts stages only registration columns and stores the parts', async () => {
+    // The fixture holds no commas or quotes, so a plain join is valid CSV.
+    const source = Buffer.from(
+      stageFixtureSheet(12)
+        .map((row) => row.join(','))
+        .join('\n'),
+    )
+    const reservation = batch({
+      sourceHeaders: [],
+      storageStatus: 'RESERVED',
+      status: 'UPLOADING',
+      mappingRevision: 0,
+      totalRows: 0,
+    })
+    tx.digitalForm.findFirst.mockResolvedValue({ id: formId, version: 1 })
+    tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+      'clientImportId' in args.where ? null : reservation,
+    )
+    tx.dataImportBatch.findUnique.mockResolvedValue(reservation)
+    tx.dataImportBatch.create.mockResolvedValue({ id: batchId })
+    tx.dataImportRow.createMany.mockResolvedValue({ count: 12 })
+    tx.metadataMapping.findMany.mockResolvedValue([])
+    storage.uploadPrivateFile.mockResolvedValue({ path: 'private' })
+
+    await service.upload(
+      actor,
+      projectId,
+      { formId, clientImportId },
+      file({ buffer: source, size: source.length }),
+    )
+
+    const staged = tx.dataImportRow.createMany.mock.calls.flatMap(([args]) => args.data)
+    expect(staged).toHaveLength(12)
+    expect(Object.keys(staged[0].rawData)).toHaveLength(5)
+    expect(staged[0].rowNumber).toBe(3)
+    const finalized = tx.dataImportBatch.update.mock.calls
+      .map(([args]) => args.data)
+      .find((data) => data.status === 'UPLOADED')
+    expect(finalized.sourceHeaders).toHaveLength(5)
+    expect(finalized.totalRows).toBe(12)
+    expect(finalized.fileParts.map((part: { code: string }) => part.code)).toEqual([
+      'y8678aMM8o3',
+      'rNP4mvl5PFF',
+      'p7Wcfe1p4lp',
+      'TQFHPAzCaeI',
+    ])
   })
 
   it('keeps the chosen sheet of a workbook on its reservation and drops it for a CSV', async () => {

@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer'
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
+import { stageFixtureSheet } from '../form-draft/futuremakers-stage-fixture'
 import { type CheckField, checkImportFile } from './file-check'
 import { readImportFile } from './read-import-file'
 
@@ -430,5 +431,41 @@ describe('checkImportFile', () => {
       exampleRows: [12, 13, 24],
     })
     expect(many.problemRows).toBe(24)
+  })
+})
+
+describe('checkImportFile on a file with parts', () => {
+  it('the check reads only the registration columns of a file with parts', () => {
+    // Dates are written as real Excel date cells, as a client file has them.
+    const rows = stageFixtureSheet(12).map((row) =>
+      row.map((cell) =>
+        typeof cell === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cell)
+          ? new Date(`${cell}T12:00:00Z`)
+          : cell,
+      ),
+    )
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows, { cellDates: true }), 'Data')
+    const bytes = Buffer.from(
+      XLSX.write(book, { type: 'buffer', bookType: 'xlsx', cellDates: true }),
+    )
+    const file = readImportFile(toArrayBuffer(bytes), 'XLSX', null)
+    expect(file.sourceColumns.map((column) => column.header)).toEqual([
+      'enrollmentDate',
+      'First Name',
+      'Last Name',
+      'Date of Birth',
+      'Sex',
+    ])
+    expect(file.rows).toHaveLength(12)
+    expect(file.rowNumbers[0]).toBe(3)
+    const report = checkImportFile({
+      file,
+      formType: 'ACTIVITY',
+      fields: [firstName],
+      uploadDate: '2026-10-28',
+    })
+    expect(report.problems).toEqual([])
+    expect(report.totalRows).toBe(12)
   })
 })

@@ -5,7 +5,7 @@ import {
   type SupportedImportFileType,
   type parseSecureImport,
 } from '@pathways/imports/server'
-import { type UploadImportRequest, hasAtomicPermission } from '@pathways/shared'
+import { type FilePart, type UploadImportRequest, hasAtomicPermission } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
@@ -17,6 +17,7 @@ import {
   requireBatch,
   requireBatchWithHeaders,
 } from './import-batches.service'
+import { readParentPart } from './import-parts.service'
 import {
   MATCH_BY_IDENTIFIER_REFUSAL,
   mayMatchByIdentifier,
@@ -37,6 +38,11 @@ export async function readUploadRecovery(
   return {
     complete: false as const,
     batchId: batch.id,
+    // A part's batch narrows to its own columns when it is staged again.
+    part:
+      batch.parentBatchId && batch.partCode
+        ? await readParentPart(tx, actor, batch.parentBatchId, batch.partCode)
+        : undefined,
     storageBucket: batch.storageBucket,
     storageObjectKey: batch.storageObjectKey,
     fileType: batch.fileType as SupportedImportFileType,
@@ -52,6 +58,7 @@ export async function reserveBatchUpload(
   input: UploadImportRequest,
   metadata: ReturnType<typeof fileMetadata>,
   uploadsBucket: string,
+  part?: { parentBatchId: string; partCode: string },
 ) {
   const scopedProjectId = await requireScopedProject(tx, actor, projectId)
   if (!UUID_PATTERN.test(input.formId)) throw new NotFoundException('Published form unavailable.')
@@ -90,13 +97,24 @@ export async function reserveBatchUpload(
   // Only a workbook has sheets; the chosen one is kept so a resume or re-run reads the same rows.
   const sourceSheetName =
     metadata.type === 'XLSX' || metadata.type === 'XLS' ? (input.sheetName ?? null) : null
+  // A part has one live batch per form version whoever starts it; any other batch is found by its key.
   const existing = await tx.dataImportBatch.findFirst({
-    where: {
-      organizationId: actor.organizationId,
-      uploadedById: actor.userId,
-      clientImportId: input.clientImportId.toLowerCase(),
-    },
+    where: part
+      ? {
+          organizationId: actor.organizationId,
+          parentBatchId: part.parentBatchId,
+          partCode: part.partCode,
+          formVersion: form.version,
+          status: { not: 'FAILED' },
+        }
+      : {
+          organizationId: actor.organizationId,
+          uploadedById: actor.userId,
+          clientImportId: input.clientImportId.toLowerCase(),
+        },
     select: {
+      parentBatchId: true,
+      partCode: true,
       id: true,
       projectId: true,
       formId: true,
@@ -113,6 +131,8 @@ export async function reserveBatchUpload(
   if (existing) {
     if (
       existing.projectId !== scopedProjectId ||
+      (existing.parentBatchId ?? null) !== (part?.parentBatchId ?? null) ||
+      (existing.partCode ?? null) !== (part?.partCode ?? null) ||
       existing.formId !== form.id ||
       existing.formVersion !== form.version ||
       existing.originalFileName !== metadata.name ||
@@ -146,6 +166,7 @@ export async function reserveBatchUpload(
       fileType: metadata.type,
       sourceChecksum: metadata.checksum,
       clientImportId: input.clientImportId.toLowerCase(),
+      ...(part ? { parentBatchId: part.parentBatchId, partCode: part.partCode } : {}),
       storageBucket,
       storageObjectKey,
       uploadedById: actor.userId,
@@ -161,6 +182,7 @@ export async function reserveBatchUpload(
       fileType: metadata.type,
       byteLength: metadata.byteLength,
       sheetChosen: sourceSheetName !== null,
+      ...(part ? { parentBatchId: part.parentBatchId, partCode: part.partCode } : {}),
     },
   })
   return {
@@ -179,6 +201,7 @@ export async function stageUploadedRows(
   batchId: string,
   parsed: Awaited<ReturnType<typeof parseSecureImport>>,
   fault: W10FinalizationFault,
+  fileParts: FilePart[] = [],
 ) {
   await lockBatch(tx, actor, projectId, batchId)
   const batch = await requireBatchWithHeaders(tx, actor, projectId, batchId)
@@ -223,6 +246,7 @@ export async function stageUploadedRows(
     data: {
       storageStatus: 'STORED',
       sourceHeaders: parsed.sourceColumns as unknown as Prisma.InputJsonValue,
+      ...(fileParts.length ? { fileParts: fileParts as unknown as Prisma.InputJsonValue } : {}),
       status: 'UPLOADED',
       totalRows: parsed.rows.length,
       failureCode: null,

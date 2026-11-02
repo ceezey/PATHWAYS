@@ -1,0 +1,138 @@
+'use client'
+
+import { Loader2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+
+import { SectionCard } from '@/components/pathways'
+import { Button } from '@/components/ui/button'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { activitiesClient } from '@/lib/api/activities'
+import type { ActivitySummary, JourneyStageConfig } from '@/types/pathways'
+
+import { stagesWithoutActivity as copy } from '../activities.copy'
+
+/** Lists the journey stages that have no activity, so a Project Manager can create one for each. */
+export function StagesWithoutActivityCard({
+  projectId,
+  stages,
+  activities,
+  startDate,
+  endDate,
+  canCreate,
+  onCreated,
+}: {
+  projectId: string
+  stages: JourneyStageConfig[]
+  activities: Pick<ActivitySummary, 'id' | 'status'>[]
+  startDate?: string | null
+  endDate?: string | null
+  canCreate: boolean
+  onCreated: () => void
+}) {
+  const { profile } = useCurrentRole()
+  const context = useSourceMutationContext(profile, 'activities.create', projectId, null, canCreate)
+  const [created, setCreated] = useState<ReadonlySet<string>>(new Set())
+  const [errors, setErrors] = useState<string[]>([])
+  const busy = useRef(false)
+  // Which button was pressed: a stage id, or 'all'; null when no create runs.
+  const [pending, setPending] = useState<string | null>(null)
+  const usable = new Set(activities.filter((item) => item.status !== 'Cancelled').map((a) => a.id))
+  const open = stages.filter(
+    (stage) =>
+      !stage.archived &&
+      !created.has(stage.id) &&
+      !stage.mappedActivityIds.some((id) => usable.has(id)),
+  )
+  if (!canCreate || open.length === 0) return null
+
+  // Each stage is sent once at a time, and a refused one stays listed for the next try.
+  const create = async (targets: JourneyStageConfig[], pressed: string) => {
+    if (busy.current || !startDate || !endDate || !context) return
+    busy.current = true
+    setPending(pressed)
+    setErrors([])
+    try {
+      for (const stage of targets) {
+        try {
+          await activitiesClient.createActivity(
+            {
+              projectId,
+              title: stage.name,
+              description: '',
+              activityType: 'SURVEY',
+              startDate,
+              dueDate: endDate,
+              assignedUserIds: [],
+              journeyStageId: stage.id,
+            },
+            context,
+          )
+          setCreated((current) => new Set(current).add(stage.id))
+          onCreated()
+        } catch (failure) {
+          const reason = failure instanceof Error ? failure.message : undefined
+          setErrors((current) => [...current, copy.refused(stage.name, reason)])
+        }
+      }
+    } finally {
+      busy.current = false
+      setPending(null)
+    }
+  }
+
+  return (
+    <SectionCard
+      actions={
+        startDate && endDate ? (
+          <Button
+            className="gap-2"
+            disabled={pending !== null}
+            onClick={() => void create(open, 'all')}
+            size="sm"
+            type="button"
+          >
+            {pending === 'all' ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : null}
+            {pending === 'all' ? copy.creating : copy.createAll}
+          </Button>
+        ) : undefined
+      }
+      description={copy.description}
+      title={copy.title}
+    >
+      {startDate && endDate ? null : <p className="text-sm">{copy.noDates}</p>}
+      {errors.length > 0 ? (
+        <div className="space-y-1 text-sm text-danger" role="alert">
+          {errors.map((error) => (
+            <p key={error}>{error}</p>
+          ))}
+        </div>
+      ) : null}
+      <ul className="divide-y divide-border">
+        {open.map((stage) => (
+          <li className="flex items-center justify-between gap-3 py-2" key={stage.id}>
+            <span>{stage.name}</span>
+            {startDate && endDate ? (
+              <Button
+                aria-label={copy.createFor(stage.name)}
+                className="gap-2"
+                disabled={pending !== null}
+                onClick={() => void create([stage], stage.id)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {pending === stage.id ? (
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                ) : null}
+                {pending === stage.id ? copy.creating : copy.create}
+              </Button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
+  )
+}

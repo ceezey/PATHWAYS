@@ -323,6 +323,20 @@ describe('import review dialog', () => {
     )
   })
 
+  it.each([
+    ['STAGE_CONSENT_MISSING', /Consent cannot be added here\./],
+    [
+      'STAGE_IDENTITY_MISMATCH',
+      /This survey row does not match the participant\. Upload a corrected file\./,
+    ],
+  ])('a survey row held %s needs a corrected file and cannot be saved', async (code, words) => {
+    await open(false, code)
+    expect(screen.getByText(words)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Confirm' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+  })
+
   it('an age that does not match the birth date offers the calculated value and sends it', async () => {
     api.getRowReview.mockResolvedValue({
       rowId: 'row-1',
@@ -469,6 +483,54 @@ describe('import review dialog', () => {
     confirm()
     await waitFor(() => expect(onResolved).toHaveBeenCalledTimes(1))
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Project Officer'))
+  })
+
+  it('show answers lists question, answer and key', async () => {
+    api.getRowReview.mockResolvedValue({
+      ...review(false),
+      scoreDetail: [
+        { code: 'q1', label: 'Question one', answer: 'B', correct: ['B'], counted: true },
+        { code: 'q2', label: 'Question two', answer: 'C', correct: ['A', 'B'], counted: false },
+        { code: 'q3', label: 'Question three', answer: null, correct: 'ANY', counted: true },
+      ],
+    })
+    render(
+      <ImportReviewDialog
+        batchId="batch-1"
+        canUpdate
+        onClose={onClose}
+        onResolved={onResolved}
+        projectId="project-1"
+        rowId="row-1"
+        validationRevision={3}
+      />,
+    )
+    const toggle = await screen.findByText('Show answers')
+    expect(toggle.closest('details')?.open).toBe(false)
+    const rows = within(toggle.closest('details') as HTMLElement).getAllByRole('row')
+    const cells = (index: number) =>
+      within(rows[index])
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent)
+    expect(cells(1)).toEqual(['Question one', 'B', 'B', 'Counted'])
+    expect(cells(2)).toEqual(['Question two', 'C', 'A, B', 'Not counted'])
+    expect(cells(3)).toEqual(['Question three', 'No answer', 'Any answer', 'Counted'])
+  })
+
+  it('shows no answers list for a form that does not score', async () => {
+    await open()
+    expect(screen.queryByText('Show answers')).toBeNull()
+  })
+
+  it('add as new hidden on a stage', async () => {
+    await open(false)
+    const save = screen.getByLabelText('Save as')
+    expect(within(save).queryByRole('option', { name: 'Add as a new participant' })).toBeNull()
+    expect(
+      within(save).getByRole('option', { name: 'Update the existing participant' }),
+    ).toBeTruthy()
+    confirm()
+    expect(await sent()).toMatchObject({ saveAs: 'UPDATE' })
   })
 
   it('Leave held closes without saving', async () => {

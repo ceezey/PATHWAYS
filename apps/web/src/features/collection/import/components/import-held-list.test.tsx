@@ -89,9 +89,46 @@ describe('import held list', () => {
       const row = screen.getByText(`First${index} Last${index}`).closest('tr') as HTMLElement
       return within(row).getAllByRole('cell')[2].textContent ?? ''
     })
-    for (const reason of reasons) expect(reason).toMatch(/^[A-Z][a-z]+( [A-Za-z0-9,-]+)+$/)
+    for (const reason of reasons) expect(reason).toMatch(/^[A-Z][a-z]+( [A-Za-z0-9,.'-]+)+$/)
     expect(new Set(reasons).size).toBe(importHoldCodes.length)
     expect(reasons[importHoldCodes.indexOf('PROFILE_CHANGED')]).toBe('Values differ from PATHWAYS')
+  })
+
+  it('each stage code has a plain reason', async () => {
+    const expected = {
+      STAGE_CHANGED: 'Answers differ from PATHWAYS',
+      STAGE_DATE_MISSING: 'This survey has answers but no date',
+      STAGE_DATE_OUTSIDE_ENROLLMENT: "The survey date is outside this person's enrollment",
+      STAGE_IDENTITY_MISMATCH: "The name or ID differs from the participant's profile",
+      STAGE_CONSENT_MISSING: 'Consent is not recorded for this survey. Upload a corrected file.',
+    }
+    const withScore = { ...batch, totals: { ...totals, unprocessed: 5, invalid: 1 } }
+    await show(
+      [...Object.keys(expected).map(held), invalid('TOTAL_SCORE_MISMATCH', 5)],
+      withScore as unknown as ImportBatchDefinition,
+    )
+    const reasonOf = (index: number) =>
+      within(
+        screen.getByText(`First${index} Last${index}`).closest('tr') as HTMLElement,
+      ).getAllByRole('cell')[2].textContent
+    Object.values(expected).forEach((reason, index) => expect(reasonOf(index)).toBe(reason))
+    expect(reasonOf(5)).toBe('The total score does not match the answer key')
+  })
+
+  it('a survey part lists its invalid rows as held and shows no Updated', async () => {
+    const survey = {
+      ...batch,
+      formType: 'TRAINING_SURVEY',
+      parentBatchId: 'parent-1',
+      registrationCounts: { created: 3, updated: 0, unchanged: 1 },
+      totals: { ...totals, unprocessed: 0, invalid: 1 },
+    } as unknown as ImportBatchDefinition
+    await show([invalid('TOTAL_SCORE_MISMATCH', 0)], survey)
+    expect(api.getHeldRows).toHaveBeenCalledWith('project-1', 'batch-1')
+    expect(screen.getByText('The total score does not match the answer key')).toBeTruthy()
+    const results = within(screen.getByRole('group', { name: 'Import results' }))
+    expect(results.getByText('Held').parentElement?.textContent).toContain('1')
+    expect(results.queryByText('Updated')).toBeNull()
   })
 
   it('words a client ID conflict by where it comes from', async () => {

@@ -15,6 +15,7 @@
   "exclude": [
     "src/**/*.test.ts",
     "src/form-draft/draft-test-support.ts",
-    "src/form-draft/futuremakers-fixture.ts"
+    "src/form-draft/futuremakers-fixture.ts",
+    "src/form-draft/futuremakers-stage-fixture.ts"
   ]
 }

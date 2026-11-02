@@ -17,6 +17,7 @@ import {
   type ConfirmDraftCheckRequest,
   type CreateFormRequest,
   type DraftFromImportRequest,
+  type DraftStageFormRequest,
   type FormVersionRequest,
   type GenerateFormRequest,
   type ListSubmissionsQuery,
@@ -28,6 +29,7 @@ import {
   confirmDraftCheckRequest,
   createFormRequest,
   draftFromImportRequest,
+  draftStageFormRequest,
   formVersionRequest,
   generateFormRequest,
   listSubmissionsQuery,
@@ -42,6 +44,7 @@ import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import { FormDefinitionExportService } from './form-definition-export.service'
+import { FormDraftFromStageService } from './form-draft-from-stage.service'
 import { MetadataService } from './metadata.service'
 
 @Controller('metadata/projects/:projectId/forms')
@@ -49,6 +52,7 @@ export class MetadataController {
   constructor(
     @Inject(MetadataService) private readonly metadata: MetadataService,
     @Inject(FormDefinitionExportService) private readonly formExport: FormDefinitionExportService,
+    @Inject(FormDraftFromStageService) private readonly stageDrafts: FormDraftFromStageService,
   ) {}
 
   @Get()
@@ -156,6 +160,18 @@ export class MetadataController {
     @Param('formId') formId: string,
   ) {
     return this.metadata.newVersion(requestIdentity(request), projectId, formId)
+  }
+
+  @Post('drafts/from-stage/:batchId/:partCode')
+  @RequirePermission('forms.manage')
+  draftFromStage(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('partCode') partCode: string,
+    @Body(new ZodPipe(draftStageFormRequest)) body: DraftStageFormRequest,
+  ) {
+    return this.stageDrafts.draft(requestIdentity(request), projectId, batchId, partCode, body)
   }
 
   @Post(':formId/drafts/from-import')

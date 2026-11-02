@@ -1,6 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common'
 import {
   type CreateFormRequest,
+  type DraftSummaryResponse,
   type GenerateFormRequest,
   draftSummaryResponse,
 } from '@pathways/shared'
@@ -129,13 +130,14 @@ export async function generateDraftForm(
   return insertDraft(tx, actor, scopedProjectId, definition, 'FORM_GENERATED', origin)
 }
 
-async function insertDraft(
+export async function insertDraft(
   tx: Tx,
   actor: ApplicationIdentity,
   scopedProjectId: string,
   input: CreateFormRequest,
-  action: 'FORM_DRAFT_CREATED' | 'FORM_GENERATED',
+  action: 'FORM_DRAFT_CREATED' | 'FORM_GENERATED' | 'FORM_DRAFT_FROM_IMPORT',
   origin: Prisma.InputJsonObject,
+  importDraftSummary?: DraftSummaryResponse,
 ) {
   await requireLinks(tx, actor, scopedProjectId, input.activityId, input.journeyStageId)
   const exists = await tx.digitalForm.findFirst({
@@ -160,6 +162,7 @@ async function insertDraft(
       journeyStageId: input.journeyStageId?.toLowerCase(),
       createdById: actor.userId,
       lastEditedById: actor.userId,
+      importDraftSummary,
     },
     select: { id: true },
   })

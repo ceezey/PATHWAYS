@@ -22,6 +22,29 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
   CONSENT_SOURCE_PROPOSED: 'A column was proposed as this consent answer. Confirm it.',
   WASHINGTON_GROUP_FLAG_DISAGREES:
     'The disability yes or no column disagrees with the Washington Group answers on some rows. Check before publishing.',
+  ANSWER_KEY_NEEDED: 'Mark the correct answers for this score',
+}
+
+/** Words of the answer key a person marks for a total score. */
+export const answerKeyCopy = {
+  heading: 'Answer key',
+  intro: 'Choose what earns a point on each question.',
+  none: 'Not scored',
+  any: 'Any answer scores',
+  answers: 'Correct answers',
+  answersFor: (label: string) => `Correct answers for ${label}`,
+  answerNoun: (label: string) => `correct answer for ${label}`,
+  empty: 'This survey has no questions to score.',
+  moreTitle: 'How the total is checked',
+  more: 'Each scored question adds one point. A row whose total score differs from the points is held for review.',
+}
+
+/** Why a held row cannot be saved in the review window, and what to do instead. */
+export const needsCorrectedFile: Record<string, string> = {
+  CONSENT_REQUIRED: 'Consent cannot be added here. Upload a corrected file with consent recorded.',
+  STAGE_CONSENT_MISSING: 'Consent cannot be added here.',
+  STAGE_IDENTITY_MISMATCH:
+    'This survey row does not match the participant. Upload a corrected file.',
 }
 
 /** Shown on the data consent item when participation consent copies its answer. */
@@ -48,6 +71,7 @@ export const ruleKindLabels: Record<(typeof INTAKE_RULE_KINDS)[number], string> 
   AGE_CHECK: 'Check the age column against a birth date',
   FOLLOW_UP_OF: 'Fill only when another field has certain answers',
   ID_FROM_INITIALS_AND_BIRTH_DATE: 'Check the ID against initials and birth date',
+  TOTAL_SCORE: 'Check the total score against the answer key',
 }
 
 /** Sentence-cases a server enum such as PARTIALLY_PROCESSED into "Partially processed". */
@@ -95,3 +119,48 @@ export const importOutcomeMessage = (totals: {
   warnings: number
 }) =>
   `Imported ${totals.processed}. ${totals.unprocessed} held for review, ${totals.invalid} invalid, ${totals.warnings} with warnings.`
+
+/** What a person reads about the surveys in one client file. */
+export const fileParts = {
+  title: 'Surveys in this file',
+  description: 'Each survey needs a published form before the file can be processed.',
+  formState: { NONE: 'No form yet', DRAFT: 'Waiting to be published', PUBLISHED: 'Ready' },
+  counts: ['Created', 'Unchanged', 'Held', 'Waiting'],
+  activity: 'Activity',
+  activityLabel: (survey: string) => `Activity for ${survey}`,
+  waitingOption: 'Waiting for an activity',
+  prepare: 'Prepare survey forms',
+  needsActivity:
+    'This survey needs an activity. Choose one, or ask a Project Manager to create it on the Activities page.',
+  noFormReason:
+    'Ask a Monitoring and Evaluation Officer or System Administrator to prepare its form.',
+  cannotValidate:
+    'Ask a Monitoring and Evaluation Officer to check this survey before it is processed.',
+  notFinished: 'The remaining rows could not be processed. Review failed rows before retrying.',
+  fallback: 'Something went wrong.',
+  heldFailed: 'The held rows could not be opened.',
+  prepareFailed: 'The form could not be prepared.',
+  openDraft: 'Open draft',
+  openDraftLabel: (survey: string) => `Open draft of ${survey}`,
+  process: 'Process file',
+  processWaiting: 'Process waiting',
+  waiting: (count: number) => `${count} waiting for their registration to be resolved`,
+  heldRows: 'Held rows',
+  showHeld: (survey: string) => `Show held rows of ${survey}`,
+  hideHeld: (survey: string) => `Hide held rows of ${survey}`,
+  uncovered: "This survey's form needs updating.",
+  prepareForm: 'Prepare form',
+  registrationFirst:
+    'The registration part needs its columns matched before the surveys can be processed.',
+  processed: 'The file was processed.',
+} as const
+
+/** Shown in the review window for a scored survey. */
+export const scoreAnswers = {
+  show: 'Show answers',
+  heads: ['Question', 'Answer', 'Key', 'Score'],
+  noAnswer: 'No answer',
+  anyAnswer: 'Any answer',
+  counted: 'Counted',
+  notCounted: 'Not counted',
+} as const

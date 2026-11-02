@@ -1,12 +1,22 @@
 'use client'
 
-import type { ImportRowReviewFieldResponse } from '@pathways/shared'
+import type { ImportRowReviewFieldResponse, ImportRowReviewResponse } from '@pathways/shared'
 
 import { useHoverTip } from '@/components/pathways'
 import { Input } from '@/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
+import { scoreAnswers as copy } from '../../collection.copy'
 import { selectClass } from '../../forms/components/intake-controls'
+import { headClass } from '../import.utils'
 
 export type ReviewField = ImportRowReviewFieldResponse
 type Cell = ReviewField['file']
@@ -167,5 +177,39 @@ export function OwnValue({
       type={field.dataType === 'DATE' ? 'date' : 'text'}
       value={text}
     />
+  )
+}
+
+/** The answers behind a total score, closed until a reviewer asks for them. */
+export function ScoreAnswers({
+  detail,
+}: { detail: NonNullable<ImportRowReviewResponse['scoreDetail']> }) {
+  return (
+    <details className="rounded-md border border-border p-3">
+      <summary className="cursor-pointer text-sm font-medium">{copy.show}</summary>
+      <Table className="mt-3 min-w-[480px]">
+        <TableHeader>
+          <TableRow>
+            {copy.heads.map((head) => (
+              <TableHead className={headClass} key={head}>
+                {head}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {detail.map((item) => (
+            <TableRow key={item.code}>
+              <TableCell className="font-medium">{item.label}</TableCell>
+              <TableCell>{cellText(item.answer) ?? copy.noAnswer}</TableCell>
+              <TableCell>
+                {item.correct === 'ANY' ? copy.anyAnswer : item.correct.join(', ')}
+              </TableCell>
+              <TableCell>{item.counted ? copy.counted : copy.notCounted}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </details>
   )
 }

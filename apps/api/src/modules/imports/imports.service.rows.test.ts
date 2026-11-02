@@ -62,6 +62,23 @@ describe('import rows listing', () => {
     })
   })
 
+  it('lists the invalid rows of a file part as held, as a registration batch does', async () => {
+    tx.dataImportBatch.findFirst.mockResolvedValue(
+      batch({
+        parentBatchId: '50000000-0000-4000-8000-0000000000a1',
+        partCode: 'lst',
+        form: { ...registrationForm, formType: 'TRAINING_SURVEY' },
+      }),
+    )
+    tx.dataImportRow.findMany.mockResolvedValue([])
+    tx.dataImportRow.count.mockResolvedValue(0)
+    await service.listRows(actor, projectId, batchId, { offset: 0, take: 100, held: true })
+    expect(tx.dataImportRow.findMany.mock.calls[0][0].where.OR).toEqual([
+      { status: 'UNPROCESSED', processingErrorCode: { not: null } },
+      { status: 'INVALID' },
+    ])
+  })
+
   it('reports when a row was resolved and null when it was not', async () => {
     tx.dataImportBatch.findFirst.mockResolvedValue(batch({ form: registrationForm }))
     const stored = {
