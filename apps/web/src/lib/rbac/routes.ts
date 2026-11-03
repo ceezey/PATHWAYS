@@ -11,6 +11,8 @@ export const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
   beneficiary: ['returnTo'],
   budget: ['expense'],
   formEntry: ['submissionId'],
+  // The import page opens a batch only if it is in the lists the server gave this person.
+  imports: ['project', 'batch'],
   indicatorLibrary: ['project'],
 }
 export function authorizationPathForUiPath(input: string): string | null {

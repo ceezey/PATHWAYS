@@ -218,6 +218,12 @@ describe('request-scoped server page authority', () => {
       searchParams: Promise.resolve({ mode: 'extend', _rsc: 'transport-only' }),
     })
     expect(new URL(mock.fetch.mock.lastCall?.[0]).searchParams.get('mode')).toBe('extend')
+    await requireServerPage('imports', {
+      searchParams: Promise.resolve({ project: id, batch: id }),
+    })
+    const importSelection = new URL(mock.fetch.mock.lastCall?.[0]).searchParams
+    expect(importSelection.get('route')).toBe('imports')
+    expect(importSelection.has('batch')).toBe(false)
   })
   it.each([
     { next: '//untrusted.example' },
