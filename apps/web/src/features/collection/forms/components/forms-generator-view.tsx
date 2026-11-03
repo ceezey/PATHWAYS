@@ -34,6 +34,7 @@ export const FormsGeneratorView = ({
   canCreate,
   canImport,
   errorState,
+  initialProjectId,
   onOpen,
   onCreate,
   onDownload,
@@ -43,13 +44,15 @@ export const FormsGeneratorView = ({
   canCreate: boolean
   canImport: boolean
   errorState: ReactNode
+  initialProjectId: string
   onOpen: (form: SavedForm) => void
   onCreate: () => void
   onDownload: (form: SavedForm) => void
   savedForms: SavedForm[]
   status: 'loading' | 'error' | 'ready'
 }) => {
-  const [projectId, setProjectId] = useState('')
+  // Seeded from the workspace so returning from the builder keeps the project last worked in.
+  const [projectId, setProjectId] = useState(initialProjectId)
   const groups = groupByProject(savedForms)
   // One project is chosen for the person; a chosen project whose forms are gone returns to the placeholder.
   const selected =

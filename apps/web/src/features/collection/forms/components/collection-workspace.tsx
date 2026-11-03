@@ -217,6 +217,7 @@ const OwnedCollectionWorkspace = (
         <FormsGeneratorView
           canCreate={canManageForms}
           canImport={canOpenImport}
+          initialProjectId={projectId}
           onOpen={openSavedForm}
           onCreate={startNewForm}
           onDownload={downloadSavedForm}

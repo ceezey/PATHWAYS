@@ -161,15 +161,27 @@ describe('Role dashboard activity review panel', () => {
     expect(document.activeElement).toBe(trigger)
   })
 
-  it('reloads the dashboard and then the activity after the activity changed', async () => {
+  it('reloads the dashboard and keeps the changed activity open after the activity changed', async () => {
     await open()
     await detail()
 
     fireEvent.click(screen.getByRole('button', { name: 'change activity' }))
 
     await waitFor(() => expect(api.getDashboard).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(api.getActivity).toHaveBeenCalledTimes(2))
-    expect((await detail()).textContent).toContain('Synthetic activity')
+    expect((await detail()).textContent).toContain('Changed activity')
+    expect(api.getActivity).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the loaded dashboard on screen while it reloads after a change', async () => {
+    await open()
+    await detail()
+    api.getDashboard.mockReturnValue(new Promise(() => {}))
+
+    fireEvent.click(screen.getByRole('button', { name: 'change activity' }))
+
+    await waitFor(() => expect(api.getDashboard).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('Loading dashboard...')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Review proof' })).toBeTruthy()
   })
 
   it('shows the unavailable page when the reload after a change fails', async () => {

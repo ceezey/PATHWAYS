@@ -62,7 +62,8 @@ export const RoleDashboard = () => {
   useEffect(() => {
     void dashboardRevision
     let mounted = true
-    setStatus('loading')
+    // A refetch keeps the loaded dashboard mounted so its selected project survives a review.
+    setStatus((current) => (current === 'success' ? current : 'loading'))
 
     if (role !== 'System Administrator') return
     dashboardsClient

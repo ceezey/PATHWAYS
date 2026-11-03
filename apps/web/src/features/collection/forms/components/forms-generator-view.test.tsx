@@ -58,12 +58,13 @@ const form = (id: string, projectId: string, project: string, title: string): Sa
   savedAt: '2026-10-21T00:00:00.000Z',
 })
 
-const view = (savedForms: SavedForm[]) =>
+const view = (savedForms: SavedForm[], initialProjectId = '') =>
   render(
     <FormsGeneratorView
       canCreate
       canImport={false}
       errorState={null}
+      initialProjectId={initialProjectId}
       onOpen={vi.fn()}
       onCreate={vi.fn()}
       onDownload={vi.fn()}
@@ -94,5 +95,17 @@ describe('FormsGeneratorView project picker', () => {
     view([form('f1', 'p1', 'Northern Samar', 'Coaching Attendance')])
     expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('p1')
     expect(screen.getByText('Coaching Attendance')).toBeTruthy()
+  })
+
+  it('keeps the project the person last worked in when it returns from the builder', () => {
+    view(
+      [
+        form('f1', 'p1', 'Northern Samar', 'Coaching Attendance'),
+        form('f2', 'p2', 'Safe Schools', 'Registration'),
+      ],
+      'p2',
+    )
+    expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('p2')
+    expect(screen.getByText('Registration')).toBeTruthy()
   })
 })
