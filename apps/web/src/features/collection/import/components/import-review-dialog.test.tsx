@@ -398,6 +398,11 @@ describe('import review dialog', () => {
     ])
     expect(scrolled).toHaveBeenCalledTimes(1)
     expect(scrolled.mock.contexts[0]).toBe(flagged[0])
+    // Only the changed field asks for a check; the answer it is worked out from says so instead.
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'More information about Age' }))
+    expect(screen.getAllByRole('tooltip').at(-1)?.textContent).toBe('Check this field')
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'More information about Birth date' }))
+    expect(screen.getAllByRole('tooltip').at(-1)?.textContent).toBe('Used to calculate Age')
     fireEvent.click(calculated)
     confirm()
     expect(await sent()).toMatchObject({ saveAs: 'NEW', choices: { age_stated: 'CALCULATED' } })

@@ -37,6 +37,7 @@ import {
   OwnValue,
   ScoreAnswers,
   calculationHint,
+  cellText,
   ownPayload,
 } from './import-review-cells'
 
@@ -115,6 +116,12 @@ export function ImportReviewDialog({
           ...(field.rule ? ruleFieldCodes(field.rule) : []),
         ])
       : (fieldsOfReason[review?.reason ?? ''] ?? []),
+  )
+  // An unchanged answer is flagged only as a rule input, so its tip names the field it calculates.
+  const usedFor = new Map(
+    changedFields.flatMap((field) =>
+      field.rule ? ruleFieldCodes(field.rule).map((code) => [code, field.label] as const) : [],
+    ),
   )
   const firstFlagged = review?.fields.find((field) => flagged.has(field.code))?.code
   // Opening the window leads to the first field to check and highlights the flagged fields briefly.
@@ -286,7 +293,11 @@ export function ImportReviewDialog({
                         <span className="inline-flex items-center gap-3">
                           {label}
                           {flagged.has(code) ? (
-                            <MetricTooltip label={label}>Check this field</MetricTooltip>
+                            <MetricTooltip label={label}>
+                              {!open && usedFor.has(code)
+                                ? `Used to calculate ${usedFor.get(code)}`
+                                : 'Check this field'}
+                            </MetricTooltip>
                           ) : null}
                         </span>
                         {errors[code] ? (
@@ -313,7 +324,10 @@ export function ImportReviewDialog({
                             value={field.pathways}
                           />
                         ) : null}
-                        {field.calculated !== null ? (
+                        {/* A calculated value that matches the stored one adds nothing, so only the stored tile shows. */}
+                        {field.calculated !== null &&
+                        (saveAs === 'NEW' ||
+                          cellText(field.calculated) !== cellText(field.pathways)) ? (
                           <ChoiceCell
                             caption="Calculated"
                             column="Calculated by PATHWAYS"
