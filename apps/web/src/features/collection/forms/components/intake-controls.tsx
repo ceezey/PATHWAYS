@@ -77,12 +77,14 @@ export function ChipListInput({
           }}
         />
         <Button
+          aria-label={`Add ${noun}`}
+          className="shrink-0"
           disabled={readOnly || values.length >= max}
           type="button"
           variant="outline"
           onClick={add}
         >
-          Add {noun}
+          Add
         </Button>
       </div>
     </div>

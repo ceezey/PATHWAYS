@@ -120,7 +120,10 @@ describe('AnswerKeyEditor', () => {
     fireEvent.change(screen.getByLabelText('New correct answer for Capital city'), {
       target: { value: ' Manila ' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Add correct answer for Capital city' }))
+    const add = screen.getByRole('button', { name: 'Add correct answer for Capital city' })
+    // The question is in the accessible name only, so a long label cannot squeeze the input.
+    expect(add.textContent).toBe('Add')
+    fireEvent.click(add)
     expect(onRule).toHaveBeenLastCalledWith({
       kind: 'TOTAL_SCORE',
       questions: [
