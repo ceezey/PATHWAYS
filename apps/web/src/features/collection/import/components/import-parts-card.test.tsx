@@ -23,6 +23,8 @@ const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getJourneyStages: vi.fn(),
   draftFromImport: vi.fn(),
+  getRowReview: vi.fn(),
+  resolveRow: vi.fn(),
 }))
 const role = vi.hoisted(() => ({
   profile: { roles: ['MONITORING_AND_EVALUATION_OFFICER'], permissions: ['imports.read'] },
@@ -242,6 +244,58 @@ describe('import parts card', () => {
       expect(api.getHeldRows).toHaveBeenCalledWith('project-1', 'child-survey_a')
       expect(screen.getByRole('button', { name: 'Hide held rows of Survey A' })).toBeTruthy()
       expect(screen.queryByRole('button', { name: /held rows of Survey B/ })).toBeNull()
+    })
+
+    it('closes the list and its button once the last held row is settled', async () => {
+      role.profile.permissions = [
+        'imports.read',
+        'imports.review',
+        'beneficiaries.records.read',
+        'beneficiaries.records.register',
+        'beneficiaries.identities.review',
+      ]
+      const held = child('survey_a', {
+        status: 'PARTIALLY_PROCESSED',
+        totals: { ...totals, unprocessed: 1 },
+      })
+      const settled = child('survey_a', {
+        status: 'PROCESSED',
+        registrationCounts: { created: 1, updated: 0, unchanged: 0 },
+      })
+      api.getImportBatch
+        .mockResolvedValueOnce({ ...held, formType: 'TRAINING_SURVEY', mappings: [] })
+        .mockResolvedValueOnce({ ...settled, formType: 'TRAINING_SURVEY', mappings: [] })
+      api.getHeldRows.mockResolvedValue([
+        {
+          id: 'row-1',
+          rowNumber: 2,
+          rawData: {},
+          status: 'UNPROCESSED',
+          processingErrorCode: 'STAGE_CHANGED',
+          resolvedAt: null,
+        },
+      ])
+      api.getRowReview.mockResolvedValue({
+        rowId: 'row-1',
+        rowNumber: 2,
+        reason: 'STAGE_CHANGED',
+        participant: { beneficiaryId: 'ben-1', clientId: 'SYN-1', displayName: 'Ana Cruz' },
+        canAddNew: false,
+        fields: [],
+      })
+      api.resolveRow.mockResolvedValue({ status: 'PROCESSED' })
+      const view = show(registration([part(0, 'PUBLISHED', held)]))
+      // The page reloads the file batch after a save, so the survey's held count drops to 0.
+      review.loadBatch.mockImplementation(async () =>
+        view.update(registration([part(0, 'PUBLISHED', settled)])),
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Show held rows of Survey A' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Review row 2' }))
+      const confirm = await screen.findByRole('button', { name: 'Confirm' })
+      await waitFor(() => expect((confirm as HTMLButtonElement).disabled).toBe(false))
+      fireEvent.click(confirm)
+      await waitFor(() => expect(screen.queryByText('Import results')).toBeNull())
+      expect(screen.queryByRole('button', { name: /held rows of Survey A/ })).toBeNull()
     })
 
     it('offers the list for a survey whose only held rows are invalid', () => {

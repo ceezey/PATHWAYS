@@ -222,10 +222,16 @@ export function ImportPartsCard({
                   batch={opened.batch}
                   onChanged={async () => {
                     await review.loadBatch(batch.id)
-                    setOpened({
-                      code: part.code,
-                      batch: await importsClient.getImportBatch(batch.projectId, opened.batch.id),
-                    })
+                    const next = await importsClient.getImportBatch(
+                      batch.projectId,
+                      opened.batch.id,
+                    )
+                    // Settling the last held row leaves nothing to review, so the list closes with its button.
+                    setOpened(
+                      next.totals.unprocessed + next.totals.invalid > 0
+                        ? { code: part.code, batch: next }
+                        : null,
+                    )
                   }}
                 />
               ) : null}
