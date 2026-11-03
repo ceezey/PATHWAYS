@@ -280,10 +280,10 @@ function isChoiceColumn(texts: readonly string[]) {
 function choicesOf(texts: readonly string[]) {
   if (!isChoiceColumn(texts)) return null
   const originals = [...new Set(texts.filter(hasLetterPrefix))].sort(byPrefix)
-  if (originals.some((text) => text.length > LIMITS.nameLength)) return null
   const options: string[] = []
   for (const text of originals) {
     const option = stripLetterPrefix(text)
+    if (option.length > OPTION_LENGTH) return null
     if (!options.some((existing) => comparableAnswer(existing) === comparableAnswer(option)))
       options.push(option)
   }
