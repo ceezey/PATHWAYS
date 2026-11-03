@@ -2,6 +2,7 @@
 
 import { Upload } from 'lucide-react'
 
+import { useHoverTip } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,7 +15,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-import { UPLOAD_NEEDS_CLIENT_ID_ROLE, UPLOAD_NEEDS_PARTICIPANT_ROLE } from '../../collection.copy'
+import {
+  UPLOAD_NEEDS_CLIENT_ID_ROLE,
+  UPLOAD_NEEDS_PARTICIPANT_ROLE,
+  noFormHint,
+} from '../../collection.copy'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
 import { FileCheckDialog } from './file-check-dialog'
@@ -32,6 +37,7 @@ export function ImportUploadCard({
     | 'checking'
     | 'file'
     | 'fileCheck'
+    | 'fileFormType'
     | 'fileInput'
     | 'formId'
     | 'forms'
@@ -67,6 +73,7 @@ export function ImportUploadCard({
     checking,
     file,
     fileCheck,
+    fileFormType,
     fileInput,
     formId,
     forms,
@@ -101,6 +108,9 @@ export function ImportUploadCard({
     )
       refusedReason = UPLOAD_NEEDS_CLIENT_ID_ROLE
   }
+  // With no published form the button stays focusable so hover, focus or a tap can say which form to create.
+  const noForms = Boolean(projectId) && formsState === 'ready' && forms.length === 0
+  const noFormTip = useHoverTip(noForms ? noFormHint(fileFormType, canManageForms) : undefined)
   return (
     <Card>
       <CardHeader>
@@ -234,19 +244,23 @@ export function ImportUploadCard({
         {isSystemAdministrator ? null : (
           <div className="md:col-span-3">
             <Button
+              {...noFormTip.triggerProps}
+              aria-disabled={noForms || undefined}
               disabled={
-                !canUpload ||
-                pending ||
-                !file ||
-                !formId ||
-                sheetNames === null ||
-                (sheetNames.length > 1 && !sheetName)
+                !noForms &&
+                (!canUpload ||
+                  pending ||
+                  !file ||
+                  !formId ||
+                  sheetNames === null ||
+                  (sheetNames.length > 1 && !sheetName))
               }
-              onClick={() => void upload()}
+              onClick={noForms ? noFormTip.show : () => void upload()}
             >
               <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
               {checking ? 'Checking file...' : pending ? 'Working...' : 'Upload privately'}
             </Button>
+            {noFormTip.tip}
           </div>
         )}
       </CardContent>

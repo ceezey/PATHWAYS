@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ImportWorkspace } from './import-workspace'
@@ -70,6 +70,19 @@ describe('import published form version loading', () => {
     const [placeholder, listMessage] = noForms()
     expect(placeholder.closest('[data-select-content]')).toBeNull()
     expect(listMessage.closest('[data-select-content]')).not.toBeNull()
+  })
+
+  it('keeps Upload privately hoverable and says which form to create first', async () => {
+    api.getDigitalForms.mockResolvedValue([])
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await waitFor(() => expect(noForms()).toHaveLength(2))
+    const upload = screen.getByRole('button', { name: 'Upload privately' }) as HTMLButtonElement
+    expect(upload.disabled).toBe(false)
+    expect(upload.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.mouseEnter(upload)
+    expect(screen.getByRole('tooltip').textContent).toContain(
+      'publish a beneficiary registration form first',
+    )
   })
 
   it('offers a back link to Forms only to roles that can open the forms route', async () => {

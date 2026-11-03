@@ -1,9 +1,26 @@
 import type { FileCheckReport } from '@pathways/imports'
 import { CONSENT_FIELD_CODES, type ImportHoldCode } from '@pathways/shared'
 
-import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
+import type { DigitalFormType, ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
 import { enumLabel } from '../collection.copy'
+
+// Checked in order; surveys repeat the identity columns, so registration comes last.
+const formTypeHeaders: Array<[DigitalFormType, RegExp]> = [
+  ['PRE_TEST', /\bpre[\s_-]?test/i],
+  ['POST_TEST', /\bpost[\s_-]?test/i],
+  ['ACTIVITY_MONITORING', /\b(?:activity|attendance|venue)/i],
+  ['OUTCOME_MONITORING', /\boutcome/i],
+  ['TRAINING_SURVEY', /\b(?:training|survey)/i],
+  [
+    'BENEFICIARY_REGISTRATION',
+    /\b(?:first[\s_]?name|last[\s_]?name|surname|birth|sex\b|gender|consent)/i,
+  ],
+]
+
+/** The form type a file's headers look like, or null when no header says. */
+export const guessFormType = (headers: readonly string[]) =>
+  formTypeHeaders.find(([, pattern]) => headers.some((header) => pattern.test(header)))?.[0] ?? null
 
 // Why the server refused a stored upload, in its own words when it gave them.
 export const uploadFailure = (batch: Pick<ImportBatchDefinition, 'status' | 'failureMessage'>) =>

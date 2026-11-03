@@ -2,7 +2,29 @@ import { describe, expect, it } from 'vitest'
 
 import type { ImportBatchDefinition } from '@/types/pathways'
 
-import { rowReason, rowReasonHelp } from './import.utils'
+import { noFormHint } from '../collection.copy'
+import { guessFormType, rowReason, rowReasonHelp } from './import.utils'
+
+describe('form a file needs when the project has none', () => {
+  it('guesses the form type from the headers, registration last', () => {
+    expect(guessFormType(['First Name', 'Birth date', 'Sex'])).toBe('BENEFICIARY_REGISTRATION')
+    expect(guessFormType(['first_name', 'Pre-test score'])).toBe('PRE_TEST')
+    expect(guessFormType(['Activity title', 'Venue', 'Attendance'])).toBe('ACTIVITY_MONITORING')
+    expect(guessFormType(['Column A', 'Sexual'])).toBeNull()
+  })
+
+  it('asks for the registration form before a survey, and names who can create it', () => {
+    expect(noFormHint(null, true)).toBe(
+      'This project has no published form. Create and publish a beneficiary registration form on the Forms page first.',
+    )
+    expect(noFormHint('PRE_TEST', true)).toContain(
+      'This file looks like a pre-test file. Create and publish a beneficiary registration form, then a pre-test form',
+    )
+    expect(noFormHint('ACTIVITY_MONITORING', false)).toBe(
+      'This project has no published form. This file looks like an activity monitoring file. Ask a Monitoring and Evaluation Officer or System Administrator to publish an activity monitoring form first.',
+    )
+  })
+})
 
 const invalid = (code: string, fieldCode = 'age_at_registration') => ({
   status: 'INVALID' as const,

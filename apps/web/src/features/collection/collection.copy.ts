@@ -107,6 +107,24 @@ export const UPLOAD_NEEDS_PARTICIPANT_ROLE =
 export const UPLOAD_NEEDS_CLIENT_ID_ROLE =
   'This form matches participants by client ID, which your role cannot do. Ask a Monitoring and Evaluation Officer to upload this file.'
 
+const withArticle = (label: string) => `${/^[aeiou]/i.test(label) ? 'an' : 'a'} ${label}`
+
+/** Why Upload privately waits on a project with no published form, and which form the file needs first. */
+export const noFormHint = (fileType: DigitalFormType | null, canManageForms: boolean) => {
+  const label = fileType ? formTypeLabels[fileType].toLowerCase() : null
+  // Surveys and tests answer for registered participants, so their registration form comes first.
+  const needed =
+    !label || fileType === 'BENEFICIARY_REGISTRATION'
+      ? 'a beneficiary registration form'
+      : fileType === 'ACTIVITY_MONITORING'
+        ? `${withArticle(label)} form`
+        : `a beneficiary registration form, then ${withArticle(label)} form`
+  const looks = label ? ` This file looks like ${withArticle(label)} file.` : ''
+  return canManageForms
+    ? `This project has no published form.${looks} Create and publish ${needed} on the Forms page first.`
+    : `This project has no published form.${looks} Ask a Monitoring and Evaluation Officer or System Administrator to publish ${needed} first.`
+}
+
 /** Why a System Administrator, who edits forms, cannot send a file with data rows. */
 export const IMPORT_NEEDS_OTHER_ROLE =
   'This file has data rows, which your role cannot import. Ask a Monitoring and Evaluation Officer to import it. To build a form from its columns, use a file with only the header row.'

@@ -7,6 +7,7 @@ import type { SensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type {
   DigitalFormDefinition,
+  DigitalFormType,
   ImportBatchDefinition,
   ImportRowDefinition,
   ImportSourceColumn,
@@ -16,7 +17,8 @@ import type {
 import type { ImportProcessingState } from '../components/import-processing-panel'
 import type { ColumnRuleDraft } from '../components/import-value-map-editor'
 import type { ImportProcessingProgress } from '../import-auto-continue'
-import { mappingLockedStatuses } from '../import.utils'
+import { parseImportPreview } from '../import-preview'
+import { guessFormType, mappingLockedStatuses } from '../import.utils'
 import { useImportBatch } from './use-import-batch'
 
 export function useImportState(scope: SensitiveDraftOwner) {
@@ -72,6 +74,24 @@ export function useImportState(scope: SensitiveDraftOwner) {
       active = false
     }
   }, [file])
+  // What the chosen file looks like, read only when the project has no published form to suggest which to create.
+  const [fileFormType, setFileFormType] = useState<DigitalFormType | null>(null)
+  const noForms = formsState === 'ready' && forms.length === 0
+  useEffect(() => {
+    setFileFormType(null)
+    if (!file || !noForms) return
+    let active = true
+    parseImportPreview(file)
+      .then((preview) => guessFormType(preview.headers))
+      // An unreadable file or a PDF gets the plain hint.
+      .catch(() => null)
+      .then((type) => {
+        if (active) setFileFormType(type)
+      })
+    return () => {
+      active = false
+    }
+  }, [file, noForms])
   // Why the server refused the last upload, shown on the upload card until the file or target changes.
   const [uploadRefusal, setUploadRefusal] = useState('')
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new file, project or form clears the old refusal.
@@ -253,6 +273,7 @@ export function useImportState(scope: SensitiveDraftOwner) {
     setRules,
     setSheetName,
     setUploadRefusal,
+    fileFormType,
     sheetName,
     sheetNames,
     sourceColumnByKey,
