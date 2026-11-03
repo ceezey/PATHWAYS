@@ -335,6 +335,13 @@ describe('import review dialog', () => {
     expect((screen.getByRole('button', { name: 'Confirm' }) as HTMLButtonElement).disabled).toBe(
       true,
     )
+    // Nothing on the row can be chosen or typed, so the window offers neither.
+    expect(screen.queryByLabelText('Save as')).toBeNull()
+    expect(screen.queryByLabelText('First name, Your value')).toBeNull()
+    expect(
+      (screen.getByRole('button', { name: 'First name, In this file: Anna' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
   })
 
   it('an age that does not match the birth date offers the calculated value and sends it', async () => {
@@ -454,6 +461,13 @@ describe('import review dialog', () => {
       })
       fireEvent.mouseEnter(info)
       expect(screen.getByRole('tooltip').textContent).toBe('Check this field')
+    })
+
+    it('leads a survey row held for its identity to the name and ID fields', async () => {
+      const [row, ...rest] = await openHeld('STAGE_IDENTITY_MISMATCH')
+      expect(rest).toHaveLength(0)
+      expect(row.querySelector('td')?.textContent).toBe('First name')
+      expect(scrolled.mock.contexts[0]).toBe(row)
     })
 
     it('says who approves guardian consent on hover, for a minor waiting for it', async () => {

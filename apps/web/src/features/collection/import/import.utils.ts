@@ -115,6 +115,8 @@ export const fieldsOfReason: Partial<Record<string, readonly string[]>> = {
   SUBJECT_TYPE_CONFLICT: ['subject_type'],
   IDENTITY_CONFLICT: identityFields,
   IDENTITY_MISSING: ['external_identifier_value'],
+  STAGE_CONSENT_MISSING: ['stage_consent'],
+  STAGE_IDENTITY_MISMATCH: ['external_identifier_value', 'first_name', 'middle_name', 'last_name'],
 }
 
 // Why an invalid registration row waits for a reviewer, by its validation code.

@@ -239,21 +239,23 @@ export function ImportReviewDialog({
         </DialogHeader>
         {review ? (
           <>
-            <div className="space-y-2">
-              <Label htmlFor={`${id}-save`}>Save as</Label>
-              <select
-                className={selectClass}
-                disabled={!canSave}
-                id={`${id}-save`}
-                onChange={(event) => changeSaveAs(event.target.value as SaveAs)}
-                value={saveAs}
-              >
-                {canSaveUpdate ? (
-                  <option value="UPDATE">Update the existing participant</option>
-                ) : null}
-                {review.canAddNew ? <option value="NEW">Add as a new participant</option> : null}
-              </select>
-            </div>
+            {/* A row that cannot be saved here has nothing to save as. */}
+            {canSave ? (
+              <div className="space-y-2">
+                <Label htmlFor={`${id}-save`}>Save as</Label>
+                <select
+                  className={selectClass}
+                  id={`${id}-save`}
+                  onChange={(event) => changeSaveAs(event.target.value as SaveAs)}
+                  value={saveAs}
+                >
+                  {canSaveUpdate ? (
+                    <option value="UPDATE">Update the existing participant</option>
+                  ) : null}
+                  {review.canAddNew ? <option value="NEW">Add as a new participant</option> : null}
+                </select>
+              </div>
+            ) : null}
             <Table className="min-w-[640px]">
               <TableHeader>
                 <TableRow>
@@ -316,7 +318,7 @@ export function ImportReviewDialog({
                         {field.pathways !== null || field.calculated === null ? (
                           <ChoiceCell
                             column="In database"
-                            disabled={saveAs === 'NEW'}
+                            disabled={saveAs === 'NEW' || !canSave}
                             label={label}
                             missing="No Data"
                             onPick={() => pick(code, 'PATHWAYS')}
@@ -331,6 +333,7 @@ export function ImportReviewDialog({
                           <ChoiceCell
                             caption="Calculated"
                             column="Calculated by PATHWAYS"
+                            disabled={!canSave}
                             hint={calculationHint(field.rule, labelOf)}
                             label={label}
                             onPick={() => pick(code, 'CALCULATED')}
@@ -345,6 +348,7 @@ export function ImportReviewDialog({
                           column={
                             field.fileUnusable ? 'In this file, cannot be used' : 'In this file'
                           }
+                          disabled={!canSave}
                           label={label}
                           missing={field.fileUnusable ?? 'No Data'}
                           onPick={() => pick(code, 'FILE')}
@@ -353,7 +357,7 @@ export function ImportReviewDialog({
                         />
                       </TableCell>
                       <TableCell>
-                        {consent ? (
+                        {consent || !canSave ? (
                           <NotEditable
                             hint={
                               code === 'guardian_consent_recorded' &&
