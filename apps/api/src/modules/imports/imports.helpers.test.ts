@@ -25,19 +25,3 @@ describe('safeSourceColumns source codes', () => {
     }
   })
 })
-
-describe('safeSourceColumns file positions', () => {
-  const at = (columnIndex: number) =>
-    column({ key: `column_${String(columnIndex).padStart(4, '0')}`, columnIndex })
-
-  it('keeps the file positions of a survey part', () => {
-    expect(parse([at(37), at(38), at(58)])).toEqual([at(37), at(38), at(58)])
-  })
-
-  it('rejects columns out of order, repeated, or keyed for another position', () => {
-    expect(() => parse([at(38), at(37)])).toThrow('Stored import source columns')
-    expect(() => parse([at(37), at(37)])).toThrow('Stored import source columns')
-    expect(() => parse([{ ...at(37), key: 'column_0001' }])).toThrow('Stored import source columns')
-    expect(() => parse([at(0)])).toThrow('Stored import source columns')
-  })
-})

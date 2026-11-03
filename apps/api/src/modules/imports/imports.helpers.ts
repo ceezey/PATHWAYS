@@ -87,8 +87,6 @@ export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[]
   if (!Array.isArray(value) || value.length > IMPORT_ENGINEERING_LIMITS.maxSourceColumns) {
     throw new ConflictException('Stored import source columns are invalid.')
   }
-  // A file part keeps its columns' file positions, so positions only have to rise.
-  let previous = 0
   const columns = value.map((item, index): ImportSourceColumn => {
     if (typeof item === 'string') {
       return { key: item, header: item, columnIndex: index + 1 }
@@ -97,26 +95,22 @@ export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[]
       throw new ConflictException('Stored import source columns are invalid.')
     }
     const record = item as Record<string, unknown>
-    const columnIndex = record.columnIndex
+    const columnIndex = index + 1
     if (
-      typeof columnIndex !== 'number' ||
-      !Number.isInteger(columnIndex) ||
-      columnIndex <= previous ||
-      columnIndex > IMPORT_ENGINEERING_LIMITS.maxSourceColumns ||
       record.key !== sourceColumnKey(columnIndex) ||
       typeof record.header !== 'string' ||
       record.header.length < 1 ||
       record.header.length > IMPORT_ENGINEERING_LIMITS.maxHeaderCharacters ||
+      record.columnIndex !== columnIndex ||
       (record.sourceCode !== undefined &&
         (typeof record.sourceCode !== 'string' || !sourceCodePattern.test(record.sourceCode)))
     ) {
       throw new ConflictException('Stored import source columns are invalid.')
     }
-    previous = columnIndex
     return {
       key: record.key,
       header: record.header,
-      columnIndex,
+      columnIndex: record.columnIndex,
       ...(typeof record.sourceCode === 'string' ? { sourceCode: record.sourceCode } : {}),
     }
   })
