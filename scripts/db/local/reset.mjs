@@ -12,6 +12,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
 const phase6Dir = path.join(root, 'infra', 'supabase', 'replay')
 const stageDir = path.join(root, '.tmp', 'local-db', 'migrations')
+const seedDir = path.join(root, '.tmp', 'local-seed')
+const isCredentialsFile = (name) => /^credentials-\d+\.json$/.test(name)
 
 const baseline = '0000_pathways_baseline_through_0026'
 // Migrations that require DBA role preprovisioning before they run, mapped to
@@ -169,6 +171,11 @@ function deployStaged(names) {
 function main() {
   assertLocalContainer()
   run('npx', ['supabase', 'db', 'reset', '--local', '--no-seed'], { label: 'supabase db reset' })
+  // The reset removed every Auth user, so passwords from earlier seeds no longer work.
+  mkdirSync(seedDir, { recursive: true })
+  for (const name of readdirSync(seedDir).filter(isCredentialsFile)) {
+    rmSync(path.join(seedDir, name))
+  }
 
   // Local stand-ins for the hosted DBA prerequisites the baseline expects.
   psql(
