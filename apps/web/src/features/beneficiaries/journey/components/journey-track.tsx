@@ -59,7 +59,9 @@ const Node = ({
       >
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <span className="text-sm font-semibold text-foreground">{stage.code}</span>
+      <span className="w-full truncate text-sm font-semibold text-foreground" title={stage.code}>
+        {stage.code}
+      </span>
       <span className="w-full truncate text-xs text-muted-foreground" title={stage.name}>
         {stage.name}
       </span>
