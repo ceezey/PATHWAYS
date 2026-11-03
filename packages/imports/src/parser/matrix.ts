@@ -34,7 +34,7 @@ export function reject(code: string, message: string): never {
   throw new ImportParseError(code, message)
 }
 
-function sourceColumnKey(columnIndex: number) {
+export function sourceColumnKey(columnIndex: number) {
   return `column_${String(columnIndex).padStart(4, '0')}`
 }
 

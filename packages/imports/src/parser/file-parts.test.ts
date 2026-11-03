@@ -100,12 +100,19 @@ describe('selectPartColumns', () => {
     const [, , cbed] = detectFileParts(parsed)
     const selected = selectPartColumns(parsed, cbed)
     expect(selected.rows.map((row) => row.sourceRowNumber)).toEqual([4, 6, 8, 10, 12, 14])
-    expect(selected.sourceColumns.map((column) => column.columnIndex)).toEqual([
-      19, 20, 21, 22, 23, 24,
-    ])
+    // A part is stored as its own sheet, numbered from 1, as stored column checks require.
+    expect(selected.sourceColumns.map((column) => column.columnIndex)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(selected.sourceColumns[0].key).toBe('column_0001')
+    expect(
+      selected.sourceColumns.map(({ header, sourceCode }) => ({ header, sourceCode })),
+    ).toEqual(
+      parsed.sourceColumns.slice(18, 24).map(({ header, sourceCode }) => ({ header, sourceCode })),
+    )
     expect(Object.keys(selected.rows[0].values)).toEqual(
       selected.sourceColumns.map((column) => column.key),
     )
+    const original = parsed.rows.find((row) => row.sourceRowNumber === 4)
+    expect(selected.rows[0].values.column_0001).toEqual(original?.values.column_0019)
   })
 
   it('a stage nobody took has no rows', () => {

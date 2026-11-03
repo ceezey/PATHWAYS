@@ -1,6 +1,6 @@
 import type { FilePart } from '@pathways/shared'
 
-import type { ImportSourceColumn, ParsedImportRow } from './matrix'
+import { type ImportSourceColumn, type ParsedImportRow, sourceColumnKey } from './matrix'
 
 interface ParsedShape {
   sourceColumns: ImportSourceColumn[]
@@ -80,12 +80,20 @@ export function selectPartColumns<T extends ParsedShape>(
   parsed: T,
   range: { firstColumn: number; lastColumn: number },
 ): T {
-  const sourceColumns = parsed.sourceColumns.slice(range.firstColumn, range.lastColumn + 1)
+  const picked = parsed.sourceColumns.slice(range.firstColumn, range.lastColumn + 1)
+  // The part is renumbered from 1 like a sheet of its own, because stored column checks require it.
+  const sourceColumns = picked.map((column, index) => ({
+    ...column,
+    key: sourceColumnKey(index + 1),
+    columnIndex: index + 1,
+  }))
   const rows = parsed.rows
-    .filter((row) => hasValueIn(row, sourceColumns))
+    .filter((row) => hasValueIn(row, picked))
     .map((row) => ({
       sourceRowNumber: row.sourceRowNumber,
-      values: Object.fromEntries(sourceColumns.map(({ key }) => [key, row.values[key]])),
+      values: Object.fromEntries(
+        picked.map(({ key }, index) => [sourceColumns[index].key, row.values[key]]),
+      ),
     }))
   return { ...parsed, sourceColumns, rows }
 }
