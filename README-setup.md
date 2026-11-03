@@ -71,6 +71,7 @@ Then:
 
 - Open `http://127.0.0.1:3000/staff/login` in a private window.
 - Passwords for the seeded accounts are written only to the ignored `.tmp/local-seed/` folder.
+- A reset keeps the existing local accounts, with their passwords and authenticator setups, as hosted resets do; only accounts it has to create get new passwords.
 - Each account enrolls an authenticator app (TOTP) on first sign-in.
 - Local email, such as password recovery, appears in Mailpit at `http://127.0.0.1:54324`.
 

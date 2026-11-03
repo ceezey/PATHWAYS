@@ -14,6 +14,8 @@ const phase6Dir = path.join(root, 'infra', 'supabase', 'replay')
 const stageDir = path.join(root, '.tmp', 'local-db', 'migrations')
 const seedDir = path.join(root, '.tmp', 'local-seed')
 const isCredentialsFile = (name) => /^credentials-\d+\.json$/.test(name)
+// Auth accounts outlive a reset, as hosted ones do, so the same passwords and authenticators keep working.
+const authTables = ['auth.users', 'auth.identities', 'auth.mfa_factors']
 
 const baseline = '0000_pathways_baseline_through_0026'
 // Migrations that require DBA role preprovisioning before they run, mapped to
@@ -168,14 +170,38 @@ function deployStaged(names) {
   )
 }
 
+// The Auth accounts as SQL data, or null when there are none; held in memory only because it carries password hashes.
+function saveAccounts() {
+  const docker = (args) =>
+    execFileSync('docker', ['exec', localDatabase.container, ...args], {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
+  const count = docker([
+    'psql',
+    '-U',
+    'postgres',
+    '-d',
+    'postgres',
+    '-tAc',
+    'SELECT count(*) FROM auth.users',
+  ])
+  if (Number(count.trim()) === 0) return null
+  return docker([
+    'pg_dump',
+    '-U',
+    'postgres',
+    '-d',
+    'postgres',
+    '--data-only',
+    ...authTables.flatMap((table) => ['--table', table]),
+  ])
+}
+
 function main() {
   assertLocalContainer()
+  const accounts = saveAccounts()
   run('npx', ['supabase', 'db', 'reset', '--local', '--no-seed'], { label: 'supabase db reset' })
-  // The reset removed every Auth user, so passwords from earlier seeds no longer work.
-  mkdirSync(seedDir, { recursive: true })
-  for (const name of readdirSync(seedDir).filter(isCredentialsFile)) {
-    rmSync(path.join(seedDir, name))
-  }
 
   // Local stand-ins for the hosted DBA prerequisites the baseline expects.
   psql(
@@ -249,6 +275,24 @@ REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
     `ALTER ROLE pathways_runtime WITH LOGIN PASSWORD '${localDatabase.runtimePassword}';`,
     'runtime login',
   )
+
+  // Restored in one transaction; if that fails the seed makes new accounts with new passwords instead.
+  let kept = false
+  if (accounts) {
+    try {
+      psql(accounts, 'restore accounts', ['--single-transaction'])
+      kept = true
+    } catch (error) {
+      console.warn(`Accounts were not kept (${error.message}); the seed writes new passwords.`)
+    }
+  }
+  // New accounts make every earlier passwords file stale.
+  if (!kept) {
+    mkdirSync(seedDir, { recursive: true })
+    for (const name of readdirSync(seedDir).filter(isCredentialsFile)) {
+      rmSync(path.join(seedDir, name))
+    }
+  }
 
   run('node', [path.join(root, 'scripts', 'db', 'local/seed.mjs')], {
     label: 'local synthetic seed',
