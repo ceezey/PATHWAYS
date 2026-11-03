@@ -99,6 +99,12 @@ INSERT INTO pathways.digital_forms(id,organization_id,project_id,code,version,na
  (pg_temp.u(91),pg_temp.u(1),pg_temp.u(41),'SI_SURVEY',1,'Synthetic survey','TRAINING_SURVEY','PUBLISHED',pg_temp.u(61),pg_temp.u(22),now()),
  (pg_temp.u(94),pg_temp.u(1),pg_temp.u(41),'SI_SURVEY',2,'Synthetic survey v2','TRAINING_SURVEY','PUBLISHED',pg_temp.u(61),pg_temp.u(22),now()),
  (pg_temp.u(92),pg_temp.u(1),pg_temp.u(41),'SI_MONITOR',1,'Synthetic monitoring','ACTIVITY_MONITORING','PUBLISHED',pg_temp.u(61),pg_temp.u(22),now());
+-- A draft survey stores its total score answer key, the rule kind a scored stage form is published with.
+INSERT INTO pathways.digital_forms(id,organization_id,project_id,code,version,name,form_type,status,activity_id) VALUES
+ (pg_temp.u(98),pg_temp.u(1),pg_temp.u(41),'SI_KEYED',1,'Synthetic keyed survey','TRAINING_SURVEY','DRAFT',pg_temp.u(61));
+SELECT pg_temp.accepted('a total score answer key can be stored', $$INSERT INTO pathways.form_fields(organization_id,project_id,
+ form_id,code,label,data_type,sequence_no,rule) VALUES (pg_temp.u(1),pg_temp.u(41),pg_temp.u(98),'total_score','Total score',
+ 'INTEGER',1,'{"kind":"TOTAL_SCORE","questions":[{"field":"q1","anyAnswer":true}]}')$$);
 -- Beneficiaries: 71 and 72 eligible; 73 lacks data processing consent; 74 lacks participation consent; 75 is not enrolled; 77 completed.
 INSERT INTO pathways.beneficiaries(id,organization_id,code,subject_type,consent_recorded,data_processing_consent_recorded) VALUES
  (pg_temp.u(71),pg_temp.u(1),'SI_B71','INDIVIDUAL',true,true),

@@ -6,6 +6,7 @@
 -- p34_guard_survey_subject keeps the retarget check and the direct-entry branch and gains an IMPORTED_DATASET branch, and
 -- p3_guard_assessment_source accepts a submission of the same beneficiary that names no enrollment.
 -- p03_assert_processed_row keeps the 0080 body and also accepts an unchanged survey row of a file part whose person is enrolled.
+-- form_fields_rule_kind keeps the 0078 kinds and adds TOTAL_SCORE, the answer key of a scored survey.
 -- Owner, security mode, search_path, ACL and trigger bindings of the four functions stay unchanged (asserted below).
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -102,6 +103,12 @@ $$;
 ALTER TABLE pathways.form_submissions DROP CONSTRAINT p34_survey_subject_shape;
 ALTER TABLE pathways.form_submissions ADD CONSTRAINT p34_survey_subject_shape
   CHECK (beneficiary_id IS NULL OR (enrollment_id IS NULL AND source IN ('DIRECT_ENCODING','IMPORTED_DATASET')));
+
+-- A scored survey stores its answer key as a TOTAL_SCORE rule.
+ALTER TABLE pathways.form_fields DROP CONSTRAINT form_fields_rule_kind;
+ALTER TABLE pathways.form_fields ADD CONSTRAINT form_fields_rule_kind CHECK(rule IS NULL OR (jsonb_typeof(rule)='object'
+  AND coalesce(rule ->> 'kind','') IN ('AGE_AT_DATE','MINOR_AT_DATE','WASHINGTON_GROUP_DISABILITY','SAME_ANSWER_AS',
+   'AGE_CHECK','FOLLOW_UP_OF','ID_FROM_INITIALS_AND_BIRTH_DATE','TOTAL_SCORE')));
 
 -- The 0034 body with an IMPORTED_DATASET branch placed ahead of the unchanged direct-entry check.
 CREATE OR REPLACE FUNCTION pathways.p34_guard_survey_subject() RETURNS trigger
@@ -243,6 +250,8 @@ DO $$ BEGIN
     AND i.indisunique AND i.indisvalid AND pg_catalog.pg_get_expr(i.indpred,i.indrelid) LIKE '%FAILED%')
  OR NOT EXISTS(SELECT FROM pg_catalog.pg_constraint c WHERE c.conrelid='pathways.form_submissions'::pg_catalog.regclass
    AND c.conname='p34_survey_subject_shape' AND c.convalidated AND pg_catalog.pg_get_constraintdef(c.oid) LIKE '%IMPORTED_DATASET%')
+ OR NOT EXISTS(SELECT FROM pg_catalog.pg_constraint c WHERE c.conrelid='pathways.form_fields'::pg_catalog.regclass
+   AND c.conname='form_fields_rule_kind' AND c.convalidated AND pg_catalog.pg_get_constraintdef(c.oid) LIKE '%TOTAL_SCORE%')
  THEN RAISE EXCEPTION '0083 table postconditions failed'; END IF;
  IF (SELECT count(*) FROM (VALUES ('pathways.p03_guard_import_batch()',false),('pathways.p34_guard_survey_subject()',false),
     ('pathways.p3_guard_assessment_source()',true),('pathways.p03_assert_processed_row()',false)) w(sig,secdef)
