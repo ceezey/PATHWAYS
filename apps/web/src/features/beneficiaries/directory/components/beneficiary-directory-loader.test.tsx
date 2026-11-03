@@ -39,7 +39,11 @@ const access = vi.hoisted(() => ({
 vi.mock('@/lib/api/projects', () => ({ projectsClient: api }))
 vi.mock('@/lib/api/beneficiaries', () => ({ beneficiariesClient: api }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(access.query) }))
+const router = vi.hoisted(() => ({ replace: vi.fn() }))
+vi.mock('next/navigation', () => ({
+  useRouter: () => router,
+  useSearchParams: () => new URLSearchParams(access.query),
+}))
 vi.mock('./beneficiary-directory', () => ({
   BeneficiaryDirectory: ({
     beneficiaries,
@@ -112,6 +116,15 @@ describe('BeneficiaryDirectoryLoader', () => {
     access.query = 'project=72000000-0000-4000-8000-000000000099'
     renderLoader()
     expect(await screen.findByText('[] success 0')).toBeTruthy()
+  })
+
+  it('puts the chosen project in the address, so going back returns to it', async () => {
+    access.query = `project=${second}&q=ana&page=3`
+    renderLoader()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose first' }))
+    expect(router.replace).toHaveBeenLastCalledWith(`/beneficiaries?project=${first}&q=ana`, {
+      scroll: false,
+    })
   })
 
   it('reads only the selected project records', async () => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { UsersRound } from 'lucide-react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 import { AsyncState } from '@/components/pathways'
@@ -16,6 +16,7 @@ import { BeneficiaryDirectory } from './beneficiary-directory'
 export const BeneficiaryDirectoryLoader = () => {
   const { role, assignedProjectIds } = useCurrentRole()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const projectsRead = useAuthorizedRead(
     'projects',
     null,
@@ -37,6 +38,14 @@ export const BeneficiaryDirectoryLoader = () => {
   if (projectsRead.data && resolvedIds.join('|') !== projectIds.join('|'))
     setProjectIds(resolvedIds)
   const [chosenId, setChosenId] = useState('')
+  // The chosen project is kept in the address, so the browser's Back from a participant returns to it.
+  const chooseProject = (id: string) => {
+    setChosenId(id)
+    const next = new URLSearchParams(searchParams?.toString())
+    next.set('project', id)
+    next.delete('page')
+    router.replace(`/beneficiaries?${next}`, { scroll: false })
+  }
   // Starts empty so nothing loads until asked for, unless there is only one project to choose.
   const projectId =
     [chosenId, searchParams?.get('project')].find((id) => id && projectIds.includes(id)) ??
@@ -77,7 +86,7 @@ export const BeneficiaryDirectoryLoader = () => {
   return (
     <BeneficiaryDirectory
       beneficiaries={records ?? []}
-      onProjectChange={setChosenId}
+      onProjectChange={chooseProject}
       onRetry={() => void recordsRead.refetch()}
       projectId={projectId}
       projects={projects}
