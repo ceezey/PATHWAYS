@@ -1,6 +1,7 @@
 import {
   type BeneficiaryResponse,
   beneficiaryRegistrationDefinitionErrors,
+  formDefinitionLimits,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { z } from 'zod'
@@ -27,7 +28,11 @@ const field = z
     metadataKey: z.boolean(),
     sadddField: z.boolean(),
     sequence: z.number().int().positive(),
-    allowedValues: z.array(z.string().max(120)).max(100).nullable().optional(),
+    allowedValues: z
+      .array(z.string().max(formDefinitionLimits.allowedValueLength))
+      .max(formDefinitionLimits.allowedValues)
+      .nullable()
+      .optional(),
     minimumValue: z.string().nullable().optional(),
     maximumValue: z.string().nullable().optional(),
     minimumDate: z.string().nullable().optional(),

@@ -1,6 +1,6 @@
 'use client'
 
-import { CONSENT_FIELD_CODES, type FieldIntakeRule, formDefinitionLimits } from '@pathways/shared'
+import { CONSENT_FIELD_CODES, type FieldIntakeRule } from '@pathways/shared'
 import { useEffect, useState } from 'react'
 
 import { Label } from '@/components/ui/label'
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { answerKeyCopy } from '../../collection.copy'
 import type { FormField } from '../../collection.utils'
 import { identityFields } from '../../import/import.utils'
-import { ChipListInput, selectClass } from './intake-controls'
+import { selectClass } from './intake-controls'
 import { ToggleRow } from './toggle-row'
 
 type KeyRule = Extract<FieldIntakeRule, { kind: 'TOTAL_SCORE' }>
@@ -27,11 +27,8 @@ const unscored: ReadonlySet<string> = new Set([
 const maxAnswers = 20
 const isChoice = (field: FormField) =>
   field.type === 'single_select' || field.type === 'multi_select'
-// Answers match as text, so only choice fields with options and text fields can be given correct answers.
-const canListAnswers = (field: FormField) =>
-  isChoice(field)
-    ? field.allowedValues.length > 0
-    : field.type === 'text' || field.type === 'long_text'
+// Only a choice with options has a right answer; an open answer is an opinion and scores any answer.
+const canListAnswers = (field: FormField) => isChoice(field) && field.allowedValues.length > 0
 
 /** Marks which questions of a survey score a point, and which answers earn it. */
 export function AnswerKeyEditor({
@@ -134,17 +131,6 @@ export function AnswerKeyEditor({
                       )
                     })}
                 </fieldset>
-              ) : null}
-              {mode === 'answers' && !isChoice(field) ? (
-                <ChipListInput
-                  id={`${id}-answers`}
-                  noun={answerKeyCopy.answerNoun(label)}
-                  values={answers}
-                  max={maxAnswers}
-                  maxLength={formDefinitionLimits.textLength}
-                  readOnly={disabled}
-                  onChange={(next) => setAnswers(field.code, next)}
-                />
               ) : null}
             </div>
           )

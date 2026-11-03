@@ -19,7 +19,7 @@ export const formDefinitionLimits = {
   textLength: 2_000,
   longTextLength: 10_000,
   allowedValues: 100,
-  allowedValueLength: 120,
+  allowedValueLength: 255,
   multiSelectValues: 50,
   integerMinimum: -2_147_483_648,
   integerMaximum: 2_147_483_647,

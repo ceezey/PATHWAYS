@@ -2,6 +2,7 @@ import {
   CONSENT_FIELD_CODES,
   type DigitalFormType,
   type FormFieldRequest,
+  formDefinitionLimits,
   valueMapText,
 } from '@pathways/shared'
 import { answerResolver, comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
@@ -63,7 +64,7 @@ export class FormDraftError extends Error {
 
 const LIMITS = { fields: 100, options: 100, aliases: 100, sourceNames: 20, nameLength: 100 }
 const LABEL_LENGTH = 160
-const OPTION_LENGTH = 120
+const OPTION_LENGTH = formDefinitionLimits.allowedValueLength
 const TEXT_LENGTH = 255
 // Fields whose options mirror a database enum, so a draft never adds to them.
 const ENUM_MIRROR_CODES = new Set([

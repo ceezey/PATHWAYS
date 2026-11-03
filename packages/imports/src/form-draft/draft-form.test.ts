@@ -252,13 +252,13 @@ describe('draftFormFromImport rules', () => {
     expect(find(draft([columnOf('Quiz', values.slice(0, 200))]), 'quiz')?.dataType).toBe('SELECT')
   })
 
-  it('a lettered answer over 100 characters is an option while it fits the 120 option limit', () => {
+  it('a lettered answer over 100 characters is an option while it fits the option limit', () => {
     const answers = (length: number) =>
       ['a', 'b'].flatMap((letter) => Array(2).fill(`${letter}) ${letter.repeat(length)}`))
-    const long = find(draft([columnOf('Quiz', answers(111))]), 'quiz')
+    const long = find(draft([columnOf('Quiz', answers(125))]), 'quiz')
     expect(long?.dataType).toBe('SELECT')
-    expect(long?.allowedValues).toEqual(['a'.repeat(111), 'b'.repeat(111)])
-    expect(find(draft([columnOf('Quiz', answers(121))]), 'quiz')?.dataType).toBe('TEXT')
+    expect(long?.allowedValues).toEqual(['a'.repeat(125), 'b'.repeat(125)])
+    expect(find(draft([columnOf('Quiz', answers(256))]), 'quiz')?.dataType).toBe('LONG_TEXT')
   })
 
   it('lettered personal data stays TEXT with no option or alias', () => {

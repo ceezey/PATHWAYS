@@ -152,7 +152,7 @@ describe('form definition rules', () => {
 
   it.each([
     ['empty allowed value', { allowedValues: [''] }, true],
-    ['allowed value of 120', { allowedValues: ['x'.repeat(120)] }, true],
+    ['allowed value of 255', { allowedValues: ['x'.repeat(255)] }, true],
     ['decimal bounds', { minimumValue: '-12.5', maximumValue: '1000.1234' }, true],
     ['impossible calendar day', { minimumDate: '2026-02-30', maximumDate: '2026-12-31' }, true],
     ['length bounds', { minimumLength: 0, maximumLength: 10000 }, true],
@@ -172,7 +172,7 @@ describe('form definition rules', () => {
       { allowedValues: Array.from({ length: 101 }, (_, i) => `v${i}`) },
       false,
     ],
-    ['allowed value of 121', { allowedValues: ['x'.repeat(121)] }, false],
+    ['allowed value of 256', { allowedValues: ['x'.repeat(256)] }, false],
     ['numeric allowed value', { allowedValues: [1] }, false],
     ['string allowed values', { allowedValues: 'Yes' }, false],
     ['five decimals', { minimumValue: '1.23456' }, false],

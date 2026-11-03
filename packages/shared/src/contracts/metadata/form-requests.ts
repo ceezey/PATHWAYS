@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { supportedFormFieldTypes } from '../../validation/form-data'
+import { formDefinitionLimits, supportedFormFieldTypes } from '../../validation/form-data'
 import {
   isoDateString,
   lengthString,
@@ -68,7 +68,11 @@ export const formFieldRequest = z
     required: z.boolean(),
     metadataKey: z.boolean(),
     sadddField: z.boolean(),
-    allowedValues: z.array(lengthString(0, 120)).min(1).max(100).nullish(),
+    allowedValues: z
+      .array(lengthString(0, formDefinitionLimits.allowedValueLength))
+      .min(1)
+      .max(formDefinitionLimits.allowedValues)
+      .nullish(),
     minimumValue: z.string().regex(decimalBound, 'must be a decimal number').nullish(),
     maximumValue: z.string().regex(decimalBound, 'must be a decimal number').nullish(),
     minimumDate: z.string().regex(calendarDay, 'must be a YYYY-MM-DD date').nullish(),

@@ -161,6 +161,24 @@ describe('form field intake metadata', () => {
     const rule = { kind: 'TOTAL_SCORE', questions: [{ field: 'q1', answers: ['Tama'] }] }
     const total = text('total_score', { rule })
     expect(errorCodes([total])).toEqual(['total_score'])
-    expect(errorCodes([total, text('q1')])).toEqual([])
+    expect(errorCodes([total, select('q1')])).toEqual([])
+  })
+
+  it('total score lists correct answers only on a choice question', () => {
+    const keyed = text('total_score', {
+      rule: { kind: 'TOTAL_SCORE', questions: [{ field: 'q1', answers: ['Tama'] }] },
+    })
+    const open = text('total_score', {
+      rule: { kind: 'TOTAL_SCORE', questions: [{ field: 'q1', anyAnswer: true }] },
+    })
+    expect(errorCodes([keyed, text('q1')])).toEqual(['total_score'])
+    expect(errorCodes([open, text('q1')])).toEqual([])
+  })
+
+  it('a choice can be as long as a long multiple choice answer', () => {
+    const choice = (length: number) =>
+      formFieldRequest.safeParse({ ...select('q1'), allowedValues: ['a'.repeat(length)] }).success
+    expect(choice(255)).toBe(true)
+    expect(choice(256)).toBe(false)
   })
 })

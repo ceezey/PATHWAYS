@@ -116,21 +116,6 @@ describe('AnswerKeyEditor', () => {
       kind: 'TOTAL_SCORE',
       questions: [{ field: 'q1', answers: ['Green'] }],
     })
-    choose('Capital city', 'answers')
-    fireEvent.change(screen.getByLabelText('New correct answer for Capital city'), {
-      target: { value: ' Manila ' },
-    })
-    const add = screen.getByRole('button', { name: 'Add correct answer for Capital city' })
-    // The question is in the accessible name only, so a long label cannot squeeze the input.
-    expect(add.textContent).toBe('Add')
-    fireEvent.click(add)
-    expect(onRule).toHaveBeenLastCalledWith({
-      kind: 'TOTAL_SCORE',
-      questions: [
-        { field: 'q1', answers: ['Green'] },
-        { field: 'q2', answers: ['Manila'] },
-      ],
-    })
   })
 
   it('any answer scores', () => {
@@ -191,6 +176,8 @@ describe('AnswerKeyEditor', () => {
         .getAllByRole('option')
         .map((option) => option.getAttribute('value'))
     expect(modes('Colour of the sky')).toEqual(['none', 'any', 'answers'])
+    // An open answer is an opinion, so typed text can never be the one correct answer.
+    expect(modes('Capital city')).toEqual(['none', 'any'])
     expect(modes('Number of legs')).toEqual(['none', 'any'])
     expect(modes('Pick one')).toEqual(['none', 'any'])
   })
@@ -250,13 +237,13 @@ describe('AnswerKeyEditor', () => {
           kind: 'TOTAL_SCORE',
           questions: [
             { field: 'q1', answers: ['Blue'] },
-            { field: 'q2', answers: ['Manila'] },
+            { field: 'q2', anyAnswer: true },
           ],
         }}
       />,
     )
     const controls = document.querySelectorAll<HTMLElement>('select, input, button')
-    expect(controls.length).toBeGreaterThan(6)
+    expect(controls.length).toBeGreaterThan(5)
     for (const control of controls) {
       expect(control.tabIndex).toBeGreaterThanOrEqual(0)
       const named =

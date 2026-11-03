@@ -33,7 +33,6 @@ export const answerKeyCopy = {
   any: 'Any answer scores',
   answers: 'Correct answers',
   answersFor: (label: string) => `Correct answers for ${label}`,
-  answerNoun: (label: string) => `correct answer for ${label}`,
   empty: 'This survey has no questions to score.',
   moreTitle: 'How the total is checked',
   more: 'Each scored question adds one point. A row whose total score differs from the points is held for review.',

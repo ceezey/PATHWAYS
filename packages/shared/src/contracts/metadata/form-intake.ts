@@ -175,6 +175,17 @@ export function formIntakeDefinitionErrors(
     if (field.rule) {
       if (ruleFieldCodes(field.rule).some((code) => !codes.has(code)))
         flag('Rule names a field that is not on this form.')
+      // An open answer is an opinion, so only a choice question can have correct answers.
+      if (
+        field.rule.kind === 'TOTAL_SCORE' &&
+        field.rule.questions.some((question) => {
+          const scored = fields.find((item) => item.code === question.field)
+          return 'answers' in question && scored !== undefined && !isChoice(scored)
+        })
+      )
+        flag(
+          'Only a choice question can have correct answers; score an open question with any answer.',
+        )
       if (
         field.rule.kind === 'SAME_ANSWER_AS' &&
         !(
