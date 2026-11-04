@@ -70,6 +70,7 @@ $forwardInventory = @(
   '0081_submission_check_once'
   '0082_permission_check_plpgsql'
   '0083_stage_import'
+  '0084_smart_mapping_v4'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 

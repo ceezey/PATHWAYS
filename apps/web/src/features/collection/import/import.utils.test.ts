@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest'
 import type { ImportBatchDefinition } from '@/types/pathways'
 
 import { noFormHint } from '../collection.copy'
-import { guessFormType, rowReason, rowReasonHelp, showsSurveys } from './import.utils'
+import {
+  automaticMatchReason,
+  guessFormType,
+  rowReason,
+  rowReasonHelp,
+  showsSurveys,
+} from './import.utils'
 
 describe('form a file needs when the project has none', () => {
   it('guesses the form type from the headers, registration last', () => {
@@ -100,5 +106,24 @@ describe('surveys of a file', () => {
 
   it('never show for a file without surveys', () => {
     expect(showsSurveys(batch('COVERED', 0))).toBe(false)
+  })
+})
+
+type StoredMapping = NonNullable<ImportBatchDefinition['mappings']>[number]
+const stored = (status: string, validationMessage: string, matchReason: string | null = null) =>
+  ({ status, validationMessage, matchReason }) as unknown as StoredMapping
+
+describe('automatic match reason of a stored mapping', () => {
+  it('reads AUTO_SMART_V3 and AUTO_SMART_V4 matches alike', () => {
+    expect(automaticMatchReason(stored('MAPPED', 'AUTO_SMART_V3:AUTO_MATCH', 'SYNONYM'))).toBe(
+      'known synonym',
+    )
+    expect(automaticMatchReason(stored('MAPPED', 'AUTO_SMART_V4:AUTO_MATCH', 'SYNONYM'))).toBe(
+      'known synonym',
+    )
+  })
+
+  it('gives no match reason for an ignored AUTO_SMART_V4 system column', () => {
+    expect(automaticMatchReason(stored('IGNORED', 'AUTO_SMART_V4:SYSTEM_COLUMN'))).toBeNull()
   })
 })

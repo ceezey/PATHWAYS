@@ -633,6 +633,8 @@ END $$;
       Write-Output 'PERMISSION_CHECK_PLPGSQL_RUNTIME=PASS'
       Measure-ReplayStep 'sql stage-import-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/stage-import-runtime.sql'))) $phase6Database }
       Write-Output 'STAGE_IMPORT_RUNTIME=PASS'
+      Measure-ReplayStep 'sql smart-mapping-v4-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/smart-mapping-v4-runtime.sql'))) $phase6Database }
+      Write-Output 'SMART_MAPPING_V4_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
@@ -643,7 +645,7 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count: 61 schema tables after 0083 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
+      # Fixed pathways table count: 61 schema tables after 0084 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
       $env:PATHWAYS_EXPECTED_TABLE_COUNT = "62"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
