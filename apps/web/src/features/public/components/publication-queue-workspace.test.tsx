@@ -93,6 +93,30 @@ vi.mock('@/hooks/use-authorized-read', () => ({
     refetch: state.refetch,
   }),
 }))
+const pickedId = '20000000-0000-4000-8000-000000000009'
+// A stand-in picker: the real one has its own tests, here only the selection wiring matters.
+vi.mock('./public-media-picker', () => ({
+  PublicMediaPicker: ({
+    onChange,
+    value,
+  }: {
+    onChange: (next: { id: string; caption: string }[]) => void
+    value: { id: string; caption: string }[]
+  }) => (
+    <div>
+      <output aria-label="Picked media">{JSON.stringify(value)}</output>
+      <button type="button" onClick={() => onChange([...value, { id: pickedId, caption: 'New' }])}>
+        Pick media
+      </button>
+      <button type="button" onClick={() => onChange([...value, { id: pickedId, caption: ' ' }])}>
+        Pick media without caption
+      </button>
+    </div>
+  ),
+}))
+vi.mock('./public-media-queue', () => ({
+  PublicMediaQueue: ({ projectId: id }: { projectId: string }) => <p>Queue for {id}</p>,
+}))
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => state.success(...args),
@@ -320,6 +344,58 @@ describe('publication current project and revision boundaries', () => {
       media: [{ id: '20000000-0000-4000-8000-000000000001', caption: 'A fictional caption' }],
       views: ['kpi', 'map'],
     })
+  })
+  it('seeds the picker from the latest snapshot and shows the media queue', () => {
+    state.snapshotMedia = [
+      {
+        id: '20000000-0000-4000-8000-000000000001',
+        type: 'PHOTO',
+        contentType: 'image/jpeg',
+        caption: 'Seeded',
+      },
+    ]
+    render(<PublicationQueueWorkspace />)
+    expect(screen.getByLabelText('Picked media').textContent).toBe(
+      JSON.stringify([{ id: '20000000-0000-4000-8000-000000000001', caption: 'Seeded' }]),
+    )
+    expect(screen.getByText(`Queue for ${projectId}`)).toBeTruthy()
+  })
+  it('sends the edited selection and keeps the snapshot views', async () => {
+    state.snapshotViews = ['kpi']
+    state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+    render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][2].selection).toEqual({
+      media: [{ id: pickedId, caption: 'New' }],
+      views: ['kpi'],
+    })
+  })
+  it('disables approval and publishing while the selection is edited', () => {
+    state.publicationState = 'FOR_REVIEW'
+    const view = render(<PublicationQueueWorkspace />)
+    const approve = () =>
+      (screen.getByRole('button', { name: 'Approve revision' }) as HTMLButtonElement).disabled
+    expect(approve()).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media' }))
+    expect(approve()).toBe(true)
+    view.unmount()
+    state.publicationState = 'APPROVED'
+    render(<PublicationQueueWorkspace />)
+    const publish = () =>
+      (screen.getByRole('button', { name: 'Publish' }) as HTMLButtonElement).disabled
+    expect(publish()).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media' }))
+    expect(publish()).toBe(true)
+  })
+  it('disables submit while a picked item has a blank caption', () => {
+    render(<PublicationQueueWorkspace />)
+    const submit = () =>
+      (screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement).disabled
+    expect(submit()).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media without caption' }))
+    expect(submit()).toBe(true)
   })
   it('shows the live revision beside the working one', () => {
     state.liveRevision = 2

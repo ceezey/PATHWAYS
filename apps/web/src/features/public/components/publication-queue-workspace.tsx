@@ -13,10 +13,14 @@ import { projectsClient } from '@/lib/api/projects'
 import { publicationClient } from '@/lib/api/publication'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import type { PublicationSelection } from '@pathways/shared'
 import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+
+import { PublicMediaPicker } from './public-media-picker'
+import { PublicMediaQueue } from './public-media-queue'
 
 export const PublicationQueueWorkspace = ({
   initialProjectId,
@@ -29,7 +33,8 @@ export const PublicationQueueWorkspace = ({
     generation: number
     projectId: string
     revision: number
-    summary: string
+    summary?: string
+    media?: PublicationSelection['media']
   } | null>(null)
   const [busy, setBusy] = useState(false)
   const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
@@ -76,14 +81,22 @@ export const PublicationQueueWorkspace = ({
   const current = ready ? publication.data : undefined
   const requests = useOperationRequestId()
   const revision = current?.revision ?? 0
-  const summary =
+  const liveDraft =
     owner &&
     draft?.owner === owner.key &&
     draft.generation === owner.generation &&
     draft.projectId === id &&
     draft.revision === revision
-      ? draft.summary
-      : (current?.summary ?? '')
+      ? draft
+      : null
+  const summary = liveDraft?.summary ?? current?.summary ?? ''
+  const savedMedia: PublicationSelection['media'] =
+    current?.snapshot.media.map(({ id, caption }) => ({ id, caption })) ?? []
+  const media = liveDraft?.media ?? savedMedia
+  // An edited summary or selection must be submitted and approved again before it can go live.
+  const edited =
+    summary !== current?.summary || JSON.stringify(media) !== JSON.stringify(savedMedia)
+  const captionsReady = media.every((entry) => entry.caption.trim())
   const permitted = usePermission()
   // biome-ignore lint/correctness/useExhaustiveDependencies: Clear transient state when its authorization ownership changes.
   useEffect(() => {
@@ -98,6 +111,17 @@ export const PublicationQueueWorkspace = ({
       setBusy(false)
     }
   }, [approveOwner?.key, approveOwner?.generation, publishOwner?.key, publishOwner?.generation])
+  const edit = (change: { summary?: string; media?: PublicationSelection['media'] }) =>
+    owner &&
+    id &&
+    setDraft({
+      ...liveDraft,
+      ...change,
+      owner: owner.key,
+      generation: owner.generation,
+      projectId: id,
+      revision,
+    })
   const act = async (operation: 'submit' | 'approve' | 'publish' | 'withdraw') => {
     const captured =
       operation === 'approve' ? approveOwner : operation === 'submit' ? owner : publishOwner
@@ -106,13 +130,13 @@ export const PublicationQueueWorkspace = ({
     const currentOwner = () => capturedPreview.isCurrent() && captured.isCurrent()
     const operationOwner = { isCurrent: currentOwner }
     activeOperation.current = operationOwner
-    // Part A keeps the working snapshot's photos, videos and views as they are.
+    // The picker edits the photos and videos; the views stay as the working snapshot has them.
     const submission =
       operation === 'submit'
         ? {
             summary: summary.trim(),
             selection: {
-              media: current?.snapshot.media.map(({ id, caption }) => ({ id, caption })) ?? [],
+              media: media.map(({ id, caption }) => ({ id, caption: caption.trim() })),
               views: current?.snapshot.views ?? [],
             },
           }
@@ -269,22 +293,25 @@ export const PublicationQueueWorkspace = ({
                   maxLength={4000}
                   disabled={!owner || busy}
                   value={summary}
-                  onChange={(event) =>
-                    owner &&
-                    setDraft({
-                      owner: owner.key,
-                      generation: owner.generation,
-                      projectId: id,
-                      revision,
-                      summary: event.target.value,
-                    })
-                  }
+                  onChange={(event) => owner && edit({ summary: event.target.value })}
                 />
               </Label>
+              <PublicMediaPicker
+                disabled={!owner || busy}
+                onChange={(next) => edit({ media: next })}
+                projectId={id}
+                value={media}
+              />
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
-                  disabled={!owner || busy || !summary.trim() || !permitted('public.preview')}
+                  disabled={
+                    !owner ||
+                    busy ||
+                    !summary.trim() ||
+                    !captionsReady ||
+                    !permitted('public.preview')
+                  }
                   onClick={() => void act('submit')}
                 >
                   <Save className="mr-2 h-4 w-4" />
@@ -297,7 +324,7 @@ export const PublicationQueueWorkspace = ({
                     busy ||
                     current?.state !== 'FOR_REVIEW' ||
                     current.submittedById === profile?.userId ||
-                    summary !== current.summary ||
+                    edited ||
                     !permitted('public.approve')
                   }
                   onClick={() => void act('approve')}
@@ -310,7 +337,7 @@ export const PublicationQueueWorkspace = ({
                     !owner ||
                     busy ||
                     current?.state !== 'APPROVED' ||
-                    summary !== current.summary ||
+                    edited ||
                     !permitted('public.publish')
                   }
                   onClick={() => void act('publish')}
@@ -350,6 +377,7 @@ export const PublicationQueueWorkspace = ({
           )}
         </SectionCard>
       </div>
+      {ready && id ? <PublicMediaQueue projectId={id} /> : null}
     </div>
   )
 }
