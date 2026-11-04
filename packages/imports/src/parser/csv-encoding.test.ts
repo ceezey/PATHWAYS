@@ -47,6 +47,29 @@ describe('decodeCsv', () => {
     expect(decodeCsv(bytes)).toEqual({ text: 'Name,Peñaranda\n', encoding: 'UTF-16BE' })
   })
 
+  it('refuses bytes that are invalid for the encoding a BOM names', () => {
+    for (const bytes of [
+      [0xef, 0xbb, 0xbf, ...ascii('Name,Pe'), 0xff, ...ascii('a\n')],
+      [0xff, 0xfe, ...ascii('N'), 0x00, 0x41],
+    ]) {
+      expect(() => decodeCsv(Uint8Array.from(bytes))).toThrowError(
+        expect.objectContaining({ code: 'CSV_ENCODING_INVALID' }),
+      )
+    }
+  })
+
+  it('refuses a zero character in a UTF-16 CSV, checked on the decoded text', () => {
+    const units = [...'a\u0000b\n'].map((char) => char.charCodeAt(0))
+    const bytes = Uint8Array.from([
+      0xff,
+      0xfe,
+      ...units.flatMap((unit) => [unit & 0xff, unit >> 8]),
+    ])
+    expect(() => decodeCsv(bytes)).toThrowError(
+      expect.objectContaining({ code: 'CSV_BINARY_CONTENT' }),
+    )
+  })
+
   it('refuses a zero character after decoding', () => {
     expect(() => decodeCsv(new TextEncoder().encode('a\u0000b'))).toThrowError(
       expect.objectContaining({ code: 'CSV_BINARY_CONTENT' }),

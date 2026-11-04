@@ -16,8 +16,12 @@ export function decodeCsv(bytes: Uint8Array): { text: string; encoding: CsvEncod
   let text: string
   let encoding: CsvEncoding
   if (bom) {
-    // The default decoder drops the leading mark, so it never reaches the first header.
-    text = new TextDecoder(bom.label).decode(bytes)
+    // The decoder drops the leading mark, and bytes the mark's encoding cannot read refuse the file.
+    try {
+      text = new TextDecoder(bom.label, { fatal: true }).decode(bytes)
+    } catch {
+      reject('CSV_ENCODING_INVALID', `CSV files must use valid ${bom.encoding} encoding.`)
+    }
     encoding = bom.encoding
   } else {
     try {
