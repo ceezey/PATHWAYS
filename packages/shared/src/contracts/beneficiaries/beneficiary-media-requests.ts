@@ -12,7 +12,7 @@ export const beneficiaryMediaContentTypes: readonly string[] = activityEvidenceC
 )
 export const MAX_BENEFICIARY_MEDIA_FILES = MAX_ACTIVITY_EVIDENCE_FILES
 
-const beneficiaryMediaFile = z
+export const beneficiaryMediaFile = z
   .object({
     fileName: lengthString(1, 128).refine(
       (value) => /^[^/]+$/.test(value),

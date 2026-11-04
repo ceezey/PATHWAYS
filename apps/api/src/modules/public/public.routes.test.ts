@@ -48,9 +48,17 @@ function routeTable(): string[] {
 describe('public and publication routes', () => {
   it('registers every route with its method, path, access rule and cache header', () => {
     expect(routeTable()).toEqual([
+      'GET /projects/:projectId/public-media public.preview private, no-store',
+      'GET /projects/:projectId/public-media/:mediaId/content public.preview private, no-store',
+      'GET /projects/:projectId/public-media/limits public.preview private, no-store',
       'GET /projects/:projectId/publication public.preview private, no-store',
       'GET /public/projects public no-store',
       'GET /public/projects/:projectId public no-store',
+      'POST /projects/:projectId/public-media/:mediaId/approve public.approve private, no-store',
+      'POST /projects/:projectId/public-media/:mediaId/finalize public.preview private, no-store',
+      'POST /projects/:projectId/public-media/:mediaId/reject public.approve private, no-store',
+      'POST /projects/:projectId/public-media/:mediaId/submit public.preview private, no-store',
+      'POST /projects/:projectId/public-media/reservations public.preview private, no-store',
       'POST /projects/:projectId/publication/approve public.approve private, no-store',
       'POST /projects/:projectId/publication/publish public.publish private, no-store',
       'POST /projects/:projectId/publication/submit public.preview private, no-store',
