@@ -298,20 +298,28 @@ describe('secure import parser', () => {
     expect(parsed.rows[0]?.values.column_0002).toBe('extra')
   })
 
-  it('rejects formula-like CSV values, formula-like saved values and workbook links', async () => {
-    await expectCode(
-      parseSecureImport(Buffer.from('name,total\nAlice,=1+1'), 'CSV'),
-      'CELL_FORMULA_UNSAFE',
+  it('imports formula-like text as text', async () => {
+    const parsed = await parseSecureImport(
+      Buffer.from('Name,Mobile,Remarks,Total,Handle\nAna,+639170000001,-none-,=1+1,@ana\n'),
+      'CSV',
     )
-    await expectCode(
-      parseSecureImport(
-        workbookBuffer([['total'], ['x']], 'xlsx', (sheet) => {
-          sheet.A2 = { t: 's', v: '=HYPERLINK("x")', f: 'A3' }
-        }),
-        'XLSX',
-      ),
-      'CELL_FORMULA_UNSAFE',
+    expect(Object.values(parsed.rows[0].values)).toEqual([
+      'Ana',
+      '+639170000001',
+      '-none-',
+      '=1+1',
+      '@ana',
+    ])
+  })
+
+  it('imports a formula-like saved value as text and still rejects workbook links', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer([['total'], ['x']], 'xlsx', (sheet) => {
+        sheet.A2 = { t: 's', v: '=HYPERLINK("x")', f: 'A3' }
+      }),
+      'XLSX',
     )
+    expect(Object.values(parsed.rows[0].values)).toEqual(['=HYPERLINK("x")'])
     await expectCode(
       parseSecureImport(
         workbookBuffer([['url'], ['safe']], 'xlsx', (sheet) => {

@@ -28,7 +28,6 @@ export class ImportParseError extends Error {
 }
 
 const unsafeHeader = new Set(['__proto__', 'prototype', 'constructor'])
-const formulaText = /^[=+@]|^-(?:[=+@A-Za-z])/
 
 export function reject(code: string, message: string): never {
   throw new ImportParseError(code, message)
@@ -122,12 +121,6 @@ export function normalizeMatrix(matrix: unknown[][]): {
           reject(
             'CELL_LENGTH_LIMIT',
             `Source row ${rowIndex + firstDataRow} contains an oversized cell.`,
-          )
-        }
-        if (formulaText.test(value.trimStart())) {
-          reject(
-            'CELL_FORMULA_UNSAFE',
-            `Source row ${rowIndex + firstDataRow} contains formula-like text.`,
           )
         }
       }

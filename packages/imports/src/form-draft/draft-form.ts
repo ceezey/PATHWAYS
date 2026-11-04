@@ -3,6 +3,7 @@ import {
   type DigitalFormType,
   type FormFieldRequest,
   formDefinitionLimits,
+  valueMapSourceText,
   valueMapText,
 } from '@pathways/shared'
 import { answerResolver, comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
@@ -297,7 +298,7 @@ function choicesOf(texts: readonly string[]) {
     )
     if (!to || seen.has(mapKey(text))) continue
     seen.add(mapKey(text))
-    if (valueMapText(1).safeParse(text).success && valueMapText(1).safeParse(to).success)
+    if (valueMapSourceText(1).safeParse(text).success && valueMapText(1).safeParse(to).success)
       aliases.push({ from: text, to })
   }
   return { options, aliases: aliases.slice(0, LIMITS.aliases) }

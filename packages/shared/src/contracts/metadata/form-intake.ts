@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { formDefinitionLimits, validateAndNormalizeFormData } from '../../validation/form-data'
 import { lengthString, trimmedInput, trimmedLowercaseInput } from '../common/field-schemas'
-import { valueMapText } from '../imports/import-requests'
+import { valueMapSourceText, valueMapText } from '../imports/import-requests'
 import type { FormFieldRequest } from './form-requests'
 
 // The fixed rule kinds a form field may carry; nobody types a formula.
@@ -110,7 +110,7 @@ export const fieldIntakeProperties = {
     .max(20)
     .nullish(),
   valueAliases: z
-    .array(z.object({ from: valueMapText(1), to: valueMapText(1) }).strict())
+    .array(z.object({ from: valueMapSourceText(1), to: valueMapText(1) }).strict())
     .max(100)
     .nullish(),
   importDefault: trimmedInput(lengthString(1, 120)).nullish(),

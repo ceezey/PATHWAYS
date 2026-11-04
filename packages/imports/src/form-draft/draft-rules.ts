@@ -3,6 +3,7 @@ import {
   type FieldIntakeRule,
   completedYearsAt,
   formDefinitionLimits,
+  valueMapSourceText,
   valueMapText,
 } from '@pathways/shared'
 import { comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
@@ -154,7 +155,10 @@ export function proposeIntakeRules(
       for (const { from, to } of pairs) {
         const target = optionOf(to)
         if (from === target || seen.has(mapKey(from))) continue
-        if (!valueMapText(1).safeParse(from).success || !valueMapText(1).safeParse(target).success)
+        if (
+          !valueMapSourceText(1).safeParse(from).success ||
+          !valueMapText(1).safeParse(target).success
+        )
           continue
         seen.add(mapKey(from))
         aliases.push({ from, to: target })
