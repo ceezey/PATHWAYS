@@ -60,7 +60,15 @@ const inputs: Array<[string, () => ReturnType<typeof readImportFile>]> = [
 // A draft that refuses the file is snapshotted as its error code.
 function drafted(columns: DraftColumn[]) {
   try {
-    return draft(columns).summary
+    const { fields, summary } = draft(columns)
+    return {
+      fields: fields.map(({ code, dataType, allowedValues }) => ({
+        code,
+        dataType,
+        allowedValues,
+      })),
+      summary,
+    }
   } catch (error) {
     return { error: (error as { code?: string }).code ?? (error as Error).message }
   }
@@ -82,6 +90,7 @@ function regressionView(file: ReturnType<typeof readImportFile>) {
       sourceCode,
     })),
     rowNumbers: file.rowNumbers,
+    rows: file.rows,
     decisions: decisions.map(({ sourceKey, status, targetFieldId, reason, matchReason }) => ({
       sourceKey,
       status,
@@ -89,7 +98,7 @@ function regressionView(file: ReturnType<typeof readImportFile>) {
       reason,
       matchReason,
     })),
-    summary: drafted(columns),
+    draft: drafted(columns),
   }
 }
 
