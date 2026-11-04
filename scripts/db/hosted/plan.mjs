@@ -438,3 +438,28 @@ export function planIndexForAppliedCount(appliedCount, { residualOwnerMembership
   }
   return stepIndex + 1
 }
+
+// The ledger a build --through `through` must produce: MIGRATIONS_IN_ORDER up to and including it.
+export function migrationsThrough(through) {
+  if (!through) return MIGRATIONS_IN_ORDER
+  const index = MIGRATIONS_IN_ORDER.indexOf(through)
+  if (index === -1) throw new Error(`--through ${through} is not a known migration`)
+  return MIGRATIONS_IN_ORDER.slice(0, index + 1)
+}
+
+// The steps of `plan` kept by --through: everything up to the deploy ending at `through` and its
+// cleanups, then the runtime role and postconditions. Returns the same step objects as `plan`.
+export function planThrough(through, plan = buildPlan()) {
+  if (!through) return plan
+  migrationsThrough(through)
+  const deployIndex = plan.findIndex(
+    (step) => step.type === 'deploy' && step.migrations.at(-1) === through,
+  )
+  if (deployIndex === -1) throw new Error(`--through ${through} does not end a deploy step`)
+  let end = deployIndex + 1
+  while (plan[end]?.type === 'cleanup') end += 1
+  const finalSteps = plan.filter(
+    (step) => step.type === 'alter-runtime-role' || step.type === 'postconditions',
+  )
+  return [...plan.slice(0, end), ...finalSteps]
+}

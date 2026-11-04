@@ -130,7 +130,7 @@ function assertLocalContainer() {
 // so the body is reused unchanged except for that pin.
 function runPreprovision(file, vars = []) {
   const sql = readFileSync(path.join(phase6Dir, file), 'utf8')
-  const pin = ":'target_project_ref' IN ('pdqwsknbzkdtiwjjibqt','klbtoqdalmcsfjqophty')"
+  const pin = ":'target_project_ref' IN ('mvzxitlbtkkyvubgbcmx','klbtoqdalmcsfjqophty')"
   if (!sql.includes(pin))
     throw new Error(`${file} target pin changed; review before reusing it locally`)
   psql(sql.replace(pin, ":'target_project_ref'='local'"), file, [

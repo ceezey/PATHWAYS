@@ -6,9 +6,10 @@
 //
 // Usage:
 //   node scripts/db/hosted/build.mjs --env-file .tmp/hosted-role-staging.env [--dry-run] [--resume]
+//     [--through <migration>]   stop after that migration (production is built only to what master ships)
 //
 // Required env vars (see scripts/db/hosted/target.mjs for exact validation):
-//   HOSTED_TARGET_REF     must equal klbtoqdalmcsfjqophty
+//   HOSTED_TARGET_REF     PATHWAYS (mvzxitlbtkkyvubgbcmx) or PATHWAYS-devV2 (klbtoqdalmcsfjqophty)
 //   HOSTED_ADMIN_URL      postgres superuser/admin connection URL
 //   HOSTED_DIRECT_URL     prisma migration connection URL
 //   PRISMA_ROLE_PASSWORD  >= 24 characters
@@ -24,7 +25,9 @@ import {
   RESIDUAL_CHAIN_MIGRATIONS,
   assertResumablePrefix,
   buildPlan,
+  migrationsThrough,
   planIndexForAppliedCount,
+  planThrough,
 } from './plan.mjs'
 import { assertEnvFileLocation, parseEnvFile, redactUrl, validateHostedEnv } from './target.mjs'
 
@@ -368,17 +371,19 @@ export async function postconditions(io, config) {
   const ledger = await readLedger(io, config.adminUrl)
   const finished = ledger.filter((row) => row.finished_at && !row.rolled_back_at)
   const names = finished.map((row) => row.migration_name).sort()
-  const expectedNames = [...MIGRATIONS_IN_ORDER].sort()
+  const ledgerNames = migrationsThrough(config.through)
+  const expectedNames = [...ledgerNames].sort()
+  const span = `0000-${ledgerNames.at(-1).slice(0, 4)}`
   if (
-    ledger.length !== MIGRATIONS_IN_ORDER.length ||
+    ledger.length !== ledgerNames.length ||
     JSON.stringify(names) !== JSON.stringify(expectedNames)
   ) {
     throw new Error(
-      `Ledger postcondition failed: expected exactly the ${MIGRATIONS_IN_ORDER.length} migrations 0000-0083, all finished and none failed`,
+      `Ledger postcondition failed: expected exactly the ${ledgerNames.length} migrations ${span}, all finished and none failed`,
     )
   }
   console.log(
-    `PASS: ledger has exactly ${MIGRATIONS_IN_ORDER.length} migrations 0000-0083, all finished and none failed`,
+    `PASS: ledger has exactly ${ledgerNames.length} migrations ${span}, all finished and none failed`,
   )
 
   const residualRows = io.psqlQuery(
@@ -476,9 +481,14 @@ export async function runHostedBuild({ io, config, resume = false, log = console
   // original_prisma_database_create) forward to the matching cleanup step, either later in
   // this same process or, on --resume, recovered from the on-disk receipt below.
   let captured = {}
+  const plan = buildPlan()
+  const kept = new Set(planThrough(config.through, plan))
 
   if (resume) {
     const { appliedCount, residualOwnerMemberships } = await resumePreflight(io, config)
+    if (appliedCount > migrationsThrough(config.through).length) {
+      throw new Error(`The target is already past --through ${config.through}; refusing to resume`)
+    }
     startIndex = planIndexForAppliedCount(appliedCount, { residualOwnerMemberships })
     const receipt = io.readReceipt ? io.readReceipt() : null
     if (receipt) captured = { ...captured, ...receipt }
@@ -491,7 +501,6 @@ export async function runHostedBuild({ io, config, resume = false, log = console
     resetStage()
   }
 
-  const plan = buildPlan()
   // Tracks a preprovision step whose matching cleanup has not yet run, so a failure in ANY
   // later step (not just the preprovision step itself, e.g. the deploy immediately after it)
   // still triggers that cleanup before the original error propagates.
@@ -499,6 +508,7 @@ export async function runHostedBuild({ io, config, resume = false, log = console
 
   for (let index = startIndex; index < plan.length; index += 1) {
     const step = plan[index]
+    if (!kept.has(step)) continue
     try {
       switch (step.type) {
         case 'create-role': {
@@ -596,9 +606,9 @@ REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
-function printDryRunPlan(log = console.log) {
+function printDryRunPlan(through, log = console.log) {
   log('Hosted build dry run: no connection will be made. Ordered plan:')
-  const plan = buildPlan()
+  const plan = planThrough(through)
   plan.forEach((step, index) => {
     const detail =
       step.type === 'deploy'
@@ -615,22 +625,26 @@ function printDryRunPlan(log = console.log) {
     'env file location, empty-target preflight (pathways schema absent, auth.users present, prisma absent).',
   )
   log(
-    'Checks that will run after the last step: exact 0000-0083 finished ledger, no residual prisma owner',
+    `Checks that will run after the last step: exact 0000-${migrationsThrough(through).at(-1).slice(0, 4)} finished ledger, no residual prisma owner`,
   )
   log('memberships, repo-derived role/permission/grant counts.')
 }
 
 function parseArgs(argv) {
-  const args = { envFile: null, dryRun: false, resume: false }
+  const args = { envFile: null, dryRun: false, resume: false, through: null }
   for (const arg of argv) {
     if (arg === '--dry-run') args.dryRun = true
     else if (arg === '--resume') args.resume = true
     else if (arg.startsWith('--env-file=')) args.envFile = arg.slice('--env-file='.length)
     else if (arg === '--env-file') args.envFile = '__NEXT__'
     else if (args.envFile === '__NEXT__') args.envFile = arg
+    else if (arg.startsWith('--through=')) args.through = arg.slice('--through='.length)
+    else if (arg === '--through') args.through = '__NEXT__'
+    else if (args.through === '__NEXT__') args.through = arg
     else throw new Error(`Unknown argument: ${arg}`)
   }
   if (args.envFile === '__NEXT__') throw new Error('--env-file requires a path')
+  if (args.through === '__NEXT__') throw new Error('--through requires a migration name')
   return args
 }
 
@@ -638,7 +652,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
 
   if (args.dryRun) {
-    printDryRunPlan()
+    printDryRunPlan(args.through)
     return
   }
 
@@ -661,6 +675,7 @@ async function main() {
       directUrl: config.directUrl.toString(),
       prismaPassword: config.prismaPassword,
       runtimePassword: config.runtimePassword,
+      through: args.through,
     },
     resume: args.resume,
   })

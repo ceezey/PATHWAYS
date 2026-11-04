@@ -9,8 +9,10 @@ import {
   MIGRATIONS_IN_ORDER,
   assertResumablePrefix,
   buildPlan,
+  migrationsThrough,
   planIndexForAppliedCount,
   planMigrationOrder,
+  planThrough,
 } from './plan.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -133,6 +135,41 @@ test('the rules cleanup step is flagged as needing the captured original_prisma_
   assert.ok(rulesCleanup.needsOriginalPrismaDatabaseCreate)
   const coreCleanup = plan.find((step) => step.type === 'cleanup' && step.name === 'core')
   assert.ok(!coreCleanup.needsOriginalPrismaDatabaseCreate)
+})
+
+test('planThrough without a migration keeps the whole plan', () => {
+  const plan = buildPlan()
+  assert.equal(planThrough(null, plan), plan)
+  assert.equal(migrationsThrough(null), MIGRATIONS_IN_ORDER)
+})
+
+test('planThrough 0075 stops after its cleanup, then sets the runtime role and checks', () => {
+  const through = '0075_indicator_summary_measurement_lookup'
+  const steps = planThrough(through)
+  const tail = steps.slice(-4).map((step) => `${step.type}:${step.name ?? step.migrations ?? ''}`)
+  assert.deepEqual(tail, [
+    `deploy:${through}`,
+    'cleanup:indicator-summary',
+    'alter-runtime-role:',
+    'postconditions:',
+  ])
+  const deployed = steps.filter((step) => step.type === 'deploy').flatMap((step) => step.migrations)
+  assert.deepEqual([BASELINE, ...deployed], migrationsThrough(through))
+  assert.equal(migrationsThrough(through).at(-1), through)
+})
+
+test('planThrough keeps the same step objects so resume indexes still apply', () => {
+  const plan = buildPlan()
+  const kept = planThrough('0041_activity_media_evidence', plan)
+  assert.ok(kept.every((step) => plan.includes(step)))
+})
+
+test('planThrough refuses an unknown migration or one inside a grouped deploy', () => {
+  assert.throws(() => planThrough('0999_missing'), /not a known migration/)
+  assert.throws(
+    () => planThrough('0028_revised_aggregate_permission_guards'),
+    /does not end a deploy step/,
+  )
 })
 
 test('assertResumablePrefix accepts an empty ledger', () => {

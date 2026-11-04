@@ -1,12 +1,13 @@
-// Guard rails for the hosted PATHWAYS-devV2 seed. Never connects to any database or
+// Guard rails for the hosted seeds (devV2 demo seed, production bootstrap). Never connects to any database or
 // Supabase project itself; only validates the target described by an env file the caller supplies.
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// The one hosted project this tool is allowed to seed.
+// The demo seed's only project (PATHWAYS-devV2) and the production bootstrap's only project (PATHWAYS).
 export const ALLOWED_PROJECT_REF = 'klbtoqdalmcsfjqophty'
 export const ALLOWED_SUPABASE_URL = `https://${ALLOWED_PROJECT_REF}.supabase.co`
+export const PRODUCTION_PROJECT_REF = 'mvzxitlbtkkyvubgbcmx'
 
 const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
 
@@ -87,28 +88,24 @@ function isPoolerHost(hostname) {
   return /\.pooler\.supabase\.com$/i.test(String(hostname || ''))
 }
 
-// The direct (non-pooler) Postgres host for the allowed project.
-const ALLOWED_DIRECT_PG_HOST = `db.${ALLOWED_PROJECT_REF}.supabase.co`
-
 /**
  * Validates one hosted Postgres connection URL. The host must be exactly the
  * project's direct host (username is then the bare role name), or a
  * `*.pooler.supabase.com` host (username must then be exactly
  * `<role>.<ref>`). Anything else, including any loopback host, is rejected.
  */
-export function assertHostedPgUrl(url, label, expectedRole) {
+export function assertHostedPgUrl(url, label, expectedRole, projectRef = ALLOWED_PROJECT_REF) {
+  const directHost = `db.${projectRef}.supabase.co`
   const host = (url.hostname || '').toLowerCase()
   const username = safeUsername(url)
-  if (host === ALLOWED_DIRECT_PG_HOST) {
+  if (host === directHost) {
     if (username !== expectedRole) {
-      throw new Error(
-        `${label} must connect as role "${expectedRole}" on ${ALLOWED_DIRECT_PG_HOST}.`,
-      )
+      throw new Error(`${label} must connect as role "${expectedRole}" on ${directHost}.`)
     }
     return
   }
   if (isPoolerHost(host)) {
-    const expectedUsername = `${expectedRole}.${ALLOWED_PROJECT_REF}`
+    const expectedUsername = `${expectedRole}.${projectRef}`
     if (username !== expectedUsername) {
       throw new Error(
         `${label} must use username "${expectedUsername}" on a *.pooler.supabase.com host.`,
@@ -117,7 +114,7 @@ export function assertHostedPgUrl(url, label, expectedRole) {
     return
   }
   throw new Error(
-    `${label} host must be exactly ${ALLOWED_DIRECT_PG_HOST} or a *.pooler.supabase.com host with username "${expectedRole}.${ALLOWED_PROJECT_REF}". Refusing to seed any other target (including loopback hosts) in hosted mode.`,
+    `${label} host must be exactly ${directHost} or a *.pooler.supabase.com host with username "${expectedRole}.${projectRef}". Refusing to seed any other target (including loopback hosts) in hosted mode.`,
   )
 }
 
@@ -128,7 +125,7 @@ export function assertHostedPgUrl(url, label, expectedRole) {
  * every URL properly (never a substring/`includes` check), so a foreign host cannot pass just
  * because the project ref happens to appear somewhere else in the URL (e.g. in a password).
  */
-export function assertSeedTarget(env, { testLocal }) {
+export function assertSeedTarget(env, { testLocal, projectRef = ALLOWED_PROJECT_REF }) {
   const supabaseUrl = env.SUPABASE_URL
   const databaseUrl = env.DATABASE_URL
   const directUrl = env.DIRECT_URL
@@ -154,14 +151,15 @@ export function assertSeedTarget(env, { testLocal }) {
     return { mode: 'test-local' }
   }
 
-  if (supabaseUrl !== ALLOWED_SUPABASE_URL) {
+  const allowedSupabaseUrl = `https://${projectRef}.supabase.co`
+  if (supabaseUrl !== allowedSupabaseUrl) {
     throw new Error(
-      `SUPABASE_URL must equal exactly ${ALLOWED_SUPABASE_URL}. Refusing to seed any other project.`,
+      `SUPABASE_URL must equal exactly ${allowedSupabaseUrl}. Refusing to seed any other project.`,
     )
   }
   // DATABASE_URL is the runtime identity; DIRECT_URL is the migration owner.
-  assertHostedPgUrl(databaseParsed, 'DATABASE_URL', 'pathways_runtime')
-  assertHostedPgUrl(directParsed, 'DIRECT_URL', 'prisma')
+  assertHostedPgUrl(databaseParsed, 'DATABASE_URL', 'pathways_runtime', projectRef)
+  assertHostedPgUrl(directParsed, 'DIRECT_URL', 'prisma', projectRef)
 
-  return { mode: 'hosted', projectRef: ALLOWED_PROJECT_REF }
+  return { mode: 'hosted', projectRef }
 }
