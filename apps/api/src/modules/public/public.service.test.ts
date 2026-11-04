@@ -319,7 +319,7 @@ describe('publication live revisions', () => {
   })
 })
 describe('anonymous public routes (QAD-A09)', () => {
-  it('expose only the project list and project read, with no media route', () => {
+  it('anonymous project routes expose only list and read; media is served by the snapshot-gated stream controller', () => {
     const routes = Object.getOwnPropertyNames(PublicProjectsController.prototype).filter(
       (name) => name !== 'constructor',
     )

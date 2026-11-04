@@ -29,7 +29,7 @@ const rejection = (code: string, message: string) =>
     message,
   })
 
-const storageOptions = (env: ApiEnv) => ({
+export const storageOptions = (env: ApiEnv) => ({
   serviceOrigin: env.SUPABASE_URL ?? '',
   serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY ?? '',
   evidenceBucket: env.EVIDENCE_BUCKET,
