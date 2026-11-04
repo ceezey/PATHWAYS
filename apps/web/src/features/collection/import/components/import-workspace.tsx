@@ -16,6 +16,7 @@ import { useBatchProcessing } from '../hooks/use-batch-processing'
 import { useBatchReview } from '../hooks/use-batch-review'
 import { useImportLoading } from '../hooks/use-import-loading'
 import { useImportState } from '../hooks/use-import-state'
+import { showsSurveys } from '../import.utils'
 import { ImportBatchList } from './import-batch-list'
 import { ImportBatchSummary } from './import-batch-summary'
 import { ImportHeldList } from './import-held-list'
@@ -161,7 +162,7 @@ function OwnedImportWorkspace({
                   onProcessWaiting={canProcess && canUpload ? () => void process() : undefined}
                 />
 
-                {batch.fileParts?.length ? (
+                {showsSurveys(batch, state.receipts[batch.id]) ? (
                   <ImportPartsCard batch={batch} review={review} state={state} />
                 ) : null}
 

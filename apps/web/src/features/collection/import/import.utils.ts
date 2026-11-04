@@ -26,6 +26,20 @@ export const guessFormType = (headers: readonly string[]) =>
 export const uploadFailure = (batch: Pick<ImportBatchDefinition, 'status' | 'failureMessage'>) =>
   batch.status === 'FAILED' ? (batch.failureMessage ?? 'The file could not be imported.') : null
 
+type CoverageReceipt = { coverage: 'COVERED' | 'NOT_COVERED'; mappingRevision: number }
+
+/** A batch's coverage: the server's, else this session's receipt for the same mapping revision. */
+export const batchCoverage = <T extends CoverageReceipt>(
+  batch: Pick<ImportBatchDefinition, 'coverage' | 'mappingRevision'>,
+  receipt?: T,
+) => batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
+
+/** Surveys wait while the registration form does not cover the file, so preparing that form shows nothing else. */
+export const showsSurveys = (
+  batch: Pick<ImportBatchDefinition, 'fileParts' | 'coverage' | 'mappingRevision'>,
+  receipt?: CoverageReceipt,
+) => !!batch.fileParts?.length && batchCoverage(batch, receipt)?.coverage !== 'NOT_COVERED'
+
 // A required form field has no column in the file, so the rows cannot pass until the form or the file changes.
 export const missesRequiredColumn = (report: FileCheckReport) =>
   report.problems.some((problem) => problem.kind === 'NO_COLUMN')

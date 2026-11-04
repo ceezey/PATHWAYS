@@ -20,7 +20,7 @@ import type { BatchProcessing } from '../hooks/use-batch-processing'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
 import { importProcessingComplete } from '../import-auto-continue'
-import { automaticMatchReason, mappingLockedStatuses } from '../import.utils'
+import { automaticMatchReason, batchCoverage, mappingLockedStatuses } from '../import.utils'
 import { CoverageNotice } from './coverage-notice'
 import { ImportDateOrder, columnDateOrders } from './import-date-order'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
@@ -89,8 +89,7 @@ export function ImportMappingCard({
   const receipt = receipts[batch.id]
   // The server computes coverage for any reader; the uploader's session receipt covers a batch not yet reloaded.
   // The counts describe the automatic revision only; a reviewer's later revision replaces them.
-  const coverage =
-    batch.coverage ?? (receipt?.mappingRevision === batch.mappingRevision ? receipt : null)
+  const coverage = batchCoverage(batch, receipt)
   const needsFormUpdate = coverage?.coverage === 'NOT_COVERED' && !formOfferSeen.has(batch.id)
   const referenceYear = new Date(batch.uploadedAt ?? Date.now()).getUTCFullYear()
   // The column's date type: the reviewer's declared type, else the target field's.

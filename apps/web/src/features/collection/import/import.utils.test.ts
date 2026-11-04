@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ImportBatchDefinition } from '@/types/pathways'
 
 import { noFormHint } from '../collection.copy'
-import { guessFormType, rowReason, rowReasonHelp } from './import.utils'
+import { guessFormType, rowReason, rowReasonHelp, showsSurveys } from './import.utils'
 
 describe('form a file needs when the project has none', () => {
   it('guesses the form type from the headers, registration last', () => {
@@ -76,5 +76,29 @@ describe('held row reasons', () => {
         validationErrors: [],
       }),
     ).toBeUndefined()
+  })
+})
+
+describe('surveys of a file', () => {
+  const batch = (coverage: 'COVERED' | 'NOT_COVERED' | null, parts = 1) =>
+    ({
+      fileParts: Array.from({ length: parts }, (_, i) => ({ code: `p${i}` })),
+      mappingRevision: 1,
+      coverage: coverage ? { coverage, uncoveredColumns: 0, unresolvedValues: 0 } : null,
+    }) as unknown as ImportBatchDefinition
+
+  it('wait while the registration form does not cover the file', () => {
+    expect(showsSurveys(batch('NOT_COVERED'))).toBe(false)
+    expect(showsSurveys(batch(null), { coverage: 'NOT_COVERED', mappingRevision: 1 })).toBe(false)
+  })
+
+  it('show once the registration columns are covered or reviewed', () => {
+    expect(showsSurveys(batch('COVERED'))).toBe(true)
+    expect(showsSurveys(batch(null))).toBe(true)
+    expect(showsSurveys(batch(null), { coverage: 'NOT_COVERED', mappingRevision: 0 })).toBe(true)
+  })
+
+  it('never show for a file without surveys', () => {
+    expect(showsSurveys(batch('COVERED', 0))).toBe(false)
   })
 })
