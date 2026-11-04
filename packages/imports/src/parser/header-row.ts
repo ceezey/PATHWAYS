@@ -32,25 +32,34 @@ export function findHeaderRow(matrix: unknown[][], merges: readonly MatrixMerge[
       : 0
   const widest = Math.max(0, ...searched.map((index) => widthOf(matrix[index])))
   const allLabels = (row: unknown[]) => row.slice(0, widthOf(row)).every(label)
+  // One pass over the merges: per searched row, the widest span and the columns where a merge of two or more cells starts.
+  const spans = new Map<number, number>()
+  const starts = new Map<number, Set<number>>()
+  const searchedSet = new Set(searched)
+  for (const merge of merges) {
+    if (!searchedSet.has(merge.firstRow)) continue
+    const span = merge.lastColumn - merge.firstColumn + 1
+    spans.set(merge.firstRow, Math.max(spans.get(merge.firstRow) ?? span, span))
+    if (merge.lastColumn > merge.firstColumn) {
+      const columns = starts.get(merge.firstRow) ?? new Set<number>()
+      columns.add(merge.firstColumn)
+      starts.set(merge.firstRow, columns)
+    }
+  }
   const header = searched.find((index, at) => {
     const count = filled(matrix[index])
     const next = at + 1 < rows.length ? filled(matrix[rows[at + 1]]) : 0
-    const starting = merges.filter((merge) => merge.firstRow === index)
+    const merged = starts.get(index)
     const title = count <= 2 && next >= 2 * count + 1
-    const wideMerge = starting.some(
-      (merge) => (merge.lastColumn - merge.firstColumn + 1) * 2 >= widest,
-    )
+    const span = spans.get(index)
+    const wideMerge = span !== undefined && span * 2 >= widest
     const row = matrix[index] as unknown[]
     const below = at + 1 < rows.length ? (matrix[rows[at + 1]] as unknown[]) : []
     const after = at + 2 < rows.length ? (matrix[rows[at + 2]] as unknown[]) : null
     // A CSV keeps no merges, so its group row is a few labels over a full row of labels over data; an all-text block keeps its first row.
     const group =
       next > count &&
-      (row.every(
-        (cell, column) =>
-          blank(cell) ||
-          starting.some((merge) => merge.firstColumn === column && merge.lastColumn > column),
-      ) ||
+      (row.every((cell, column) => blank(cell) || merged?.has(column) === true) ||
         (count >= 2 &&
           next >= 2 * count &&
           allLabels(below) &&

@@ -125,6 +125,27 @@ describe('findHeaderRow', () => {
         [{ firstRow: 2, lastRow: 2, firstColumn: 0, lastColumn: 2 }],
       ),
     ).toBe(1))
+
+  it('reads a wide group row under many merges quickly', () => {
+    const width = 16_383
+    const labels = Array.from({ length: width }, (_, column) => `Group ${column}`)
+    const values = Array.from({ length: width + 1 }, (_, column) => column)
+    const single = Array.from({ length: 200_000 }, () => ({
+      firstRow: 0,
+      lastRow: 0,
+      firstColumn: 0,
+      lastColumn: 0,
+    }))
+    const pairs = labels.map((_, column) => ({
+      firstRow: 0,
+      lastRow: 0,
+      firstColumn: column,
+      lastColumn: column + 1,
+    }))
+    const started = performance.now()
+    expect(findHeaderRow([labels, values], [...single, ...pairs])).toBe(1)
+    expect(performance.now() - started).toBeLessThan(1_000)
+  })
 })
 
 describe('normalizeMatrix', () => {
