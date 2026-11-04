@@ -70,6 +70,7 @@ $forwardInventory = @(
   '0081_submission_check_once'
   '0082_permission_check_plpgsql'
   '0083_stage_import'
+  '0085_public_tracker_live_revision'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1152,6 +1153,27 @@ SELECT ((SELECT pg_catalog.md5(prosrc)='65f2b6fe8bf48f7023dd435ca5888bdd' AND pg
     if ($summaryShape.Trim() -cne 'true') { throw "0075 indicator summary inventory differs in $db." }
   }
   Write-Output 'FORWARD_0075_INDICATOR_SUMMARY_INVENTORY=PASS'
+  # 0085 inventory: live columns and CHECKs, the prisma live-read policy, runtime-only p85 functions, and every upgraded row
+  # carries media and views arrays with each PUBLISHED one live as itself.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $liveShape = Read-ForwardSql $db @"
+SELECT ((SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid='pathways.project_publications'::pg_catalog.regclass AND NOT attisdropped
+  AND NOT attnotnull AND attname IN ('live_revision','live_snapshot','live_published_at','live_published_by_id'))=4
+ AND (SELECT count(*) FROM pg_catalog.pg_constraint WHERE conrelid='pathways.project_publications'::pg_catalog.regclass AND convalidated
+  AND conname IN ('publication_live_together','publication_snapshot_shape'))=2
+ AND EXISTS(SELECT FROM pg_catalog.pg_policy WHERE polname='p85_prisma_live_read' AND polrelid='pathways.project_publications'::pg_catalog.regclass)
+ AND (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p85_public_projects(uuid,integer,integer)'::pg_catalog.regprocedure,
+   'pathways.p85_publication_media(jsonb,uuid)'::pg_catalog.regprocedure,'pathways.p85_publication_views(jsonb)'::pg_catalog.regprocedure)
+  AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
+  AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
+  AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))=3
+ AND NOT EXISTS(SELECT FROM pathways.project_publications WHERE snapshot->'media' IS DISTINCT FROM '[]'::jsonb
+  OR snapshot->'views' IS DISTINCT FROM '[]'::jsonb OR (state='PUBLISHED' AND ROW(live_revision,live_snapshot,live_published_at,live_published_by_id)
+   IS DISTINCT FROM ROW(revision,snapshot,published_at,published_by_id))))::text;
+"@
+    if ($liveShape.Trim() -cne 'true') { throw "0085 public tracker live inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0085_PUBLIC_TRACKER_LIVE_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }
