@@ -118,6 +118,46 @@ describe('AnswerKeyEditor', () => {
     })
   })
 
+  it('a single choice keeps one correct answer', () => {
+    const onRule = vi.fn()
+    render(<Harness onRule={onRule} />)
+    choose('Colour of the sky', 'answers')
+    fireEvent.click(screen.getByRole('radio', { name: 'Blue' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Green' }))
+    expect(onRule).toHaveBeenLastCalledWith({
+      kind: 'TOTAL_SCORE',
+      questions: [{ field: 'q1', answers: ['Green'] }],
+    })
+    expect((screen.getByRole('radio', { name: 'Blue' }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('a multiple choice can mark several correct answers', () => {
+    const onRule = vi.fn()
+    const many = [field('q5', 'Pick all', { type: 'multi_select', allowedValues: ['A', 'B'] })]
+    const Many = () => {
+      const [rule, setRule] = useState<KeyRule | null>(null)
+      return (
+        <AnswerKeyEditor
+          fields={many}
+          rule={rule}
+          disabled={false}
+          onChange={(next) => {
+            setRule(next)
+            onRule(next)
+          }}
+        />
+      )
+    }
+    render(<Many />)
+    choose('Pick all', 'answers')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'A' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'B' }))
+    expect(onRule).toHaveBeenLastCalledWith({
+      kind: 'TOTAL_SCORE',
+      questions: [{ field: 'q5', answers: ['A', 'B'] }],
+    })
+  })
+
   it('any answer scores', () => {
     const onRule = vi.fn()
     render(<Harness onRule={onRule} />)
@@ -220,7 +260,8 @@ describe('AnswerKeyEditor', () => {
     )
     const controls = [
       ...screen.getAllByRole('combobox'),
-      ...screen.getAllByRole('checkbox'),
+      ...screen.getAllByRole('radio'),
+      ...screen.queryAllByRole('checkbox'),
       ...screen.queryAllByRole('textbox'),
       ...screen.queryAllByRole('button'),
     ]

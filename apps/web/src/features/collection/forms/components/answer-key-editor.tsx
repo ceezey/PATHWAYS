@@ -115,16 +115,26 @@ export function AnswerKeyEditor({
                     .filter(Boolean)
                     .map((value) => {
                       const checked = answers.includes(value)
+                      // A single choice has one right answer, so picking another replaces it.
+                      const single = field.type === 'single_select'
                       return (
                         <ToggleRow
                           key={value}
                           checked={checked}
-                          disabled={disabled || (!checked && answers.length >= maxAnswers)}
+                          disabled={
+                            disabled || (!single && !checked && answers.length >= maxAnswers)
+                          }
                           label={value}
+                          name={single ? id : undefined}
+                          type={single ? 'radio' : 'checkbox'}
                           onChange={(on) =>
                             setAnswers(
                               field.code,
-                              on ? [...answers, value] : answers.filter((a) => a !== value),
+                              single
+                                ? [value]
+                                : on
+                                  ? [...answers, value]
+                                  : answers.filter((a) => a !== value),
                             )
                           }
                         />
