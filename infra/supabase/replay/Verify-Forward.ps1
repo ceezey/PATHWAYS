@@ -1175,13 +1175,13 @@ SELECT ((SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid='pathways.p
     if ($liveShape.Trim() -cne 'true') { throw "0085 public tracker live inventory differs in $db." }
   }
   Write-Output 'FORWARD_0085_PUBLIC_TRACKER_LIVE_INVENTORY=PASS'
-  # 0086 inventory: the validated public media queue CHECK, the reviewed validator and evidence guard bodies, the runtime-only
+  # 0086 inventory: the validated public media queue CHECK, the 0086 validator and evidence guard bodies, the runtime-only
   # p86 lookup, and every upgraded evidence row still PRIVATE.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
     $mediaShape = Read-ForwardSql $db @"
 SELECT (EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::pg_catalog.regclass AND conname='p3_evidence_public' AND convalidated)
  AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p85_publication_media(jsonb,uuid)'::pg_catalog.regprocedure)='60613af01de09c839c3408f0193ceb82'
- AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure)='5f70529c1edd30bba73a4c9a660f154f'
+ AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure)='32c52a969c76775b0a86b6731c3d6fff'
  AND (SELECT pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
   AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
   AND NOT has_function_privilege('service_role',p.oid,'EXECUTE') FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p86_public_media(uuid,uuid)'::pg_catalog.regprocedure)

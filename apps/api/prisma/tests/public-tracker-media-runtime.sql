@@ -100,14 +100,14 @@ BEGIN
 END $$;
 
 -- Catalog: the media validator and lookup are prisma-owned definers executable by pathways_runtime only, the queue CHECK is
--- validated, and the public evidence guard keeps its reviewed body.
+-- validated, and the public evidence guard has its 0086 body.
 SELECT pg_temp.ok('catalog', (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p85_publication_media(jsonb,uuid)'::regprocedure,
    'pathways.p86_public_media(uuid,uuid)'::regprocedure)
   AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.proconfig=ARRAY['search_path=""'] AND p.provolatile='s'
   AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE')
   AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))=2
  AND EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::regclass AND conname='p3_evidence_public' AND convalidated)
- AND (SELECT md5(prosrc)='5f70529c1edd30bba73a4c9a660f154f' FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::regprocedure)
+ AND (SELECT md5(prosrc)='32c52a969c76775b0a86b6731c3d6fff' AND NOT prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::regprocedure)
  AND EXISTS(SELECT FROM pg_catalog.pg_trigger WHERE tgname='p3_40_public' AND tgenabled='O' AND tgrelid='pathways.evidence_media'::regclass));
 
 -- Fixtures: one organization; A (21), B (22) and C (23) are Project Managers assigned to projects 41 and 42.
@@ -136,11 +136,12 @@ SELECT pg_temp.seed(105,41,'DOCUMENT','application/pdf','activity','VERIFIED');
 SELECT pg_temp.seed(106,41,'PHOTO','application/pdf','activity','VERIFIED');
 SELECT pg_temp.seed(107,41,'PHOTO','image/png','activity','VERIFIED');
 -- Media 108: an unlinked upload for the reject checks. 109: an unlinked upload on project 42. 110: an unlinked document.
--- 111: an unlinked upload that is approved and then rejected.
+-- 111: an unlinked upload that is approved and then rejected. 112: an unlinked upload rejected after it goes live.
 SELECT pg_temp.seed(108,41,'VIDEO','video/mp4','none','PENDING');
 SELECT pg_temp.seed(109,42,'PHOTO','image/jpeg','none','PENDING');
 SELECT pg_temp.seed(110,41,'DOCUMENT','application/pdf','none','PENDING');
 SELECT pg_temp.seed(111,41,'PHOTO','image/jpeg','none','PENDING');
+SELECT pg_temp.seed(112,41,'PHOTO','image/jpeg','none','PENDING');
 SET LOCAL session_replication_role = origin;
 
 SET LOCAL SESSION AUTHORIZATION pathways_runtime;
@@ -159,6 +160,17 @@ SELECT pg_temp.ok('queue_upload_flow queued', (SELECT storage_ready AND public_v
 SELECT pg_temp.act_as(21);
 SELECT pg_temp.refused('queue_upload_flow uploader cannot approve', pg_temp.media_sql(101,format($a$public_visibility_status='APPROVED',
  public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(21))),'23514','p3_evidence_public');
+-- The approval must be recorded: no approver fails the CHECK even with the session binding bypassed, and as runtime the
+-- approver must be the acting user.
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.refused('queue_upload_flow approver required', pg_temp.media_sql(101,$a$public_visibility_status='APPROVED'$a$),
+ '23514','p3_evidence_public');
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.act_as(22);
+SELECT pg_temp.refused('queue_upload_flow approver unrecorded', pg_temp.media_sql(101,$a$public_visibility_status='APPROVED'$a$),
+ '42501','acting user');
+SELECT pg_temp.refused('queue_upload_flow approver is the session user', pg_temp.media_sql(101,format($a$public_visibility_status='APPROVED',
+ public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(23))),'42501','acting user');
 SELECT pg_temp.media_move(22,101,format($a$public_visibility_status='APPROVED',public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(22)));
 SELECT pg_temp.ok('queue_upload_flow approved', (SELECT public_visibility_status='APPROVED' AND public_approved_by_id=pg_temp.u(22)
  FROM pg_temp.media(101)));
@@ -173,6 +185,9 @@ SELECT pg_temp.ok('queue_upload_flow pickable', (SELECT snapshot->'media'=jsonb_
 
 -- beneficiary_media_queue: B sends A's beneficiary photo to the queue; neither A (uploader) nor B (sender) may approve it, C may.
 SELECT pg_temp.not_pickable('beneficiary media not pickable before the queue', jsonb_build_array(pg_temp.pick(102,'Beneficiary')));
+SELECT pg_temp.act_as(22);
+SELECT pg_temp.refused('beneficiary_media_queue sender is the session user', pg_temp.media_sql(102,format($a$public_visibility_status='FOR_REVIEW',
+ public_submitted_by_id=%L,public_submitted_at=now()$a$,pg_temp.u(21))),'42501','acting user');
 SELECT pg_temp.media_move(22,102,format($a$public_visibility_status='FOR_REVIEW',public_submitted_by_id=%L,public_submitted_at=now()$a$,pg_temp.u(22)));
 SELECT pg_temp.act_as(21);
 SELECT pg_temp.refused('beneficiary_media_queue uploader cannot approve', pg_temp.media_sql(102,format($a$public_visibility_status='APPROVED',
@@ -197,6 +212,9 @@ SELECT pg_temp.refused('activity_proof_never_queued', pg_temp.media_sql(107,form
 -- reject_in_queue: B rejects a queued upload with a reason; it stays out of the picker. An approved upload rejected later
 -- is no longer pickable.
 SELECT pg_temp.media_move(21,108,format($a$public_visibility_status='FOR_REVIEW',public_submitted_by_id=%L,public_submitted_at=now()$a$,pg_temp.u(21)));
+SELECT pg_temp.act_as(22);
+SELECT pg_temp.refused('reject_in_queue rejecter is the session user', pg_temp.media_sql(108,format($a$status='REJECTED',rejected_by_id=%L,
+ rejected_at=now(),rejection_reason='Faces are visible'$a$,pg_temp.u(23))),'42501','acting user');
 SELECT pg_temp.media_move(22,108,format($a$status='REJECTED',rejected_by_id=%L,rejected_at=now(),rejection_reason='Faces are visible'$a$,pg_temp.u(22)));
 SELECT pg_temp.ok('reject_in_queue', (SELECT status='REJECTED' AND public_visibility_status='FOR_REVIEW' AND rejection_reason='Faces are visible'
  FROM pg_temp.media(108)));
@@ -239,20 +257,27 @@ SELECT pg_temp.act_as(21);
 SELECT pg_temp.refused('published_state_unused', pg_temp.media_sql(101,format($a$public_visibility_status='PUBLISHED',
  published_by_id=%L,published_at=now()$a$,pg_temp.u(23))),'23514','p3_evidence_public');
 
--- public_media_live_only: revision with media 101 is approved and published by B.
-SELECT pg_temp.submit(jsonb_build_array(pg_temp.pick(101,'Live photo')));
+-- public_media_live_only: revision with approved uploads 101 and 112 is approved and published by B.
+SELECT pg_temp.queue_approved(112);
+SELECT pg_temp.submit(jsonb_build_array(pg_temp.pick(101,'Live photo'),pg_temp.pick(112,'Second photo')));
 SELECT pg_temp.pub_move(22,$$state='APPROVED'$$);
 SELECT pg_temp.pub_move(22,$$state='PUBLISHED'$$);
 SELECT pg_temp.act_as(0);
 SELECT pg_temp.ok('public_media_live_only live', (SELECT pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101))=jsonb_build_object(
  'bucket','pathways-private','objectKey',format('organizations/%s/projects/%s/evidence/%s/proof.jpg',pg_temp.u(1),pg_temp.u(41),pg_temp.u(101)),
  'contentType','image/jpeg','byteSize',20,'sha256',repeat('b',64))));
+SELECT pg_temp.ok('public_media_live_only second item', (SELECT pathways.p86_public_media(pg_temp.u(41),pg_temp.u(112)) IS NOT NULL));
 SELECT pg_temp.ok('public_media_live_only not in snapshot', (SELECT pathways.p86_public_media(pg_temp.u(41),pg_temp.u(102)) IS NULL
  AND pathways.p86_public_media(pg_temp.u(42),pg_temp.u(101)) IS NULL));
 -- A new revision adds media 102; it stays unreachable while that revision is under review.
 SELECT pg_temp.submit(jsonb_build_array(pg_temp.pick(101,'Live photo'),pg_temp.pick(102,'Draft photo')));
 SELECT pg_temp.act_as(0);
 SELECT pg_temp.ok('public_media_live_only review revision', (SELECT pathways.p86_public_media(pg_temp.u(41),pg_temp.u(102)) IS NULL
+ AND pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101)) IS NOT NULL));
+-- A live item rejected internally afterwards is no longer served.
+SELECT pg_temp.media_move(22,112,format($a$status='REJECTED',rejected_by_id=%L,rejected_at=now(),rejection_reason='Wrong site'$a$,pg_temp.u(22)));
+SELECT pg_temp.act_as(0);
+SELECT pg_temp.ok('public_media_live_only rejected after publish', (SELECT pathways.p86_public_media(pg_temp.u(41),pg_temp.u(112)) IS NULL
  AND pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101)) IS NOT NULL));
 -- Withdraw removes access at once.
 SELECT pg_temp.pub_move(22,$$live_snapshot=NULL$$);

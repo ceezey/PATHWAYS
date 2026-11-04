@@ -2,8 +2,8 @@
 -- p3_evidence_public is replaced: a row is PRIVATE with no public columns set, or it is in the public media queue (FOR_REVIEW,
 -- then APPROVED by someone other than its uploader and its sender), which takes only unlinked or beneficiary photos and videos.
 -- The consent, identifying and enrollment restrictions are dropped (section 3.4), and PUBLISHED is no longer a valid state.
--- p3_guard_public_evidence is kept unchanged (asserted below): it already allows PRIVATE to FOR_REVIEW to APPROVED, and a
--- review status change such as REJECTED while FOR_REVIEW.
+-- p3_guard_public_evidence keeps the baseline body and, for pathways_runtime sessions, also requires the queue sender, the
+-- approver and a rejecter of a FOR_REVIEW row to be the acting user (marked 0086). Owner, mode, search_path and ACL are kept.
 -- p85_publication_media now checks every chosen item against the pickable rule in the caller's organization and project, and
 -- answers only inside the publication guard. p86_public_media gives the storage key of an item on the live revision only.
 -- No new table, role or owner-role change.
@@ -44,11 +44,53 @@ ALTER TABLE pathways.evidence_media ADD CONSTRAINT p3_evidence_public CHECK(
   AND type IN ('PHOTO','VIDEO') AND public_submitted_by_id IS NOT NULL AND public_submitted_at IS NOT NULL
   AND published_by_id IS NULL AND published_at IS NULL
   AND ((public_visibility_status='FOR_REVIEW' AND public_approved_by_id IS NULL AND public_approved_at IS NULL)
-   OR (public_visibility_status='APPROVED' AND public_approved_by_id<>public_submitted_by_id AND public_approved_by_id<>submitted_by_id
+   OR (public_visibility_status='APPROVED' AND public_approved_by_id IS NOT NULL AND public_approved_at IS NOT NULL
+    AND public_approved_by_id<>public_submitted_by_id AND public_approved_by_id<>submitted_by_id
     AND public_approved_at>=public_submitted_at)))) NOT VALID;
 ALTER TABLE pathways.evidence_media VALIDATE CONSTRAINT p3_evidence_public;
 
--- 2. The selection validator, called only by p34_guard_publication on SUBMIT. prisma cannot call runtime_context_organization(),
+-- 2. The public evidence guard (marked 0086); the baseline rules are unchanged and the queue actors are bound to the session.
+CREATE OR REPLACE FUNCTION pathways.p3_guard_public_evidence() RETURNS trigger
+ LANGUAGE plpgsql SET search_path TO 'pg_catalog' AS $$
+DECLARE actor uuid;
+BEGIN
+ IF TG_OP='INSERT' THEN
+  IF NEW.public_visibility_status<>'PRIVATE' THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Evidence must start PRIVATE'; END IF;
+ ELSE
+  IF NEW.public_visibility_status=OLD.public_visibility_status THEN
+   IF ROW(NEW.public_submitted_by_id,NEW.public_submitted_at,NEW.public_approved_by_id,NEW.public_approved_at,NEW.published_by_id,NEW.published_at)
+    IS DISTINCT FROM ROW(OLD.public_submitted_by_id,OLD.public_submitted_at,OLD.public_approved_by_id,OLD.public_approved_at,OLD.published_by_id,OLD.published_at) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Public workflow history cannot be rewritten';
+   END IF;
+  ELSE
+   IF NOT ((OLD.public_visibility_status='PRIVATE' AND NEW.public_visibility_status='FOR_REVIEW')
+    OR (OLD.public_visibility_status='FOR_REVIEW' AND NEW.public_visibility_status='APPROVED')
+    OR (OLD.public_visibility_status='APPROVED' AND NEW.public_visibility_status='PUBLISHED')) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Public review, approval, and publication are separate transitions';
+   END IF;
+   IF OLD.public_visibility_status<>'PRIVATE' AND ROW(NEW.public_submitted_by_id,NEW.public_submitted_at) IS DISTINCT FROM ROW(OLD.public_submitted_by_id,OLD.public_submitted_at) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Public submission history is immutable';
+   END IF;
+   IF OLD.public_visibility_status='APPROVED' AND ROW(NEW.public_approved_by_id,NEW.public_approved_at) IS DISTINCT FROM ROW(OLD.public_approved_by_id,OLD.public_approved_at) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Public approval history is immutable';
+   END IF;
+  END IF;
+  -- 0086: the public media queue records the acting user as sender, approver and rejecter of a queued row.
+  IF session_user='pathways_runtime' AND ((NEW.public_visibility_status<>OLD.public_visibility_status
+    AND NEW.public_visibility_status IN ('FOR_REVIEW','APPROVED'))
+   OR (NEW.status='REJECTED' AND OLD.status<>'REJECTED' AND NEW.public_visibility_status='FOR_REVIEW')) THEN
+   actor:=pathways.runtime_context_user();
+   IF actor IS NULL OR (NEW.public_visibility_status<>OLD.public_visibility_status AND actor IS DISTINCT FROM
+     CASE NEW.public_visibility_status WHEN 'FOR_REVIEW' THEN NEW.public_submitted_by_id ELSE NEW.public_approved_by_id END)
+    OR (NEW.status='REJECTED' AND OLD.status<>'REJECTED' AND actor IS DISTINCT FROM NEW.rejected_by_id) THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='Public media review must be recorded by the acting user (0086)';
+   END IF;
+  END IF;
+ END IF;
+ RETURN NEW;
+END $$;
+
+-- 3. The selection validator, called only by p34_guard_publication on SUBMIT. prisma cannot call runtime_context_organization(),
 -- so it reads app.organization_id, which the guard has already matched to it (the 0077 convention).
 CREATE OR REPLACE FUNCTION pathways.p85_publication_media(media jsonb, wanted_project uuid) RETURNS jsonb
  LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
@@ -77,7 +119,7 @@ BEGIN
  RETURN result;
 END $$;
 
--- 3. The public media lookup: the storage key of an item on a live revision of an active project, or NULL.
+-- 4. The public media lookup: the storage key of an item on a live revision of an active project, or NULL.
 CREATE FUNCTION pathways.p86_public_media(wanted_project uuid, wanted_media uuid) RETURNS jsonb
  LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
 BEGIN
@@ -87,20 +129,21 @@ BEGIN
   FROM pathways.project_publications pub JOIN pathways.projects p ON p.organization_id=pub.organization_id AND p.id=pub.project_id
   JOIN pathways.organizations o ON o.id=p.organization_id
   JOIN pathways.evidence_media e ON e.organization_id=pub.organization_id AND e.project_id=pub.project_id AND e.id=wanted_media
+   AND e.status<>'REJECTED'
   WHERE pub.project_id=wanted_project AND pub.live_snapshot IS NOT NULL AND p.archived_at IS NULL AND o.status='ACTIVE' AND o.archived_at IS NULL
    AND pub.live_snapshot->'media' @> pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id',wanted_media)));
 END $$;
 REVOKE ALL ON FUNCTION pathways.p86_public_media(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION pathways.p86_public_media(uuid,uuid) TO pathways_runtime;
 
--- Postconditions: the queue CHECK, the evidence guard unchanged and still bound, the new validator body with its ACL kept,
+-- Postconditions: the queue CHECK, the new evidence guard body with its ACL kept and still bound, the new validator body with its ACL kept,
 -- and the new lookup.
 DO $$ BEGIN
  IF NOT EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::pg_catalog.regclass
    AND conname='p3_evidence_public' AND contype='c' AND convalidated)
   OR (SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid='pathways.evidence_media'::pg_catalog.regclass)
   OR (SELECT count(*) FROM (VALUES (0,'pathways.p85_publication_media(jsonb,uuid)','60613af01de09c839c3408f0193ceb82',true,'s',ARRAY['search_path=""']),
-    (1,'pathways.p3_guard_public_evidence()','5f70529c1edd30bba73a4c9a660f154f',false,'v',ARRAY['search_path=pg_catalog']))
+    (1,'pathways.p3_guard_public_evidence()','32c52a969c76775b0a86b6731c3d6fff',false,'v',ARRAY['search_path=pg_catalog']))
     w(n,sig,md5,secdef,vol,cfg)
    JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
    WHERE pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef=w.secdef AND p.provolatile=w.vol AND p.proconfig=w.cfg
