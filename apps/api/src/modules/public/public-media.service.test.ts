@@ -39,18 +39,31 @@ const uploaderId = '80000000-0000-4000-8000-000000000008'
 const senderId = '80000000-0000-4000-8000-000000000009'
 const reviewerId = '80000000-0000-4000-8000-000000000010'
 
-const identity = (userId: string, permissions: string[]): ApplicationIdentity => ({
+const identity = (
+  userId: string,
+  permissions: string[],
+  role = 'PROJECT_MANAGER',
+): ApplicationIdentity => ({
   id: '70000000-0000-4000-8000-000000000007',
   aal: 'aal2',
   userId,
   organizationId,
   fullName: 'Synthetic actor',
-  roles: ['PROJECT_MANAGER'],
+  roles: [role],
   permissions,
   assignedProjectIds: [projectId],
 })
-const uploader = identity(uploaderId, ['public.preview', 'evidence.read'])
-const reviewer = identity(reviewerId, ['public.preview', 'public.approve', 'evidence.read'])
+const uploader = identity(uploaderId, [
+  'public.preview',
+  'evidence.read',
+  'beneficiaries.records.read',
+])
+const reviewer = identity(reviewerId, [
+  'public.preview',
+  'public.approve',
+  'evidence.read',
+  'beneficiaries.records.read',
+])
 
 const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
 const storageFactories = {
@@ -450,6 +463,67 @@ describe('public media list and content', () => {
     reader.release.mockRejectedValue(new Error('down'))
     await expect(service.content(uploader, projectId, mediaId)).rejects.toMatchObject({
       status: 503,
+    })
+  })
+})
+
+describe('beneficiary media gates', () => {
+  const blocked = [
+    [
+      'an aggregate-only role',
+      identity(
+        reviewerId,
+        ['public.preview', 'public.approve', 'evidence.read', 'beneficiaries.records.read'],
+        'PROGRAM_MANAGER',
+      ),
+    ],
+    [
+      'a role without beneficiaries.records.read',
+      identity(reviewerId, ['public.preview', 'public.approve', 'evidence.read']),
+    ],
+  ] as const
+
+  it.each(blocked)('list leaves out enrollment-linked rows for %s', async (_name, actor) => {
+    state.actor = actor
+    tx.evidenceMedia.findMany.mockResolvedValue([])
+    await service.list(actor, projectId)
+    expect(tx.evidenceMedia.findMany.mock.calls[0][0].where).toMatchObject({ enrollmentId: null })
+  })
+
+  it('list keeps enrollment-linked rows for an allowed actor', async () => {
+    tx.evidenceMedia.findMany.mockResolvedValue([])
+    await service.list(uploader, projectId)
+    expect(tx.evidenceMedia.findMany.mock.calls[0][0].where).not.toHaveProperty('enrollmentId')
+  })
+
+  it.each(blocked)(
+    'content, submit, approve and reject answer 403 for %s',
+    async (_name, actor) => {
+      state.actor = actor
+      tx.evidenceMedia.findFirst.mockResolvedValue(
+        queued({ enrollmentId: 'e1', publicSubmittedById: senderId }),
+      )
+      for (const call of [
+        () => service.content(actor, projectId, mediaId),
+        () => service.submit(actor, projectId, mediaId),
+        () => service.approve(actor, projectId, mediaId),
+        () => service.reject(actor, projectId, mediaId, { reason: 'No' }),
+      ])
+        await expect(call()).rejects.toThrow('Beneficiary media access is required.')
+      expect(tx.evidenceMedia.updateMany).not.toHaveBeenCalled()
+      expect(reader.release).not.toHaveBeenCalled()
+    },
+  )
+
+  it('serves and approves enrollment-linked media for an allowed actor', async () => {
+    state.actor = reviewer
+    tx.evidenceMedia.findFirst.mockResolvedValue(queued({ enrollmentId: 'e1' }))
+    reader.release.mockResolvedValue('stream')
+    await expect(service.content(reviewer, projectId, mediaId)).resolves.toMatchObject({
+      body: 'stream',
+    })
+    await expect(service.approve(reviewer, projectId, mediaId)).resolves.toMatchObject({
+      publicStatus: 'APPROVED',
     })
   })
 })

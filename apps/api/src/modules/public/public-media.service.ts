@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { performance } from 'node:perf_hooks'
 import {
   BadRequestException,
   ConflictException,
@@ -8,7 +7,6 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
-  UnprocessableEntityException,
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
@@ -17,6 +15,7 @@ import {
   MAX_BENEFICIARY_MEDIA_FILES,
   type PublicMediaListResponse,
   type ReservePublicMediaRequest,
+  aggregateOnlyRoles,
   hasAtomicPermission,
   publicMediaContentTypes,
   publicMediaRejectRequest,
@@ -28,11 +27,11 @@ import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import {
-  PROOF_STORAGE_DEADLINE_MS,
   activityEvidenceType,
   evidenceExtension,
   proofDeclarations,
 } from '../activities/activity-proof.helpers'
+import { streamVerifiedMedia, verifyUploadedMedia } from '../activities/private-media-access'
 import {
   PRIVATE_STORAGE_FACTORIES,
   type PrivateStorageFactories,
@@ -41,13 +40,6 @@ import { StorageService } from '../storage/storage.service'
 
 const MAX_LISTED_MEDIA = 500
 const unavailable = () => new NotFoundException('Public media unavailable.')
-const rejection = (code: string, message: string) =>
-  new UnprocessableEntityException({
-    statusCode: 422,
-    error: 'Unprocessable Entity',
-    code,
-    message,
-  })
 // Rows with no activity, expense or submission link: new uploads and beneficiary media.
 const unlinked = { activityId: null, expenseId: null, sourceSubmissionId: null } as const
 // Rows the picker and the content route may show: stored photos and videos, never receipts or form files.
@@ -64,6 +56,11 @@ function requireEvidenceRead(actor: ApplicationIdentity) {
   if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'evidence.read'))
     throw new ForbiddenException('Evidence access is required to view media.')
 }
+
+/** Enrollment-linked media keeps the beneficiary module's gates: records.read and no aggregate-only role. */
+const canSeeBeneficiaryMedia = (actor: ApplicationIdentity) =>
+  !aggregateOnlyRoles.includes(actor.roles[0]) &&
+  hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read')
 
 @Injectable()
 export class PublicMediaService {
@@ -120,6 +117,8 @@ export class PublicMediaService {
       },
     })
     if (!row) throw unavailable()
+    if (row.enrollmentId !== null && !canSeeBeneficiaryMedia(actor))
+      throw new ForbiddenException('Beneficiary media access is required.')
     return { projectId, row }
   }
 
@@ -128,7 +127,12 @@ export class PublicMediaService {
       requireEvidenceRead(actor)
       const projectId = await requireScopedProject(tx, actor, requestedProjectId)
       const rows = await tx.evidenceMedia.findMany({
-        where: { ...listed, organizationId: actor.organizationId, projectId },
+        where: {
+          ...listed,
+          ...(canSeeBeneficiaryMedia(actor) ? {} : { enrollmentId: null }),
+          organizationId: actor.organizationId,
+          projectId,
+        },
         select: {
           id: true,
           type: true,
@@ -271,47 +275,11 @@ export class PublicMediaService {
     )
     const { row } = initial
     if (row.storageReady) return { mediaId: row.id, publicStatus: 'FOR_REVIEW' as const }
-    const byteSize = Number(row.byteSize)
-    if (!Number.isSafeInteger(byteSize) || byteSize > this.env.EVIDENCE_MAX_FILE_BYTES)
-      throw rejection('PROOF_FILE_TOO_LARGE', 'The media file exceeds the current per-file limit.')
-    let outcome: Awaited<
-      ReturnType<ReturnType<PrivateStorageFactories['createPrivateUploadVerifier']>>
-    >
-    try {
-      const verify = this.storageFactories.createPrivateUploadVerifier({
-        serviceOrigin: this.env.SUPABASE_URL ?? '',
-        serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-        evidenceBucket: this.env.EVIDENCE_BUCKET,
-        maxBytes: this.env.EVIDENCE_MAX_FILE_BYTES,
-        storageDeadlineMs: PROOF_STORAGE_DEADLINE_MS,
-      })
-      outcome = await verify({
-        organizationId: initial.organizationId,
-        projectId: initial.projectId,
-        evidenceId: row.id,
-        bucket: row.bucket,
-        objectKey: row.objectKey,
-        expectedBytes: byteSize,
-        expectedSha256: row.sha256,
-        contentType: row.contentType,
-        signal: new AbortController().signal,
-        deadlineMonotonicMs: performance.now() + PROOF_STORAGE_DEADLINE_MS,
-      })
-    } catch {
-      throw new ServiceUnavailableException(
-        'Media verification is temporarily unavailable. Retry finalizing this file.',
-      )
-    }
-    if (outcome !== 'VERIFIED') {
-      if (outcome !== 'OBJECT_MISSING')
-        await this.storage.deleteFile(row.bucket, row.objectKey).catch(() => undefined)
-      throw rejection(
-        `PROOF_${outcome}`,
-        outcome === 'OBJECT_MISSING'
-          ? 'The media file was not uploaded. Upload it, then finalize again.'
-          : 'The uploaded media file does not match its declaration.',
-      )
-    }
+    await verifyUploadedMedia(this.env, this.storage, this.storageFactories, {
+      organizationId: initial.organizationId,
+      projectId: initial.projectId,
+      row,
+    })
     return withAuthorizedOperation(this.prisma, identity, 'public.preview', async (tx, actor) => {
       const current = await readTarget(tx, actor)
       if (current.row.storageReady) return { mediaId: row.id, publicStatus: 'FOR_REVIEW' as const }
@@ -469,30 +437,6 @@ export class PublicMediaService {
         return { ...found, organizationId: actor.organizationId }
       },
     )
-    const { row } = target
-    try {
-      const streamer = this.storageFactories.createPrivateObjectStreamer({
-        serviceOrigin: this.env.SUPABASE_URL ?? '',
-        serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-        evidenceBucket: this.env.EVIDENCE_BUCKET,
-        maxBytes: this.env.EVIDENCE_MAX_FILE_BYTES,
-        storageDeadlineMs: PROOF_STORAGE_DEADLINE_MS,
-      })
-      const byteSize = Number(row.byteSize)
-      const body = await streamer.release({
-        organizationId: target.organizationId,
-        projectId: target.projectId,
-        evidenceId: row.id,
-        bucket: row.bucket,
-        objectKey: row.objectKey,
-        expectedBytes: byteSize,
-        expectedSha256: row.sha256,
-        signal: new AbortController().signal,
-        deadlineMonotonicMs: performance.now() + PROOF_STORAGE_DEADLINE_MS,
-      })
-      return { body, byteSize, contentType: row.contentType }
-    } catch {
-      throw new ServiceUnavailableException('Media is temporarily unavailable.')
-    }
+    return streamVerifiedMedia(this.env, this.storageFactories, target)
   }
 }
