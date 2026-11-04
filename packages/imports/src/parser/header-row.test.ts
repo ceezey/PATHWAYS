@@ -72,6 +72,29 @@ describe('findHeaderRow', () => {
       ),
     ).toBe(0))
 
+  it('keeps a half-named header over rows of text', () =>
+    expect(
+      findHeaderRow(
+        [
+          ['Name', null, 'Barangay', null],
+          ['Ana Reyes', 'Female', 'San Jose', 'Bayambang'],
+          ['Ben Cruz', 'Male', 'Poblacion', 'Bayambang'],
+        ],
+        [],
+      ),
+    ).toBe(0))
+
+  it('keeps a header with blank trailing cells over one row of text', () =>
+    expect(
+      findHeaderRow(
+        [
+          ['ID', 'Name', 'Sex', null, null, null],
+          ['P one', 'Ana', 'Female', 'San Jose', 'Bayambang', 'Pangasinan'],
+        ],
+        [],
+      ),
+    ).toBe(0))
+
   it('keeps a sparse header over a full data row', () =>
     expect(
       findHeaderRow(

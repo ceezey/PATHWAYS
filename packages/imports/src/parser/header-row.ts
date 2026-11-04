@@ -31,6 +31,7 @@ export function findHeaderRow(matrix: unknown[][], merges: readonly MatrixMerge[
       ? row.reduce<number>((last, cell, column) => (blank(cell) ? last : column + 1), 0)
       : 0
   const widest = Math.max(0, ...searched.map((index) => widthOf(matrix[index])))
+  const allLabels = (row: unknown[]) => row.slice(0, widthOf(row)).every(label)
   const header = searched.find((index, at) => {
     const count = filled(matrix[index])
     const next = at + 1 < rows.length ? filled(matrix[rows[at + 1]]) : 0
@@ -41,7 +42,8 @@ export function findHeaderRow(matrix: unknown[][], merges: readonly MatrixMerge[
     )
     const row = matrix[index] as unknown[]
     const below = at + 1 < rows.length ? (matrix[rows[at + 1]] as unknown[]) : []
-    // A CSV keeps no merges, so its group row is a few labels over a row of labels with no gap.
+    const after = at + 2 < rows.length ? (matrix[rows[at + 2]] as unknown[]) : null
+    // A CSV keeps no merges, so its group row is a few labels over a full row of labels over data; an all-text block keeps its first row.
     const group =
       next > count &&
       (row.every(
@@ -49,7 +51,11 @@ export function findHeaderRow(matrix: unknown[][], merges: readonly MatrixMerge[
           blank(cell) ||
           starting.some((merge) => merge.firstColumn === column && merge.lastColumn > column),
       ) ||
-        (count >= 2 && next >= 2 * count && below.slice(0, widthOf(below)).every(label)))
+        (count >= 2 &&
+          next >= 2 * count &&
+          allLabels(below) &&
+          after !== null &&
+          !allLabels(after)))
     return !title && !wideMerge && !group
   })
   return header ?? rows[0] ?? 0
