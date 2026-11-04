@@ -581,6 +581,13 @@ describe('draftFormFromImport rules', () => {
       })
     })
 
+    it('keeps the option but drops the alias when a lettered answer reads as a formula', () => {
+      const answers = [...Array(10).fill('A. -none-'), ...Array(9).fill('B. Married')]
+      const field = find(draft([columnOf('Civil status', answers, 1)], [], 'OTHER'), 'civil_status')
+      expect(field?.allowedValues).toEqual(['-none-', 'Married'])
+      expect(field?.valueAliases).toEqual([{ from: 'B. Married', to: 'Married' }])
+    })
+
     it('keeps an unlettered answer out of an existing choice field and asks a person', () => {
       const fields: DraftField[] = [
         {
