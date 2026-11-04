@@ -1,3 +1,4 @@
+import { timePart } from '../time-part'
 import { type PreparedField, normalizeMappingNameV1 } from './smart-match-names'
 import { AUTO_SMART_V2_LIMITS } from './smart-match-rules'
 
@@ -47,20 +48,29 @@ function dayMonthValid(first: number, second: number) {
   return first >= 1 && second >= 1 && first <= 31 && second <= 31 && (first <= 12 || second <= 12)
 }
 
-function looksLikeDate(value: unknown) {
+// V4 reads a trailing time as normalization does, so date-time exports pass the DATE gate.
+const isoWithTime = new RegExp(String.raw`^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})${timePart}$`, 'i')
+const numericWithTime = new RegExp(
+  String.raw`^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})${timePart}$`,
+  'i',
+)
+
+function looksLikeDate(value: unknown, withTime: boolean) {
   if (value instanceof Date) return Number.isFinite(value.getTime())
   if (typeof value !== 'string') return false
   const text = value.trim().toLowerCase()
   const iso =
     /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[t ]\d{1,2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?z?)?$/.exec(
       text,
-    )
+    ) ?? (withTime ? isoWithTime.exec(text) : null)
   if (iso) {
     const month = Number(iso[2])
     const day = Number(iso[3])
     return month >= 1 && month <= 12 && day >= 1 && day <= 31
   }
-  const numeric = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/.exec(text)
+  const numeric = (withTime ? numericWithTime : /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/).exec(
+    text,
+  )
   if (numeric) return dayMonthValid(Number(numeric[1]), Number(numeric[2]))
   const dayFirst = /^(\d{1,2})[ -]([a-z]{3,9})\.?[ -]?,? ?(\d{4})$/.exec(text)
   if (dayFirst)
@@ -123,7 +133,7 @@ export function choiceAnswers(raw: unknown, resolve: (raw: string) => unknown): 
 
 type ValueTarget = Pick<PreparedField, 'field' | 'allowed' | 'resolve'>
 
-function compatible(value: unknown, target: ValueTarget, spaced: boolean) {
+function compatible(value: unknown, target: ValueTarget, v4: boolean) {
   const field = target.field
   if (field.dataType === 'INTEGER') {
     if (typeof value === 'number') return Number.isSafeInteger(value)
@@ -139,7 +149,7 @@ function compatible(value: unknown, target: ValueTarget, spaced: boolean) {
       /^[+-]?(?:\d{1,15}|\d{1,3}(?:,\d{3}){1,4})?(?:\.\d{1,10})?$/.test(text)
     )
   }
-  if (field.dataType === 'DATE') return looksLikeDate(value)
+  if (field.dataType === 'DATE') return looksLikeDate(value, v4)
   if (field.dataType === 'BOOLEAN') {
     if (typeof value === 'boolean') return true
     const text = sampleText(value)
@@ -157,8 +167,7 @@ function compatible(value: unknown, target: ValueTarget, spaced: boolean) {
     const allowed = (part: string) =>
       target.allowed.has(normalizeMappingNameV1(part)) || target.resolve?.(part) != null
     // V4 reads a text cell as validation does, so Kobo's space-separated codes pass too.
-    const answers =
-      spaced && parts && typeof value === 'string' ? choiceAnswers(value, allowed) : parts
+    const answers = v4 && parts && typeof value === 'string' ? choiceAnswers(value, allowed) : parts
     return answers?.every(allowed) ?? false
   }
   const text = sampleText(value)
@@ -182,11 +191,11 @@ export function boundedSamples(samples: readonly unknown[]) {
   return result
 }
 
-/** Whether the samples fit the field; `spaced` (V4) also reads Kobo's space-separated choices. */
-export function valueGate(samples: readonly unknown[], target: ValueTarget, spaced = false) {
+/** Whether the samples fit the field; `v4` also reads Kobo's space-separated choices and a date's trailing time. */
+export function valueGate(samples: readonly unknown[], target: ValueTarget, v4 = false) {
   if (samples.length === 0) return 'NO_SAMPLES' as const
   let accepted = 0
-  for (const sample of samples) if (compatible(sample, target, spaced)) accepted++
+  for (const sample of samples) if (compatible(sample, target, v4)) accepted++
   return accepted * 100 >= AUTO_SMART_V2_LIMITS.valueGatePercent * samples.length
     ? ('PASS' as const)
     : ('FAIL' as const)

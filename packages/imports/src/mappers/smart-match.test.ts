@@ -728,6 +728,18 @@ describe('AUTO_SMART_V4', () => {
     )
   })
 
+  it('passes date-time text through the DATE gate under V4 only', () => {
+    const samples = ['2026/01/10 9:15:22 AM GMT+8', '1/10/2026 14:05', '10-01-2026 2:05 PM']
+    expect(oneV4('Birth date', samples)).toMatchObject({
+      status: 'MAPPED',
+      targetFieldId: 'f-birth',
+      reason: 'AUTO_MATCH',
+    })
+    expect(oneV3('Birth date', samples).reason).toBe('HELD_VALUE_GATE')
+    expect(oneV4('Birth date', ['1/10/2026 25:05']).reason).toBe('HELD_VALUE_GATE')
+    expect(oneV4('Timestamp', samples)).toMatchObject({ status: 'PENDING', targetFieldId: null })
+  })
+
   it('keeps V3 output unchanged for Filipino synonyms', () => {
     expect(oneV3('Kasarian', ['MALE']).suggestedFieldId).toBeNull()
   })

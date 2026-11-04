@@ -1,5 +1,7 @@
 import { type ImportDateOrder, importDateOrders } from '@pathways/shared'
 
+import { timePart } from './time-part'
+
 // Where the year, month and day sit in a text date such as 26/03/15.
 export const DATE_ORDERS = importDateOrders
 export type DateOrder = ImportDateOrder
@@ -10,8 +12,6 @@ export interface ImportDateRule {
   referenceYear: number
 }
 
-// An optional trailing time ([T ]HH:MM[:SS][ AM|PM][ zone]) is ignored: the date is kept as written.
-const timePart = String.raw`(?:[T ](?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?: ?[AP]M)?(?: ?(?:Z|(?:GMT|UTC)?[+-]\d{1,2}(?::?\d{2})?|GMT|UTC))?)?`
 const datePattern = new RegExp(String.raw`^(\d{1,4})[/.-](\d{1,2})[/.-](\d{1,4})${timePart}$`, 'i')
 const isoDate = new RegExp(String.raw`^\d{4}-\d{2}-\d{2}${timePart}$`, 'i')
 
