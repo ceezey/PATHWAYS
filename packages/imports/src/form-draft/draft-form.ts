@@ -385,11 +385,15 @@ export function draftFormFromImport(input: {
     if (field.dataType === 'SELECT') return true
     const allowed = field.allowedValues ?? []
     return (
-      valueGate(boundedSamples(present), {
-        field: { ...field, id: field.id ?? field.code },
-        allowed: new Set(allowed.map(normalizeMappingNameV1)),
-        resolve: answerResolver(allowed, field.valueAliases ?? []),
-      }) === 'PASS'
+      valueGate(
+        boundedSamples(present),
+        {
+          field: { ...field, id: field.id ?? field.code },
+          allowed: new Set(allowed.map(normalizeMappingNameV1)),
+          resolve: answerResolver(allowed, field.valueAliases ?? []),
+        },
+        true,
+      ) === 'PASS'
     )
   }
 

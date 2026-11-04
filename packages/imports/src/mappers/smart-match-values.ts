@@ -103,7 +103,7 @@ export function splitChoiceText(value: unknown): string[] | null {
 
 type ValueTarget = Pick<PreparedField, 'field' | 'allowed' | 'resolve'>
 
-function compatible(value: unknown, target: ValueTarget) {
+function compatible(value: unknown, target: ValueTarget, spaced: boolean) {
   const field = target.field
   if (field.dataType === 'INTEGER') {
     if (typeof value === 'number') return Number.isSafeInteger(value)
@@ -134,12 +134,12 @@ function compatible(value: unknown, target: ValueTarget) {
   }
   if (field.dataType === 'MULTIPLE_SELECT') {
     const parts = splitChoiceText(value)
-    return (
-      parts?.every(
-        (part) =>
-          target.allowed.has(normalizeMappingNameV1(part)) || target.resolve?.(part) != null,
-      ) === true
-    )
+    const allowed = (part: string) =>
+      target.allowed.has(normalizeMappingNameV1(part)) || target.resolve?.(part) != null
+    if (parts?.every(allowed)) return true
+    // Kobo's space-separated codes pass when every one is a choice, as validation splits them.
+    const tokens = spaced && parts?.length === 1 ? parts[0].split(/\s+/) : []
+    return tokens.length > 1 && tokens.every(allowed)
   }
   const text = sampleText(value)
   if (text === null) return false
@@ -162,10 +162,11 @@ export function boundedSamples(samples: readonly unknown[]) {
   return result
 }
 
-export function valueGate(samples: readonly unknown[], target: ValueTarget) {
+/** Whether the samples fit the field; `spaced` (V4) also reads Kobo's space-separated choices. */
+export function valueGate(samples: readonly unknown[], target: ValueTarget, spaced = false) {
   if (samples.length === 0) return 'NO_SAMPLES' as const
   let accepted = 0
-  for (const sample of samples) if (compatible(sample, target)) accepted++
+  for (const sample of samples) if (compatible(sample, target, spaced)) accepted++
   return accepted * 100 >= AUTO_SMART_V2_LIMITS.valueGatePercent * samples.length
     ? ('PASS' as const)
     : ('FAIL' as const)

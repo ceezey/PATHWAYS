@@ -624,6 +624,27 @@ describe('AUTO_SMART_V4', () => {
     }
   })
 
+  it("passes Kobo's space-separated choices as validation reads them, under V4 only", () => {
+    const interests: SmartMatchField = {
+      id: 'f-interests',
+      code: 'training_interests',
+      label: 'Training interests',
+      dataType: 'MULTIPLE_SELECT',
+      allowedValues: ['COOKING', 'SEWING'],
+    }
+    const samples = ['sewing cooking', 'cooking', 'cooking sewing']
+    expect(oneV4('training_interests', samples, [interests])).toMatchObject({
+      status: 'MAPPED',
+      targetFieldId: 'f-interests',
+    })
+    expect(
+      smartMatchColumnsV3([column(1, 'training_interests', samples)], [interests])[0].reason,
+    ).toBe('HELD_VALUE_GATE')
+    expect(oneV4('training_interests', ['sewing baking'], [interests]).reason).toBe(
+      'HELD_VALUE_GATE',
+    )
+  })
+
   it('keeps V3 output unchanged for Filipino synonyms', () => {
     expect(oneV3('Kasarian', ['MALE']).suggestedFieldId).toBeNull()
   })

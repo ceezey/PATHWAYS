@@ -216,7 +216,7 @@ function matchColumns(
     const contested = rivals.some(
       (score, other) => other !== position && score !== undefined && score >= best.score,
     )
-    const gate = valueGate(entry.samples, orderedFields[best.fieldIndex])
+    const gate = valueGate(entry.samples, orderedFields[best.fieldIndex], v4)
     if (contested) held.set(position, 'HELD_CONTESTED')
     else if (best.score - next < AUTO_SMART_V2_LIMITS.minimumMargin)
       held.set(position, 'HELD_MARGIN')
