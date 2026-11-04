@@ -8,7 +8,7 @@ import { publicMediaClient } from '@/lib/api/public-media'
 const box =
   'flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground'
 
-// A photo loads as an authorized blob; a video shows a placeholder so no large file is fetched for a list.
+// A photo loads as an authorized blob once it scrolls into view; a video shows a placeholder and is never fetched for a list.
 export const PublicMediaThumb = ({
   label,
   mediaId,
@@ -22,9 +22,23 @@ export const PublicMediaThumb = ({
 }) => {
   const [url, setUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const [node, setNode] = useState<HTMLElement | null>(null)
+  const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (type !== 'PHOTO') return
+    if (type !== 'PHOTO' || visible) return
+    // Without IntersectionObserver the photo loads at once.
+    if (typeof IntersectionObserver === 'undefined') return setVisible(true)
+    if (!node) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setVisible(true)
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [node, type, visible])
+
+  useEffect(() => {
+    if (type !== 'PHOTO' || !visible) return
     let cancelled = false
     let objectUrl: string | null = null
     publicMediaClient
@@ -39,7 +53,7 @@ export const PublicMediaThumb = ({
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [projectId, mediaId, type])
+  }, [projectId, mediaId, type, visible])
 
   if (type === 'VIDEO')
     return (
@@ -54,6 +68,7 @@ export const PublicMediaThumb = ({
     <span
       aria-label={failed ? `Preview unavailable: ${label}` : `Loading preview: ${label}`}
       className={box}
+      ref={setNode}
       role="img"
     >
       <ImageOff aria-hidden="true" className="h-6 w-6" />
