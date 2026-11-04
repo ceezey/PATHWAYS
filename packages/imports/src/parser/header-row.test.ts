@@ -113,6 +113,45 @@ describe('normalizeMatrix', () => {
     expect(parsed.filledMerges).toEqual([{ columnIndex: 2, firstRowNumber: 2, lastRowNumber: 4 }])
   })
 
+  it('never fills a merged value into a blank row, and lists only the filled runs', () => {
+    const parsed = normalizeMatrix(
+      [
+        ['Name', 'Brgy'],
+        ['Ana', 'San Jose'],
+        ['Ben', null],
+        [null, null],
+        ['Cai', null],
+        ['Dan', null],
+        [null, null],
+        [null, null],
+      ],
+      { merges: [{ firstRow: 1, lastRow: 7, firstColumn: 1, lastColumn: 1 }] },
+    )
+    expect(parsed.rows.map((row) => [row.sourceRowNumber, row.values.column_0002])).toEqual([
+      [2, 'San Jose'],
+      [3, 'San Jose'],
+      [5, 'San Jose'],
+      [6, 'San Jose'],
+    ])
+    expect(parsed.filledMerges).toEqual([
+      { columnIndex: 2, firstRowNumber: 2, lastRowNumber: 3 },
+      { columnIndex: 2, firstRowNumber: 5, lastRowNumber: 6 },
+    ])
+  })
+
+  it('lists no fill when every row below the merged value is blank', () => {
+    const parsed = normalizeMatrix(
+      [
+        ['Name', 'Brgy'],
+        ['Ana', 'San Jose'],
+        [null, null],
+      ],
+      { merges: [{ firstRow: 1, lastRow: 2, firstColumn: 1, lastColumn: 1 }] },
+    )
+    expect(parsed.rows.map((row) => row.sourceRowNumber)).toEqual([2])
+    expect(parsed.filledMerges).toEqual([])
+  })
+
   it('never copies a merged title or header cell into data rows', () => {
     const matrix = [
       ['Masterlist', null, null],

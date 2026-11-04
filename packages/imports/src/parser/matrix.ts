@@ -80,17 +80,28 @@ export function normalizeMatrix(
     const lastRow = Math.min(merge.lastRow, grid.length - 1)
     if (merge.firstRow < dataStart || merge.firstColumn < 0 || lastRow <= merge.firstRow) continue
     if (blank(value)) continue
+    // Rows holding the value, the top-left first; a row blank in the file is never filled, so it stays unimported.
+    const holding = [merge.firstRow]
     for (let index = merge.firstRow + 1; index <= lastRow; index += 1) {
       const cells = grid[index]
-      if (!Array.isArray(cells)) continue
+      if (!Array.isArray(cells) || blankRow(matrix[index])) continue
       grid[index] = cells.slice()
       grid[index][merge.firstColumn] = value
+      holding.push(index)
     }
-    filledMerges.push({
-      columnIndex: merge.firstColumn + 1,
-      firstRowNumber: firstRowNumber + merge.firstRow,
-      lastRowNumber: firstRowNumber + lastRow,
-    })
+    // Each unbroken run of filled rows is listed on its own, so a note never names a blank row.
+    let start = 0
+    for (let at = 1; at <= holding.length; at += 1) {
+      if (at < holding.length && holding[at] === holding[at - 1] + 1) continue
+      if (at - start > 1 || holding[start] !== merge.firstRow) {
+        filledMerges.push({
+          columnIndex: merge.firstColumn + 1,
+          firstRowNumber: firstRowNumber + holding[start],
+          lastRowNumber: firstRowNumber + holding[at - 1],
+        })
+      }
+      start = at
+    }
   }
   const table = grid.slice(headerIndex)
   // Trailing columns with a blank header and no values are sheet formatting, not data.
