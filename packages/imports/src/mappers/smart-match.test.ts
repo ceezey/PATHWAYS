@@ -551,7 +551,11 @@ describe('AUTO_SMART_V4', () => {
   })
 
   it('reads the leaf of a group path with no spaces', () => {
-    for (const header of ['personal_info/sex', 'personal_info-sex', 'a/b.c/sex']) {
+    for (const header of [
+      'personal_info/sex',
+      'personal_info-sex',
+      'respondent/demographics/sex',
+    ]) {
       expect(oneV4(header, ['MALE', 'FEMALE'])).toMatchObject({
         status: 'MAPPED',
         targetFieldId: 'f-sex',
@@ -573,6 +577,41 @@ describe('AUTO_SMART_V4', () => {
         targetFieldId: target,
         score: 100,
         reason: 'AUTO_MATCH',
+      })
+    }
+  })
+
+  it('maps the leaf of a participant or generic group path', () => {
+    for (const [header, samples, target] of [
+      ['location/municipality', ['Borongan'], 'f-city'],
+      ['beneficiary_profile/name', ['Ana Cruz'], 'f-name'],
+      ['registration-identity-age', ['30'], 'f-age'],
+      ['donor/donor', ['Acme'], 'f-donor'],
+    ] as const) {
+      expect(oneV4(header, [...samples])).toMatchObject({
+        status: 'MAPPED',
+        targetFieldId: target,
+        reason: 'AUTO_MATCH',
+      })
+    }
+  })
+
+  it('only suggests the leaf of a path whose group may name someone else', () => {
+    for (const [header, samples, target] of [
+      ['emergency_contact/name', ['Ana Cruz'], 'f-name'],
+      ['household_head/name', ['Ana Cruz'], 'f-name'],
+      ['referral/name', ['Ana Cruz'], 'f-name'],
+      ['contact_person/age', ['40'], 'f-age'],
+      ['child-age', ['8'], 'f-age'],
+      ['a/b.c/sex', ['MALE', 'FEMALE'], 'f-sex'],
+    ] as const) {
+      expect(oneV4(header, [...samples])).toMatchObject({
+        status: 'PENDING',
+        targetFieldId: null,
+        suggestedFieldId: target,
+        score: 80,
+        matchReason: 'SYNONYM_REVIEW',
+        reason: 'SUGGESTED',
       })
     }
   })

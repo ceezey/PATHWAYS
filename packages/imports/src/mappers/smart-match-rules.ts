@@ -227,6 +227,28 @@ export const REFUSED_TAGS = new Set([
   'tatay',
 ])
 
+// Group words that name the participant or only a section, so a group path made of them alone is read by its leaf automatically.
+export const PARTICIPANT_GROUP_WORDS: ReadonlySet<string> = new Set([
+  'participant',
+  'participants',
+  'beneficiary',
+  'respondent',
+  'personal',
+  'info',
+  'information',
+  'details',
+  'basic',
+  'demographic',
+  'demographics',
+  'identity',
+  'profile',
+  'registration',
+  'location',
+  'address',
+  'group',
+  'section',
+])
+
 export interface SmartMatchColumn {
   key: string
   columnIndex: number

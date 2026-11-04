@@ -10,6 +10,7 @@ import {
 } from './smart-match-names'
 import {
   AUTO_SMART_V2_LIMITS,
+  PARTICIPANT_GROUP_WORDS,
   REFUSED_TAGS,
   SYSTEM_COLUMNS_V1,
   type SmartDecisionReason,
@@ -18,6 +19,7 @@ import {
   type SmartMatchField,
   SmartMatchInputError,
   type SmartMatchReason,
+  TIER,
 } from './smart-match-rules'
 import { boundedSamples, valueGate } from './smart-match-values'
 export {
@@ -173,7 +175,17 @@ function matchColumns(
         ? groupPathLeaf(column.header)
         : null
     if (leaf !== null) {
-      const fromLeaf = scoreOn(prepareName(leaf))
+      // A group of participant words or of the leaf's own words (consent/consent_given) maps; under any other, such as emergency_contact, a person confirms it.
+      const leafName = prepareName(leaf)
+      const prefix = prepareName(column.header.slice(0, -leaf.length))
+      const participant = [...prefix.tokens].every(
+        (token) => PARTICIPANT_GROUP_WORDS.has(token) || leafName.tokens.has(token),
+      )
+      const fromLeaf = scoreOn(leafName).map((candidate) =>
+        participant || candidate.score <= TIER.reviewSynonym
+          ? candidate
+          : { ...candidate, score: TIER.reviewSynonym, reason: 'SYNONYM_REVIEW' as const },
+      )
       const top = (list: Candidate[]) => Math.max(0, ...list.map((candidate) => candidate.score))
       if (top(fromLeaf) > top(scored)) scored = fromLeaf
     }
