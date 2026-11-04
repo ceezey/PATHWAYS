@@ -15,6 +15,12 @@ import { currentBusinessDate } from '../../common/time/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { RulesHumanService } from '../rules/rules-human.service'
 import {
+  formDrafts,
+  importAttention,
+  publicationQueue,
+  ruleDrafts,
+} from './role-overview-admin.service'
+import {
   approvalQueue,
   escalationQueue,
   extensionQueue,
@@ -125,6 +131,8 @@ export class RoleOverviewService {
         const can = (p: AtomicPermission) =>
           hasAtomicPermission(actor.roles[0], actor.permissions, p)
         const submitter = can('activities.proof.submit')
+        // Admin work queues; other roles reach these records through their own sections.
+        const admin = actor.roles[0] === 'SYSTEM_ADMINISTRATOR'
         const own = submitter
           ? await submissions(tx, actor, monthStart, can('expenses.submit'))
           : null
@@ -156,6 +164,14 @@ export class RoleOverviewService {
             can('beneficiaries.guardian_consent.approve') && can('imports.read')
               ? await guardianApprovals(tx, actor)
               : null,
+          formDrafts: admin && can('forms.publish') ? await formDrafts(tx, actor) : null,
+          publicationQueue:
+            admin && (can('public.approve') || can('public.publish'))
+              ? await publicationQueue(tx, actor)
+              : null,
+          importAttention:
+            admin && can('imports.process') ? await importAttention(tx, actor) : null,
+          ruleDrafts: admin && can('rules.activate') ? await ruleDrafts(tx, actor) : null,
           datasetsImportedThisMonth: can('imports.read')
             ? await tx.dataImportBatch.count({
                 where: {

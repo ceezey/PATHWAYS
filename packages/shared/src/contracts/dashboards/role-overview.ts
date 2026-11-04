@@ -164,6 +164,52 @@ const escalationQueueRow = z
   })
   .strict()
 
+const formDraftRow = z
+  .object({
+    formId: id,
+    projectId: id,
+    projectTitle: text(200),
+    code: text(64),
+    name: text(200),
+    version: z.number().int().min(1),
+    updatedAt: instant,
+    ownEdit: z.boolean(),
+  })
+  .strict()
+
+const publicationQueueRow = z
+  .object({
+    projectId: id,
+    projectTitle: text(200),
+    state: z.enum(['FOR_REVIEW', 'APPROVED']),
+    submittedByName: text(200),
+    submittedAt: instant,
+    ownSubmission: z.boolean(),
+  })
+  .strict()
+
+const importAttentionRow = z
+  .object({
+    batchId: id,
+    projectId: id,
+    projectTitle: text(200),
+    fileName: text(255),
+    partCode: text(64).nullable(),
+    status: z.enum(['FAILED', 'RECOVERY_REQUIRED', 'VALIDATED']),
+    uploadedAt: instant,
+  })
+  .strict()
+
+const ruleDraftRow = z
+  .object({
+    ruleId: id,
+    code: text(80),
+    name: text(200),
+    version: z.number().int().min(1),
+    updatedAt: instant,
+  })
+  .strict()
+
 /** Role dashboard sections; a `null` section means the viewer lacks its permission. */
 export const roleOverviewSchema = z
   .object({
@@ -181,6 +227,10 @@ export const roleOverviewSchema = z
     escalationQueue: list(escalationQueueRow).nullable(),
     // Defaults so a web app running ahead of its API keeps the rest of the dashboard.
     guardianApprovals: list(guardianApprovalRow).nullable().default(null),
+    formDrafts: list(formDraftRow).nullable().default(null),
+    publicationQueue: list(publicationQueueRow).nullable().default(null),
+    importAttention: list(importAttentionRow).nullable().default(null),
+    ruleDrafts: list(ruleDraftRow).nullable().default(null),
     datasetsImportedThisMonth: count.nullable(),
     alerts: z
       .object({

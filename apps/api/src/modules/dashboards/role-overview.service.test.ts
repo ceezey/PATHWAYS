@@ -68,6 +68,18 @@ function setup() {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
     },
+    digitalForm: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    projectPublication: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    alertRule: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+    },
   }
   vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, _perm, fn) =>
     fn(tx as unknown as Prisma.TransactionClient, identity)) as typeof withAuthorizedOperation)
@@ -415,7 +427,7 @@ describe('RoleOverviewService', () => {
       const { tx, service } = setup()
       const result = await service.read(actor(role))
       expect(result.guardianApprovals).toBeNull()
-      expect(tx.dataImportBatch.findMany).not.toHaveBeenCalled()
+      expect(tx.dataImportBatch.findMany.mock.calls.some(([arg]) => arg.where.form)).toBe(false)
     })
   })
 
@@ -603,6 +615,97 @@ describe('RoleOverviewService', () => {
       for (const role of ['PROJECT_OFFICER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)
         expect((await service.read(actor(role))).escalationQueue).toBeNull()
       expect(tx.activityEscalation.findMany).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('admin work queues', () => {
+    const other = '30000000-0000-4000-8000-000000000002'
+    const at = new Date('2026-11-01T00:00:00.000Z')
+
+    it('fills the four queues for a System Administrator, scoped to its organization', async () => {
+      const { tx, service } = setup()
+      tx.digitalForm.count.mockResolvedValue(7)
+      tx.digitalForm.findMany.mockResolvedValue([
+        {
+          id: project,
+          projectId: project,
+          code: 'intake',
+          name: 'Intake',
+          version: 2,
+          createdById: other,
+          lastEditedById: user,
+          updatedAt: at,
+          project: { title: 'Project' },
+        },
+      ])
+      tx.projectPublication.findMany.mockResolvedValue([
+        {
+          projectId: project,
+          state: 'FOR_REVIEW',
+          submittedById: user,
+          submittedAt: at,
+          project: { title: 'Project' },
+          submittedBy: { fullName: 'Pat Manager' },
+        },
+        {
+          projectId: other.replace('3', '2'),
+          state: 'APPROVED',
+          submittedById: user,
+          submittedAt: at,
+          project: { title: 'Other' },
+          submittedBy: { fullName: 'Pat Manager' },
+        },
+      ])
+      tx.dataImportBatch.findMany.mockResolvedValue([
+        {
+          id: project,
+          projectId: project,
+          originalFileName: 'roster.xlsx',
+          partCode: null,
+          status: 'FAILED',
+          uploadedAt: at,
+          project: { title: 'Project' },
+        },
+      ])
+      tx.alertRule.findMany.mockResolvedValue([
+        { id: project, code: 'LOW_ATTENDANCE', name: 'Low attendance', version: 1, updatedAt: at },
+      ])
+      const result = await service.read(actor('SYSTEM_ADMINISTRATOR'))
+      expect(result.formDrafts).toMatchObject({ count: 7, rows: [{ ownEdit: true, version: 2 }] })
+      expect(result.publicationQueue?.rows.map((row) => row.ownSubmission)).toEqual([true, false])
+      expect(result.importAttention?.rows[0]).toMatchObject({ status: 'FAILED', partCode: null })
+      expect(result.ruleDrafts?.rows[0].code).toBe('LOW_ATTENDANCE')
+      for (const fn of [tx.digitalForm.findMany, tx.projectPublication.findMany]) {
+        const { where, take } = fn.mock.calls[0][0]
+        expect(where.organizationId).toBe(org)
+        expect(where.project).toMatchObject({ organizationId: org })
+        expect(take).toBe(5)
+      }
+      expect(tx.alertRule.findMany.mock.calls[0][0].where).toMatchObject({
+        organizationId: org,
+        status: 'DRAFT',
+      })
+      expect(roleOverviewSchema.parse(result)).toEqual(result)
+    })
+
+    it.each([
+      'PROJECT_OFFICER',
+      'MONITORING_AND_EVALUATION_OFFICER',
+      'PROJECT_MANAGER',
+      'PROGRAM_MANAGER',
+      'GRANT_MANAGER',
+    ] as const)('leaves the queues null for a %s', async (role) => {
+      const { tx, service } = setup()
+      const result = await service.read(actor(role))
+      expect([
+        result.formDrafts,
+        result.publicationQueue,
+        result.importAttention,
+        result.ruleDrafts,
+      ]).toEqual([null, null, null, null])
+      expect(tx.digitalForm.findMany).not.toHaveBeenCalled()
+      expect(tx.projectPublication.findMany).not.toHaveBeenCalled()
+      expect(tx.alertRule.findMany).not.toHaveBeenCalled()
     })
   })
 })
