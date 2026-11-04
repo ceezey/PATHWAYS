@@ -108,12 +108,12 @@ export const PublicationQueueWorkspace = ({
     activeOperation.current = operationOwner
     // Part A keeps the working snapshot's photos, videos and views as they are.
     const submission =
-      operation === 'submit' && current
+      operation === 'submit'
         ? {
             summary: summary.trim(),
             selection: {
-              media: current.snapshot.media.map(({ id, caption }) => ({ id, caption })),
-              views: current.snapshot.views,
+              media: current?.snapshot.media.map(({ id, caption }) => ({ id, caption })) ?? [],
+              views: current?.snapshot.views ?? [],
             },
           }
         : {}

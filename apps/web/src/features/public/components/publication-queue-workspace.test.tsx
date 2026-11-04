@@ -13,6 +13,9 @@ const state = vi.hoisted(() => ({
   canPublish: true,
   publicationState: 'FOR_REVIEW',
   liveRevision: null as number | null,
+  noPublication: false,
+  snapshotMedia: [] as object[],
+  snapshotViews: [] as string[],
   submittedBy: 'another-reviewer',
   capturedOwnerInvalid: false,
   transition: vi.fn(),
@@ -71,18 +74,20 @@ vi.mock('@/hooks/use-authorized-read', () => ({
               sector: 'Private sector',
             },
           ]
-        : {
-            revision: 1,
-            state: state.publicationState,
-            summary: 'Private proposed summary',
-            snapshot: { media: [], views: [] },
-            live: state.liveRevision
-              ? { revision: state.liveRevision, publishedAt: '2026-09-27T00:00:00.000Z' }
-              : null,
-            submittedById: state.submittedBy,
-            approvedById: null,
-            publishedById: null,
-          },
+        : state.noPublication
+          ? null
+          : {
+              revision: 1,
+              state: state.publicationState,
+              summary: 'Private proposed summary',
+              snapshot: { media: state.snapshotMedia, views: state.snapshotViews },
+              live: state.liveRevision
+                ? { revision: state.liveRevision, publishedAt: '2026-09-27T00:00:00.000Z' }
+                : null,
+              submittedById: state.submittedBy,
+              approvedById: null,
+              publishedById: null,
+            },
     isPending: key === 'publication-projects' && state.projectsPending,
     isError: key === 'publication-projects' ? state.projectsError : state.publicationError,
     refetch: state.refetch,
@@ -106,6 +111,9 @@ describe('publication current project and revision boundaries', () => {
     state.canPublish = true
     state.publicationState = 'FOR_REVIEW'
     state.liveRevision = null
+    state.noPublication = false
+    state.snapshotMedia = []
+    state.snapshotViews = []
     state.submittedBy = 'another-reviewer'
     state.capturedOwnerInvalid = false
     state.refetch.mockResolvedValue(undefined)
@@ -277,6 +285,40 @@ describe('publication current project and revision boundaries', () => {
     await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
     expect(state.transition.mock.calls[0][2]).toMatchObject({
       selection: { media: [], views: [] },
+    })
+  })
+  it('sends the summary and an empty selection on the first submit of a project', async () => {
+    state.noPublication = true
+    state.transition.mockResolvedValue({ revision: 1, state: 'FOR_REVIEW' })
+    render(<PublicationQueueWorkspace />)
+    fireEvent.change(screen.getByLabelText('Public summary'), {
+      target: { value: 'First fictional summary' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][2]).toMatchObject({
+      expectedRevision: 0,
+      summary: 'First fictional summary',
+      selection: { media: [], views: [] },
+    })
+  })
+  it('sends each picked photo as id and caption only', async () => {
+    state.snapshotMedia = [
+      {
+        id: '20000000-0000-4000-8000-000000000001',
+        type: 'PHOTO',
+        contentType: 'image/jpeg',
+        caption: 'A fictional caption',
+      },
+    ]
+    state.snapshotViews = ['kpi', 'map']
+    state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+    render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][2].selection).toEqual({
+      media: [{ id: '20000000-0000-4000-8000-000000000001', caption: 'A fictional caption' }],
+      views: ['kpi', 'map'],
     })
   })
   it('shows the live revision beside the working one', () => {
