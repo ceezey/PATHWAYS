@@ -15,6 +15,8 @@ const snapshot = {
   sector: 'Synthetic sector',
   startDate: null,
   endDate: null,
+  media: [],
+  views: [],
   publishedAt: '2026-09-27T00:00:00.000Z',
 }
 const reply = (body: unknown, status = 200) => {
@@ -107,6 +109,8 @@ describe('public snapshot client', () => {
     ['a sector over 300 characters', { sector: 'a'.repeat(301) }],
     ['a publication date without a zone', { publishedAt: '2026-09-27T00:00:00' }],
     ['an unknown field', { budget: 1 }],
+    ['a missing media list', { media: undefined }],
+    ['an unknown view', { views: ['budget'] }],
   ])('rejects %s', async (_label, change) => {
     reply([{ ...snapshot, ...change }])
     await expect(readPublicSnapshots()).rejects.toThrow()

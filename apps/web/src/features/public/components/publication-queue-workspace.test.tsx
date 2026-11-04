@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   canApprove: true,
   canPublish: true,
   publicationState: 'FOR_REVIEW',
+  liveRevision: null as number | null,
   submittedBy: 'another-reviewer',
   capturedOwnerInvalid: false,
   transition: vi.fn(),
@@ -74,6 +75,10 @@ vi.mock('@/hooks/use-authorized-read', () => ({
             revision: 1,
             state: state.publicationState,
             summary: 'Private proposed summary',
+            snapshot: { media: [], views: [] },
+            live: state.liveRevision
+              ? { revision: state.liveRevision, publishedAt: '2026-09-27T00:00:00.000Z' }
+              : null,
             submittedById: state.submittedBy,
             approvedById: null,
             publishedById: null,
@@ -100,6 +105,7 @@ describe('publication current project and revision boundaries', () => {
     state.canApprove = true
     state.canPublish = true
     state.publicationState = 'FOR_REVIEW'
+    state.liveRevision = null
     state.submittedBy = 'another-reviewer'
     state.capturedOwnerInvalid = false
     state.refetch.mockResolvedValue(undefined)
@@ -258,6 +264,41 @@ describe('publication current project and revision boundaries', () => {
     expect(screen.getByRole('button', { name: 'Submit summary' }).hasAttribute('disabled')).toBe(
       false,
     )
+  })
+  it('submit is enabled while published', async () => {
+    state.publicationState = 'PUBLISHED'
+    state.liveRevision = 1
+    state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+    render(<PublicationQueueWorkspace />)
+    const submit = screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement
+    expect(submit.disabled).toBe(false)
+    expect((screen.getByLabelText('Public summary') as HTMLTextAreaElement).disabled).toBe(false)
+    fireEvent.click(submit)
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][2]).toMatchObject({
+      selection: { media: [], views: [] },
+    })
+  })
+  it('shows the live revision beside the working one', () => {
+    state.liveRevision = 2
+    render(<PublicationQueueWorkspace />)
+    expect(screen.getByText('Live: revision 2')).toBeTruthy()
+    expect(screen.getByText('For review')).toBeTruthy()
+  })
+  it('shows withdraw whenever a live revision exists', () => {
+    const view = render(<PublicationQueueWorkspace />)
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull()
+    state.liveRevision = 2
+    view.rerender(<PublicationQueueWorkspace />)
+    expect(screen.getByRole('button', { name: 'Withdraw' })).toBeTruthy()
+  })
+  it('describes what the submitter chooses and who approves it', () => {
+    render(<PublicationQueueWorkspace />)
+    expect(
+      screen.getByText(
+        'Choose the summary, photos, videos and charts the public page shows. Changes go live only after a different reviewer approves them.',
+      ),
+    ).toBeTruthy()
   })
   it.each(['identity', 'generation'] as const)(
     'drops callbacks and clears the draft when %s changes',

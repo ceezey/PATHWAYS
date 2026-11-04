@@ -106,18 +106,25 @@ export const PublicationQueueWorkspace = ({
     const currentOwner = () => capturedPreview.isCurrent() && captured.isCurrent()
     const operationOwner = { isCurrent: currentOwner }
     activeOperation.current = operationOwner
-    const body = {
-      operation,
-      expectedRevision: revision,
-      ...(operation === 'submit' ? { summary: summary.trim() } : {}),
-    }
+    // Part A keeps the working snapshot's photos, videos and views as they are.
+    const submission =
+      operation === 'submit' && current
+        ? {
+            summary: summary.trim(),
+            selection: {
+              media: current.snapshot.media.map(({ id, caption }) => ({ id, caption })),
+              views: current.snapshot.views,
+            },
+          }
+        : {}
+    const body = { operation, expectedRevision: revision, ...submission }
     const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
     setBusy(true)
     try {
       await publicationClient.transition(id, operation, {
         clientRequestId,
         expectedRevision: revision,
-        ...(operation === 'submit' ? { summary: summary.trim() } : {}),
+        ...submission,
       })
       if (!currentOwner()) return
       requests.acknowledge(clientRequestId)
@@ -223,7 +230,7 @@ export const PublicationQueueWorkspace = ({
         </SectionCard>
         <SectionCard
           title={selected?.title ?? 'Public content'}
-          description="Only the approved project summary, code, area, sector, and dates cross into the anonymous route. Internal people, expenses, assessment, and media remain private."
+          description="Choose the summary, photos, videos and charts the public page shows. Changes go live only after a different reviewer approves them."
         >
           {id && publication.isPending ? (
             <AsyncState
@@ -250,6 +257,9 @@ export const PublicationQueueWorkspace = ({
                         ? 'For review'
                         : 'Not submitted'}
                 </StatusBadge>
+                {current?.live && (
+                  <StatusBadge tone="success">Live: revision {current.live.revision}</StatusBadge>
+                )}
                 <span className="text-sm text-muted-foreground">Revision {revision}</span>
               </div>
               <Label className="space-y-2">
@@ -257,7 +267,7 @@ export const PublicationQueueWorkspace = ({
                 <Textarea
                   rows={6}
                   maxLength={4000}
-                  disabled={!owner || busy || current?.state === 'PUBLISHED'}
+                  disabled={!owner || busy}
                   value={summary}
                   onChange={(event) =>
                     owner &&
@@ -274,13 +284,7 @@ export const PublicationQueueWorkspace = ({
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
-                  disabled={
-                    !owner ||
-                    busy ||
-                    !summary.trim() ||
-                    current?.state === 'PUBLISHED' ||
-                    !permitted('public.preview')
-                  }
+                  disabled={!owner || busy || !summary.trim() || !permitted('public.preview')}
                   onClick={() => void act('submit')}
                 >
                   <Save className="mr-2 h-4 w-4" />
@@ -314,7 +318,7 @@ export const PublicationQueueWorkspace = ({
                   <Send className="mr-2 h-4 w-4" />
                   Publish
                 </Button>
-                {current?.state === 'PUBLISHED' && (
+                {current?.live && (
                   <Button
                     variant="destructive"
                     disabled={!owner || busy || !permitted('public.publish')}
@@ -330,7 +334,7 @@ export const PublicationQueueWorkspace = ({
                   <Link href={`/transparency/${id}/preview`}>Staff preview</Link>
                 </Button>
               )}
-              {current?.state === 'PUBLISHED' && (
+              {current?.live && (
                 <Button asChild variant="ghost">
                   <Link href={`/public/projects/${id}`} target="_blank" rel="noreferrer">
                     View published revision

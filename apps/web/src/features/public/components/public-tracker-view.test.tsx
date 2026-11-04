@@ -14,6 +14,8 @@ const snapshot = {
   sector: 'Synthetic sector',
   startDate: '2026-01-01',
   endDate: '2026-12-31',
+  media: [],
+  views: [],
   publishedAt: '2026-09-27T00:00:00.000Z',
 }
 
