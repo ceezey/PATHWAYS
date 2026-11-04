@@ -239,9 +239,11 @@ export function useFileParts(state: ImportState, review: BatchReview) {
       }
       setProcessing({ batchId: batch.id, ...finish, progress })
       await refresh(batch.id, ticket)
+      // A survey's own stop is named by the card, which also brings its row into view.
       if (finish.state === 'complete' && Object.keys(notes).length === 0)
         toast.success(copy.processed)
-      else if (finish.note) toast.error(finish.note)
+      else if (finish.note && !Object.values(notes).some((note) => note.message === finish.note))
+        toast.error(finish.note)
     } finally {
       ticket.finish()
     }

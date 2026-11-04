@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { StatusBadge } from '@/components/pathways'
@@ -44,6 +44,7 @@ export function ImportPartsCard({
   const [drafts, setDrafts] = useState<DraftOutcomes>({})
   const [notes, setNotes] = useState<PartNotes>({})
   const [opened, setOpened] = useState<{ code: string; batch: ImportBatchDefinition } | null>(null)
+  const rows = useRef<Record<string, HTMLFieldSetElement | null>>({})
   const hasRows = (code: string) => batch.fileParts?.some((p) => p.code === code && p.rows > 0)
   const allPublished = batch.parts.every(
     (part) => !hasRows(part.code) || part.formStatus === 'PUBLISHED',
@@ -62,6 +63,23 @@ export function ImportPartsCard({
     batch.parts.map((part) => [part.code, activityOf(part.code, part.name)]),
   )
 
+  // Names the first survey in file order that stopped, then brings its row into view and focus.
+  const showStopped = (codes: string[]) => {
+    const first = batch.parts.find((part) => codes.includes(part.code))
+    if (!first) return
+    toast.error(copy.attention(first.name, codes.length - 1))
+    const row = rows.current[first.code]
+    row?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    row?.focus({ preventScroll: true })
+  }
+  const afterProcess = (found: PartNotes) => {
+    setNotes(found)
+    showStopped(Object.keys(found))
+  }
+  const afterPrepare = (found: DraftOutcomes) => {
+    setDrafts(found)
+    showStopped(Object.keys(found).filter((code) => found[code].error))
+  }
   const toggleHeld = async (code: string, childId: string) => {
     if (opened?.code === code) return setOpened(null)
     try {
@@ -80,12 +98,15 @@ export function ImportPartsCard({
           </div>
           <div className="flex flex-wrap gap-2">
             {canManageForms && needsForm ? (
-              <Button disabled={pending} onClick={() => void prepareForms(shown).then(setDrafts)}>
+              <Button
+                disabled={pending}
+                onClick={() => void prepareForms(shown).then(afterPrepare)}
+              >
                 {copy.prepare}
               </Button>
             ) : null}
             {canUpload && canProcess && allPublished && !done ? (
-              <Button disabled={pending} onClick={() => void processAll().then(setNotes)}>
+              <Button disabled={pending} onClick={() => void processAll().then(afterProcess)}>
                 {copy.process}
               </Button>
             ) : null}
@@ -112,8 +133,12 @@ export function ImportPartsCard({
           return (
             <fieldset
               aria-label={part.name}
-              className="space-y-3 rounded-lg border border-border p-4"
+              className="space-y-3 rounded-lg border border-border p-4 outline-none focus:ring-2 focus:ring-ring"
               key={part.code}
+              ref={(node) => {
+                rows.current[part.code] = node
+              }}
+              tabIndex={-1}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="font-medium">{part.name}</p>
@@ -191,7 +216,7 @@ export function ImportPartsCard({
                     {canUpload && canProcess ? (
                       <Button
                         disabled={pending}
-                        onClick={() => void processAll().then(setNotes)}
+                        onClick={() => void processAll().then(afterProcess)}
                         size="sm"
                         variant="outline"
                       >

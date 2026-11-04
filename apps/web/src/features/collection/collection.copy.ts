@@ -170,6 +170,10 @@ export const fileParts = {
   registrationFirst:
     'The registration part needs its columns matched before the surveys can be processed.',
   processed: 'The file was processed.',
+  attention: (survey: string, more: number) =>
+    more === 0
+      ? `${survey} needs attention.`
+      : `${survey} and ${more} more ${more === 1 ? 'survey' : 'surveys'} need attention.`,
 } as const
 
 /** Shown in the review window for a scored survey. */

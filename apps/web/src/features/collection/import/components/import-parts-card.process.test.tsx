@@ -1,5 +1,6 @@
 /* @vitest-environment jsdom */
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ImportBatchDefinition } from '@/types/pathways'
@@ -34,6 +35,10 @@ vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: api }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+
+// jsdom has no scrolling, so the row's scroll is recorded instead.
+const scrolled = vi.fn()
+Element.prototype.scrollIntoView = scrolled
 
 const processedIds = () => api.processImport.mock.calls.map((call) => call[1])
 const bothPublished = () => registration([part(0, 'PUBLISHED'), part(1, 'PUBLISHED')])
@@ -84,6 +89,11 @@ describe('import parts card processing', () => {
       expect(processedIds()).toEqual(['batch-1', 'child-survey_b'])
       const rowA = await screen.findByRole('group', { name: 'Survey A' })
       expect(within(rowA).getByText("This survey's form needs updating.")).toBeTruthy()
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Survey A needs attention.'))
+      expect(scrolled).toHaveBeenCalledTimes(1)
+      expect(scrolled.mock.contexts[0]).toBe(rowA)
+      expect(document.activeElement).toBe(rowA)
+      expect(toast.success).not.toHaveBeenCalled()
       api.draftFromImport.mockResolvedValue({ form: { id: 'draft-9', projectId: 'project-1' } })
       fireEvent.click(within(rowA).getByRole('button', { name: 'Prepare form' }))
       await waitFor(() =>
@@ -163,6 +173,18 @@ describe('import parts card processing', () => {
     await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(2))
     const rowA = await screen.findByRole('group', { name: 'Survey A' })
     expect(within(rowA).getByText(/Mark the correct answers/)).toBeTruthy()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Survey A needs attention.'))
+    expect(scrolled.mock.contexts[0]).toBe(rowA)
+  })
+
+  it('names the first stopped survey and how many more need attention', async () => {
+    api.startFilePart.mockRejectedValue(new Error("Publish this survey's form first."))
+    show(bothPublished())
+    press('Process file')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Survey A and 1 more survey need attention.'),
+    )
+    expect(scrolled.mock.contexts[0]).toBe(screen.getByRole('group', { name: 'Survey A' }))
   })
 
   it('says so on the row of a survey it cannot validate for this person', async () => {
