@@ -10,6 +10,7 @@ import {
 } from './smart-match-names'
 import {
   AUTO_SMART_V2_LIMITS,
+  REFUSED_TAGS,
   SYSTEM_COLUMNS_V1,
   type SmartDecisionReason,
   type SmartMatchColumn,
@@ -166,8 +167,14 @@ function matchColumns(
       return scored
     }
     let scored = ignoredReason ? [] : scoreOn(source)
-    // The leaf of a group path is used only when the whole header matches nothing, so "first-name" and "date-of-birth" keep their V3 match.
-    const leaf = v4 && scored.length === 0 && !ignoredReason ? groupPathLeaf(column.header) : null
+    // The leaf is used only when the whole header matches nothing, so "first-name" keeps its V3 match, and never when the path names someone else.
+    const leaf =
+      v4 &&
+      scored.length === 0 &&
+      !ignoredReason &&
+      ![...source.tokens].some((t) => REFUSED_TAGS.has(t))
+        ? groupPathLeaf(column.header)
+        : null
     if (leaf !== null) scored = scoreOn(prepareName(leaf))
     scored.sort((left, right) => right.score - left.score || left.fieldIndex - right.fieldIndex)
     return { column, source, scored, ignoredReason, samples: boundedSamples(column.samples) }

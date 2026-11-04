@@ -192,6 +192,34 @@ export const STOP_WORDS: ReadonlySet<string> = new Set([
   'respondent',
 ])
 
+// Words naming someone else or a refusal: a dash tag with one is refused by name, and a group path holding one is never read by its leaf.
+export const REFUSED_TAGS = new Set([
+  'parent',
+  'parents',
+  'guardian',
+  'guardians',
+  'mother',
+  'father',
+  'spouse',
+  'caregiver',
+  'staff',
+  'enumerator',
+  'no',
+  'not',
+  'none',
+  'withdrawn',
+  'revoked',
+  'declined',
+  'refused',
+  'denied',
+  'rejected',
+  'hindi',
+  'ayaw',
+  'magulang',
+  'nanay',
+  'tatay',
+])
+
 export interface SmartMatchColumn {
   key: string
   columnIndex: number

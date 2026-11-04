@@ -601,6 +601,21 @@ describe('AUTO_SMART_V4', () => {
     expect(oneV3('_uuid', ['abc']).status).toBe('PENDING')
   })
 
+  it('never reads the leaf of a path that names another person', () => {
+    for (const header of ['Mother-Sex', 'Spouse/Sex', 'guardian/gender', 'grp/magulang-sex']) {
+      expect(oneV4(header, ['Male', 'Female'])).toEqual(oneV3(header, ['Male', 'Female']))
+      expect(oneV4(header, ['Male', 'Female']).targetFieldId).toBeNull()
+    }
+  })
+
+  it('splits a path on "/" first so a hyphenated leaf stays whole', () => {
+    expect(groupPathLeaf('group/first-name')).toBe('first-name')
+    for (const header of ['group/first-name', 'grp/middle-name']) {
+      expect(oneV4(header, ['Ana']).targetFieldId).not.toBe('f-name')
+    }
+    expect(oneV4('group/first-name', ['Ana'])).toMatchObject({ targetFieldId: 'f-first' })
+  })
+
   it('splits only clean group paths', () => {
     expect(groupPathLeaf('a/b')).toBe('b')
     expect(groupPathLeaf('a-b')).toBe('b')

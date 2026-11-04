@@ -81,11 +81,15 @@ export const SYNONYMS_V3: SynonymTables = {
 /**
  * The last segment of a Kobo (a/b) or ODK (a-b) group path, or null. A header with
  * whitespace is never a path, so labels such as "Project Donor/Name" stay whole.
+ * A "/" splits first, so "group/first-name" has the leaf "first-name".
  */
 export function groupPathLeaf(header: string): string | null {
-  if (/\s/.test(header) || !/[/-]/.test(header)) return null
-  const segments = header.split(/[/-]/)
-  if (!segments.every((segment) => /^[A-Za-z_][A-Za-z0-9_.]*$/.test(segment))) return null
+  if (/\s/.test(header)) return null
+  const separator = header.includes('/') ? '/' : header.includes('-') ? '-' : null
+  if (separator === null) return null
+  const segments = header.split(separator)
+  const clean = separator === '/' ? /^[A-Za-z_][A-Za-z0-9_.-]*$/ : /^[A-Za-z_][A-Za-z0-9_.]*$/
+  if (!segments.every((segment) => clean.test(segment))) return null
   return segments[segments.length - 1]
 }
 

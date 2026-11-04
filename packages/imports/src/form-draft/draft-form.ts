@@ -12,7 +12,7 @@ import {
   type SmartMatchDecision,
   normalizeMappingNameV1,
 } from '../mappers/smart-match'
-import { STOP_WORDS } from '../mappers/smart-match-rules'
+import { REFUSED_TAGS, STOP_WORDS } from '../mappers/smart-match-rules'
 import { boundedSamples, valueGate } from '../mappers/smart-match-values'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import { suggestValueMap } from '../value-map-suggest'
@@ -95,33 +95,6 @@ const DATA_CONSENT_HEADER_WORDS = new Set([
   'you',
   'your',
   'my',
-])
-// A tag after a dash can be a program name, so tags naming someone else or a refusal are refused by name.
-const REFUSED_TAGS = new Set([
-  'parent',
-  'parents',
-  'guardian',
-  'guardians',
-  'mother',
-  'father',
-  'spouse',
-  'caregiver',
-  'staff',
-  'enumerator',
-  'no',
-  'not',
-  'none',
-  'withdrawn',
-  'revoked',
-  'declined',
-  'refused',
-  'denied',
-  'rejected',
-  'hindi',
-  'ayaw',
-  'magulang',
-  'nanay',
-  'tatay',
 ])
 // Parts of header words that may mark a person's own answer about taking part, in English and Filipino; "participat" leaves out "participant".
 const OWN_ANSWER_STEMS = [
