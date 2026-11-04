@@ -72,7 +72,8 @@ function looksLikeDate(value: unknown) {
   return false
 }
 
-function choiceParts(value: unknown): string[] | null {
+/** The choices in a multi-select cell: a JSON array, else a split on comma, semicolon or pipe. */
+export function splitChoiceText(value: unknown): string[] | null {
   if (Array.isArray(value)) {
     if (value.length > AUTO_SMART_V2_LIMITS.maxMultipleSelectParts) return null
     return value.every((item) => typeof item === 'string') ? (value as string[]) : null
@@ -132,7 +133,7 @@ function compatible(value: unknown, target: ValueTarget) {
     )
   }
   if (field.dataType === 'MULTIPLE_SELECT') {
-    const parts = choiceParts(value)
+    const parts = splitChoiceText(value)
     return (
       parts?.every(
         (part) =>

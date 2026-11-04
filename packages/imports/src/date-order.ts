@@ -10,8 +10,10 @@ export interface ImportDateRule {
   referenceYear: number
 }
 
-const datePattern = /^(\d{1,4})[/.-](\d{1,2})[/.-](\d{1,4})$/
-const isoDate = /^\d{4}-\d{2}-\d{2}$/
+// An optional trailing time ([T ]HH:MM[:SS][ AM|PM][ zone]) is ignored: the date is kept as written.
+const timePart = String.raw`(?:[T ](?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?: ?[AP]M)?(?: ?(?:Z|(?:GMT|UTC)?[+-]\d{1,2}(?::?\d{2})?|GMT|UTC))?)?`
+const datePattern = new RegExp(String.raw`^(\d{1,4})[/.-](\d{1,2})[/.-](\d{1,4})${timePart}$`, 'i')
+const isoDate = new RegExp(String.raw`^\d{4}-\d{2}-\d{2}${timePart}$`, 'i')
 
 /** Reads a text date in the given order as YYYY-MM-DD, or null when it is not a real calendar date. */
 export function readDate(text: string, rule: ImportDateRule): string | null {

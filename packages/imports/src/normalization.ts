@@ -12,6 +12,7 @@ import {
   type NormalizedImportValue,
   applyIntakeRules,
 } from './intake-rules'
+import { splitChoiceText } from './mappers/smart-match-values'
 import { type ImportColumnRule, mapKey } from './value-map'
 
 export interface ImportRowNormalizationResult {
@@ -29,6 +30,7 @@ function convert(
   field: FormFieldValidationContract,
   raw: unknown,
   date?: ImportDateRule,
+  resolve?: (raw: string) => string | null,
 ): { value: NormalizedImportValue; error?: ImportValueError } {
   if (raw === null || raw === undefined || raw === '') return { value: null }
   if (field.dataType === 'TEXT' || field.dataType === 'LONG_TEXT' || field.dataType === 'SELECT') {
@@ -65,10 +67,13 @@ function convert(
     }
   }
   if (field.dataType === 'DATE') {
-    if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
-      return { value: raw.trim() }
-    }
-    const read = typeof raw === 'string' && date ? readDate(raw, date) : null
+    const text = typeof raw === 'string' ? raw.trim() : ''
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return { value: text }
+    // An ISO date with a time part is year-first whatever order the column uses.
+    const rule = /^\d{4}-\d{2}-\d{2}[T ]/i.test(text)
+      ? { order: 'YMD' as const, referenceYear: 0 }
+      : date
+    const read = rule ? readDate(text, rule) : null
     if (read) return { value: read }
     return {
       value: null,
@@ -96,7 +101,15 @@ function convert(
           return { value: parsed }
         }
       } catch {
-        // The bounded error below deliberately avoids reflecting source values.
+        // Not a JSON array: read it as delimited text below.
+      }
+      const parts = splitChoiceText(raw)
+      if (parts) {
+        // Kobo writes several choices as one space-separated cell, so split only when every token resolves.
+        const tokens = parts.length === 1 ? parts[0].split(/\s+/) : []
+        return {
+          value: tokens.length > 1 && tokens.every((token) => resolve?.(token)) ? tokens : parts,
+        }
       }
     }
     return {
@@ -104,7 +117,7 @@ function convert(
       error: conversionError(
         field,
         'AMBIGUOUS_MULTI_SELECT',
-        'Expected a JSON array of choice strings.',
+        'Expected a JSON array or a delimited list of choices.',
       ),
     }
   }
@@ -166,9 +179,9 @@ export function normalizeImportedRow(
     }
     const declared =
       rule?.dataType && rule.dataType !== field.dataType
-        ? convert({ ...field, dataType: rule.dataType }, raw, rule.date)
+        ? convert({ ...field, dataType: rule.dataType }, raw, rule.date, resolverFor(field))
         : null
-    let converted = declared?.error ? declared : convert(field, raw, rule?.date)
+    let converted = declared?.error ? declared : convert(field, raw, rule?.date, resolverFor(field))
     if (field.dataType === 'MULTIPLE_SELECT' && Array.isArray(converted.value)) {
       const resolveElement = resolverFor(field)
       converted = { value: converted.value.map((item) => resolveElement(item) ?? item) }
