@@ -53,6 +53,13 @@ ALTER TABLE pathways.project_publications NO FORCE ROW LEVEL SECURITY;
 UPDATE pathways.project_publications SET snapshot=snapshot||'{"media":[],"views":[]}'::jsonb;
 UPDATE pathways.project_publications SET live_revision=revision,live_snapshot=snapshot,live_published_at=published_at,
   live_published_by_id=published_by_id WHERE state='PUBLISHED';
+-- Checked before FORCE returns, while the owner still sees every row.
+DO $$ BEGIN
+ IF EXISTS(SELECT FROM pathways.project_publications WHERE snapshot->'media' IS DISTINCT FROM '[]'::jsonb
+   OR snapshot->'views' IS DISTINCT FROM '[]'::jsonb OR (state='PUBLISHED' AND ROW(live_revision,live_snapshot,live_published_at,
+   live_published_by_id) IS DISTINCT FROM ROW(revision,snapshot,published_at,published_by_id)) OR (state<>'PUBLISHED' AND live_snapshot IS NOT NULL))
+ THEN RAISE EXCEPTION '0085 backfill postcondition failed'; END IF;
+END $$;
 ALTER TABLE pathways.project_publications FORCE ROW LEVEL SECURITY;
 ALTER TABLE pathways.project_publications ENABLE TRIGGER p34_guard_publication;
 
@@ -201,7 +208,7 @@ REVOKE ALL ON FUNCTION pathways.p85_public_projects(uuid,integer,integer),pathwa
 GRANT EXECUTE ON FUNCTION pathways.p85_public_projects(uuid,integer,integer),pathways.p85_publication_media(jsonb,uuid),
   pathways.p85_publication_views(jsonb) TO pathways_runtime;
 
--- Postconditions: columns and constraints, the backfill, forced row security, both guard bodies, owners, ACLs and triggers, and the new
+-- Postconditions: columns and constraints, forced row security, both guard bodies, owners, ACLs and triggers, and the new
 -- functions and policy.
 DO $$ BEGIN
  IF (SELECT count(*) FROM pg_catalog.pg_attribute a WHERE a.attrelid='pathways.project_publications'::pg_catalog.regclass
@@ -211,8 +218,6 @@ DO $$ BEGIN
     OR (a.attname='live_published_by_id' AND a.atttypid='uuid'::pg_catalog.regtype)))<>4
   OR (SELECT count(*) FROM pg_catalog.pg_constraint c WHERE c.conrelid='pathways.project_publications'::pg_catalog.regclass AND c.convalidated
    AND c.conname IN ('publication_live_together','publication_snapshot_shape','project_publications_organization_id_live_published_by_id_fkey'))<>3
-  OR EXISTS(SELECT FROM pathways.project_publications WHERE (state='PUBLISHED' AND ROW(live_revision,live_snapshot,live_published_at,live_published_by_id)
-   IS DISTINCT FROM ROW(revision,snapshot,published_at,published_by_id)) OR (state<>'PUBLISHED' AND live_snapshot IS NOT NULL))
   OR NOT (SELECT relrowsecurity AND relforcerowsecurity FROM pg_catalog.pg_class WHERE oid='pathways.project_publications'::pg_catalog.regclass)
  THEN RAISE EXCEPTION '0085 table postconditions failed'; END IF;
  IF (SELECT count(*) FROM (VALUES (0,'pathways.p34_guard_publication()','a29ed81274a4b4d5c81cc8fa2a7cf83d'),

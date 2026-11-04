@@ -10,6 +10,9 @@ DO $$ BEGIN
   RAISE EXCEPTION 'Public tracker live checks require a disposable local database'; END IF;
 END $$;
 
+-- Hosted prisma has no BYPASSRLS, so the suite drops it for this transaction to read forced RLS as hosted does.
+ALTER ROLE prisma NOBYPASSRLS;
+
 CREATE FUNCTION pg_temp.u(n integer) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$
  SELECT ('a8500000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
 $$;
@@ -203,6 +206,14 @@ SELECT pg_temp.act_as(0);
 SELECT pg_temp.ok('archived_project_hidden', (SELECT pathways.p85_public_projects(pg_temp.u(43))='[]'::jsonb
  AND NOT pathways.p85_public_projects() @> jsonb_build_array(jsonb_build_object('id',pg_temp.u(43)::text))));
 RESET SESSION AUTHORIZATION;
+
+-- The prisma live-read policy shows only live rows: project 43 is live, projects 41 and 42 are withdrawn.
+SELECT pg_temp.ok('fixture has non-live rows', (SELECT count(*)=3 AND count(*) FILTER (WHERE live_snapshot IS NULL)=2
+ FROM pathways.project_publications WHERE organization_id=pg_temp.u(1)));
+SET LOCAL ROLE prisma;
+SELECT pg_temp.ok('p85_prisma_live_read shows only live rows', (SELECT count(*)=1 AND bool_and(live_snapshot IS NOT NULL)
+ AND bool_and(project_id=pg_temp.u(43)) FROM pathways.project_publications WHERE organization_id=pg_temp.u(1)));
+RESET ROLE;
 
 -- public_read_live_only: any session other than pathways_runtime is refused.
 SELECT pg_temp.refused('public read refused for other sessions', 'SELECT pathways.p85_public_projects()','42501','Public projection');
