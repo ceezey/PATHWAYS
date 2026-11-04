@@ -4,8 +4,10 @@
 -- The snapshot gains media and views arrays (empty only until 0086 and 0087 replace the two validators).
 -- p34_guard_publication keeps the 0034 body with these changes (marked 0085): WITHDRAW clears the live columns and is the only
 -- way to clear them, SUBMIT is allowed from PUBLISHED and validates media and views, PUBLISH sets the live columns.
+-- p34_guard_publication_request keeps the 0034 body except that a WITHDRAW receipt requires the live columns cleared in the
+-- same transaction instead of the withdrawer being the submitter, since a withdraw under a pending draft keeps its submitter.
 -- p85_public_projects reads only live snapshots, as prisma through the p85_prisma_live_read policy.
--- p34_public_projects stays in place unused. Owner, security mode, search_path and ACL of the guard stay unchanged (asserted below).
+-- p34_public_projects stays in place unused. Owner, security mode, search_path and ACL of both guards stay unchanged (asserted below).
 -- No new table, role or owner-role change.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -21,12 +23,16 @@ DO $$ DECLARE fn record; BEGIN
   OR pg_catalog.to_regprocedure('pathways.p85_publication_media(jsonb,uuid)') IS NOT NULL
   OR pg_catalog.to_regprocedure('pathways.p85_publication_views(jsonb)') IS NOT NULL
  THEN RAISE EXCEPTION '0085 requires prisma to own project_publications and no earlier live columns or p85 functions'; END IF;
- -- Only the reviewed 0034 guard may be replaced; its ACL is kept.
- SELECT p.* INTO fn FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p34_guard_publication()'::pg_catalog.regprocedure;
- IF pg_catalog.pg_get_userbyid(fn.proowner)<>'prisma' OR fn.prosecdef OR fn.provolatile<>'v'
-  OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""'] OR pg_catalog.md5(fn.prosrc)<>'e66d434584d57e28dd3bb39982e10bf2'
- THEN RAISE EXCEPTION '0085 requires the reviewed definition of pathways.p34_guard_publication()'; END IF;
- PERFORM pg_catalog.set_config('pathways_0085.guard_acl',coalesce(fn.proacl::text,''),true);
+ -- Only the reviewed 0034 guards may be replaced; their ACLs are kept.
+ FOR fn IN SELECT w.n, w.sig, w.md5, p.prosrc, p.proowner, p.prosecdef, p.provolatile, p.proconfig, p.proacl
+  FROM (VALUES (0,'pathways.p34_guard_publication()','e66d434584d57e28dd3bb39982e10bf2'),
+   (1,'pathways.p34_guard_publication_request()','cb928a3793da446b09d91e9badf65cb8')) w(n,sig,md5)
+  LEFT JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig) LOOP
+  IF fn.prosrc IS NULL OR pg_catalog.pg_get_userbyid(fn.proowner)<>'prisma' OR fn.prosecdef OR fn.provolatile<>'v'
+   OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""'] OR pg_catalog.md5(fn.prosrc)<>fn.md5
+  THEN RAISE EXCEPTION '0085 requires the reviewed definition of %',fn.sig; END IF;
+  PERFORM pg_catalog.set_config('pathways_0085.acl_'||fn.n,coalesce(fn.proacl::text,''),true);
+ END LOOP;
 END $$;
 SELECT pg_catalog.pg_advisory_xact_lock(505005,85);
 
@@ -151,7 +157,29 @@ BEGIN
  RETURN NEW;
 END $$;
 
--- 6. The live-only public read.
+-- 6. The receipt guard (marked 0085): a WITHDRAW receipt needs the live columns cleared by this transaction's withdraw.
+CREATE OR REPLACE FUNCTION pathways.p34_guard_publication_request() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
+DECLARE publication record; current_xid xid;
+BEGIN
+ PERFORM pathways.p34_assert_projection_provisioned();
+ IF TG_OP<>'INSERT' OR session_user<>'pathways_runtime' OR NEW.organization_id IS DISTINCT FROM pathways.runtime_context_organization()
+  OR NEW.actor_id IS DISTINCT FROM pathways.runtime_context_user()
+ THEN RAISE EXCEPTION 'Publication receipt immutable and scoped' USING ERRCODE='42501'; END IF;
+ current_xid:=pg_catalog.mod(pg_catalog.pg_current_xact_id()::text::numeric,4294967296)::text::xid;
+ SELECT p.revision,p.state,p.updated_at,p.last_operation,p.xmin,p.submitted_by_id,p.approved_by_id,p.published_by_id,
+  p.live_revision,p.live_snapshot INTO publication FROM pathways.project_publications p
+  WHERE p.organization_id=NEW.organization_id AND p.project_id=NEW.project_id;
+ IF NOT FOUND OR publication.xmin<>current_xid OR publication.last_operation IS DISTINCT FROM NEW.operation_code
+  OR (NEW.operation_code='WITHDRAW' AND num_nonnulls(publication.live_revision,publication.live_snapshot)>0)
+  OR (NEW.operation_code<>'WITHDRAW' AND (CASE NEW.operation_code WHEN 'SUBMIT' THEN publication.submitted_by_id
+      WHEN 'APPROVE' THEN publication.approved_by_id ELSE publication.published_by_id END) IS DISTINCT FROM NEW.actor_id)
+  OR ROW(publication.revision,publication.state,publication.updated_at)
+   IS DISTINCT FROM ROW(NEW.resulting_revision,NEW.resulting_state,NEW.resulting_updated_at)
+ THEN RAISE EXCEPTION 'Publication receipt requires actual same-transaction transition (0085)' USING ERRCODE='23514'; END IF;
+ NEW.recorded_at:=clock_timestamp(); RETURN NEW;
+END $$;
+
+-- 7. The live-only public read.
 CREATE POLICY p85_prisma_live_read ON pathways.project_publications FOR SELECT TO prisma USING(live_snapshot IS NOT NULL);
 CREATE FUNCTION pathways.p85_public_projects(wanted_project uuid DEFAULT NULL,skip_rows integer DEFAULT 0,take_rows integer DEFAULT 50)
  RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
@@ -173,7 +201,7 @@ REVOKE ALL ON FUNCTION pathways.p85_public_projects(uuid,integer,integer),pathwa
 GRANT EXECUTE ON FUNCTION pathways.p85_public_projects(uuid,integer,integer),pathways.p85_publication_media(jsonb,uuid),
   pathways.p85_publication_views(jsonb) TO pathways_runtime;
 
--- Postconditions: columns and constraints, the backfill, forced row security, the guard body, owner, ACL and trigger, and the new
+-- Postconditions: columns and constraints, the backfill, forced row security, both guard bodies, owners, ACLs and triggers, and the new
 -- functions and policy.
 DO $$ BEGIN
  IF (SELECT count(*) FROM pg_catalog.pg_attribute a WHERE a.attrelid='pathways.project_publications'::pg_catalog.regclass
@@ -187,12 +215,17 @@ DO $$ BEGIN
    IS DISTINCT FROM ROW(revision,snapshot,published_at,published_by_id)) OR (state<>'PUBLISHED' AND live_snapshot IS NOT NULL))
   OR NOT (SELECT relrowsecurity AND relforcerowsecurity FROM pg_catalog.pg_class WHERE oid='pathways.project_publications'::pg_catalog.regclass)
  THEN RAISE EXCEPTION '0085 table postconditions failed'; END IF;
- IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p34_guard_publication()'::pg_catalog.regprocedure
-   AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND NOT p.prosecdef AND p.provolatile='v'
-   AND p.proconfig=ARRAY['search_path=""'] AND pg_catalog.md5(p.prosrc)='a29ed81274a4b4d5c81cc8fa2a7cf83d'
-   AND coalesce(p.proacl::text,'')=pg_catalog.current_setting('pathways_0085.guard_acl'))
-  OR NOT EXISTS(SELECT FROM pg_catalog.pg_trigger t WHERE t.tgname='p34_guard_publication' AND t.tgenabled='O' AND NOT t.tgisinternal
-   AND t.tgrelid='pathways.project_publications'::pg_catalog.regclass AND t.tgfoid='pathways.p34_guard_publication()'::pg_catalog.regprocedure)
+ IF (SELECT count(*) FROM (VALUES (0,'pathways.p34_guard_publication()','a29ed81274a4b4d5c81cc8fa2a7cf83d'),
+    (1,'pathways.p34_guard_publication_request()','c62a26d1a8096480c41b2104c71a590b')) w(n,sig,md5)
+   JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
+   WHERE pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND NOT p.prosecdef AND p.provolatile='v'
+    AND p.proconfig=ARRAY['search_path=""'] AND pg_catalog.md5(p.prosrc)=w.md5
+    AND coalesce(p.proacl::text,'')=pg_catalog.current_setting('pathways_0085.acl_'||w.n))<>2
+  OR (SELECT count(*) FROM pg_catalog.pg_trigger t WHERE t.tgenabled='O' AND NOT t.tgisinternal AND (
+   (t.tgname='p34_guard_publication' AND t.tgrelid='pathways.project_publications'::pg_catalog.regclass
+     AND t.tgfoid='pathways.p34_guard_publication()'::pg_catalog.regprocedure)
+   OR (t.tgname='p34_guard_publication_request' AND t.tgrelid='pathways.publication_requests'::pg_catalog.regclass
+     AND t.tgfoid='pathways.p34_guard_publication_request()'::pg_catalog.regprocedure)))<>2
   OR (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p85_public_projects(uuid,integer,integer)'::pg_catalog.regprocedure,
     'pathways.p85_publication_media(jsonb,uuid)'::pg_catalog.regprocedure,'pathways.p85_publication_views(jsonb)'::pg_catalog.regprocedure)
    AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.proconfig=ARRAY['search_path=""']

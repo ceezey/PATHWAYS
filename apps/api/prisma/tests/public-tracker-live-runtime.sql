@@ -56,6 +56,13 @@ BEGIN
  INSERT INTO pathways.project_publications(organization_id,project_id,revision,state,last_operation,summary,snapshot,submitted_by_id)
  VALUES(pg_temp.u(1),pg_temp.u(project_n),1,'FOR_REVIEW','SUBMIT',summary,'{"media":[],"views":[]}',pg_temp.u(21));
 END $$;
+-- Receipt insert for the publication's current revision, as the API records it after a transition.
+CREATE FUNCTION pg_temp.receipt_sql(user_n integer, project_n integer, request_n integer, op text) RETURNS text LANGUAGE sql AS $$
+ SELECT format($i$INSERT INTO pathways.publication_requests(organization_id,project_id,actor_id,request_id,operation_code,request_hash,
+  resulting_revision,resulting_state,resulting_updated_at) SELECT organization_id,project_id,%L,%L,%L,%L,revision,state,updated_at
+  FROM pathways.project_publications WHERE organization_id=%L AND project_id=%L$i$,
+  pg_temp.u(user_n),pg_temp.u(request_n),op,repeat('a',64),pg_temp.u(1),pg_temp.u(project_n))
+$$;
 
 -- backfill: every row that existed before this suite carries media and views arrays, and every PUBLISHED one is live as itself.
 SELECT pg_temp.ok('backfill', NOT EXISTS(SELECT FROM pathways.project_publications
@@ -121,6 +128,8 @@ SELECT pg_temp.ok('approve keeps live', (SELECT live_revision=1 FROM pg_temp.pub
 SELECT pg_temp.move(22,41,$$state='PUBLISHED'$$);
 SELECT pg_temp.ok('publish_moves_live', (SELECT live_revision=2 AND live_published_by_id=pg_temp.u(22)
  AND live_snapshot->>'approvedSummary'='Summary two' FROM pg_temp.pub(41)));
+-- A WITHDRAW receipt is refused when this transaction made no withdraw.
+SELECT pg_temp.refused('withdraw_receipt_without_withdraw', pg_temp.receipt_sql(22,41,901,'WITHDRAW'),'23514','same-transaction transition');
 
 -- Revision 3 waits for review while revision 2 is live; the caller cannot set live columns or choose media or views itself.
 SELECT pg_temp.move(21,41,$$revision=3,state='FOR_REVIEW',summary='Summary three'$$);
@@ -150,6 +159,10 @@ SELECT pg_temp.move(22,41,$$live_snapshot=NULL$$);
 SELECT pg_temp.ok('withdraw_with_pending_draft', (SELECT state='FOR_REVIEW' AND revision=3 AND summary='Summary three'
  AND submitted_by_id=pg_temp.u(21) AND last_operation='WITHDRAW'
  AND num_nulls(live_revision,live_snapshot,live_published_at,live_published_by_id)=4 FROM pg_temp.pub(41)));
+-- withdraw_receipt_with_pending_draft: B records the withdraw although A submitted the pending draft.
+SELECT pg_temp.receipt_sql(22,41,902,'WITHDRAW') \gexec
+SELECT pg_temp.ok('withdraw_receipt_with_pending_draft', EXISTS(SELECT FROM pathways.publication_requests
+ WHERE request_id=pg_temp.u(902) AND actor_id=pg_temp.u(22) AND operation_code='WITHDRAW' AND resulting_revision=3 AND resulting_state='FOR_REVIEW'));
 SELECT pg_temp.act_as(0);
 SELECT pg_temp.ok('public_read_live_only withdrawn', (SELECT pathways.p85_public_projects(pg_temp.u(41))='[]'::jsonb));
 
