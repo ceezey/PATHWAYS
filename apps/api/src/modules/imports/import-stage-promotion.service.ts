@@ -235,8 +235,6 @@ export async function promoteStageInTx(
   ) {
     return hold('STAGE_CONSENT_MISSING')
   }
-  const stageDate = values.stage_date
-  if (typeof stageDate !== 'string' || !stageDate) return hold('STAGE_DATE_MISSING')
   // The latest validated answers of this person on any version of the form are what the file is compared with.
   const stored = await readStageBaseline(
     tx,
@@ -245,6 +243,11 @@ export async function promoteStageInTx(
     stageForm.code,
     known.beneficiaryId,
   )
+  // A blank file date keeps the stage date PATHWAYS already holds, so only a first record needs one.
+  const storedDate = stored?.get('stage_date')
+  if (isBlank(values.stage_date) && typeof storedDate === 'string') values.stage_date = storedDate
+  const stageDate = values.stage_date
+  if (typeof stageDate !== 'string' || !stageDate) return hold('STAGE_DATE_MISSING')
   if (stored) {
     const differing = differingFields({ formField_form: fields }, values, {
       enrolledHere: true,

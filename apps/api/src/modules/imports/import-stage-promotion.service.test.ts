@@ -676,6 +676,20 @@ describe('promoteStageInTx', () => {
     held('STAGE_DATE_MISSING')
   })
 
+  it('a blank date keeps the stored stage date, so a repeat is unchanged', async () => {
+    withBaseline({ ...stageRow })
+    ;(rowOf().normalizedData as Rec).stage_date = null
+    await firstStage()
+    expect(rowOf()).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'UNCHANGED' })
+  })
+
+  it('a blank date next to a changed answer is held as a changed answer', async () => {
+    withBaseline({ ...stageRow, q1: 'Z' })
+    ;(rowOf().normalizedData as Rec).stage_date = null
+    await firstStage()
+    held('STAGE_CHANGED')
+  })
+
   it('date outside the enrollment is held', async () => {
     ;(rowOf().normalizedData as Rec).stage_date = '2025-12-31'
     await firstStage()
