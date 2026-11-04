@@ -101,6 +101,26 @@ export function splitChoiceText(value: unknown): string[] | null {
     : null
 }
 
+/**
+ * The answers validation reads from a multi-select cell: an array, a JSON array or delimited text.
+ * A single part splits on spaces, as Kobo writes several choices, only when it does not resolve
+ * whole and every token does.
+ */
+export function choiceAnswers(raw: unknown, resolve: (raw: string) => unknown): string[] | null {
+  if (Array.isArray(raw)) return raw.every((item) => typeof item === 'string') ? raw : null
+  if (typeof raw !== 'string') return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) return parsed
+  } catch {
+    // Not a JSON array: read it as delimited text below.
+  }
+  const parts = splitChoiceText(raw)
+  if (parts?.length !== 1 || resolve(parts[0])) return parts
+  const tokens = parts[0].split(/\s+/)
+  return tokens.length > 1 && tokens.every((token) => resolve(token)) ? tokens : parts
+}
+
 type ValueTarget = Pick<PreparedField, 'field' | 'allowed' | 'resolve'>
 
 function compatible(value: unknown, target: ValueTarget, spaced: boolean) {
@@ -136,10 +156,10 @@ function compatible(value: unknown, target: ValueTarget, spaced: boolean) {
     const parts = splitChoiceText(value)
     const allowed = (part: string) =>
       target.allowed.has(normalizeMappingNameV1(part)) || target.resolve?.(part) != null
-    if (parts?.every(allowed)) return true
-    // Kobo's space-separated codes pass when every one is a choice, as validation splits them.
-    const tokens = spaced && parts?.length === 1 ? parts[0].split(/\s+/) : []
-    return tokens.length > 1 && tokens.every(allowed)
+    // V4 reads a text cell as validation does, so Kobo's space-separated codes pass too.
+    const answers =
+      spaced && parts && typeof value === 'string' ? choiceAnswers(value, allowed) : parts
+    return answers?.every(allowed) ?? false
   }
   const text = sampleText(value)
   if (text === null) return false

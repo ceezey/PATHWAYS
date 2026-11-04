@@ -88,10 +88,20 @@ describe('importCoverage', () => {
     const result = importCoverage({
       decisions: [decision('c2', 'MAPPED', 'f-digit'), decision('c3', 'MAPPED', 'f-tags')],
       fields: [digits, tags],
-      distinctValues: { c2: [7, '7'], c3: ['A;B', 'A,B', '["A","B"]'] },
+      distinctValues: { c2: [7, '7'], c3: ['A;Q', 'A Q', '["A","B"]'] },
     })
-    // The number 7, "A;B" and "A,B" fail; the text "7" and the JSON array pass.
+    // The number 7, "A;Q" and "A Q" fail; the text "7" and the JSON array pass.
     expect(result.unresolvedValues).toBe(3)
+  })
+
+  it('reads delimited and Kobo space-separated MULTIPLE_SELECT text as validation does', () => {
+    expect(
+      importCoverage({
+        decisions: [decision('c3', 'MAPPED', 'f-tags')],
+        fields: [tags],
+        distinctValues: { c3: ['A, B', 'A;B', 'B|A', 'A B', 'b a'] },
+      }),
+    ).toMatchObject({ coverage: 'COVERED', unresolvedValues: 0 })
   })
 
   it('resolves MULTIPLE_SELECT answers through aliases and letter prefixes', () => {

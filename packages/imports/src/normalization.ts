@@ -12,7 +12,7 @@ import {
   type NormalizedImportValue,
   applyIntakeRules,
 } from './intake-rules'
-import { splitChoiceText } from './mappers/smart-match-values'
+import { choiceAnswers } from './mappers/smart-match-values'
 import { type ImportColumnRule, mapKey } from './value-map'
 
 export interface ImportRowNormalizationResult {
@@ -91,27 +91,8 @@ function convert(
     }
   }
   if (field.dataType === 'MULTIPLE_SELECT') {
-    if (Array.isArray(raw) && raw.every((value) => typeof value === 'string')) {
-      return { value: raw }
-    }
-    if (typeof raw === 'string') {
-      try {
-        const parsed: unknown = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.every((value) => typeof value === 'string')) {
-          return { value: parsed }
-        }
-      } catch {
-        // Not a JSON array: read it as delimited text below.
-      }
-      const parts = splitChoiceText(raw)
-      if (parts) {
-        // Kobo writes several choices as one space-separated cell, so split only when every token resolves.
-        const tokens = parts.length === 1 ? parts[0].split(/\s+/) : []
-        return {
-          value: tokens.length > 1 && tokens.every((token) => resolve?.(token)) ? tokens : parts,
-        }
-      }
-    }
+    const answers = choiceAnswers(raw, resolve ?? (() => null))
+    if (answers) return { value: answers }
     return {
       value: null,
       error: conversionError(

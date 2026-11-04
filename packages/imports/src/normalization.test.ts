@@ -295,6 +295,17 @@ describe('import normalization contract', () => {
       expect(read(['Brown rice', 'Corn'], 'Brown rice')).toEqual(['Brown rice'])
     })
 
+    it('keeps a whole phrase that is an option before splitting it on spaces', () => {
+      const multi = intake({
+        code: 'multi',
+        dataType: 'MULTIPLE_SELECT',
+        allowedValues: ['Not applicable', 'Not', 'applicable'],
+      })
+      expect(normalizeImportedRow([multi], { multi: 'Not applicable' }).values.multi).toEqual([
+        'Not applicable',
+      ])
+    })
+
     it('reads a date cell that carries a time part and keeps the date as written', () => {
       const date = intake({ code: 'on', dataType: 'DATE' })
       const rule = (order: 'YMD' | 'MDY') => ({
@@ -305,6 +316,13 @@ describe('import normalization contract', () => {
       expect(read('2026/01/10 9:15:22 AM GMT+8').values.on).toBe('2026-01-10')
       expect(read('1/10/2026 14:05', 'MDY').values.on).toBe('2026-01-10')
       expect(read('2026-01-10T09:15:22Z').values.on).toBe('2026-01-10')
+      expect(
+        normalizeImportedRow(
+          [date],
+          { on: '2026-01-10T09:15:22' },
+          { on: { dataType: 'DATE', date: { order: 'DMY', referenceYear: 2026 } } },
+        ).values.on,
+      ).toBe('2026-01-10')
       expect(read('2026/01/10 25:99').valid).toBe(false)
     })
 
