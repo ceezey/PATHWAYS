@@ -2,6 +2,7 @@ import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
+import { type CsvEncoding, decodeCsv } from '../parser/csv-encoding'
 import { excelSerialToIsoDate } from '../parser/excel-date'
 import { detectFileParts, registrationRange, selectPartColumns } from '../parser/file-parts'
 import { ImportParseError, type ImportSourceColumn, normalizeMatrix } from '../parser/matrix'
@@ -18,6 +19,8 @@ export interface ReadImportFile {
   // The server's sourceRowNumber of each row.
   rowNumbers: number[]
   formulaGap?: string
+  // How a CSV's bytes were decoded; unset for other file types.
+  encoding?: CsvEncoding
   // The date cell's text as the file shows it, else null.
   shown: (rowIndex: number, key: string) => string | null
 }
@@ -31,13 +34,12 @@ export function readImportFile(
   let matrix: unknown[][]
   let formulaGap: string | undefined
   let dateText: Record<string, string> = {}
+  let encoding: CsvEncoding | undefined
   if (fileType === 'CSV') {
-    // The server refuses a CSV that is not UTF-8 or holds a zero byte, so the check leaves it to the server.
-    if (new Uint8Array(input).includes(0)) {
-      throw new ImportParseError('CSV_BINARY_CONTENT', 'The CSV contains binary content.')
-    }
+    const decoded = decodeCsv(new Uint8Array(input))
+    encoding = decoded.encoding
     // Options match the parser worker in parser/secure.ts.
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(input)
+    const text = decoded.text
     const parsed = Papa.parse<unknown[]>(normalizeNewlines(text), {
       header: false,
       skipEmptyLines: 'greedy',
@@ -82,6 +84,7 @@ export function readImportFile(
     rows: rows.map((row) => row.values),
     rowNumbers,
     formulaGap,
+    encoding,
     shown: (rowIndex, key) =>
       dateText[`${rowNumbers[rowIndex] - 1}:${Number(key.slice(7)) - 1}`] ?? null,
   }

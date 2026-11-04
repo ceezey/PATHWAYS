@@ -50,6 +50,42 @@ describe('secure import parser', () => {
     ])
   })
 
+  it('reads a Windows-1252 CSV and reports its encoding', async () => {
+    const bytes = Buffer.from([
+      ...Buffer.from('Name,Town\nJose,Pe'),
+      0xf1,
+      ...Buffer.from('aranda\n'),
+    ])
+    const parsed = await parseSecureImport(bytes, 'CSV')
+    expect(parsed.rows[0]?.values.column_0002).toBe('Peñaranda')
+    expect(parsed.csvEncoding).toBe('WINDOWS-1252')
+  })
+
+  it('reads a UTF-8 CSV with a BOM without the mark in the first header', async () => {
+    const bytes = Buffer.concat([
+      Buffer.from([0xef, 0xbb, 0xbf]),
+      Buffer.from('Name,Age\nAna,31\n'),
+    ])
+    const parsed = await parseSecureImport(bytes, 'CSV')
+    expect(parsed.sourceColumns[0]?.header).toBe('Name')
+    expect(parsed.csvEncoding).toBe('UTF-8')
+  })
+
+  it('reads a UTF-16LE CSV', async () => {
+    const bytes = Buffer.concat([
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from('Name,Age\nAna,31\n', 'utf16le'),
+    ])
+    const parsed = await parseSecureImport(bytes, 'CSV')
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['Name', 'Age'])
+    expect(parsed.csvEncoding).toBe('UTF-16LE')
+  })
+
+  it('leaves the encoding unset for a workbook', async () => {
+    const parsed = await parseSecureImport(workbookBuffer([['Name'], ['Ana']]), 'XLSX')
+    expect(parsed.csvEncoding).toBeUndefined()
+  })
+
   it('preserves original CSV headers, values, and source row numbers', async () => {
     const parsed = await parseSecureImport(
       Buffer.from('Name,Confirmed,Count,Blank\r\nAlice,false,0,\r\n', 'utf8'),
@@ -75,6 +111,7 @@ describe('secure import parser', () => {
         },
       ],
       sheetNames: [],
+      csvEncoding: 'UTF-8',
     })
   })
 
