@@ -203,7 +203,7 @@ export function ImportPartsCard({
                 {uncovered && canManageForms ? (
                   <Button
                     disabled={pending}
-                    onClick={() => void prepareUncovered(uncovered)}
+                    onClick={() => void prepareUncovered(uncovered, part.name)}
                     size="sm"
                     variant="outline"
                   >

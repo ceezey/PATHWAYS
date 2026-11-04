@@ -170,6 +170,8 @@ export const fileParts = {
   registrationFirst:
     'The registration part needs its columns matched before the surveys can be processed.',
   processed: 'The file was processed.',
+  existingDraft: (survey: string, version: number) =>
+    `${survey} already has a draft form (version ${version}).`,
   attention: (survey: string, more: number) =>
     more === 0
       ? `${survey} needs attention.`

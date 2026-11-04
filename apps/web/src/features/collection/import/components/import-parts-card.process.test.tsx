@@ -26,6 +26,7 @@ const api = vi.hoisted(() => ({
   getJourneyStages: vi.fn(),
   draftStageForm: vi.fn(),
   draftFromImport: vi.fn(),
+  getDigitalForms: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({ profile: { roles: [], permissions: [] } }),
@@ -34,7 +35,7 @@ vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: api }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }))
 
 // jsdom has no scrolling, so the row's scroll is recorded instead.
 const scrolled = vi.fn()
@@ -140,6 +141,28 @@ describe('import parts card processing', () => {
       expect(api.validateImport).not.toHaveBeenCalledWith('project-1', 'child-survey_a', 1)
       const rowA = await screen.findByRole('group', { name: 'Survey A' })
       expect(within(rowA).getByRole('button', { name: 'Prepare form' })).toBeTruthy()
+    })
+
+    it('a refused Prepare form leads to the existing draft', async () => {
+      mapAutomatically.mockResolvedValue({ coverage: 'NOT_COVERED', mappingRevision: 1 })
+      api.draftFromImport.mockRejectedValue(
+        new Error('A newer form version already exists; open that version instead.'),
+      )
+      api.getDigitalForms.mockResolvedValue([
+        { id: 'form-survey_a', code: 'stage_a', version: 1, status: 'PUBLISHED' },
+        { id: 'draft-7', code: 'stage_a', version: 2, status: 'DRAFT' },
+        { id: 'other-draft', code: 'stage_b', version: 3, status: 'DRAFT' },
+      ])
+      show(bothPublished())
+      press('Process file')
+      const rowA = await screen.findByRole('group', { name: 'Survey A' })
+      fireEvent.click(within(rowA).getByRole('button', { name: 'Prepare form' }))
+      await waitFor(() => expect(toast.info).toHaveBeenCalledTimes(1))
+      const [text, options] = vi.mocked(toast.info).mock.calls[0]
+      expect(text).toBe('Survey A already has a draft form (version 2).')
+      expect(options).toMatchObject({ position: 'bottom-right', action: { label: 'Open draft' } })
+      ;(options?.action as unknown as { onClick: () => void }).onClick()
+      expect(setDraftTarget).toHaveBeenCalledWith({ projectId: 'project-1', formId: 'draft-7' })
     })
 
     it('sends one request when Prepare form is pressed twice', async () => {

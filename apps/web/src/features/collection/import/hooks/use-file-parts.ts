@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { activitiesClient } from '@/lib/api/activities'
+import { formsClient } from '@/lib/api/forms'
 import { importsClient } from '@/lib/api/imports'
 import { journeysClient } from '@/lib/api/journeys'
 import type { ImportBatchDefinition } from '@/types/pathways'
@@ -113,8 +114,28 @@ export function useFileParts(state: ImportState, review: BatchReview) {
     return outcomes
   }
 
+  // Offers the survey's newest draft when a new one is refused, so the person carries on with that draft.
+  const offerDraft = async (formId: string, survey: string) => {
+    const forms = await formsClient.getDigitalForms(projectId).catch(() => [])
+    const code = forms.find((form) => form.id === formId)?.code
+    const draft = forms
+      .filter((form) => form.code === code && form.status === 'DRAFT')
+      .sort((left, right) => right.version - left.version)[0]
+    if (!draft) return
+    toast.info(copy.existingDraft(survey, draft.version), {
+      position: 'bottom-right',
+      action: {
+        label: copy.openDraft,
+        onClick: () => setDraftTarget({ projectId, formId: draft.id }),
+      },
+    })
+  }
+
   // Opens the form editor on a draft updated from a survey's file, for a survey its form does not cover.
-  const prepareUncovered = async (found: NonNullable<PartNotes[string]['uncovered']>) => {
+  const prepareUncovered = async (
+    found: NonNullable<PartNotes[string]['uncovered']>,
+    survey: string,
+  ) => {
     const ticket = begin('forms.manage')
     if (!ticket) return
     try {
@@ -126,7 +147,9 @@ export function useFileParts(state: ImportState, review: BatchReview) {
       )
       if (ticket.valid()) setDraftTarget(target)
     } catch (error) {
-      if (ticket.valid()) toast.error(error instanceof Error ? error.message : copy.prepareFailed)
+      if (!ticket.valid()) return
+      toast.error(error instanceof Error ? error.message : copy.prepareFailed)
+      await offerDraft(found.formId, survey)
     } finally {
       ticket.finish()
     }
