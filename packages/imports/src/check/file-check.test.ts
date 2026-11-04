@@ -605,6 +605,18 @@ describe('checkImportFile notes on how the file was read', () => {
     ])
   })
 
+  it('gives no header note when only blank rows are above the header', () => {
+    const csv = [
+      '',
+      ',,,',
+      'First name,Sex,Age at registration,Disability status',
+      'Ana,Female,26,With disability',
+    ].join('\n')
+    const file = readImportFile(toArrayBuffer(Buffer.from(csv)), 'CSV', null)
+    expect(file.headerRowNumber).toBe(3)
+    expect(checkCsv(Buffer.from(csv)).notes).toEqual([])
+  })
+
   it('a clean file gives no notes', () => {
     const csv = [
       'First name,Sex,Age at registration,Disability status',

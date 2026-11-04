@@ -86,7 +86,7 @@ const NON_ASCII_LETTER = /(?=\P{ASCII})\p{L}/u
 /** How the file was read: a skipped title area, Windows text decoding and merged cells copied down. */
 function readingNotes(file: ReadImportFile): FileCheckNote[] {
   const notes: FileCheckNote[] = []
-  if (file.headerRowNumber > 1) {
+  if (file.titleRows) {
     notes.push({
       kind: 'HEADER_ROW',
       message: `Headers read from row ${file.headerRowNumber}. The rows above it were skipped as titles.`,

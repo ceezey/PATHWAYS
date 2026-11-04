@@ -15,6 +15,7 @@ import {
 import { normalizeNewlines } from '../parser/newlines'
 import { workbookGrid } from '../parser/workbook-grid'
 import { inspectXlsxContainer } from '../parser/xlsx-container'
+import { isBlank } from '../validation/match-columns'
 
 type CellValue = string | number | boolean | null
 
@@ -29,6 +30,8 @@ export interface ReadImportFile {
   encoding?: CsvEncoding
   // The 1-based file row the headers were read from.
   headerRowNumber: number
+  // A row above the header holds a value, so it was skipped as a title rather than as a blank row.
+  titleRows: boolean
   // Merged data cells copied down their rows.
   filledMerges: FilledMerge[]
   // The date cell's text as the file shows it, else null.
@@ -98,6 +101,9 @@ export function readImportFile(
     formulaGap,
     encoding,
     headerRowNumber: whole.headerRowNumber,
+    titleRows: matrix
+      .slice(0, whole.headerRowNumber - firstRowNumber)
+      .some((row) => Array.isArray(row) && row.some((cell) => !isBlank(cell))),
     filledMerges: whole.filledMerges,
     shown: (rowIndex, key) =>
       dateText[`${rowNumbers[rowIndex] - firstRowNumber}:${Number(key.slice(7)) - 1}`] ?? null,
