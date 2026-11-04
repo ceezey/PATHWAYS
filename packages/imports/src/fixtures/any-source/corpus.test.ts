@@ -52,8 +52,6 @@ const KEY_FIELDS = [
 const headerNote = 'Headers read from row 4. The rows above it were skipped as titles.'
 const sexNote = (header: string) =>
   `No column feeds Sex, so this file adds nothing to the sex breakdown. The file's '${header}' was suggested.`
-const birthNote = (header: string) =>
-  `No column feeds Birth date, so this file adds nothing to the birth date breakdown. The file's '${header}' was suggested.`
 const disabilityNote = (header: string | null) =>
   `No column feeds Disability status, so this file adds nothing to the disability status breakdown.${header ? ` The file's '${header}' was suggested.` : ''}`
 
@@ -67,15 +65,6 @@ const MASTERLIST_FIELDS = {
   location_city_municipality: 'MAPPED',
   location_province: 'MAPPED',
 }
-// A whole Kobo or ODK path that matches by its words stays a suggestion; the leaf is read only when it does not.
-const SURVEY_FIELDS = {
-  first_name: 'SUGGESTED',
-  last_name: 'SUGGESTED',
-  sex: 'SUGGESTED',
-  birth_date: 'SUGGESTED',
-  disability_status: 'MAPPED',
-  location_city_municipality: 'MAPPED',
-}
 const ALL_MAPPED = {
   first_name: 'MAPPED',
   last_name: 'MAPPED',
@@ -85,6 +74,8 @@ const ALL_MAPPED = {
   location_city_municipality: 'MAPPED',
   location_province: 'MAPPED',
 }
+// A Kobo or ODK group path is read by its leaf, which names the field exactly.
+const MAPPED_WITH_DISABILITY = { ...ALL_MAPPED, disability_status: 'MAPPED' }
 const DISABILITY_MAP = [
   { from: 'Hindi', to: 'WITHOUT_DISABILITY' },
   { from: 'Oo', to: 'WITH_DISABILITY' },
@@ -146,12 +137,11 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
   },
   'kobo-xlsx': {
     headerRowNumber: 1,
-    fields: { ...SURVEY_FIELDS, location_barangay: 'SUGGESTED', location_province: 'SUGGESTED' },
+    fields: MAPPED_WITH_DISABILITY,
     systemColumns: ['_id', '_uuid', '_index'],
-    notes: [sexNote('participant/sex'), birthNote('participant/birth_date')],
+    notes: [],
     problems: ['NO_COLUMN enrollment_date'],
-    // A consent field never takes a column by suggestion alone, so the data consent column drafts as its own field.
-    draft: ['start', 'end', 'consent_data_processing_consent', 'submission_time'],
+    draft: ['start', 'end', 'submission_time'],
     reviewer: [['_submission_time', 'enrollment_date']],
     second: {
       sex: 'FEMALE',
@@ -162,11 +152,11 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
   },
   'odk-csv': {
     headerRowNumber: 1,
-    fields: { ...SURVEY_FIELDS, location_barangay: 'MAPPED', location_province: 'MAPPED' },
+    fields: MAPPED_WITH_DISABILITY,
     systemColumns: ['meta-instanceID', 'KEY'],
-    notes: [sexNote('participant-sex'), birthNote('participant-birth_date')],
+    notes: [],
     problems: ['NO_COLUMN enrollment_date'],
-    draft: ['submissiondate', 'start', 'end', 'consent_data_processing_consent', 'submitterid'],
+    draft: ['submissiondate', 'start', 'end', 'submitterid'],
     reviewer: [['SubmissionDate', 'enrollment_date']],
     second: {
       birth_date: '1999-04-03',
@@ -206,7 +196,7 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
   },
   'bom-semicolon-csv': {
     headerRowNumber: 1,
-    fields: { ...ALL_MAPPED, disability_status: 'MAPPED' },
+    fields: MAPPED_WITH_DISABILITY,
     systemColumns: [],
     notes: [],
     problems: [],

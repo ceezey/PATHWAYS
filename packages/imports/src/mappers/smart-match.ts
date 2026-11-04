@@ -167,15 +167,16 @@ function matchColumns(
       return scored
     }
     let scored = ignoredReason ? [] : scoreOn(source)
-    // The leaf is used only when the whole header matches nothing, so "first-name" keeps its V3 match, and never when the path names someone else.
+    // The leaf wins only when it scores higher than the whole header, so "first-name" keeps its V3 match, and is never read when the path names someone else.
     const leaf =
-      v4 &&
-      scored.length === 0 &&
-      !ignoredReason &&
-      ![...source.tokens].some((t) => REFUSED_TAGS.has(t))
+      v4 && !ignoredReason && ![...source.tokens].some((t) => REFUSED_TAGS.has(t))
         ? groupPathLeaf(column.header)
         : null
-    if (leaf !== null) scored = scoreOn(prepareName(leaf))
+    if (leaf !== null) {
+      const fromLeaf = scoreOn(prepareName(leaf))
+      const top = (list: Candidate[]) => Math.max(0, ...list.map((candidate) => candidate.score))
+      if (top(fromLeaf) > top(scored)) scored = fromLeaf
+    }
     scored.sort((left, right) => right.score - left.score || left.fieldIndex - right.fieldIndex)
     return { column, source, scored, ignoredReason, samples: boundedSamples(column.samples) }
   })

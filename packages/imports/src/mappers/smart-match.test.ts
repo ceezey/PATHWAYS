@@ -561,6 +561,22 @@ describe('AUTO_SMART_V4', () => {
     expect(oneV3('personal_info/sex', ['MALE']).status).toBe('PENDING')
   })
 
+  it('reads the leaf of a group path whenever it scores higher than the whole header', () => {
+    for (const [header, samples, target] of [
+      ['participant/sex', ['MALE', 'FEMALE'], 'f-sex'],
+      ['participant-sex', ['MALE', 'FEMALE'], 'f-sex'],
+      ['participant/birth_date', ['2001-02-03'], 'f-birth'],
+      ['participant/first_name', ['Ana'], 'f-first'],
+    ] as const) {
+      expect(oneV4(header, [...samples])).toMatchObject({
+        status: 'MAPPED',
+        targetFieldId: target,
+        score: 100,
+        reason: 'AUTO_MATCH',
+      })
+    }
+  })
+
   it('leaves headers with spaces whole, as under V3', () => {
     for (const header of [
       'Project Donor/Name',
