@@ -10,6 +10,7 @@ import { FileCheckDialog } from './file-check-dialog'
 const report: FileCheckReport = {
   totalRows: 100,
   problemRows: 95,
+  notes: [],
   canPrepareForm: true,
   problems: [
     {
@@ -152,6 +153,7 @@ describe('FileCheckDialog', () => {
     const fileOnly: FileCheckReport = {
       totalRows: 100,
       problemRows: 0,
+      notes: [],
       canPrepareForm: false,
       problems: [
         report.problems[1],

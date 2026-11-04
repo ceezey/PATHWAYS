@@ -7,6 +7,7 @@ import {
   valueMapText,
 } from '@pathways/shared'
 import { answerResolver, comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
+import { unfedSadddFields } from '../check/saddd-columns'
 import {
   SMART_REVIEW_SYNONYMS_V2,
   type SmartMatchDecision,
@@ -37,6 +38,7 @@ export type NeedsCheckReason =
   | 'CONSENT_SOURCE_PROPOSED'
   | 'WASHINGTON_GROUP_FLAG_DISAGREES'
   | 'ANSWER_KEY_NEEDED'
+  | 'SADDD_NO_COLUMN'
 
 /** Field codes and counts only; no source value ever enters the summary. */
 export interface DraftSummary {
@@ -579,5 +581,12 @@ export function draftFormFromImport(input: {
     summary.needsCheck.length
   if (changed === 0) throw new FormDraftError('NOTHING_TO_ADD')
   if (drafted.length > LIMITS.fields) throw new FormDraftError('FIELD_LIMIT')
+  // Listed only on a draft that already changes something, so it never decides NOTHING_TO_ADD.
+  for (const { fieldCode } of unfedSadddFields(
+    new Set(byCode.keys()),
+    new Set(mapping.values()),
+    new Map(),
+  ))
+    flag(fieldCode, 'SADDD_NO_COLUMN')
   return { fields: drafted.map(({ id, ...field }) => field), summary }
 }

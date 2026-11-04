@@ -12,6 +12,7 @@ const report: FileCheckReport = {
   totalRows: 1,
   problemRows: 1,
   problems: [],
+  notes: [],
   canPrepareForm: false,
 }
 

@@ -6741,7 +6741,20 @@ exports[`regression baseline > household-profile-followup.csv reads, matches and
         "registration_operation",
         "subject_type",
       ],
-      "needsCheck": [],
+      "needsCheck": [
+        {
+          "fieldCode": "sex",
+          "reason": "SADDD_NO_COLUMN",
+        },
+        {
+          "fieldCode": "birth_date",
+          "reason": "SADDD_NO_COLUMN",
+        },
+        {
+          "fieldCode": "disability_status",
+          "reason": "SADDD_NO_COLUMN",
+        },
+      ],
       "optionsAdded": [],
       "rules": [],
       "sourceNamesAdded": [],
@@ -7152,7 +7165,20 @@ exports[`regression baseline > livelihood-followup-structure.csv reads, matches 
         "registration_operation",
         "subject_type",
       ],
-      "needsCheck": [],
+      "needsCheck": [
+        {
+          "fieldCode": "sex",
+          "reason": "SADDD_NO_COLUMN",
+        },
+        {
+          "fieldCode": "birth_date",
+          "reason": "SADDD_NO_COLUMN",
+        },
+        {
+          "fieldCode": "disability_status",
+          "reason": "SADDD_NO_COLUMN",
+        },
+      ],
       "optionsAdded": [],
       "rules": [],
       "sourceNamesAdded": [],
@@ -7404,7 +7430,12 @@ exports[`regression baseline > stage fixture sheet reads, matches and drafts as 
         "registration_operation",
         "subject_type",
       ],
-      "needsCheck": [],
+      "needsCheck": [
+        {
+          "fieldCode": "disability_status",
+          "reason": "SADDD_NO_COLUMN",
+        },
+      ],
       "optionsAdded": [],
       "rules": [
         "age_at_registration",

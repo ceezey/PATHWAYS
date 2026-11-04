@@ -891,7 +891,8 @@ describe('draftFormFromImport rules', () => {
           published,
         )
         expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
-        expect(result.summary.needsCheck).toEqual([])
+        const reasons = result.summary.needsCheck.map((item) => item.reason)
+        expect(reasons.filter((reason) => reason !== 'SADDD_NO_COLUMN')).toEqual([])
       })
 
       it('keeps copying beside an own-answer field the form already has', () => {
@@ -938,7 +939,11 @@ describe('draftFormFromImport rules', () => {
 
   it('lists nothing for a file with no ID column', () => {
     const result = draft([columnOf('Guardian ID', ['A-1', 'A-2'], 1)])
-    expect(result.summary.needsCheck).toEqual([])
+    expect(result.summary.needsCheck.map((item) => item.reason)).toEqual([
+      'SADDD_NO_COLUMN',
+      'SADDD_NO_COLUMN',
+      'SADDD_NO_COLUMN',
+    ])
   })
 
   describe('a column of lettered answers', () => {
@@ -966,5 +971,34 @@ describe('draftFormFromImport rules', () => {
       const result = draft([columnOf('Track', values, 1)])
       expect(find(result, 'track')?.dataType).toBe('SELECT')
     })
+  })
+})
+
+describe('draftFormFromImport on breakdown fields with no column', () => {
+  it('lists each unfed breakdown field of a draft that changes something', () => {
+    const result = draft([columnOf('Favourite colour', ['red', 'blue'], 1)])
+    expect(result.summary.needsCheck).toEqual([
+      { fieldCode: 'sex', reason: 'SADDD_NO_COLUMN' },
+      { fieldCode: 'birth_date', reason: 'SADDD_NO_COLUMN' },
+      { fieldCode: 'disability_status', reason: 'SADDD_NO_COLUMN' },
+    ])
+  })
+
+  it('leaves out a group that a column feeds, by birth date or by age', () => {
+    const result = draft([
+      columnOf('Favourite colour', ['red', 'blue'], 1),
+      columnOf('Sex', ['MALE', 'FEMALE'], 2),
+      columnOf('Age at registration', [20, 30], 3),
+    ])
+    expect(result.summary.needsCheck).toEqual([
+      { fieldCode: 'disability_status', reason: 'SADDD_NO_COLUMN' },
+    ])
+  })
+
+  it('does not turn a draft with nothing to add into one', () => {
+    const covered = [columnOf('First Name', ['Ana'], 1), columnOf('Last Name', ['Reyes'], 2)]
+    expect(() => draft(covered, REGISTRATION, 'OTHER')).toThrowError(
+      expect.objectContaining({ code: 'NOTHING_TO_ADD' }),
+    )
   })
 })

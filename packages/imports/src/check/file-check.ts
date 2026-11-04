@@ -19,6 +19,7 @@ import {
 import { type DateHelp, dateHelp } from './date-help'
 import { consentHeld, dateOrderChoices, fixedOnce } from './held-rules'
 import type { ReadImportFile } from './read-import-file'
+import { unfedSadddFields } from './saddd-columns'
 
 /** A published form field as the check needs it. */
 export type CheckField = IntakeField & { id: string; metadataKey: boolean; required: boolean }
@@ -37,10 +38,20 @@ export interface FileCheckProblem {
   date?: DateHelp
 }
 
+/** Something about how the file was read or what it feeds, shown beside the problems. */
+export interface FileCheckNote {
+  kind: 'SADDD_NO_COLUMN' | 'HEADER_ROW' | 'ENCODING' | 'MERGED_FILL'
+  message: string
+  fieldCode?: string
+  columnLetter?: string
+  rows?: number[]
+}
+
 export interface FileCheckReport {
   totalRows: number
   problemRows: number
   problems: FileCheckProblem[]
+  notes: FileCheckNote[]
   // A required column is missing, the server would accept the file, and its draft would change the form.
   canPrepareForm: boolean
 }
@@ -325,10 +336,37 @@ export function checkImportFile(input: {
     }
   }
 
+  // A suggested column is not a mapping, so only the server's mapped decisions feed a breakdown field.
+  const fed = new Set<string>()
+  const suggestions = new Map<string, string>()
+  for (const decision of decisions) {
+    const column = file.sourceColumns.find((candidate) => candidate.key === decision.sourceKey)
+    if (decision.status === 'MAPPED') {
+      const code = fieldById.get(decision.targetFieldId ?? '')?.code
+      if (code) fed.add(code)
+    } else if (decision.status === 'PENDING' && column) {
+      const code = fieldById.get(decision.suggestedFieldId ?? '')?.code
+      if (code && !suggestions.has(code)) suggestions.set(code, column.header)
+    }
+  }
+  const notes: FileCheckNote[] = unfedSadddFields(
+    new Set(fieldByCode.keys()),
+    fed,
+    suggestions,
+  ).map(({ fieldCode, suggestedHeader }) => {
+    const label = fieldByCode.get(fieldCode)?.label ?? fieldCode
+    return {
+      kind: 'SADDD_NO_COLUMN',
+      fieldCode,
+      message: `No column feeds ${label}, so this file adds nothing to the ${label.toLowerCase()} breakdown.${suggestedHeader === null ? '' : ` The file's '${suggestedHeader}' was suggested.`}`,
+    }
+  })
+
   return {
     totalRows: file.rows.length,
     problemRows: problemRows.size,
     problems: [...problems, ...rowProblems],
+    notes,
     // The server refuses to draft from a file with no rows, and refuses the upload of a formula with no saved value.
     canPrepareForm:
       file.rows.length > 0 &&

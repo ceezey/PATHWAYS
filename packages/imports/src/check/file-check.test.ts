@@ -132,7 +132,13 @@ describe('checkImportFile canPrepareForm', () => {
 describe('checkImportFile', () => {
   it('a clean file has no problems', () => {
     const report = check([header, good, ['Cai', '1999-05-05', 27]], [firstName, birthDate, age])
-    expect(report).toEqual({ totalRows: 2, problemRows: 0, problems: [], canPrepareForm: false })
+    expect(report).toEqual({
+      totalRows: 2,
+      problemRows: 0,
+      problems: [],
+      notes: [],
+      canPrepareForm: false,
+    })
   })
 
   it('a missing required column is reported once', () => {
@@ -186,7 +192,14 @@ describe('checkImportFile', () => {
       ],
       [firstName, birthDate, age, sex],
     )
-    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [], canPrepareForm: false })
+    expect(report).toMatchObject({
+      totalRows: 3,
+      problemRows: 0,
+      problems: [],
+      canPrepareForm: false,
+    })
+    // The column is held with the sex field suggested, because 'Other' is not an option.
+    expect(report.notes.map((note) => note.fieldCode)).toEqual(['sex'])
   })
 
   it('a date no order can read is reported', () => {
@@ -467,5 +480,55 @@ describe('checkImportFile on a file with parts', () => {
     })
     expect(report.problems).toEqual([])
     expect(report.totalRows).toBe(12)
+  })
+})
+
+describe('checkImportFile notes on breakdown fields with no column', () => {
+  const disability = field('disability_status', 'Disability status', 'SELECT', {
+    allowedValues: ['With disability', 'Without disability'],
+  })
+  const displayName = field('display_name', 'Display name', 'TEXT')
+  const registration = [displayName, sex, birthDate, age, disability]
+
+  it('names the header suggested for sex and says nothing of birth date when age is fed', () => {
+    const report = check(
+      [
+        ['Kasarian', 'Pangalan', 'Edad'],
+        ['Babae', 'Ana', 26],
+      ],
+      [displayName, sex, birthDate, age],
+      'BENEFICIARY_REGISTRATION',
+    )
+    expect(report.notes).toEqual([
+      {
+        kind: 'SADDD_NO_COLUMN',
+        fieldCode: 'sex',
+        message:
+          "No column feeds Sex, so this file adds nothing to the sex breakdown. The file's 'Kasarian' was suggested.",
+      },
+    ])
+  })
+
+  it('words a group with no suggestion without one', () => {
+    const report = check([['Pangalan'], ['Ana']], [displayName, disability])
+    expect(report.notes).toEqual([
+      {
+        kind: 'SADDD_NO_COLUMN',
+        fieldCode: 'disability_status',
+        message:
+          'No column feeds Disability status, so this file adds nothing to the disability status breakdown.',
+      },
+    ])
+  })
+
+  it('gives no note when all three groups have a column', () => {
+    const report = check(
+      [
+        ['Sex', 'Age at registration', 'Disability status'],
+        ['Female', 26, 'With disability'],
+      ],
+      registration,
+    )
+    expect(report.notes).toEqual([])
   })
 })
