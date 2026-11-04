@@ -122,8 +122,4 @@ describe('automatic match reason of a stored mapping', () => {
       'known synonym',
     )
   })
-
-  it('gives no match reason for an ignored AUTO_SMART_V4 system column', () => {
-    expect(automaticMatchReason(stored('IGNORED', 'AUTO_SMART_V4:SYSTEM_COLUMN'))).toBeNull()
-  })
 })

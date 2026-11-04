@@ -65,8 +65,9 @@ interface StoredDecision {
 }
 
 /**
- * Coverage of a batch still on its automatic AUTO_SMART_V3 or AUTO_SMART_V4 revision, rebuilt from the stored
- * mapping rows with the inputs automatic mapping uses; null for any other batch. Counts only.
+ * Coverage of a batch still on its automatic AUTO_SMART_V3 or AUTO_SMART_V4 revision, rebuilt
+ * from the stored mapping rows with the inputs automatic mapping uses; null for any other batch.
+ * Counts only.
  */
 export async function readBatchCoverage(
   tx: Tx,

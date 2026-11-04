@@ -62,7 +62,7 @@ function DateBlock({ date }: { date: NonNullable<FileCheckProblem['date']> }) {
 
 const UPLOAD_HINT_ID = 'file-check-upload-hint'
 
-/** Tells the person which rows would need one-by-one review and asks them to fix the file first. */
+/** Shows the problems and notes about the chosen file, which rows would need one-by-one review, and asks the person to fix the file first. */
 export function FileCheckDialog({
   report,
   fileInput,
@@ -106,7 +106,7 @@ export function FileCheckDialog({
         <DialogHeader>
           <DialogTitle>Check your file before uploading</DialogTitle>
           <DialogDescription className="sr-only">
-            Problems found in the chosen file.
+            Problems and notes about the chosen file.
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">

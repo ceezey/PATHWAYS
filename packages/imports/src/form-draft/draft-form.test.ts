@@ -937,7 +937,7 @@ describe('draftFormFromImport rules', () => {
     })
   })
 
-  it('lists nothing for a file with no ID column', () => {
+  it('flags only the unfed breakdown fields for a file with no participant ID column', () => {
     const result = draft([columnOf('Guardian ID', ['A-1', 'A-2'], 1)])
     expect(result.summary.needsCheck.map((item) => item.reason)).toEqual([
       'SADDD_NO_COLUMN',
