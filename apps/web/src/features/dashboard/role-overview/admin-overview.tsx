@@ -66,7 +66,7 @@ export const AdminOverview = ({
       <DashboardHeading
         fullName={fullName}
         subtitle={longDate(data.businessDate)}
-        title="Administration"
+        title="System administration overview"
       />
       <KpiStrip label="Administration counts">
         {formDrafts ? (
