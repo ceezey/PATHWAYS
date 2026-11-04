@@ -90,7 +90,10 @@ export function AnswerKeyEditor({
           const answers = answersOf(field.code)
           const id = `answer-key-${field.code}`
           return (
-            <div key={field.id} className="space-y-2 rounded-md border border-border p-3">
+            <div
+              key={field.id}
+              className="space-y-2 rounded-md border border-border bg-background p-3"
+            >
               <Label htmlFor={id}>{label}</Label>
               <select
                 className={selectClass}
