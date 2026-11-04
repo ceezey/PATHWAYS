@@ -157,6 +157,39 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       ticket.finish()
     }
   }
+  // Publishes each chosen draft in turn; the server's refusal of one is named and never stops the others.
+  const publishForms = async (ids: string[]) => {
+    if (!canPublishForms) {
+      toast.error('Form publishing is not available for this role.')
+      return
+    }
+    const ticket = beginOperation('forms.publish')
+    if (!ticket) return
+    const drafts = forms.filter((form) => ids.includes(form.id) && form.status === 'DRAFT')
+    let published = 0
+    try {
+      for (const draft of drafts) {
+        try {
+          const done = await formsClient.publishDigitalForm(
+            draft.projectId,
+            draft.id,
+            draft.updatedAt,
+          )
+          if (!ticket.valid()) return
+          setForms((current) => [...current.filter((form) => form.id !== done.id), done])
+          published += 1
+        } catch (error) {
+          if (!ticket.valid()) return
+          const reason = error instanceof Error ? error.message : 'Form could not be published.'
+          toast.error(`${draft.name} - v${draft.version}: ${reason}`)
+        }
+      }
+      if (published)
+        toast.success(published === 1 ? 'Published 1 form.' : `Published ${published} forms.`)
+    } finally {
+      ticket.finish()
+    }
+  }
   const downloadSavedForm = async (summary: SavedForm) => {
     const listed = forms.find((form) => form.id === summary.id)
     if (!listed) {
@@ -272,6 +305,7 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
     downloadSavedForm,
     generateCopy,
     publishFormToApi,
+    publishForms,
     saveDraftToApi,
   }
 }

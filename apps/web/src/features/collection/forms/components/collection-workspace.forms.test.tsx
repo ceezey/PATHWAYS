@@ -512,6 +512,56 @@ describe('collection form definition export', () => {
   })
 })
 
+describe('publishing selected drafts', () => {
+  const draftOf = (id: string, name: string) => ({
+    id,
+    projectId: 'futuremakers-ncr',
+    code: id,
+    version: 1,
+    name,
+    description: null,
+    formType: 'TRAINING_SURVEY',
+    status: 'DRAFT',
+    activityId: null,
+    journeyStageId: null,
+    updatedAt: '2026-11-04T00:00:00.000Z',
+    createdByCurrentUser: false,
+    fields: [],
+  })
+
+  it('publishes each selected draft and names a refusal without stopping the others', async () => {
+    api.getDigitalForms.mockResolvedValue([
+      draftOf('lst', 'LST Survey'),
+      draftOf('alumni', 'Alumni Survey'),
+    ])
+    api.publishDigitalForm.mockImplementation(async (_p: string, id: string) => {
+      if (id === 'lst') throw new Error('Mark the correct answers for the total score first.')
+      return { ...draftOf(id, 'Alumni Survey'), status: 'PUBLISHED' }
+    })
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all drafts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish (2)' }))
+    await waitFor(() => expect(api.publishDigitalForm).toHaveBeenCalledTimes(2))
+    expect(api.publishDigitalForm).toHaveBeenCalledWith(
+      'futuremakers-ncr',
+      'alumni',
+      '2026-11-04T00:00:00.000Z',
+    )
+    await waitFor(() =>
+      expect(toasts.error).toHaveBeenCalledWith(
+        'LST Survey - v1: Mark the correct answers for the total score first.',
+      ),
+    )
+    expect(toasts.success).toHaveBeenCalledWith('Published 1 form.')
+    // The refused draft stays selected so it can be published once fixed.
+    expect(screen.getByRole('button', { name: 'Publish (1)' })).toBeTruthy()
+  })
+})
+
 describe('forms.generate action', () => {
   const source = {
     id: 'form-source',

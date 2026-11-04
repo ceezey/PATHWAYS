@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { SavedForm } from '../../collection.utils'
@@ -58,20 +58,30 @@ const form = (id: string, projectId: string, project: string, title: string): Sa
   savedAt: '2026-10-21T00:00:00.000Z',
 })
 
-const view = (savedForms: SavedForm[], initialProjectId = '') =>
+const view = (
+  savedForms: SavedForm[],
+  initialProjectId = '',
+  { canPublish = false, onPublish = vi.fn(async () => {}) } = {},
+) =>
   render(
     <FormsGeneratorView
       canCreate
       canImport={false}
+      canPublish={canPublish}
       errorState={null}
       initialProjectId={initialProjectId}
       onOpen={vi.fn()}
       onCreate={vi.fn()}
       onDownload={vi.fn()}
+      onPublish={onPublish}
       savedForms={savedForms}
       status="ready"
     />,
   )
+const draft = (id: string, title: string): SavedForm => ({
+  ...form(id, 'p1', 'Northern Samar', title),
+  type: 'DRAFT',
+})
 
 describe('FormsGeneratorView project picker', () => {
   it('lists no forms until a project is picked, then only that project', () => {
@@ -107,5 +117,38 @@ describe('FormsGeneratorView project picker', () => {
     )
     expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('p2')
     expect(screen.getByText('Registration')).toBeTruthy()
+  })
+})
+
+describe('FormsGeneratorView publishing drafts', () => {
+  const forms = () => [
+    draft('d1', 'LST Survey - v1'),
+    draft('d2', 'Alumni Survey - v1'),
+    form('f1', 'p1', 'Northern Samar', 'Registration - v1'),
+  ]
+
+  it('publishes the drafts that are selected', async () => {
+    const onPublish = vi.fn(async () => {})
+    view(forms(), '', { canPublish: true, onPublish })
+    const publish = screen.getByRole('button', { name: 'Publish' }) as HTMLButtonElement
+    expect(publish.disabled).toBe(true)
+    expect(screen.queryByRole('checkbox', { name: 'Select Registration - v1' })).toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select LST Survey - v1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish (1)' }))
+    await waitFor(() => expect(onPublish).toHaveBeenCalledWith(['d1']))
+  })
+
+  it('select all picks every draft of the project', () => {
+    view(forms(), '', { canPublish: true })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all drafts' }))
+    expect(screen.getByRole('button', { name: 'Publish (2)' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all drafts' }))
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy()
+  })
+
+  it('offers no selection or publish without forms.publish', () => {
+    view(forms())
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Publish/ })).toBeNull()
   })
 })

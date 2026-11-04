@@ -133,8 +133,14 @@ const OwnedCollectionWorkspace = (
     eligible,
   } = guard
   const { changeInput, changeProject, openBuilder, openSavedForm, savedForms, startNewForm } = edits
-  const { confirmCheck, createNewVersion, downloadSavedForm, generateCopy, publishFormToApi } =
-    formActions
+  const {
+    confirmCheck,
+    createNewVersion,
+    downloadSavedForm,
+    generateCopy,
+    publishFormToApi,
+    publishForms,
+  } = formActions
   const {
     importCanProceed,
     importSummary,
@@ -217,10 +223,12 @@ const OwnedCollectionWorkspace = (
         <FormsGeneratorView
           canCreate={canManageForms}
           canImport={canOpenImport}
+          canPublish={canPublishForms}
           initialProjectId={projectId}
           onOpen={openSavedForm}
           onCreate={startNewForm}
           onDownload={downloadSavedForm}
+          onPublish={publishForms}
           savedForms={savedForms}
           status={formsLoading ? 'loading' : loadError ? 'error' : 'ready'}
           errorState={loadErrorState}

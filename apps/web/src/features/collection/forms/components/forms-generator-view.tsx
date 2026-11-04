@@ -1,6 +1,6 @@
 'use client'
 
-import { Database, FileSpreadsheet, FolderSearch, ListPlus, Plus } from 'lucide-react'
+import { Database, FileSpreadsheet, FolderSearch, ListPlus, Plus, Send } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useState } from 'react'
 
@@ -30,24 +30,31 @@ const groupByProject = (forms: SavedForm[]) => {
   return [...groups.values()]
 }
 
+const checkboxClass =
+  'h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
 export const FormsGeneratorView = ({
   canCreate,
   canImport,
+  canPublish,
   errorState,
   initialProjectId,
   onOpen,
   onCreate,
   onDownload,
+  onPublish,
   savedForms,
   status,
 }: {
   canCreate: boolean
   canImport: boolean
+  canPublish: boolean
   errorState: ReactNode
   initialProjectId: string
   onOpen: (form: SavedForm) => void
   onCreate: () => void
   onDownload: (form: SavedForm) => void
+  onPublish: (ids: string[]) => Promise<void>
   savedForms: SavedForm[]
   status: 'loading' | 'error' | 'ready'
 }) => {
@@ -62,6 +69,27 @@ export const FormsGeneratorView = ({
         ? projectId
         : ''
   const shown = groups.find((group) => group[0].projectId === selected) ?? []
+  // Only this project's drafts count, so a published or hidden form drops out of the selection by itself.
+  const drafts = canPublish ? shown.filter((form) => form.type === 'DRAFT') : []
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
+  const [publishing, setPublishing] = useState(false)
+  const chosen = drafts.filter((form) => picked.has(form.id)).map((form) => form.id)
+  const allChosen = drafts.length > 0 && chosen.length === drafts.length
+  const toggle = (id: string, on: boolean) =>
+    setPicked((current) => {
+      const next = new Set(current)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  const publish = async () => {
+    setPublishing(true)
+    try {
+      await onPublish(chosen)
+    } finally {
+      setPublishing(false)
+    }
+  }
   return (
     <SectionCard title="Collection forms" description="Form generator">
       <div className="space-y-6">
@@ -84,6 +112,17 @@ export const FormsGeneratorView = ({
               </SelectContent>
             </Select>
           </div>
+          {drafts.length ? (
+            <Button
+              className="shrink-0"
+              disabled={chosen.length === 0 || publishing}
+              onClick={() => void publish()}
+              variant="outline"
+            >
+              <Send className="mr-2 h-4 w-4" aria-hidden="true" />
+              {chosen.length ? `Publish (${chosen.length})` : 'Publish'}
+            </Button>
+          ) : null}
           {canCreate || canImport ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -128,49 +167,73 @@ export const FormsGeneratorView = ({
             description="Select a project to see its forms."
           />
         ) : (
-          <ul className="space-y-3">
-            {shown.map((form) => {
-              const display = savedFormStatus[form.type] ?? {
-                label: form.type,
-                tone: 'neutral',
-              }
-              return (
-                <li
-                  key={form.id}
-                  className="flex min-h-[52px] flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div
-                      aria-hidden="true"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-subtle text-primary"
-                    >
-                      <Database className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-foreground">{form.title}</p>
-                        <StatusBadge dot={false} tone={display.tone}>
-                          {display.label}
-                        </StatusBadge>
+          <div className="space-y-3">
+            {drafts.length ? (
+              <label className="flex min-h-11 w-fit cursor-pointer items-center gap-3 text-sm font-medium">
+                <input
+                  checked={allChosen}
+                  className={checkboxClass}
+                  onChange={(event) =>
+                    setPicked(new Set(event.target.checked ? drafts.map((form) => form.id) : []))
+                  }
+                  type="checkbox"
+                />
+                Select all drafts
+              </label>
+            ) : null}
+            <ul className="space-y-3">
+              {shown.map((form) => {
+                const display = savedFormStatus[form.type] ?? {
+                  label: form.type,
+                  tone: 'neutral',
+                }
+                return (
+                  <li
+                    key={form.id}
+                    className="flex min-h-[52px] flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      {drafts.includes(form) ? (
+                        <input
+                          aria-label={`Select ${form.title}`}
+                          checked={picked.has(form.id)}
+                          className={`${checkboxClass} mt-3 shrink-0`}
+                          onChange={(event) => toggle(form.id, event.target.checked)}
+                          type="checkbox"
+                        />
+                      ) : null}
+                      <div
+                        aria-hidden="true"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-subtle text-primary"
+                      >
+                        <Database className="h-4 w-4" />
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {form.fieldCount} {form.fieldCount === 1 ? 'field' : 'fields'} · Saved{' '}
-                        {formatSavedAt(form.savedAt)}
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-foreground">{form.title}</p>
+                          <StatusBadge dot={false} tone={display.tone}>
+                            {display.label}
+                          </StatusBadge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {form.fieldCount} {form.fieldCount === 1 ? 'field' : 'fields'} · Saved{' '}
+                          {formatSavedAt(form.savedAt)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
-                      Open form
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
-                      Export form
-                    </Button>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
+                        Open form
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
+                        Export form
+                      </Button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
         )}
       </div>
     </SectionCard>
