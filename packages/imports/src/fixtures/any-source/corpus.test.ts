@@ -216,7 +216,7 @@ async function readBoth(name: AnySourceFixture) {
   return { file, server }
 }
 
-const draftedFields = (
+const draftOf = (
   file: ReturnType<typeof readImportFile>,
   decisions: ReturnType<typeof matchColumns>,
 ) =>
@@ -232,7 +232,7 @@ const draftedFields = (
     })),
     decisions,
     uploadDate: UPLOAD_DATE,
-  }).summary.addedFields
+  })
 
 describe('any-source corpus', () => {
   it.each(FIXTURES)('%s: the browser check reads it as the server does', async (name) => {
@@ -279,7 +279,49 @@ describe('any-source corpus', () => {
       expected.problems,
     )
     expect(report.problemRows).toBe(0)
-    expect(draftedFields(file, decisions)).toEqual(expected.draft)
+    expect(draftOf(file, decisions).summary.addedFields).toEqual(expected.draft)
+  })
+
+  it('kobo-xlsx: the drafted form maps every required column and keeps consent on its fields', async () => {
+    const { file } = await readBoth('kobo-xlsx')
+    const drafted = draftOf(file, matchColumns(file.sourceColumns, file.rows, FORM)).fields
+    // Publishing keeps each field's id and gives a new field its own.
+    const published = drafted.map((field) => ({
+      ...field,
+      id: FORM.find((existing) => existing.code === field.code)?.id ?? `field-${field.code}`,
+    })) as unknown as CheckField[]
+    const decisions = matchColumns(file.sourceColumns, file.rows, published)
+    const mapped = new Map(
+      decisions
+        .filter((decision) => decision.status === 'MAPPED')
+        .map((decision) => [
+          published.find((field) => field.id === decision.targetFieldId)?.code,
+          file.sourceColumns.find((column) => column.key === decision.sourceKey)?.header,
+        ]),
+    )
+    expect(mapped.get('beneficiary_code')).toBe('participant/participant_id')
+    expect(mapped.get('consent_recorded')).toBe('consent/consent_given')
+    expect(mapped.get('data_processing_consent_recorded')).toBe('consent/data_processing_consent')
+    // Only the fields a default fills and the enrollment date, which no column holds, are left.
+    expect(
+      published
+        .filter((field) => field.required && !mapped.has(field.code))
+        .map((field) => field.code),
+    ).toEqual(['registration_operation', 'subject_type', 'enrollment_date'])
+    const added = drafted.filter((field) => !FORM.some((existing) => existing.code === field.code))
+    expect(added.map((field) => field.code)).toEqual(['start', 'end', 'submission_time'])
+
+    const report = checkImportFile({
+      file,
+      formType: 'BENEFICIARY_REGISTRATION',
+      fields: published,
+      uploadDate: UPLOAD_DATE,
+    })
+    expect(report.problems.map((problem) => `${problem.kind} ${problem.fieldCode}`)).toEqual([
+      'NO_COLUMN enrollment_date',
+    ])
+    expect(report.problemRows).toBe(0)
+    expect(report.notes).toEqual([])
   })
 
   it.each(FIXTURES)(
