@@ -637,6 +637,21 @@ describe('promoteStageInTx', () => {
     held('STAGE_CHANGED')
   })
 
+  it('an answer to a question with nothing stored is added without a hold', async () => {
+    const { q3: _new, ...earlier } = stageRow
+    withBaseline(earlier)
+    await firstStage()
+    expect(rowOf()).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'CREATED' })
+    expect(store.submissions).toHaveLength(2)
+  })
+
+  it('a new answer next to a changed one is still held', async () => {
+    const { q3: _new, ...earlier } = stageRow
+    withBaseline({ ...earlier, q1: 'Z' })
+    await firstStage()
+    held('STAGE_CHANGED')
+  })
+
   it('rejected value is not held again', async () => {
     withBaseline({ ...stageRow, q1: 'Z' })
     store.rejections.push({

@@ -255,7 +255,9 @@ export async function promoteStageInTx(
     const { kept } = resolved
       ? { kept: differing }
       : await splitRejected(tx, actor, known.beneficiaryId, differing, values)
-    if (kept.length > 0 && !resolved) return hold('STAGE_CHANGED')
+    // An answer to a question with nothing stored only adds to the record, so only a changed stored answer is held.
+    if (!resolved && kept.some((field) => !isBlank(stored.get(field.code))))
+      return hold('STAGE_CHANGED')
     if (kept.length === 0) {
       await tx.dataImportRow.update({
         where: { id: row.id },
