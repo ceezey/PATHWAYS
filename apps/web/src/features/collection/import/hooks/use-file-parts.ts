@@ -8,6 +8,7 @@ import { journeysClient } from '@/lib/api/journeys'
 import type { ImportBatchDefinition } from '@/types/pathways'
 
 import { fileParts as copy } from '../../collection.copy'
+import { showExistingDraft } from '../components/existing-draft-toast'
 import type { ImportProcessingState } from '../components/import-processing-panel'
 import {
   importProcessingProgress,
@@ -121,14 +122,10 @@ export function useFileParts(state: ImportState, review: BatchReview) {
     const draft = forms
       .filter((form) => form.code === code && form.status === 'DRAFT')
       .sort((left, right) => right.version - left.version)[0]
-    if (!draft) return
-    toast.info(copy.existingDraft(survey, draft.version), {
-      position: 'bottom-right',
-      action: {
-        label: copy.openDraft,
-        onClick: () => setDraftTarget({ projectId, formId: draft.id }),
-      },
-    })
+    if (draft)
+      showExistingDraft(survey, draft.version, () =>
+        setDraftTarget({ projectId, formId: draft.id }),
+      )
   }
 
   // Opens the form editor on a draft updated from a survey's file, for a survey its form does not cover.

@@ -1,5 +1,6 @@
 /* @vitest-environment jsdom */
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,7 +36,9 @@ vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
 vi.mock('@/lib/api/activities', () => ({ activitiesClient: api }))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: api }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }))
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), dismiss: vi.fn() },
+}))
 
 // jsdom has no scrolling, so the row's scroll is recorded instead.
 const scrolled = vi.fn()
@@ -160,9 +163,14 @@ describe('import parts card processing', () => {
       await waitFor(() => expect(toast.info).toHaveBeenCalledTimes(1))
       const [text, options] = vi.mocked(toast.info).mock.calls[0]
       expect(text).toBe('Survey A already has a draft form (version 2).')
-      expect(options).toMatchObject({ position: 'bottom-right', action: { label: 'Open draft' } })
-      ;(options?.action as unknown as { onClick: () => void }).onClick()
+      expect(options).toMatchObject({ position: 'bottom-right' })
+      // The action is the design system's small primary button, not Sonner's default one.
+      render(options?.action as ReactElement)
+      const open = screen.getByRole('button', { name: 'Open draft' })
+      expect(open.className).toContain('h-9')
+      fireEvent.click(open)
       expect(setDraftTarget).toHaveBeenCalledWith({ projectId: 'project-1', formId: 'draft-7' })
+      expect(toast.dismiss).toHaveBeenCalledWith(options?.id)
     })
 
     it('sends one request when Prepare form is pressed twice', async () => {
