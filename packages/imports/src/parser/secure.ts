@@ -3,7 +3,9 @@ import { Worker } from 'node:worker_threads'
 import { IMPORT_ENGINEERING_LIMITS, type SupportedImportFileType } from '../limits'
 import { type CsvEncoding, decodeCsv } from './csv-encoding'
 import { excelSerialToIsoDate } from './excel-date'
+import type { MatrixMerge } from './header-row'
 import {
+  type FilledMerge,
   ImportParseError,
   type ImportSourceColumn,
   type ParsedImportRow,
@@ -23,6 +25,8 @@ interface WorkerResult {
   formulaGap?: string
   links?: boolean
   macros?: boolean
+  firstRowNumber?: number
+  merges?: MatrixMerge[]
   error?: string
 }
 
@@ -31,6 +35,8 @@ interface SecureImportParseResult {
   rows: ParsedImportRow[]
   sheetNames: string[]
   csvEncoding?: CsvEncoding
+  headerRowNumber: number
+  filledMerges: FilledMerge[]
 }
 
 // The PDF table reconstruction, the Excel date conversion and the newline normalizer are embedded
@@ -47,7 +53,7 @@ try {
     const Papa = require(workerData.papaPath);
     const parsed = Papa.parse(normalizeNewlines(workerData.text), {
       header: false,
-      skipEmptyLines: 'greedy',
+      skipEmptyLines: false,
       dynamicTyping: false,
       transform: value => value,
     });
@@ -124,6 +130,8 @@ try {
       formulaGap: grid.formulaGap,
       links: grid.links,
       macros: grid.macros,
+      firstRowNumber: grid.firstRowNumber,
+      merges: grid.merges,
     });
   }
 } catch (error) {
@@ -303,11 +311,16 @@ export async function parseSecureImport(
       `This workbook has ${parsed.sheetNames?.length ?? 0} worksheets. Choose the sheet to import, then upload again.`,
     )
   }
-  const normalized = normalizeMatrix(parsed.matrix ?? [])
+  const normalized = normalizeMatrix(parsed.matrix ?? [], {
+    firstRowNumber: parsed.firstRowNumber,
+    merges: parsed.merges,
+  })
   return {
     sourceColumns: normalized.sourceColumns,
     rows: normalized.rows,
     sheetNames: parsed.sheetNames ?? [],
     csvEncoding: csv?.encoding,
+    headerRowNumber: normalized.headerRowNumber,
+    filledMerges: normalized.filledMerges,
   }
 }

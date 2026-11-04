@@ -5,7 +5,13 @@ import { IMPORT_ENGINEERING_LIMITS } from '../limits'
 import { type CsvEncoding, decodeCsv } from '../parser/csv-encoding'
 import { excelSerialToIsoDate } from '../parser/excel-date'
 import { detectFileParts, registrationRange, selectPartColumns } from '../parser/file-parts'
-import { ImportParseError, type ImportSourceColumn, normalizeMatrix } from '../parser/matrix'
+import type { MatrixMerge } from '../parser/header-row'
+import {
+  type FilledMerge,
+  ImportParseError,
+  type ImportSourceColumn,
+  normalizeMatrix,
+} from '../parser/matrix'
 import { normalizeNewlines } from '../parser/newlines'
 import { workbookGrid } from '../parser/workbook-grid'
 import { inspectXlsxContainer } from '../parser/xlsx-container'
@@ -21,6 +27,10 @@ export interface ReadImportFile {
   formulaGap?: string
   // How a CSV's bytes were decoded; unset for other file types.
   encoding?: CsvEncoding
+  // The 1-based file row the headers were read from.
+  headerRowNumber: number
+  // Merged data cells copied down their rows.
+  filledMerges: FilledMerge[]
   // The date cell's text as the file shows it, else null.
   shown: (rowIndex: number, key: string) => string | null
 }
@@ -35,6 +45,8 @@ export function readImportFile(
   let formulaGap: string | undefined
   let dateText: Record<string, string> = {}
   let encoding: CsvEncoding | undefined
+  let firstRowNumber = 1
+  let merges: MatrixMerge[] = []
   if (fileType === 'CSV') {
     const decoded = decodeCsv(new Uint8Array(input))
     encoding = decoded.encoding
@@ -42,7 +54,7 @@ export function readImportFile(
     const text = decoded.text
     const parsed = Papa.parse<unknown[]>(normalizeNewlines(text), {
       header: false,
-      skipEmptyLines: 'greedy',
+      skipEmptyLines: false,
       dynamicTyping: false,
     })
     if (parsed.errors.some((error) => error.code !== 'UndetectableDelimiter')) {
@@ -70,9 +82,9 @@ export function readImportFile(
         `This workbook has ${grid.sheetNames.length} worksheets. Choose the sheet to import, then upload again.`,
       )
     }
-    ;({ matrix, formulaGap, dateText } = grid)
+    ;({ matrix, formulaGap, dateText, firstRowNumber, merges } = grid)
   }
-  const whole = normalizeMatrix(matrix)
+  const whole = normalizeMatrix(matrix, { firstRowNumber, merges })
   // A file with survey stages is checked on its registration columns only, as the server stages it.
   const parts = detectFileParts(whole)
   const { rows, sourceColumns } = parts.length
@@ -85,7 +97,9 @@ export function readImportFile(
     rowNumbers,
     formulaGap,
     encoding,
+    headerRowNumber: whole.headerRowNumber,
+    filledMerges: whole.filledMerges,
     shown: (rowIndex, key) =>
-      dateText[`${rowNumbers[rowIndex] - 1}:${Number(key.slice(7)) - 1}`] ?? null,
+      dateText[`${rowNumbers[rowIndex] - firstRowNumber}:${Number(key.slice(7)) - 1}`] ?? null,
   }
 }

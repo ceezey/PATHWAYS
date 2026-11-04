@@ -77,10 +77,34 @@ describe('workbookGrid', () => {
     const result = grid(buffer)
 
     expect(result.matrix).toEqual([
+      [null, null],
       ['Name', 'Date of Birth'],
+      [null, null],
       ['Ana', '2008-08-17'],
     ])
-    expect(result.dateText).toEqual({ '1:1': '08/08/17' })
+    expect(result.firstRowNumber).toBe(1)
+    expect(result.dateText).toEqual({ '3:1': '08/08/17' })
+  })
+
+  it('numbers rows from the range start and shifts merges with it', () => {
+    const buffer = workbookBuffer(
+      [
+        [null, null],
+        [null, null],
+        ['Name', 'Brgy'],
+        ['Ana', 'San Jose'],
+        ['Ben', null],
+      ],
+      (sheet) => {
+        sheet['!ref'] = 'A3:B5'
+        sheet['!merges'] = [{ s: { r: 3, c: 1 }, e: { r: 4, c: 1 } }]
+      },
+    )
+    const result = grid(buffer)
+
+    expect(result.firstRowNumber).toBe(3)
+    expect(result.matrix[0]).toEqual(['Name', 'Brgy'])
+    expect(result.merges).toEqual([{ firstRow: 1, lastRow: 2, firstColumn: 1, lastColumn: 1 }])
   })
 
   it('skips the shown date text when it is not wanted', () => {

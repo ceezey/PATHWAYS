@@ -76,6 +76,17 @@ describe('readImportFile', () => {
     expect(read.shown(0, 'column_0002')).toBeNull()
   })
 
+  it('maps shown dates below a blank row', () => {
+    const bytes = workbook({ Data: [['Born'], [null], [39677]] }, (sheet) => {
+      sheet.A3.z = 'yy/mm/dd'
+    })
+    const read = readImportFile(toArrayBuffer(bytes), 'XLSX', null)
+    expect(read.rowNumbers).toEqual([3])
+    expect(read.headerRowNumber).toBe(1)
+    expect(read.filledMerges).toEqual([])
+    expect(read.shown(0, 'column_0001')).toBe('08/08/17')
+  })
+
   it('maps shown dates past a coded header row', () => {
     const bytes = workbook(
       {

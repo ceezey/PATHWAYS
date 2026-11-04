@@ -1,6 +1,7 @@
 import { importHeaderLabel } from '../header-label'
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
 import { isCodeHeaderRow } from './code-header'
+import { type MatrixMerge, findHeaderRow } from './header-row'
 
 type CellValue = string | number | boolean | null
 
@@ -37,34 +38,70 @@ export function sourceColumnKey(columnIndex: number) {
   return `column_${String(columnIndex).padStart(4, '0')}`
 }
 
-export function normalizeMatrix(matrix: unknown[][]): {
+export interface FilledMerge {
+  columnIndex: number
+  firstRowNumber: number
+  lastRowNumber: number
+}
+
+export function normalizeMatrix(
+  matrix: unknown[][],
+  options: { firstRowNumber?: number; merges?: readonly MatrixMerge[] } = {},
+): {
   rows: ParsedImportRow[]
   sourceColumns: ImportSourceColumn[]
+  headerRowNumber: number
+  filledMerges: FilledMerge[]
 } {
-  if (!Array.isArray(matrix) || matrix.length === 0) {
-    reject('FILE_EMPTY', 'The file does not contain a header row.')
-  }
+  const { firstRowNumber = 1, merges = [] } = options
   const blank = (value: unknown) =>
     value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
-  const codeRow = Array.isArray(matrix[0]) ? matrix[0] : []
+  const blankRow = (row: unknown) => Array.isArray(row) && row.every(blank)
+  if (!Array.isArray(matrix) || matrix.every(blankRow)) {
+    reject('FILE_EMPTY', 'The file does not contain a header row.')
+  }
+  const headerIndex = findHeaderRow(matrix, merges)
+  const header = matrix[headerIndex]
+  const below = matrix[headerIndex + 1]
+  const codeRow = Array.isArray(header) ? header : []
   // A code row above a label row: the label names the column, the code is kept as its source code.
-  const coded =
-    Array.isArray(matrix[0]) && Array.isArray(matrix[1]) && isCodeHeaderRow(matrix[0], matrix[1])
-  const headerRows = coded ? 2 : 1
-  const firstDataRow = headerRows + 1
-  const labelRow = coded && Array.isArray(matrix[1]) ? matrix[1] : []
+  const coded = Array.isArray(header) && Array.isArray(below) && isCodeHeaderRow(header, below)
+  const dataStart = headerIndex + (coded ? 2 : 1)
+  const labelRow = coded && Array.isArray(below) ? below : []
   const firstRow = coded
     ? codeRow.map((code, index) => (blank(labelRow[index]) ? code : labelRow[index]))
     : codeRow
+  // A merged data cell is copied down its first column; merges at or above the header are never copied.
+  const grid = matrix.slice()
+  const filledMerges: FilledMerge[] = []
+  for (const merge of merges) {
+    const top = grid[merge.firstRow]
+    const value = Array.isArray(top) ? top[merge.firstColumn] : null
+    const lastRow = Math.min(merge.lastRow, grid.length - 1)
+    if (merge.firstRow < dataStart || merge.firstColumn < 0 || lastRow <= merge.firstRow) continue
+    if (blank(value)) continue
+    for (let index = merge.firstRow + 1; index <= lastRow; index += 1) {
+      const cells = grid[index]
+      if (!Array.isArray(cells)) continue
+      grid[index] = cells.slice()
+      grid[index][merge.firstColumn] = value
+    }
+    filledMerges.push({
+      columnIndex: merge.firstColumn + 1,
+      firstRowNumber: firstRowNumber + merge.firstRow,
+      lastRowNumber: firstRowNumber + lastRow,
+    })
+  }
+  const table = grid.slice(headerIndex)
   // Trailing columns with a blank header and no values are sheet formatting, not data.
-  let width = matrix.reduce<number>(
+  let width = table.reduce<number>(
     (widest, row) => Math.max(widest, Array.isArray(row) ? row.length : 0),
     0,
   )
   while (
     width > 0 &&
     blank(firstRow[width - 1]) &&
-    matrix.every((row) => !Array.isArray(row) || blank(row[width - 1]))
+    table.every((row) => !Array.isArray(row) || blank(row[width - 1]))
   ) {
     width -= 1
   }
@@ -91,42 +128,36 @@ export function normalizeMatrix(matrix: unknown[][]): {
     columnIndex: index + 1,
     ...(coded && !blank(codeRow[index]) ? { sourceCode: String(codeRow[index]).trim() } : {}),
   }))
-  const sourceRows = matrix
-    .slice(headerRows)
-    .map((row) => (Array.isArray(row) ? row.slice(0, width) : row))
+  // Blank rows are not imported, and every row keeps its number in the file.
+  const sourceRows = grid
+    .map((row, index) => ({ row, sourceRowNumber: firstRowNumber + index }))
+    .slice(dataStart)
+    .filter(({ row }) => !blankRow(row))
   if (sourceRows.length > IMPORT_ENGINEERING_LIMITS.maxRows) {
     reject('ROW_LIMIT', 'The file has too many rows.')
   }
   if (sourceRows.length * headers.length > IMPORT_ENGINEERING_LIMITS.maxCells) {
     reject('CELL_LIMIT', 'The file has too many cells.')
   }
-  const rows: ParsedImportRow[] = sourceRows.map((source, rowIndex) => {
+  const rows: ParsedImportRow[] = sourceRows.map(({ row, sourceRowNumber }) => {
+    const source = Array.isArray(row) ? row.slice(0, width) : row
     if (!Array.isArray(source) || source.length > headers.length) {
-      reject(
-        'ROW_WIDTH_INVALID',
-        `Source row ${rowIndex + firstDataRow} has an unexpected column count.`,
-      )
+      reject('ROW_WIDTH_INVALID', `Source row ${sourceRowNumber} has an unexpected column count.`)
     }
     const values = Object.create(null) as Record<string, CellValue>
     sourceColumns.forEach((column, columnOffset) => {
       const value = source[columnOffset] ?? null
       if (!['string', 'number', 'boolean'].includes(typeof value) && value !== null) {
-        reject(
-          'CELL_TYPE_INVALID',
-          `Source row ${rowIndex + firstDataRow} contains an unsupported cell.`,
-        )
+        reject('CELL_TYPE_INVALID', `Source row ${sourceRowNumber} contains an unsupported cell.`)
       }
       if (typeof value === 'string') {
         if (value.length > IMPORT_ENGINEERING_LIMITS.maxCellCharacters) {
-          reject(
-            'CELL_LENGTH_LIMIT',
-            `Source row ${rowIndex + firstDataRow} contains an oversized cell.`,
-          )
+          reject('CELL_LENGTH_LIMIT', `Source row ${sourceRowNumber} contains an oversized cell.`)
         }
       }
       values[column.key] = value as CellValue
     })
-    return { sourceRowNumber: rowIndex + firstDataRow, values }
+    return { sourceRowNumber, values }
   })
-  return { rows, sourceColumns }
+  return { rows, sourceColumns, headerRowNumber: firstRowNumber + headerIndex, filledMerges }
 }

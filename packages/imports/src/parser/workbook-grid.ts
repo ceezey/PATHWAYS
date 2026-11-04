@@ -1,9 +1,14 @@
+import type { MatrixMerge } from './header-row'
+
 export interface WorkbookGrid {
   matrix: unknown[][]
   sheetNames: string[]
   formulaGap?: string
   links: boolean
   macros: boolean
+  // The 1-based sheet row of matrix[0].
+  firstRowNumber: number
+  merges: MatrixMerge[]
   // The shown text of each date cell converted to ISO, keyed "<matrixRow>:<matrixColumn>".
   dateText: Record<string, string>
 }
@@ -69,8 +74,11 @@ export function workbookGrid(
   // The date format is dropped from every cell, text included, so sheet_to_json does not build Date objects.
   const date1904 = Boolean(workbook.Workbook?.WBProps?.date1904)
   const firstSheet = first ? workbook.Sheets[first] : null
-  // Shown text of each converted cell, by its sheet row and column until the matrix rows are known.
-  const shown: Array<[number, number, string]> = []
+  // sheet_to_json starts at the range's first row and column and keeps blank rows, so a matrix position is a range offset.
+  const range = firstSheet?.['!ref'] ? XLSX.utils.decode_range(firstSheet['!ref']) : null
+  const startRow = range ? range.s.r : 0
+  const startColumn = range ? range.s.c : 0
+  const dateText: Record<string, string> = {}
   for (const key of Object.keys(firstSheet || {})) {
     if (key.startsWith('!')) continue
     const cell = (firstSheet as import('xlsx').WorkSheet)[key]
@@ -84,7 +92,7 @@ export function workbookGrid(
       cell.v = iso
       if (wantDateText && typeof cell.w === 'string') {
         const at = XLSX.utils.decode_cell(key)
-        shown.push([at.r, at.c, cell.w])
+        dateText[`${at.r - startRow}:${at.c - startColumn}`] = cell.w
       }
     }
   }
@@ -92,44 +100,24 @@ export function workbookGrid(
     ? XLSX.utils.sheet_to_json(firstSheet, {
         header: 1,
         defval: null,
-        blankrows: false,
+        blankrows: true,
         raw: true,
       })
     : []
-  // sheet_to_json drops blank rows and starts at the range's first column, so re-key by matrix position.
-  // A row is kept exactly when a cell in range holds a string, boolean or number value.
-  const dateText: Record<string, string> = {}
-  if (shown.length > 0 && firstSheet?.['!ref']) {
-    const range = XLSX.utils.decode_range(firstSheet['!ref'])
-    const kept: Record<number, boolean> = {}
-    for (const key of Object.keys(firstSheet)) {
-      if (key.startsWith('!')) continue
-      const cell = firstSheet[key]
-      if (!cell || cell.v == null || !'sbnd'.includes(cell.t)) continue
-      const at = XLSX.utils.decode_cell(key)
-      if (at.r >= range.s.r && at.r <= range.e.r && at.c >= range.s.c && at.c <= range.e.c) {
-        kept[at.r] = true
-      }
-    }
-    const sheetRows = Object.keys(kept)
-      .map(Number)
-      .sort((a, b) => a - b)
-    if (sheetRows.length === matrix.length) {
-      const rank: Record<number, number> = {}
-      sheetRows.forEach((sheetRow, index) => {
-        rank[sheetRow] = index
-      })
-      for (const [r, c, text] of shown) {
-        if (rank[r] !== undefined) dateText[`${rank[r]}:${c - range.s.c}`] = text
-      }
-    }
-  }
+  const merges = (firstSheet?.['!merges'] || []).map((merge) => ({
+    firstRow: merge.s.r - startRow,
+    lastRow: merge.e.r - startRow,
+    firstColumn: merge.s.c - startColumn,
+    lastColumn: merge.e.c - startColumn,
+  }))
   return {
     matrix,
     sheetNames: workbook.SheetNames,
     formulaGap,
     links,
     macros: Boolean(workbook.vbaraw),
+    firstRowNumber: startRow + 1,
+    merges,
     dateText,
   }
 }

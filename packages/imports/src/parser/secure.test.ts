@@ -112,6 +112,8 @@ describe('secure import parser', () => {
       ],
       sheetNames: [],
       csvEncoding: 'UTF-8',
+      headerRowNumber: 1,
+      filledMerges: [],
     })
   })
 
@@ -267,6 +269,44 @@ describe('secure import parser', () => {
       column_0002: 'x',
       column_0003: 'A',
     })
+  })
+
+  it('reads a CSV header below a title and a blank row, numbering rows as in the file', async () => {
+    const parsed = await parseSecureImport(
+      Buffer.from('Beneficiary Masterlist 2026\n\nName,Sex,Age\nAna,F,30\n\nBen,M,41\n'),
+      'CSV',
+    )
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['Name', 'Sex', 'Age'])
+    expect(parsed.headerRowNumber).toBe(3)
+    expect(parsed.rows.map((row) => row.sourceRowNumber)).toEqual([4, 6])
+    expect(parsed.filledMerges).toEqual([])
+  })
+
+  it('fills a merged workbook data cell down its rows and never copies a merged title', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer(
+        [
+          ['Masterlist', null, null],
+          ['Name', 'Brgy', 'Age'],
+          ['Ana', 'San Jose', 30],
+          ['Ben', null, 41],
+        ],
+        'xlsx',
+        (sheet) => {
+          sheet['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+            { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
+          ]
+        },
+      ),
+      'XLSX',
+    )
+    expect(parsed.headerRowNumber).toBe(2)
+    expect(parsed.rows.map((row) => [row.sourceRowNumber, row.values.column_0002])).toEqual([
+      [3, 'San Jose'],
+      [4, 'San Jose'],
+    ])
+    expect(parsed.filledMerges).toEqual([{ columnIndex: 2, firstRowNumber: 3, lastRowNumber: 4 }])
   })
 
   it('reads a code row above a label row', async () => {
