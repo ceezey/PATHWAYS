@@ -1,4 +1,4 @@
-import { smartMatchColumnsV3 } from '../mappers/smart-match'
+import { smartMatchColumnsV4 } from '../mappers/smart-match'
 import { type DraftColumn, type DraftField, draftFormFromImport } from './draft-form'
 
 export type Spec = [string, string, DraftField['dataType'], boolean, boolean, boolean, string[]?]
@@ -101,7 +101,7 @@ export function draft(
   fields: readonly DraftField[] = REGISTRATION,
   formType: 'BENEFICIARY_REGISTRATION' | 'OTHER' = 'BENEFICIARY_REGISTRATION',
 ) {
-  const decisions = smartMatchColumnsV3(
+  const decisions = smartMatchColumnsV4(
     columns.map((column) => ({
       key: column.key,
       columnIndex: column.columnIndex,

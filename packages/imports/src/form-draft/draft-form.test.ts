@@ -685,6 +685,14 @@ describe('draftFormFromImport rules', () => {
       expect(result.summary.addedFields).toHaveLength(1)
     })
 
+    it('keeps "Kasarian ng magulang" out of sex and offers plain "Kasarian" only as a suggestion', () => {
+      const parent = draft([columnOf('Kasarian ng magulang', answers, 1)])
+      expect(sources(parent, 'sex')).toBeUndefined()
+      expect(parent.summary.addedFields).toHaveLength(1)
+      const own = draft([columnOf('Kasarian', answers, 1)])
+      expect(sources(own, 'sex')).toEqual(['Kasarian'])
+    })
+
     it.each([
       'Gender - YEE',
       'Student Gender',

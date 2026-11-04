@@ -4,15 +4,18 @@ import { importCoverage } from './coverage'
 import {
   AUTO_SMART_V2_LIMITS,
   AUTO_SMART_V3,
+  AUTO_SMART_V4,
   SMART_DECISION_REASONS,
   SMART_MATCH_REASONS,
   type SmartMatchColumn,
   type SmartMatchField,
   SmartMatchInputError,
   boundedEditDistance,
+  groupPathLeaf,
   normalizeMappingNameV1,
   smartMatchColumns,
   smartMatchColumnsV3,
+  smartMatchColumnsV4,
 } from './smart-match'
 
 const text = (id: string, code: string, label: string): SmartMatchField => ({
@@ -490,5 +493,123 @@ describe('AUTO_SMART_V3', () => {
     const aliased = { ...sex, valueAliases: [{ from: 'Lalaki', to: 'MALE' }] }
     expect(oneV3('Sex', ['Lalaki', 'Lalaki'], [aliased]).status).toBe('MAPPED')
     expect(oneV3('Sex', ['Lalaki', 'Lalaki'], [sex]).reason).toBe('HELD_VALUE_GATE')
+  })
+})
+
+describe('AUTO_SMART_V4', () => {
+  const fields: SmartMatchField[] = [
+    ...registration,
+    text('f-name', 'display_name', 'Display name'),
+    text('f-city', 'location_city_municipality', 'City or municipality'),
+    text('f-donor', 'donor', 'Donor'),
+  ]
+  const oneV4 = (header: string, samples: unknown[] = ['x'], list = fields) =>
+    smartMatchColumnsV4([column(1, header, samples)], list)[0]
+  const oneV3 = (header: string, samples: unknown[] = ['x']) =>
+    smartMatchColumnsV3([column(1, header, samples)], fields)[0]
+
+  it('names the algorithm', () => {
+    expect(AUTO_SMART_V4).toBe('AUTO_SMART_V4')
+  })
+
+  it.each([
+    ['Pangalan', 'f-name', ['Ana Cruz']],
+    ['Petsa ng Kapanganakan', 'f-birth', ['2001-02-03']],
+    ['Bayan', 'f-city', ['Borongan']],
+    ['Edad', 'f-age', ['12']],
+  ])('maps the Filipino header %s under V4 only', (header, id, samples) => {
+    expect(oneV4(header, samples)).toMatchObject({
+      status: 'MAPPED',
+      targetFieldId: id,
+      matchReason: 'SYNONYM',
+      reason: 'AUTO_MATCH',
+    })
+    expect(oneV3(header, samples).status).toBe('PENDING')
+  })
+
+  it('only ever suggests Kasarian, for sex and for gender', () => {
+    expect(oneV4('Kasarian', ['MALE', 'FEMALE'])).toMatchObject({
+      status: 'PENDING',
+      targetFieldId: null,
+      suggestedFieldId: 'f-sex',
+      matchReason: 'SYNONYM_REVIEW',
+      reason: 'SUGGESTED',
+    })
+    const gender = [text('f-gender', 'gender', 'Gender identity')]
+    expect(oneV4('Kasarian', ['x'], gender)).toMatchObject({
+      status: 'PENDING',
+      suggestedFieldId: 'f-gender',
+    })
+  })
+
+  it('does not map or suggest a header that names another person', () => {
+    expect(oneV4('Kasarian ng magulang', ['MALE', 'FEMALE'])).toMatchObject({
+      status: 'PENDING',
+      targetFieldId: null,
+      suggestedFieldId: null,
+    })
+  })
+
+  it('reads the leaf of a group path with no spaces', () => {
+    for (const header of ['personal_info/sex', 'personal_info-sex', 'a/b.c/sex']) {
+      expect(oneV4(header, ['MALE', 'FEMALE'])).toMatchObject({
+        status: 'MAPPED',
+        targetFieldId: 'f-sex',
+        reason: 'AUTO_MATCH',
+      })
+    }
+    expect(oneV3('personal_info/sex', ['MALE']).status).toBe('PENDING')
+  })
+
+  it('leaves headers with spaces whole, as under V3', () => {
+    for (const header of [
+      'Project Donor/Name',
+      'Student ID/Barangay Certificate No',
+      'Gender - YEE',
+    ]) {
+      expect(oneV4(header, ['MALE'])).toEqual(oneV3(header, ['MALE']))
+    }
+    expect(oneV4('Project Donor/Name').targetFieldId).not.toBe('f-name')
+  })
+
+  it('keeps the whole-header match of a hyphenated name', () => {
+    expect(oneV4('first-name', ['Ana'])).toMatchObject({
+      targetFieldId: 'f-first',
+      matchReason: 'EXACT',
+    })
+    expect(oneV4('date-of-birth', ['2001-02-03'])).toMatchObject({
+      targetFieldId: 'f-birth',
+      matchReason: 'SYNONYM',
+    })
+  })
+
+  it('ignores submission system columns but not time columns', () => {
+    for (const header of ['_uuid', 'meta-instanceID', 'KEY', '_id', '__version__']) {
+      expect(oneV4(header, ['abc'])).toEqual({
+        sourceKey: 'column_0001',
+        columnIndex: 1,
+        status: 'IGNORED',
+        targetFieldId: null,
+        suggestedFieldId: null,
+        score: null,
+        matchReason: null,
+        reason: 'SYSTEM_COLUMN',
+      })
+    }
+    expect(oneV4('_submission_time', ['2026-01-01']).status).toBe('PENDING')
+    expect(oneV4('Timestamp', ['2026-01-01']).status).toBe('PENDING')
+    expect(oneV3('_uuid', ['abc']).status).toBe('PENDING')
+  })
+
+  it('splits only clean group paths', () => {
+    expect(groupPathLeaf('a/b')).toBe('b')
+    expect(groupPathLeaf('a-b')).toBe('b')
+    for (const header of ['plain', 'a /b', 'a/', '/b', '1a/b', 'a/b c', 'a/b$']) {
+      expect(groupPathLeaf(header)).toBeNull()
+    }
+  })
+
+  it('keeps V3 output unchanged for Filipino synonyms', () => {
+    expect(oneV3('Kasarian', ['MALE']).suggestedFieldId).toBeNull()
   })
 })

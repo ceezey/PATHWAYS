@@ -17,7 +17,12 @@ export const AUTO_SMART_V2 = 'AUTO_SMART_V2' as const
 /** AUTO_SMART_V3: V2 plus the metadata source-name tier, blank columns and calculated-field exclusion. */
 export const AUTO_SMART_V3 = 'AUTO_SMART_V3' as const
 
+/** AUTO_SMART_V4: V3 plus Filipino synonyms, Kobo/ODK group-path leaves and submission system columns. */
+export const AUTO_SMART_V4 = 'AUTO_SMART_V4' as const
+
 export const SMART_SYNONYMS_V2_ID = 'SMART_SYNONYMS_V2' as const
+
+export const SMART_SYNONYMS_V3_ID = 'SMART_SYNONYMS_V3' as const
 
 export const AUTO_SMART_V2_LIMITS = Object.freeze({
   autoMapScore: 90,
@@ -70,6 +75,7 @@ export const SMART_DECISION_REASONS = [
   'NO_MATCH',
   'EMPTY_NAME',
   'BLANK_COLUMN',
+  'SYSTEM_COLUMN',
 ] as const
 
 export type SmartDecisionReason = (typeof SMART_DECISION_REASONS)[number]
@@ -118,6 +124,53 @@ export const SMART_REVIEW_SYNONYMS_V2: Readonly<Record<string, readonly string[]
   sex: ['gender'],
   gender: ['sex'],
 })
+
+/** V2 plus the Filipino names (cr-pathways-any-source-import); a synonym change needs a new algorithm ID. */
+export const SMART_SYNONYMS_V3: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  ...SMART_SYNONYMS_V2,
+  first_name: [...SMART_SYNONYMS_V2.first_name, 'unang pangalan'],
+  middle_name: [...SMART_SYNONYMS_V2.middle_name, 'gitnang pangalan'],
+  last_name: [...SMART_SYNONYMS_V2.last_name, 'apelyido', 'apelido'],
+  display_name: [...SMART_SYNONYMS_V2.display_name, 'pangalan', 'buong pangalan'],
+  birth_date: [
+    ...SMART_SYNONYMS_V2.birth_date,
+    'petsa ng kapanganakan',
+    'kaarawan',
+    'araw ng kapanganakan',
+  ],
+  age_at_registration: [...SMART_SYNONYMS_V2.age_at_registration, 'edad', 'gulang'],
+  location_city_municipality: [
+    ...SMART_SYNONYMS_V2.location_city_municipality,
+    'bayan',
+    'munisipyo',
+    'lungsod',
+  ],
+  location_province: [...SMART_SYNONYMS_V2.location_province, 'lalawigan', 'probinsya'],
+  disability_status: [...SMART_SYNONYMS_V2.disability_status, 'may kapansanan', 'kapansanan'],
+})
+
+/** V2 plus Kasarian, which means both sex and gender, so it is only ever suggested. */
+export const SMART_REVIEW_SYNONYMS_V3: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  sex: [...SMART_REVIEW_SYNONYMS_V2.sex, 'kasarian'],
+  gender: [...SMART_REVIEW_SYNONYMS_V2.gender, 'kasarian'],
+})
+
+/** Submission bookkeeping columns of Kobo and ODK exports, compared after the V1 normalizer; time columns are real data. */
+export const SYSTEM_COLUMNS_V1: ReadonlySet<string> = new Set([
+  '_id',
+  '_uuid',
+  '_index',
+  '_validation_status',
+  '_status',
+  '_submitted_by',
+  '_tags',
+  '_notes',
+  '__version__',
+  'meta-instanceid',
+  'meta_instanceid',
+  'key',
+  'instanceid',
+])
 
 /** Fixed stop words removed before the token-set comparison. */
 export const STOP_WORDS: ReadonlySet<string> = new Set([
