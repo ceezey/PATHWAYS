@@ -56,6 +56,10 @@ const data = {
   myActivities: null,
   flaggedProof: null,
   guardianApprovals: null,
+  formDrafts: null,
+  publicationQueue: null,
+  importAttention: null,
+  ruleDrafts: null,
   recentSubmissions: null,
   submittedThisMonth: null,
   proofQueue: null,
@@ -141,6 +145,7 @@ describe('RoleOverviewDashboard wiring', () => {
     ['Project Manager', 'Management counts'],
     ['Program Manager', 'Portfolio counts'],
     ['Grant Manager', 'Portfolio counts'],
+    ['System Administrator', 'Administration counts'],
   ] as const)('renders only the %s layout', (role, label) => {
     show(role)
 
@@ -149,6 +154,7 @@ describe('RoleOverviewDashboard wiring', () => {
       'Monitoring counts',
       'Management counts',
       'Portfolio counts',
+      'Administration counts',
     ]
     expect(labels.filter((name) => screen.queryByLabelText(name))).toEqual([label])
   })

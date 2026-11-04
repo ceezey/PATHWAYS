@@ -10,6 +10,7 @@ import type { PathwaysRole } from '@/types/pathways-role'
 
 import { PinnedCharts } from '../components/pinned-charts'
 import { useDashboardActionCounts } from '../dashboard.reads'
+import { AdminOverview } from './admin-overview'
 import { ManagerOverview } from './manager-overview'
 import { MeOverview } from './me-overview'
 import { OfficerOverview } from './officer-overview'
@@ -18,7 +19,7 @@ import { useProjectMetrics } from './project-metrics-reads'
 import { useProjectExtras } from './use-project-extras'
 import { useRoleOverview } from './use-role-overview'
 
-/** Picks the Figma layout for the viewer role; System Administrator never reaches this. */
+/** Picks the Figma layout for the viewer role. */
 export const RoleOverviewDashboard = ({
   role,
   fullName,
@@ -68,6 +69,9 @@ export const RoleOverviewDashboard = ({
   return (
     <>
       {reads}
+      {role === 'System Administrator' ? (
+        <AdminOverview data={data} fullName={fullName} onOpen={open} />
+      ) : null}
       {role === 'Project Officer' ? (
         <OfficerOverview data={data} fullName={fullName} onOpenActivity={open} />
       ) : null}
