@@ -118,6 +118,15 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(find(result, 'disability_status')?.valueAliases).toBeUndefined()
   })
 
+  it('does not list disability status as unfed when its own Washington Group rule computes it', () => {
+    const result = withColumn(COLUMN.flag, (values) => values.map((value) => (value ? 1 : 0)))
+    expect(wgRule(result).questionFields).toHaveLength(6)
+    expect(result.summary.needsCheck).not.toContainEqual({
+      fieldCode: 'disability_status',
+      reason: 'SADDD_NO_COLUMN',
+    })
+  })
+
   describe('a row with all six Washington Group answers blank and a filled flag', () => {
     const blankFirstRow = (flagHeader: string) => {
       const columns = fixtureColumns()

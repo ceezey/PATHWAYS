@@ -1,3 +1,5 @@
+import { type FieldIntakeRule, isCalculatedRule, ruleFieldCodes } from '@pathways/shared'
+
 // The breakdown fields reports count by, each group fed by any one of its codes.
 export const SADDD_GROUPS = [['sex'], ['birth_date', 'age_at_registration'], ['disability_status']]
 
@@ -18,4 +20,20 @@ export function unfedSadddFields(
       },
     ]
   })
+}
+
+/** The mapped codes plus each field a calculated rule fills from them; a Washington Group rule needs one question, as its calculation does. */
+export function fedCodes(
+  fields: readonly { code: string; rule?: FieldIntakeRule | null }[],
+  mapped: Iterable<string>,
+): Set<string> {
+  const fed = new Set(mapped)
+  const has = (code: string) => fed.has(code)
+  for (const { code, rule } of fields) {
+    if (!rule || !isCalculatedRule(rule)) continue
+    const inputs = ruleFieldCodes(rule)
+    if (rule.kind === 'WASHINGTON_GROUP_DISABILITY' ? inputs.some(has) : inputs.every(has))
+      fed.add(code)
+  }
+  return fed
 }

@@ -19,7 +19,7 @@ import {
 import { type DateHelp, dateHelp } from './date-help'
 import { consentHeld, dateOrderChoices, fixedOnce } from './held-rules'
 import type { ReadImportFile } from './read-import-file'
-import { unfedSadddFields } from './saddd-columns'
+import { fedCodes, unfedSadddFields } from './saddd-columns'
 
 /** A published form field as the check needs it. */
 export type CheckField = IntakeField & { id: string; metadataKey: boolean; required: boolean }
@@ -399,7 +399,7 @@ export function checkImportFile(input: {
   const notes: FileCheckNote[] = readingNotes(file)
   for (const { fieldCode, suggestedHeader } of unfedSadddFields(
     new Set(fieldByCode.keys()),
-    fed,
+    fedCodes(fields, fed),
     suggestions,
   )) {
     const label = fieldByCode.get(fieldCode)?.label ?? fieldCode

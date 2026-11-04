@@ -7,7 +7,7 @@ import {
   valueMapText,
 } from '@pathways/shared'
 import { answerResolver, comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
-import { unfedSadddFields } from '../check/saddd-columns'
+import { fedCodes, unfedSadddFields } from '../check/saddd-columns'
 import {
   SMART_REVIEW_SYNONYMS_V2,
   type SmartMatchDecision,
@@ -588,7 +588,7 @@ export function draftFormFromImport(input: {
   // Listed only on a draft that already changes something, so it never decides NOTHING_TO_ADD.
   for (const { fieldCode } of unfedSadddFields(
     new Set(byCode.keys()),
-    new Set(mapping.values()),
+    fedCodes(drafted, mapping.values()),
     new Map(),
   ))
     flag(fieldCode, 'SADDD_NO_COLUMN')

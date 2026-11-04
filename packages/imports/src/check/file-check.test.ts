@@ -521,6 +521,39 @@ describe('checkImportFile notes on breakdown fields with no column', () => {
     ])
   })
 
+  it('counts a disability status the Washington Group questions compute as fed', () => {
+    const questions = ['seeing', 'hearing', 'walking', 'remembering', 'self_care', 'talking'].map(
+      (code) =>
+        field(`wg_${code}`, `Difficulty ${code}`, 'SELECT', {
+          allowedValues: ['No difficulty', 'Some difficulty', 'A lot of difficulty'],
+        }),
+    )
+    const computed = field('disability_status', 'Disability status', 'SELECT', {
+      allowedValues: ['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'],
+      rule: {
+        kind: 'WASHINGTON_GROUP_DISABILITY',
+        questionFields: questions.map((question) => question.code),
+        disabilityValues: ['A lot of difficulty'],
+      },
+    })
+    const report = check(
+      [questions.map((question) => question.label), questions.map(() => 'No difficulty')],
+      [...questions, computed],
+    )
+    expect(report.notes).toEqual([])
+  })
+
+  it('counts a column with only blank cells as feeding nothing, as the draft does', () => {
+    const report = check(
+      [
+        ['Pangalan', 'Sex'],
+        ['Ana', ''],
+      ],
+      [displayName, sex],
+    )
+    expect(report.notes.map((note) => note.fieldCode)).toEqual(['sex'])
+  })
+
   it('gives no note when all three groups have a column', () => {
     const report = check(
       [
