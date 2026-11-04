@@ -6,7 +6,8 @@
 BEGIN;
 
 DO $$ BEGIN
- IF current_database() !~ '^pathways_phase(2|4)_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) THEN
+ IF current_database() !~ '^pathways_phase(2|4)_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
+ OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet THEN
   RAISE EXCEPTION 'Smart mapping V4 checks require a disposable local database'; END IF;
 END $$;
 
