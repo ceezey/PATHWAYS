@@ -309,6 +309,20 @@ describe('secure import parser', () => {
     expect(parsed.filledMerges).toEqual([{ columnIndex: 2, firstRowNumber: 3, lastRowNumber: 4 }])
   })
 
+  it('refuses a workbook of overlapping data merges with CELL_LIMIT', async () => {
+    const rows = [
+      ['Name', 'Brgy'],
+      ...Array.from({ length: 2_000 }, (_, index) => [`P${index}`, 'X']),
+    ]
+    const buffer = workbookBuffer(rows, 'xlsx', (sheet) => {
+      sheet['!merges'] = Array.from({ length: 2_000 }, () => ({
+        s: { r: 1, c: 1 },
+        e: { r: 2_000, c: 1 },
+      }))
+    })
+    await expectCode(parseSecureImport(buffer, 'XLSX'), 'CELL_LIMIT')
+  })
+
   it('reads a code row above a label row', async () => {
     const parsed = await parseSecureImport(
       workbookBuffer([

@@ -231,6 +231,78 @@ describe('normalizeMatrix', () => {
     expect(matrix[2]?.[1]).toBeNull()
   })
 
+  it('fills a value once when merges repeat or overlap', () => {
+    const repeated = Array.from({ length: 3_000 }, () => ({
+      firstRow: 1,
+      lastRow: 2,
+      firstColumn: 1,
+      lastColumn: 1,
+    }))
+    const parsed = normalizeMatrix(
+      [
+        ['Name', 'Brgy'],
+        ['Ana', 'San Jose'],
+        ['Ben', null],
+        ['Cai', null],
+        ['Dan', null],
+      ],
+      { merges: [...repeated, { firstRow: 2, lastRow: 4, firstColumn: 1, lastColumn: 1 }] },
+    )
+    expect(parsed.rows.map((row) => row.values.column_0002)).toEqual([
+      'San Jose',
+      'San Jose',
+      null,
+      null,
+    ])
+    expect(parsed.filledMerges).toEqual([{ columnIndex: 2, firstRowNumber: 2, lastRowNumber: 3 }])
+  })
+
+  it('refuses overlapping merges over a tall sheet quickly', () => {
+    const matrix = [
+      ['Name', 'Brgy'],
+      ...Array.from({ length: 5_000 }, (_, index) => [`P${index}`, 'X']),
+    ]
+    const merges = Array.from({ length: 3_000 }, () => ({
+      firstRow: 1,
+      lastRow: 5_000,
+      firstColumn: 1,
+      lastColumn: 1,
+    }))
+    const started = performance.now()
+    expect(() => normalizeMatrix(matrix, { merges })).toThrow(
+      expect.objectContaining({ code: 'CELL_LIMIT' }),
+    )
+    expect(performance.now() - started).toBeLessThan(1_000)
+  })
+
+  it('refuses more data rows than the limit before filling any merge', () => {
+    const matrix = [
+      ['Name', 'Brgy'],
+      ...Array.from({ length: 5_001 }, (_, index) => [`P${index}`, 'X']),
+    ]
+    const merges = Array.from({ length: 300 }, () => ({
+      firstRow: 1,
+      lastRow: 5_001,
+      firstColumn: 1,
+      lastColumn: 1,
+    }))
+    expect(() => normalizeMatrix(matrix, { merges })).toThrow(
+      expect.objectContaining({ code: 'ROW_LIMIT' }),
+    )
+  })
+
+  it('refuses a file with more merges than the cell limit', () =>
+    expect(() =>
+      normalizeMatrix([['Name'], ['Ana']], {
+        merges: Array.from({ length: 250_001 }, () => ({
+          firstRow: 0,
+          lastRow: 0,
+          firstColumn: 0,
+          lastColumn: 0,
+        })),
+      }),
+    ).toThrow(expect.objectContaining({ code: 'CELL_LIMIT' })))
+
   it('refuses a file of blank rows as empty', () =>
     expect(() => normalizeMatrix([[''], [null, '  ']])).toThrow(
       expect.objectContaining({ code: 'FILE_EMPTY' }),

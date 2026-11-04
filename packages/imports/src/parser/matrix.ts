@@ -60,6 +60,10 @@ export function normalizeMatrix(
   if (!Array.isArray(matrix) || matrix.every(blankRow)) {
     reject('FILE_EMPTY', 'The file does not contain a header row.')
   }
+  // Every merge costs work, so more merges than the cell limit refuse the file before any is read.
+  if (merges.length > IMPORT_ENGINEERING_LIMITS.maxCells) {
+    reject('CELL_LIMIT', 'The file has too many cells.')
+  }
   const headerIndex = findHeaderRow(matrix, merges)
   const header = matrix[headerIndex]
   const below = matrix[headerIndex + 1]
@@ -71,21 +75,46 @@ export function normalizeMatrix(
   const firstRow = coded
     ? codeRow.map((code, index) => (blank(labelRow[index]) ? code : labelRow[index]))
     : codeRow
+  // Blank rows are not imported, and filling a merge never makes a blank row hold a value.
+  const blankRows = matrix.map(blankRow)
+  const dataRows: number[] = []
+  for (let index = dataStart; index < matrix.length; index += 1) {
+    if (!blankRows[index]) dataRows.push(index)
+  }
+  if (dataRows.length > IMPORT_ENGINEERING_LIMITS.maxRows) {
+    reject('ROW_LIMIT', 'The file has too many rows.')
+  }
   // A merged data cell is copied down its first column; merges at or above the header are never copied.
   const grid = matrix.slice()
   const filledMerges: FilledMerge[] = []
+  const covered = new Set<number>()
+  let spans = 0
   for (const merge of merges) {
     const top = grid[merge.firstRow]
     const value = Array.isArray(top) ? top[merge.firstColumn] : null
     const lastRow = Math.min(merge.lastRow, grid.length - 1)
     if (merge.firstRow < dataStart || merge.firstColumn < 0 || lastRow <= merge.firstRow) continue
     if (blank(value)) continue
+    // The rows every merge spans are counted before they are read, so repeated merges cannot multiply the work.
+    spans += lastRow - merge.firstRow + 1
+    if (spans > IMPORT_ENGINEERING_LIMITS.maxCells) {
+      reject('CELL_LIMIT', 'The file has too many cells.')
+    }
+    // A merge overlapping one already filled is dropped, as a spreadsheet never saves overlapping merges.
+    const cell = (index: number) => index * 65_536 + merge.firstColumn
+    let overlaps = false
+    for (let index = merge.firstRow; index <= lastRow && !overlaps; index += 1) {
+      overlaps = covered.has(cell(index))
+    }
+    if (overlaps) continue
     // Rows holding the value, the top-left first; a row blank in the file is never filled, so it stays unimported.
     const holding = [merge.firstRow]
+    covered.add(cell(merge.firstRow))
     for (let index = merge.firstRow + 1; index <= lastRow; index += 1) {
       const cells = grid[index]
-      if (!Array.isArray(cells) || blankRow(matrix[index])) continue
-      grid[index] = cells.slice()
+      covered.add(cell(index))
+      if (!Array.isArray(cells) || blankRows[index]) continue
+      if (cells === matrix[index]) grid[index] = cells.slice()
       grid[index][merge.firstColumn] = value
       holding.push(index)
     }
@@ -139,18 +168,13 @@ export function normalizeMatrix(
     columnIndex: index + 1,
     ...(coded && !blank(codeRow[index]) ? { sourceCode: String(codeRow[index]).trim() } : {}),
   }))
-  // Blank rows are not imported, and every row keeps its number in the file.
-  const sourceRows = grid
-    .map((row, index) => ({ row, sourceRowNumber: firstRowNumber + index }))
-    .slice(dataStart)
-    .filter(({ row }) => !blankRow(row))
-  if (sourceRows.length > IMPORT_ENGINEERING_LIMITS.maxRows) {
-    reject('ROW_LIMIT', 'The file has too many rows.')
-  }
-  if (sourceRows.length * headers.length > IMPORT_ENGINEERING_LIMITS.maxCells) {
+  if (dataRows.length * headers.length > IMPORT_ENGINEERING_LIMITS.maxCells) {
     reject('CELL_LIMIT', 'The file has too many cells.')
   }
-  const rows: ParsedImportRow[] = sourceRows.map(({ row, sourceRowNumber }) => {
+  // Every row keeps its number in the file.
+  const rows: ParsedImportRow[] = dataRows.map((index) => {
+    const row = grid[index]
+    const sourceRowNumber = firstRowNumber + index
     const source = Array.isArray(row) ? row.slice(0, width) : row
     if (!Array.isArray(source) || source.length > headers.length) {
       reject('ROW_WIDTH_INVALID', `Source row ${sourceRowNumber} has an unexpected column count.`)
