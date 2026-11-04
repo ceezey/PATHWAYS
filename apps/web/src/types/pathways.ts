@@ -1,4 +1,3 @@
-import type { StatusTone } from '@/lib/format/tone'
 import type { PathwaysRole } from '@/types/pathways-role'
 import type {
   ActivityCapabilitiesResponse,
@@ -33,8 +32,6 @@ type BeneficiaryEnrollmentStatus =
   | 'Completed'
   | 'Exited'
   | 'Not recorded'
-export type DashboardSeverity = StatusTone
-export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 /** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
 export interface ProjectTeamMember {
@@ -773,91 +770,6 @@ export interface BeneficiaryFilters {
   ageBand?: '0-9' | '10-14' | '15-17' | '18-24' | '25+' | 'Unknown'
   disabilityStatus?: 'WITH_DISABILITY' | 'WITHOUT_DISABILITY' | 'NOT_SPECIFIED'
   enrollmentStatus?: 'ACTIVE' | 'COMPLETED' | 'EXITED'
-}
-
-export interface DashboardMetric {
-  id: string
-  label: string
-  value: string | number
-  helperText: string
-  severity?: DashboardSeverity
-  href?: string
-}
-
-export interface DashboardAction {
-  id: string
-  label: string
-  kind: DashboardActionKind
-  href?: string
-  dialogTitle?: string
-  dialogDescription?: string
-  toastTitle?: string
-  toastDescription?: string
-}
-
-export interface DashboardItem {
-  id: string
-  title: string
-  description: string
-  meta?: string
-  status?: string
-  severity?: DashboardSeverity
-  progress?: number
-  href?: string
-  primaryAction?: DashboardAction
-  secondaryAction?: DashboardAction
-}
-
-export interface DashboardSection {
-  id: string
-  title: string
-  description?: string
-  emptyText?: string
-  viewAllHref?: string
-  viewAllLabel?: string
-  items: DashboardItem[]
-}
-
-export type ExecutiveDeliveryStatus = 'On Track' | 'At Risk' | 'Behind Schedule'
-export type ExecutiveGoalOutlook =
-  | 'Achievable'
-  | 'Achievable with intervention'
-  | 'Needs recovery plan'
-
-export interface ExecutiveDashboardContext {
-  id: string
-  selectorLabel: string
-  projectId?: string
-  title: string
-  scopeLabel: string
-  deliveryStatus: ExecutiveDeliveryStatus
-  deliverySummary: string
-  goalAchievement: number
-  goalOutlook: ExecutiveGoalOutlook
-  milestonesCompleted: number
-  milestonesTotal: number
-  nextMilestone: string
-  budgetUtilization: number
-  scheduleProgress: number
-  riskLabel: string
-  riskSummary: string
-  riskSeverity: DashboardSeverity
-}
-
-export interface ExecutiveDashboardViewModel {
-  defaultContextId: string
-  contexts: ExecutiveDashboardContext[]
-}
-
-export interface RoleDashboardViewModel {
-  role: PathwaysRole
-  greetingName: string
-  heading: string
-  summary: string
-  primaryAction?: DashboardAction
-  executive?: ExecutiveDashboardViewModel
-  metrics: DashboardMetric[]
-  sections: DashboardSection[]
 }
 
 export interface BeneficiaryRegistrationContext {
