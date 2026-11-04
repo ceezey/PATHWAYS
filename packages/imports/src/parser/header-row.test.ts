@@ -49,6 +49,40 @@ describe('findHeaderRow', () => {
       ),
     ).toBe(1))
 
+  it('skips the group row a CSV keeps of merged group headers above a full header', () =>
+    expect(
+      findHeaderRow(
+        [
+          ['Personal', null, null, 'Address', null, 'Consent', null],
+          ['ID', 'Name', 'Sex', 'Brgy', 'Town', 'Consent', 'Data consent'],
+          ['P-1', 'Ana', 'F', 'X', 'Y', true, true],
+        ],
+        [],
+      ),
+    ).toBe(1))
+
+  it('keeps a header with a blank cell over a full row of text', () =>
+    expect(
+      findHeaderRow(
+        [
+          ['Name', null, 'Brgy', 'Town'],
+          ['Ana', 'Reyes', 'San Jose', 'Bayambang'],
+        ],
+        [],
+      ),
+    ).toBe(0))
+
+  it('keeps a sparse header over a full data row', () =>
+    expect(
+      findHeaderRow(
+        [
+          ['Name', null, null, 'Age', null, 'Sex'],
+          ['Ana', 'Reyes', 'Cruz', '30', 'X', 'F'],
+        ],
+        [],
+      ),
+    ).toBe(0))
+
   it('skips a row holding a merge across half the widest row', () =>
     expect(
       findHeaderRow(
