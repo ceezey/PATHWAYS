@@ -67,7 +67,15 @@ export function readImportFile(
   } else {
     // The server's container limits run before the workbook is unzipped, so a refused container is never read.
     if (fileType === 'XLSX') inspectXlsxContainer(new Uint8Array(input))
-    const grid = workbookGrid(XLSX, input, 'array', sheetName, excelSerialToIsoDate, true)
+    const grid = workbookGrid(
+      XLSX,
+      input,
+      'array',
+      sheetName,
+      excelSerialToIsoDate,
+      true,
+      IMPORT_ENGINEERING_LIMITS.maxCells,
+    )
     // The server refuses a workbook with macros or links, so the check leaves it to the server.
     if (grid.links || grid.macros) {
       throw new ImportParseError(

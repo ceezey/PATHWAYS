@@ -28,6 +28,7 @@ export function workbookGrid(
   toIsoDate: (serial: number, date1904: boolean) => string | null,
   // The server worker discards the shown date text, so only the browser check asks for it.
   wantDateText: boolean,
+  maxCells: number,
 ): WorkbookGrid {
   const workbook = XLSX.read(input, {
     type: readType,
@@ -79,9 +80,16 @@ export function workbookGrid(
   const startRow = range ? range.s.r : 0
   const startColumn = range ? range.s.c : 0
   const dateText: Record<string, string> = {}
+  let lastRow = -1
+  let lastColumn = -1
   for (const key of Object.keys(firstSheet || {})) {
     if (key.startsWith('!')) continue
     const cell = (firstSheet as import('xlsx').WorkSheet)[key]
+    if (cell && (cell.t === 's' || cell.t === 'n' || cell.t === 'b')) {
+      const at = XLSX.utils.decode_cell(key)
+      lastRow = Math.max(lastRow, at.r)
+      lastColumn = Math.max(lastColumn, at.c)
+    }
     if (!cell?.z || !XLSX.SSF.is_date(cell.z)) continue
     // biome-ignore lint/performance/noDelete: the format must be absent, not undefined, as before.
     delete cell.z
@@ -96,14 +104,26 @@ export function workbookGrid(
       }
     }
   }
-  const matrix: unknown[][] = firstSheet
-    ? XLSX.utils.sheet_to_json(firstSheet, {
-        header: 1,
-        defval: null,
-        blankrows: true,
-        raw: true,
-      })
-    : []
+  // The range ends at the last cell holding a value, so formatted empty rows and columns build no matrix.
+  const valued =
+    range && lastRow >= startRow && lastColumn >= startColumn
+      ? {
+          s: range.s,
+          e: { r: Math.min(range.e.r, lastRow), c: Math.min(range.e.c, lastColumn) },
+        }
+      : null
+  // A matrix taller than the cell limit holds more cells than any import may, so it is refused unbuilt.
+  if (valued && valued.e.r - startRow + 1 > maxCells) throw { code: 'ROW_LIMIT' }
+  const matrix: unknown[][] =
+    firstSheet && valued
+      ? XLSX.utils.sheet_to_json(firstSheet, {
+          header: 1,
+          defval: null,
+          blankrows: true,
+          raw: true,
+          range: valued,
+        })
+      : []
   const merges = (firstSheet?.['!merges'] || []).map((merge) => ({
     firstRow: merge.s.r - startRow,
     lastRow: merge.e.r - startRow,

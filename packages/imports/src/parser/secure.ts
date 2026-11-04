@@ -123,7 +123,7 @@ try {
       }
     })().catch(() => parentPort.postMessage({ error: 'PDF_PARSE_FAILED' }));
   } else {
-    const grid = (${workbookGrid.toString()})(require(workerData.xlsxPath), input, 'buffer', workerData.sheetName, excelSerialToIsoDate, false);
+    const grid = (${workbookGrid.toString()})(require(workerData.xlsxPath), input, 'buffer', workerData.sheetName, excelSerialToIsoDate, false, workerData.maxCells);
     parentPort.postMessage({
       matrix: grid.matrix,
       sheetNames: grid.sheetNames,
@@ -135,8 +135,8 @@ try {
     });
   }
 } catch (error) {
-  const missing = error && error.code === 'WORKBOOK_SHEET_MISSING';
-  parentPort.postMessage({ error: missing ? 'WORKBOOK_SHEET_MISSING' : 'PARSER_REJECTED_INPUT' });
+  const known = error && (error.code === 'WORKBOOK_SHEET_MISSING' || error.code === 'ROW_LIMIT');
+  parentPort.postMessage({ error: known ? error.code : 'PARSER_REJECTED_INPUT' });
 }
 `
 
@@ -188,6 +188,7 @@ function runParserWorker(
         unpdfPath: fileType === 'PDF' ? require.resolve('unpdf') : null,
         maxPdfPages: limits.maxPdfPages,
         maxPdfTextItems: limits.maxPdfTextItems,
+        maxCells: limits.maxCells,
         pdfTableLimits: {
           maxPdfTextItems: limits.maxPdfTextItems,
           maxSourceColumns: limits.maxSourceColumns,

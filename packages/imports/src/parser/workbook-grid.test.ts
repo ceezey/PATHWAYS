@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer'
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
+import { IMPORT_ENGINEERING_LIMITS } from '../limits'
 import { excelSerialToIsoDate } from './excel-date'
 import { normalizeMatrix } from './matrix'
 import { parseSecureImport } from './secure'
@@ -17,7 +18,15 @@ function workbookBuffer(rows: unknown[][], mutate?: (sheet: XLSX.WorkSheet) => v
 }
 
 const grid = (buffer: Buffer, sheetName: string | null = null, wantDateText = true) =>
-  workbookGrid(XLSX, buffer, 'buffer', sheetName, excelSerialToIsoDate, wantDateText)
+  workbookGrid(
+    XLSX,
+    buffer,
+    'buffer',
+    sheetName,
+    excelSerialToIsoDate,
+    wantDateText,
+    IMPORT_ENGINEERING_LIMITS.maxCells,
+  )
 
 describe('workbookGrid', () => {
   it('matches the secure parser', async () => {
@@ -115,6 +124,37 @@ describe('workbookGrid', () => {
 
     expect(result.matrix).toEqual([['Date of Birth'], ['2008-08-17']])
     expect(result.dateText).toEqual({})
+  })
+
+  it('reads a sheet dimensioned to the last row and column by its cells only', async () => {
+    // The sheet XML declares the whole sheet, as a file with formatted empty rows and columns does.
+    const files = XLSX.CFB.read(workbookBuffer([['Name'], ['Ana'], ['Ben']]), { type: 'buffer' })
+    const entry = files.FileIndex[files.FullPaths.indexOf('Root Entry/xl/worksheets/sheet1.xml')]
+    entry.content = Buffer.from(
+      String(entry.content).replace(
+        /<dimension ref="[^"]*"\/>/,
+        '<dimension ref="A1:XFD1048576"/>',
+      ),
+    )
+    entry.size = entry.content.length
+    const buffer = Buffer.from(XLSX.CFB.write(files, { type: 'buffer', fileType: 'zip' }))
+    const started = performance.now()
+    const result = grid(buffer)
+    const parsed = await parseSecureImport(buffer, 'XLSX')
+
+    expect(result.matrix).toEqual([['Name'], ['Ana'], ['Ben']])
+    expect(parsed.rows.map((row) => row.sourceRowNumber)).toEqual([2, 3])
+    expect(performance.now() - started).toBeLessThan(2_000)
+  })
+
+  it('refuses values spread over more rows than the cell limit before building the matrix', async () => {
+    const buffer = workbookBuffer([['Name'], ['Ana']], (sheet) => {
+      sheet.A300000 = { t: 's', v: 'Ben' }
+      sheet['!ref'] = 'A1:A300000'
+    })
+
+    expect(() => grid(buffer)).toThrow(expect.objectContaining({ code: 'ROW_LIMIT' }))
+    await expect(parseSecureImport(buffer, 'XLSX')).rejects.toMatchObject({ code: 'ROW_LIMIT' })
   })
 
   it('throws when the chosen sheet is not in the workbook', () => {
