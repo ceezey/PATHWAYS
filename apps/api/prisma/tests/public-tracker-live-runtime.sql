@@ -134,7 +134,7 @@ SELECT pg_temp.ok('publish_moves_live', (SELECT live_revision=2 AND live_publish
 -- A WITHDRAW receipt is refused when this transaction made no withdraw.
 SELECT pg_temp.refused('withdraw_receipt_without_withdraw', pg_temp.receipt_sql(22,41,901,'WITHDRAW'),'23514','same-transaction transition');
 
--- Revision 3 waits for review while revision 2 is live; the caller cannot set live columns or choose media or views itself.
+-- Revision 3 waits for review while revision 2 is live; the caller cannot set live columns, pick unknown media (0086) or choose views.
 SELECT pg_temp.move(21,41,$$revision=3,state='FOR_REVIEW',summary='Summary three'$$);
 SELECT pg_temp.act_as(22);
 SELECT pg_temp.refused('live columns set only by publish', format($s$UPDATE pathways.project_publications SET live_revision=3
@@ -143,7 +143,7 @@ SELECT pg_temp.act_as(21);
 SELECT pg_temp.refused('nonempty_media_or_views_refused_0085 media', format($s$UPDATE pathways.project_publications SET revision=4,
  snapshot=jsonb_build_object('media',jsonb_build_array(jsonb_build_object('id',%L::uuid,'type','PHOTO','contentType','image/png',
  'caption','A photo')),'views','[]'::jsonb) WHERE organization_id=%L AND project_id=%L$s$,pg_temp.u(99),pg_temp.u(1),pg_temp.u(41)),
- '23514','Public media selection');
+ '23514','Media not publishable');
 SELECT pg_temp.refused('nonempty_media_or_views_refused_0085 views', format($s$UPDATE pathways.project_publications SET revision=4,
  snapshot='{"media":[],"views":["kpi"]}' WHERE organization_id=%L AND project_id=%L$s$,pg_temp.u(1),pg_temp.u(41)),
  '23514','Public view selection');
