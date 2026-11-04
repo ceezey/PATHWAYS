@@ -153,10 +153,10 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
   'odk-csv': {
     headerRowNumber: 1,
     fields: MAPPED_WITH_DISABILITY,
-    systemColumns: ['meta-instanceID', 'KEY'],
+    systemColumns: ['meta-instanceID', 'KEY', 'SubmitterID'],
     notes: [],
     problems: ['NO_COLUMN enrollment_date'],
-    draft: ['submissiondate', 'start', 'end', 'submitterid'],
+    draft: ['submissiondate', 'start', 'end'],
     reviewer: [['SubmissionDate', 'enrollment_date']],
     second: {
       birth_date: '1999-04-03',

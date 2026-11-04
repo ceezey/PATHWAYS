@@ -600,7 +600,21 @@ describe('AUTO_SMART_V4', () => {
   })
 
   it('ignores submission system columns but not time columns', () => {
-    for (const header of ['_uuid', 'meta-instanceID', 'KEY', '_id', '__version__']) {
+    for (const header of [
+      '_uuid',
+      'meta-instanceID',
+      'KEY',
+      '_id',
+      '__version__',
+      'SubmitterID',
+      'SubmitterName',
+      'AttachmentsPresent',
+      'AttachmentsExpected',
+      'ReviewState',
+      'DeviceID',
+      'Edits',
+      'FormVersion',
+    ]) {
       expect(oneV4(header, ['abc'])).toEqual({
         sourceKey: 'column_0001',
         columnIndex: 1,
@@ -614,6 +628,7 @@ describe('AUTO_SMART_V4', () => {
     }
     expect(oneV4('_submission_time', ['2026-01-01']).status).toBe('PENDING')
     expect(oneV4('Timestamp', ['2026-01-01']).status).toBe('PENDING')
+    expect(oneV4('Status', ['Active']).status).toBe('PENDING')
     expect(oneV3('_uuid', ['abc']).status).toBe('PENDING')
   })
 

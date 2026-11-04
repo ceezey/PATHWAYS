@@ -155,7 +155,7 @@ export const SMART_REVIEW_SYNONYMS_V3: Readonly<Record<string, readonly string[]
   gender: [...SMART_REVIEW_SYNONYMS_V2.gender, 'kasarian'],
 })
 
-/** Submission bookkeeping columns of Kobo and ODK exports, compared after the V1 normalizer; time columns are real data. */
+/** Submission bookkeeping columns of Kobo and ODK Central exports, compared after the V1 normalizer; time columns are real data. */
 export const SYSTEM_COLUMNS_V1: ReadonlySet<string> = new Set([
   '_id',
   '_uuid',
@@ -166,10 +166,17 @@ export const SYSTEM_COLUMNS_V1: ReadonlySet<string> = new Set([
   '_tags',
   '_notes',
   '__version__',
-  'meta-instanceid',
   'meta_instanceid',
   'key',
   'instanceid',
+  'submitterid',
+  'submittername',
+  'attachmentspresent',
+  'attachmentsexpected',
+  'reviewstate',
+  'deviceid',
+  'edits',
+  'formversion',
 ])
 
 /** Fixed stop words removed before the token-set comparison. */
