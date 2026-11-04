@@ -3,7 +3,11 @@ import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
+import { approvedApiBaseUrl } from '@/lib/api-base-url'
+import { webEnv } from '@/lib/env'
 import type { PublicProjectResponse } from '@pathways/shared'
+
+import { PublicGallery } from './public-gallery'
 
 // Renders only the PRD-F13 allowlisted snapshot fields; nothing else crosses into the public view.
 type Snapshot = Omit<PublicProjectResponse, 'publishedAt'> & { publishedAt?: string }
@@ -15,6 +19,10 @@ const period = (project: Snapshot) => {
   const end = day(project.endDate)
   return start && end ? `${start} to ${end}` : start ? `From ${start}` : notSpecified
 }
+// The anonymous stream URL of one live media item; the staff preview passes blob URLs instead.
+const publicMediaUrl = (projectId: string, mediaId: string) =>
+  `${approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL).toString().replace(/\/$/, '')}/public/projects/${projectId}/media/${mediaId}`
+
 const PublicNotice = ({ preview }: { preview?: boolean }) => (
   <section className="border-b border-info/25 bg-info-subtle">
     <div className="mx-auto flex w-full max-w-6xl items-start gap-3 px-4 py-3 text-sm text-info sm:items-center sm:px-6">
@@ -121,9 +129,11 @@ export const PublicTrackerList = ({
 export const PublicTrackerDetail = ({
   project,
   state,
+  mediaSrc = (id) => publicMediaUrl(project.id, id),
 }: {
   project: Snapshot
   state?: string
+  mediaSrc?: (id: string) => string
 }) => (
   <div className="bg-surface-subtle" data-public-mode={state ? 'staff-preview' : 'public'}>
     <PublicNotice preview={Boolean(state)} />
@@ -205,5 +215,13 @@ export const PublicTrackerDetail = ({
         )}
       </Card>
     </div>
+    <PublicGallery
+      items={project.media.map(({ id, type, caption }) => ({
+        id,
+        type,
+        caption,
+        src: mediaSrc(id),
+      }))}
+    />
   </div>
 )

@@ -2,11 +2,14 @@
 
 import { EyeOff } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 import { AsyncState, EmptyState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
+import { publicMediaClient } from '@/lib/api/public-media'
 import { publicationClient } from '@/lib/api/publication'
+import type { PublicProjectResponse } from '@pathways/shared'
 
 import { PublicTrackerDetail } from './public-tracker-view'
 
@@ -16,6 +19,37 @@ const stateLabels = {
   PUBLISHED: 'Published',
 } as const
 
+const noMedia: PublicProjectResponse['media'] = []
+
+// Loads each picked item as an authorized blob URL; an item that fails (403) maps to '' and shows a placeholder.
+const usePreviewMedia = (projectId: string, media: PublicProjectResponse['media']) => {
+  const [urls, setUrls] = useState<Record<string, string> | null>(null)
+  useEffect(() => {
+    if (media.length === 0) return
+    let cancelled = false
+    const made: string[] = []
+    setUrls(null)
+    Promise.all(
+      media.map(async ({ id }) => {
+        try {
+          const blob = await publicMediaClient.contentBlob(projectId, id)
+          if (cancelled) return [id, ''] as const
+          const url = URL.createObjectURL(blob)
+          made.push(url)
+          return [id, url] as const
+        } catch {
+          return [id, ''] as const
+        }
+      }),
+    ).then((entries) => !cancelled && setUrls(Object.fromEntries(entries)))
+    return () => {
+      cancelled = true
+      for (const url of made) URL.revokeObjectURL(url)
+    }
+  }, [projectId, media])
+  return urls
+}
+
 // Staff preview of the current revision's frozen snapshot, read through the authorized publication API.
 export const PublicTrackerPreview = ({ projectId }: { projectId: string }) => {
   const publication = useAuthorizedRead(
@@ -24,7 +58,9 @@ export const PublicTrackerPreview = ({ projectId }: { projectId: string }) => {
     'public.preview',
     (signal) => publicationClient.get(projectId, signal),
   )
-  if (publication.isPending)
+  const media = publication.data?.snapshot.media ?? noMedia
+  const urls = usePreviewMedia(projectId, media)
+  if (publication.isPending || (media.length > 0 && !urls))
     return (
       <AsyncState
         status="loading"
@@ -64,6 +100,7 @@ export const PublicTrackerPreview = ({ projectId }: { projectId: string }) => {
           publishedAt: row.state === 'PUBLISHED' ? row.updatedAt : undefined,
         }}
         state={`${stateLabels[row.state]} · Revision ${row.revision}`}
+        mediaSrc={(id) => urls?.[id] ?? ''}
       />
     </div>
   )

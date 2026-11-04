@@ -31,8 +31,32 @@ describe('public tracker view', () => {
     expect(screen.getByText(snapshot.approvedSummary)).toBeTruthy()
     expect(screen.getAllByText('2026-01-01 to 2026-12-31').length).toBeGreaterThan(0)
     expect(screen.getByText('2026-09-27')).toBeTruthy()
-    for (const hidden of [/beneficiar/i, /budget/i, /assessment/i, /donate/i, /progress/i])
+    for (const hidden of [/beneficiar/i, /budget/i, /assessment/i, /donate/i])
       expect(screen.queryByText(hidden)).toBeNull()
+  })
+
+  it('shows no Project progress section when views is empty', () => {
+    render(<PublicTrackerDetail project={snapshot} />)
+    expect(screen.queryByText(/project progress/i)).toBeNull()
+  })
+
+  it('hides the Photos and videos heading without media', () => {
+    render(<PublicTrackerDetail project={snapshot} />)
+    expect(screen.queryByRole('heading', { name: 'Photos and videos' })).toBeNull()
+  })
+
+  it('shows the Photos and videos heading when media exist', () => {
+    const media = [
+      {
+        id: '20000000-0000-4000-8000-000000000001',
+        type: 'PHOTO' as const,
+        contentType: 'image/jpeg',
+        caption: 'Opening day',
+      },
+    ]
+    render(<PublicTrackerDetail project={{ ...snapshot, media }} mediaSrc={(id) => `blob:${id}`} />)
+    expect(screen.getByRole('heading', { name: 'Photos and videos' })).toBeTruthy()
+    expect(screen.getByAltText('Opening day').getAttribute('src')).toBe(`blob:${media[0].id}`)
   })
 
   it('labels a staff preview distinctly from the published view', () => {
