@@ -78,6 +78,53 @@ const duplicated = (code: string, fieldCode: string, values: Record<string, unkn
   }
 }
 
+const MAX_MERGE_LINES = 10
+
+// A non-ASCII letter shows whether the Windows text decoding gave readable names.
+const NON_ASCII_LETTER = /(?=\P{ASCII})\p{L}/u
+
+/** How the file was read: a skipped title area, Windows text decoding and merged cells copied down. */
+function readingNotes(file: ReadImportFile): FileCheckNote[] {
+  const notes: FileCheckNote[] = []
+  if (file.headerRowNumber > 1) {
+    notes.push({
+      kind: 'HEADER_ROW',
+      message: `Headers read from row ${file.headerRowNumber}. The rows above it were skipped as titles.`,
+    })
+  }
+  if (file.encoding === 'WINDOWS-1252') {
+    const values = [
+      ...file.sourceColumns.map((column) => column.header),
+      ...file.rows.flatMap((row) => Object.values(row)),
+    ]
+    const example = values.find(
+      (value): value is string => typeof value === 'string' && NON_ASCII_LETTER.test(value),
+    )
+    if (example !== undefined) {
+      notes.push({
+        kind: 'ENCODING',
+        message: `This CSV was read as Windows text. Check that names look right, for example '${example}'.`,
+      })
+    }
+  }
+  for (const merge of file.filledMerges.slice(0, MAX_MERGE_LINES)) {
+    const letter = XLSX.utils.encode_col(merge.columnIndex - 1)
+    notes.push({
+      kind: 'MERGED_FILL',
+      columnLetter: letter,
+      rows: [merge.firstRowNumber, merge.lastRowNumber],
+      message: `Merged cells in column ${letter} were copied down to rows ${merge.firstRowNumber} to ${merge.lastRowNumber}.`,
+    })
+  }
+  if (file.filledMerges.length > MAX_MERGE_LINES) {
+    notes.push({
+      kind: 'MERGED_FILL',
+      message: `and ${file.filledMerges.length - MAX_MERGE_LINES} more`,
+    })
+  }
+  return notes
+}
+
 const NO_COLUMN_MESSAGE =
   'No column matches. Rename the column, or add its header as a source name under Advanced Configuration.'
 
@@ -349,18 +396,19 @@ export function checkImportFile(input: {
       if (code && !suggestions.has(code)) suggestions.set(code, column.header)
     }
   }
-  const notes: FileCheckNote[] = unfedSadddFields(
+  const notes: FileCheckNote[] = readingNotes(file)
+  for (const { fieldCode, suggestedHeader } of unfedSadddFields(
     new Set(fieldByCode.keys()),
     fed,
     suggestions,
-  ).map(({ fieldCode, suggestedHeader }) => {
+  )) {
     const label = fieldByCode.get(fieldCode)?.label ?? fieldCode
-    return {
+    notes.push({
       kind: 'SADDD_NO_COLUMN',
       fieldCode,
       message: `No column feeds ${label}, so this file adds nothing to the ${label.toLowerCase()} breakdown.${suggestedHeader === null ? '' : ` The file's '${suggestedHeader}' was suggested.`}`,
-    }
-  })
+    })
+  }
 
   return {
     totalRows: file.rows.length,

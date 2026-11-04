@@ -532,3 +532,75 @@ describe('checkImportFile notes on breakdown fields with no column', () => {
     expect(report.notes).toEqual([])
   })
 })
+
+describe('checkImportFile notes on how the file was read', () => {
+  const disability = field('disability_status', 'Disability status', 'SELECT', {
+    allowedValues: ['With disability', 'Without disability'],
+  })
+  const fields = [firstName, sex, birthDate, age, disability]
+  const checkCsv = (bytes: Buffer) =>
+    checkImportFile({
+      file: readImportFile(toArrayBuffer(bytes), 'CSV', null),
+      formType: 'ACTIVITY',
+      fields,
+      uploadDate: '2026-10-28',
+    })
+
+  it('a CSV with a title row, Windows-1252 text and no Sex column gives the three notes', () => {
+    const csv = [
+      'Masterlist',
+      'First name,Age at registration,Disability status',
+      'Ana,26,With disability',
+      'Peñafiel,27,Without disability',
+    ].join('\n')
+    const report = checkCsv(Buffer.from(csv, 'latin1'))
+    expect(report.notes).toEqual([
+      {
+        kind: 'HEADER_ROW',
+        message: 'Headers read from row 2. The rows above it were skipped as titles.',
+      },
+      {
+        kind: 'ENCODING',
+        message:
+          "This CSV was read as Windows text. Check that names look right, for example 'Peñafiel'.",
+      },
+      {
+        kind: 'SADDD_NO_COLUMN',
+        fieldCode: 'sex',
+        message: 'No column feeds Sex, so this file adds nothing to the sex breakdown.',
+      },
+    ])
+  })
+
+  it('a clean file gives no notes', () => {
+    const csv = [
+      'First name,Sex,Age at registration,Disability status',
+      'Ana,Female,26,With disability',
+    ].join('\n')
+    expect(checkCsv(Buffer.from(csv)).notes).toEqual([])
+  })
+
+  it('names each merged run by its column letter and rows, and caps the lines at ten', () => {
+    const rows = [
+      ['First name', 'Sex', 'Age at registration', 'Disability status'],
+      ...Array.from({ length: 24 }, (_, index) => [
+        `Person ${index}`,
+        index % 2 === 0 ? 'Female' : '',
+        26,
+        'With disability',
+      ]),
+    ]
+    const report = check(rows, fields, 'ACTIVITY', (sheet) => {
+      // Twelve merges in column B (Sex), each two rows tall.
+      sheet['!merges'] = Array.from({ length: 12 }, (_, index) => ({
+        s: { r: 1 + index * 2, c: 1 },
+        e: { r: 2 + index * 2, c: 1 },
+      }))
+    })
+    const merged = report.notes.filter((note) => note.kind === 'MERGED_FILL')
+    expect(merged).toHaveLength(11)
+    expect(merged[0].message).toBe('Merged cells in column B were copied down to rows 2 to 3.')
+    expect(merged[9].message).toBe('Merged cells in column B were copied down to rows 20 to 21.')
+    expect(merged[10].message).toBe('and 2 more')
+  })
+})
