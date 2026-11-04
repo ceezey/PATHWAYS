@@ -154,10 +154,13 @@ function matchColumns(
   // Candidates at or above the suggestion floor, best first; field order breaks ties.
   const candidates = orderedColumns.map((column) => {
     const source = prepareName(column.header)
+    // A source name a field owns outranks the system-column list, as the form publisher approved it.
     const ignoredReason: SmartDecisionReason | null =
       v3 && column.blank === true
         ? 'BLANK_COLUMN'
-        : v4 && SYSTEM_COLUMNS_V1.has(source.v1)
+        : v4 &&
+            SYSTEM_COLUMNS_V1.has(source.v1) &&
+            !orderedFields.some((target) => target.sourceNames.has(source.canonical))
           ? 'SYSTEM_COLUMN'
           : null
     const scoreOn = (name: typeof source) => {

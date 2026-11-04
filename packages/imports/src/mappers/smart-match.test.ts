@@ -671,6 +671,19 @@ describe('AUTO_SMART_V4', () => {
     expect(oneV3('_uuid', ['abc']).status).toBe('PENDING')
   })
 
+  it('maps a system column a field approved as its source name', () => {
+    const record = { ...text('f-record', 'record_id', 'Record ID'), sourceNames: ['_id', 'Edits'] }
+    for (const header of ['_id', 'Edits']) {
+      expect(oneV4(header, ['abc'], [...fields, record])).toMatchObject({
+        status: 'MAPPED',
+        targetFieldId: 'f-record',
+        matchReason: 'METADATA_SOURCE_NAME',
+        reason: 'AUTO_MATCH',
+      })
+    }
+    expect(oneV4('KEY', ['abc'], [...fields, record]).reason).toBe('SYSTEM_COLUMN')
+  })
+
   it('never reads the leaf of a path that names another person', () => {
     for (const header of ['Mother-Sex', 'Spouse/Sex', 'guardian/gender', 'grp/magulang-sex']) {
       expect(oneV4(header, ['Male', 'Female'])).toEqual(oneV3(header, ['Male', 'Female']))
