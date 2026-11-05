@@ -2,6 +2,7 @@
 
 import { type PublicView, publicView } from '@pathways/shared'
 import { GripVertical } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 import { DropLine } from './drop-line'
 import { useDragReorder } from './use-drag-reorder'
@@ -30,7 +31,26 @@ export const PublicViewPicker = ({
     next.splice(to, 0, view)
     onChange(next)
   }
-  const drag = useDragReorder(value, disabled, move)
+  const handles = useRef(new Map<PublicView, HTMLButtonElement>())
+  const pendingFocus = useRef<PublicView | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+  // React re-inserts a moved row, which drops focus, so the handle moved by a key press is focused once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Runs when the new order arrives.
+  useEffect(() => {
+    const view = pendingFocus.current
+    pendingFocus.current = null
+    if (view) handles.current.get(view)?.focus()
+  }, [value])
+  // A tick, untick or drag is not a keyboard move, so nothing is refocused or announced.
+  const change = (next: PublicView[]) => {
+    pendingFocus.current = null
+    setAnnouncement('')
+    onChange(next)
+  }
+  const drag = useDragReorder(value, disabled, (view, to) => {
+    setAnnouncement('')
+    move(view, to)
+  })
   const unticked = publicView.options.filter((view) => !value.includes(view))
   return (
     <fieldset className="space-y-2" disabled={disabled}>
@@ -54,18 +74,28 @@ export const PublicViewPicker = ({
               <label className="flex flex-1 items-center gap-3">
                 <input
                   checked
-                  onChange={() => onChange(value.filter((entry) => entry !== view))}
+                  onChange={() => change(value.filter((entry) => entry !== view))}
                   type="checkbox"
                 />
                 {viewLabels[view]}
               </label>
               <button
-                aria-label={`Reorder ${viewLabels[view]}`}
+                aria-label={`Reorder ${viewLabels[view]}, position ${index + 1} of ${value.length}`}
                 className="flex h-9 w-9 shrink-0 cursor-grab items-center justify-center text-muted-foreground"
                 onKeyDown={(event) => {
                   if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
                   event.preventDefault()
-                  move(view, index + (event.key === 'ArrowUp' ? -1 : 1))
+                  const to = index + (event.key === 'ArrowUp' ? -1 : 1)
+                  if (to < 0 || to >= value.length) return
+                  pendingFocus.current = view
+                  setAnnouncement(
+                    `${viewLabels[view]} moved to position ${to + 1} of ${value.length}`,
+                  )
+                  move(view, to)
+                }}
+                ref={(node) => {
+                  if (node) handles.current.set(view, node)
+                  else handles.current.delete(view)
                 }}
                 title="Drag, or use arrow up and down, to reorder"
                 type="button"
@@ -76,9 +106,12 @@ export const PublicViewPicker = ({
           ))}
         </ol>
       ) : null}
+      <output aria-live="polite" className="sr-only">
+        {announcement}
+      </output>
       {unticked.map((view) => (
         <label className="flex min-h-11 items-center gap-3 px-3 text-sm" key={view}>
-          <input checked={false} onChange={() => onChange([...value, view])} type="checkbox" />
+          <input checked={false} onChange={() => change([...value, view])} type="checkbox" />
           {viewLabels[view]}
         </label>
       ))}
