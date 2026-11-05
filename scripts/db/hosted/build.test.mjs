@@ -11,7 +11,7 @@ import {
   resumePreflight,
   runHostedBuild,
 } from './build.mjs'
-import { BASELINE, MIGRATIONS_IN_ORDER } from './plan.mjs'
+import { BASELINE, MIGRATIONS_IN_ORDER, migrationsThrough, planThrough } from './plan.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
@@ -613,6 +613,50 @@ test('runHostedBuild fresh path (no --resume) works with an absent ledger', asyn
     (c) => c.kind === 'psqlSql' && c.sql.includes('CREATE ROLE prisma'),
   )
   assert.ok(ranCreateRole, 'a fresh run with an absent ledger must still create the prisma role')
+})
+
+const through0075 = '0075_indicator_summary_measurement_lookup'
+const finishedLedger = (names) =>
+  names.map((migration_name) => ({ migration_name, finished_at: 'now', rolled_back_at: null }))
+
+test('runHostedBuild --through 0075 stops after its cleanup and passes on a 0000-0075 ledger', async () => {
+  const io = makeFakeIO()
+  io.setLedger(finishedLedger(migrationsThrough(through0075)))
+  await runHostedBuild({ io, config: { ...config, through: through0075 } })
+  const files = io.calls.filter((c) => c.kind === 'psqlFile').map((c) => path.basename(c.filePath))
+  assert.equal(files.at(-1), 'hosted-indicator-summary-cleanup.sql')
+  assert.ok(!files.includes('hosted-saddd-exact-preprovision.sql'))
+  const deploys = planThrough(through0075).filter((step) => step.type === 'deploy').length
+  assert.equal(io.calls.filter((c) => c.kind === 'deploy').length, deploys)
+})
+
+test('postconditions --through 0075 refuses the full 0000-0083 ledger', async () => {
+  const io = makeFakeIO()
+  io.setLedger(finishedLedger(MIGRATIONS_IN_ORDER))
+  await assert.rejects(
+    () => postconditions(io, { ...config, through: through0075 }),
+    /Ledger postcondition failed: expected exactly the \d+ migrations 0000-0075/,
+  )
+})
+
+test('runHostedBuild --resume --through 0075 refuses a target already past 0075', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  io.setLedger(finishedLedger(migrationsThrough('0076_saddd_exact_counts')))
+  await assert.rejects(
+    () => runHostedBuild({ io, config: { ...config, through: through0075 }, resume: true }),
+    /already past --through/,
+  )
+  assert.ok(!io.calls.some((c) => c.kind === 'deploy' || c.kind === 'psqlFile'))
+})
+
+test('runHostedBuild --resume --through 0083 from a 0000-0075 ledger continues at the saddd-exact preprovision', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  io.setLedger(finishedLedger(migrationsThrough(through0075)))
+  await assert.rejects(() =>
+    runHostedBuild({ io, config: { ...config, through: '0083_stage_import' }, resume: true }),
+  )
+  const first = io.calls.find((c) => c.kind === 'psqlFile' || c.kind === 'deploy')
+  assert.equal(path.basename(first.filePath), 'hosted-saddd-exact-preprovision.sql')
 })
 
 test('postconditions fails when the ledger is missing a migration', async () => {

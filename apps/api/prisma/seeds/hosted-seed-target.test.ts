@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ALLOWED_PROJECT_REF,
   ALLOWED_SUPABASE_URL,
+  PRODUCTION_PROJECT_REF,
   assertSeedTarget,
   resolveEnvFilePath,
 } from '../../../../scripts/db/hosted/seed-target.mjs'
@@ -27,6 +28,23 @@ describe('hosted seed target guard', () => {
       mode: 'hosted',
       projectRef: ALLOWED_PROJECT_REF,
     })
+  })
+
+  it('accepts the production project only when it is the requested target', () => {
+    const prod = PRODUCTION_PROJECT_REF
+    const productionEnv = {
+      SUPABASE_URL: `https://${prod}.supabase.co`,
+      DATABASE_URL: `postgresql://pathways_runtime:x@db.${prod}.supabase.co:5432/postgres`,
+      DIRECT_URL: `postgresql://prisma:x@db.${prod}.supabase.co:5432/postgres`,
+    }
+    expect(assertSeedTarget(productionEnv, { testLocal: false, projectRef: prod })).toEqual({
+      mode: 'hosted',
+      projectRef: prod,
+    })
+    expect(() => assertSeedTarget(productionEnv, { testLocal: false })).toThrow('SUPABASE_URL')
+    expect(() => assertSeedTarget(hostedEnv, { testLocal: false, projectRef: prod })).toThrow(
+      'SUPABASE_URL',
+    )
   })
 
   it('refuses a wrong project ref in the database URLs', () => {

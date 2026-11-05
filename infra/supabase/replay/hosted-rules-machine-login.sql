@@ -12,7 +12,7 @@
 \quit 2
 \endif
 SELECT current_database()=:'expected_database' AND current_database()='postgres'
- AND :'target_project_ref'='klbtoqdalmcsfjqophty'
+ AND :'target_project_ref' IN ('mvzxitlbtkkyvubgbcmx','klbtoqdalmcsfjqophty')
  AND current_user='postgres' AND session_user='postgres'
  AND EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0060_rules_budget_beneficiary_survey_metrics'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)

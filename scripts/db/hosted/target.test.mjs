@@ -30,9 +30,25 @@ test('validateHostedEnv accepts a well-formed hosted env', () => {
   assert.equal(config.prismaPassword.length, 24)
 })
 
-test('validateHostedEnv rejects a ref outside the one-item allowlist', () => {
+test('validateHostedEnv rejects a ref outside the allowlist', () => {
   const env = { ...goodEnv(), HOSTED_TARGET_REF: 'someotherref00000000' }
   assert.throws(() => validateHostedEnv(env), HostedEnvError)
+})
+
+test('validateHostedEnv accepts the production ref with its own URLs', () => {
+  const prod = 'mvzxitlbtkkyvubgbcmx'
+  const env = {
+    ...goodEnv(),
+    HOSTED_TARGET_REF: prod,
+    HOSTED_ADMIN_URL: `postgresql://postgres:pw@db.${prod}.supabase.co:5432/postgres`,
+    HOSTED_DIRECT_URL: `postgresql://prisma:pw@db.${prod}.supabase.co:5432/postgres`,
+  }
+  assert.equal(validateHostedEnv(env).ref, prod)
+})
+
+test('validateHostedEnv rejects the production ref with development URLs', () => {
+  const env = { ...goodEnv(), HOSTED_TARGET_REF: 'mvzxitlbtkkyvubgbcmx' }
+  assert.throws(() => validateHostedEnv(env), /HOSTED_ADMIN_URL/)
 })
 
 test('validateHostedEnv rejects an admin URL whose user/host do not contain the ref', () => {
