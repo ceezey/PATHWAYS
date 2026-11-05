@@ -232,7 +232,6 @@ describe('public media picker', () => {
     const value = [
       { id: ids[0], caption: 'A' },
       { id: ids[1], caption: 'B' },
-      { id: ids[2], caption: 'C' },
     ]
     const view = render(
       <PublicMediaPicker
@@ -243,7 +242,7 @@ describe('public media picker', () => {
       />,
     )
     const chosen = within(screen.getByRole('list', { name: 'Chosen media' }))
-    expect(chosen.getAllByText('No longer publishable. Remove it to submit.')).toHaveLength(2)
+    expect(chosen.getAllByText('No longer publishable. Remove it to submit.')).toHaveLength(1)
     expect(screen.getByRole('alert').textContent).toBe(
       'A chosen photo or video is no longer publishable. Remove it to submit.',
     )
@@ -257,6 +256,22 @@ describe('public media picker', () => {
       />,
     )
     expect(screen.queryByText('No longer publishable. Remove it to submit.')).toBeNull()
+    expect(onBlockedChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('does not flag or block a chosen item that is absent from the list', () => {
+    state.items = [item(0)]
+    const onBlockedChange = vi.fn()
+    render(
+      <PublicMediaPicker
+        projectId={projectId}
+        value={[{ id: ids[2], caption: 'Beneficiary item an aggregate-only user cannot see' }]}
+        onChange={vi.fn()}
+        onBlockedChange={onBlockedChange}
+      />,
+    )
+    expect(screen.queryByText('No longer publishable. Remove it to submit.')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(onBlockedChange).toHaveBeenLastCalledWith(false)
   })
 

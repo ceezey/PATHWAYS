@@ -12,11 +12,7 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { publicMediaClient } from '@/lib/api/public-media'
-import {
-  MAX_PUBLIC_MEDIA_LISTED,
-  type PublicMediaListItem,
-  type PublicationSelection,
-} from '@pathways/shared'
+import type { PublicMediaListItem, PublicationSelection } from '@pathways/shared'
 
 import { AddPublicMediaDialog } from './add-public-media-dialog'
 import { PublicMediaStepUpNote } from './public-media-step-up-note'
@@ -64,16 +60,8 @@ export const PublicMediaPicker = ({
     !canReadEvidence ||
     (list.isError && list.error instanceof PathwaysClientError && list.error.code === 'forbidden')
   const full = value.length >= MAX_MEDIA
-  // A missing item counts only when the list is complete: loaded, under the cap and with no beneficiary rows hidden.
-  const complete =
-    list.data !== undefined &&
-    !list.isError &&
-    items.length < MAX_PUBLIC_MEDIA_LISTED &&
-    !list.data.beneficiaryMediaNeedsStepUp
-  const unpublishable = (id: string) => {
-    const known = byId.get(id)
-    return known ? !known.pickable : complete
-  }
+  // Only a listed item that is not pickable counts; the server backstops one this user cannot see.
+  const unpublishable = (id: string) => byId.get(id)?.pickable === false
   const blocked = value.some((entry) => unpublishable(entry.id))
   useEffect(() => {
     onBlockedChange?.(blocked)
