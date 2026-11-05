@@ -54,6 +54,7 @@ export function EnrollmentDatePanel({
   if (!principalHasAtomicPermission(profile, 'imports.process') || rows.length === 0) return null
 
   const column = submissionTimeColumn(headers)
+  // The server refuses a date after the upload date in Manila, so the input stops there too.
   const uploadDate = businessCalendarDate(new Date(uploadedAt), 'Asia/Manila')
   const year = Number(uploadDate.slice(0, 4))
   const proposal = (row: HeldEnrollmentRow) =>
@@ -137,7 +138,7 @@ export function EnrollmentDatePanel({
             <Label htmlFor={`${id}-date`}>Enrollment date</Label>
             <Input
               id={`${id}-date`}
-              max={businessCalendarDate(new Date(), 'Asia/Manila')}
+              max={uploadDate}
               type="date"
               value={date}
               onChange={(event) => setDate(event.target.value)}

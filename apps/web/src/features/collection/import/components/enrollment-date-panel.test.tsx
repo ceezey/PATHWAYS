@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { businessCalendarDate, importCheckpointRows } from '@pathways/shared'
+import { importCheckpointRows } from '@pathways/shared'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -105,11 +105,11 @@ describe('enrollment date panel', () => {
     })
   })
 
-  it('sets one typed date in requests of at most the checkpoint size, today in Manila at most', async () => {
+  it('sets one typed date in requests of at most the checkpoint size, the upload date in Manila at most', async () => {
     show(importCheckpointRows + 5)
     fireEvent.click(screen.getByLabelText('Select all'))
     const input = screen.getByLabelText('Enrollment date') as HTMLInputElement
-    expect(input.max).toBe(businessCalendarDate(new Date(), 'Asia/Manila'))
+    expect(input.max).toBe('2026-02-01')
     expect(oneDateButton().disabled).toBe(true)
     fireEvent.change(input, { target: { value: '2026-01-20' } })
     fireEvent.click(oneDateButton())
