@@ -24,7 +24,6 @@ export interface IntakeField extends FormFieldValidationContract {
 
 export type ImportWarningCode =
   | 'FOLLOW_UP_UNEXPECTED'
-  | 'ID_PATTERN_MISMATCH'
   | 'CALCULATION_MISMATCH'
   | 'GUARDIAN_CONSENT_MISSING'
 
@@ -201,16 +200,6 @@ export function applyIntakeRules(
       const answers = Array.isArray(parent) ? parent : [parent]
       if (!answers.some((answer) => typeof answer === 'string' && expected.includes(bare(answer))))
         warn('FOLLOW_UP_UNEXPECTED')
-    } else if (rule.kind === 'ID_FROM_INITIALS_AND_BIRTH_DATE') {
-      const first = values[rule.firstNameField]
-      const last = values[rule.lastNameField]
-      const birth = values[rule.birthField]
-      if (typeof value !== 'string' || typeof first !== 'string' || typeof last !== 'string')
-        continue
-      if (!toDate(birth) || !first.trim() || !last.trim()) continue
-      const [year, month, day] = (birth as string).split('-')
-      const expected = `${first.trim()[0]}${last.trim()[0]}${month}${day}${year}`
-      if (value.trim().toUpperCase() !== expected.toUpperCase()) warn('ID_PATTERN_MISMATCH')
     } else if (rule.kind === 'TOTAL_SCORE' && value !== totalScore(rule, values)) {
       errors.push({
         fieldCode: field.code,

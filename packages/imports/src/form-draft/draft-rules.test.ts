@@ -362,20 +362,8 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(rule(result, parents[0])).toBeUndefined()
   })
 
-  it('adds ID_FROM_INITIALS_AND_BIRTH_DATE on beneficiary_code', () => {
-    expect(rule(fixture(), 'beneficiary_code')).toEqual({
-      kind: 'ID_FROM_INITIALS_AND_BIRTH_DATE',
-      firstNameField: 'first_name',
-      lastNameField: 'last_name',
-      birthField: 'birth_date',
-    })
-  })
-
-  it('skips ID_FROM_INITIALS_AND_BIRTH_DATE when one code does not match', () => {
-    const result = withColumn(COLUMN.code, (values) =>
-      values.map((value, row) => (row === 0 ? 'XX01012000' : value)),
-    )
-    expect(rule(result, 'beneficiary_code')).toBeUndefined()
+  it('never adds an ID pattern check on beneficiary_code, even when every code follows one', () => {
+    expect(rule(fixture(), 'beneficiary_code')).toBeUndefined()
   })
 
   it('proposes SAME_ANSWER_AS only on participation and lists every rule once, none asking for a check', () => {

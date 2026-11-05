@@ -68,10 +68,11 @@ export function IntakeRuleEditor({
       onChange={set}
     />
   )
-  // TOTAL_SCORE is never newly picked here: a person marks its answer key in the answer key editor.
+  // TOTAL_SCORE is picked in the answer key editor; the retired ID check stays listed only to be removed.
   const kinds = INTAKE_RULE_KINDS.filter(
     (kind) =>
-      (kind !== 'TOTAL_SCORE' || rule?.kind === kind) &&
+      ((kind !== 'TOTAL_SCORE' && kind !== 'ID_FROM_INITIALS_AND_BIRTH_DATE') ||
+        rule?.kind === kind) &&
       (kind !== 'SAME_ANSWER_AS' || fieldCode === sameAnswerHost || rule?.kind === kind),
   )
   const options = (group: (kind: Kind) => boolean) =>
