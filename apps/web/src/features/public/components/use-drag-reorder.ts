@@ -18,13 +18,20 @@ export const useDragReorder = <K extends string>(
     from < 0 || over !== index || from === index ? null : from < index ? 'after' : 'before'
   const itemProps = (key: K, index: number) => ({
     draggable: !disabled,
-    onDragStart: () => setDragging(key),
+    onDragStart: ({ dataTransfer }: DragEvent) => {
+      // Firefox starts a drag of a non-link element only when it carries data.
+      dataTransfer?.setData('text/plain', key)
+      if (dataTransfer) dataTransfer.effectAllowed = 'move'
+      setDragging(key)
+    },
     onDragOver: (event: DragEvent) => {
       if (disabled) return
       event.preventDefault()
       if (over !== index) setOver(index)
     },
-    onDrop: () => {
+    onDrop: (event: DragEvent) => {
+      // Without this, Firefox opens a dropped image or link and the unsaved edits are lost.
+      event.preventDefault()
       if (!disabled && dragging !== null) onMove(dragging, index)
       reset()
     },
