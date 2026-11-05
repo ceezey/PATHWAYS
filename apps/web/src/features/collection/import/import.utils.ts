@@ -122,6 +122,7 @@ export const identityFields = ['first_name', 'last_name', 'birth_date', 'externa
 export const fieldsOfReason: Partial<Record<string, readonly string[]>> = {
   CONSENT_REQUIRED: CONSENT_FIELD_CODES,
   GUARDIAN_CONSENT_REQUIRED: ['guardian_consent_recorded'],
+  ENROLLMENT_DATE_REQUIRED: ['enrollment_date'],
   AMBIGUOUS_IDENTITY: identityFields,
   IDENTITY_REVIEW_REQUIRED: identityFields,
   DUPLICATE_IDENTITY: identityFields,
