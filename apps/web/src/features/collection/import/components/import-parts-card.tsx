@@ -133,7 +133,7 @@ export function ImportPartsCard({
           return (
             <fieldset
               aria-label={part.name}
-              className="space-y-3 rounded-lg border border-border p-4 outline-none focus:ring-2 focus:ring-ring"
+              className="space-y-3 rounded-lg border border-border bg-background p-4 outline-none focus:ring-2 focus:ring-ring"
               key={part.code}
               ref={(node) => {
                 rows.current[part.code] = node
