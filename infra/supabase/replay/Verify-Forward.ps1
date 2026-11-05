@@ -72,6 +72,7 @@ $forwardInventory = @(
   '0083_stage_import'
   '0085_public_tracker_live_revision'
   '0086_public_tracker_media'
+  '0087_public_tracker_analytics'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1190,6 +1191,34 @@ SELECT (EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evi
     if ($mediaShape.Trim() -cne 'true') { throw "0086 public tracker media inventory differs in $db." }
   }
   Write-Output 'FORWARD_0086_PUBLIC_TRACKER_MEDIA_INVENTORY=PASS'
+  # 0087 inventory: the five-view validator, the gated analytics bodies that call the cores, the internal cores, the
+  # runtime-only p87 public read and the prisma live-view policies.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $analyticsShape = Read-ForwardSql $db @"
+SELECT ((SELECT count(*) FROM (VALUES ('pathways.p85_publication_views(jsonb)','e780b7908f1941ab6369d808a98d2c6b'),
+   ('pathways.p06_compute_saddd(uuid,uuid[],date,date,text)','7559c376a86d32a5a01198df573ed9fb'),
+   ('pathways.p06_saddd(uuid,uuid[],date,date,text)','52c7180d5550de4d48dcfcdd82cbf5fa'),
+   ('pathways.p06_saddd_by_place(uuid,uuid,text)','1a61e6dfdbf63db03d334e7ab7ef69d3'),
+   ('pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)','3f969e2940ba31cf592e6feb75cc69b2'),
+   ('pathways.p06_indicator_values(uuid,text)','aac67ef4de765a95bfbc24edd65f73a4'),
+   ('pathways.p10_f9_timeline_aggregate(uuid,uuid,date)','2feb9edc66a5326f333a3f2b59400c76'),
+   ('pathways.p10_f9_timeline_last_completion(uuid,uuid)','28d0913ee4f26777dd9b0ff027d7f535'),
+   ('pathways.p06_participation_breakdown(uuid,date,date)','da745fcf47b3483a9e4dd5964f521dfc')) w(sig,md5)
+  JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig) WHERE pg_catalog.md5(p.prosrc)=w.md5)=9
+ AND (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace='pathways'::pg_catalog.regnamespace AND p.proname LIKE 'p87\_%\_core'
+  AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND NOT has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
+  AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
+  AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))=7
+ AND (SELECT pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
+  AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
+  AND NOT has_function_privilege('service_role',p.oid,'EXECUTE') FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p87_public_view(uuid,text)'::pg_catalog.regprocedure)
+ AND has_function_privilege('pathways_runtime','pathways.p85_publication_views(jsonb)','EXECUTE')
+ AND (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname IN ('p87_prisma_live_kpi_read','p87_prisma_live_saddd_read') AND polcmd='r'
+  AND polroles=ARRAY['prisma'::pg_catalog.regrole::oid])=3)::text;
+"@
+    if ($analyticsShape.Trim() -cne 'true') { throw "0087 public tracker analytics inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0087_PUBLIC_TRACKER_ANALYTICS_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }
