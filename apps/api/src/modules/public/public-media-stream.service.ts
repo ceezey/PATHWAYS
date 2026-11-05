@@ -23,6 +23,8 @@ const liveMedia = z.object({
   sha256: z.string(),
 })
 const singleRange = /^bytes=(\d+)-(\d*)$/
+// Each range answer is at most 4 MiB, so one request never holds a whole large upstream read open.
+const MAX_RANGE_BYTES = 4 * 1024 * 1024
 const notSatisfiable = () => new HttpException('Range not satisfiable.', 416)
 
 @Injectable()
@@ -73,7 +75,11 @@ export class PublicMediaStreamService {
     const match = isVideo ? singleRange.exec(range) : null
     if (!match) throw notSatisfiable()
     const start = Number(match[1])
-    const end = Math.min(match[2] === '' ? byteSize - 1 : Number(match[2]), byteSize - 1)
+    const end = Math.min(
+      match[2] === '' ? byteSize - 1 : Number(match[2]),
+      start + MAX_RANGE_BYTES - 1,
+      byteSize - 1,
+    )
     if (!Number.isSafeInteger(start) || start > end || start >= byteSize) throw notSatisfiable()
     try {
       const body = await this.factories.createPrivateRangeReader(storageOptions(this.env))({

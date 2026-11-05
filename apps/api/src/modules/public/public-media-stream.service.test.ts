@@ -99,6 +99,26 @@ describe('public media stream', () => {
     })
   })
 
+  it('caps every range at 4 MiB so bytes=0- on a large video gives a 4 MiB 206', async () => {
+    const size = 50 * 1024 * 1024
+    const cap = 4 * 1024 * 1024
+    queryRaw.mockResolvedValue([live('video/mp4', size)])
+    expect(await service.open(projectId, mediaId, 'bytes=0-')).toMatchObject({
+      status: 206,
+      length: cap,
+      contentRange: `bytes 0-${cap - 1}/${size}`,
+    })
+    expect(readRange).toHaveBeenLastCalledWith(expect.objectContaining({ start: 0, end: cap - 1 }))
+    expect(await service.open(projectId, mediaId, `bytes=${size - 10}-`)).toMatchObject({
+      length: 10,
+      contentRange: `bytes ${size - 10}-${size - 1}/${size}`,
+    })
+    expect(await service.open(projectId, mediaId, 'bytes=100-199')).toMatchObject({
+      length: 100,
+      contentRange: `bytes 100-199/${size}`,
+    })
+  })
+
   it.each([
     ['bytes=5-1', 'video/mp4'],
     ['bytes=0-1,4-5', 'video/mp4'],

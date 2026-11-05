@@ -32,7 +32,7 @@ export class PublicMediaStreamController {
     response.statusCode = file.status
     if (file.isVideo) response.setHeader('Accept-Ranges', 'bytes')
     if (file.contentRange) response.setHeader('Content-Range', file.contentRange)
-    // A failed integrity check destroys the connection, so a client never receives a complete unverified file.
+    // A full file is digest-checked and a failed check destroys the connection; a byte range is served unverified.
     return new StreamableFile(file.body, {
       type: file.contentType,
       disposition: 'inline',
