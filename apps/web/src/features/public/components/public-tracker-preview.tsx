@@ -1,14 +1,9 @@
 'use client'
 
-import { EyeOff } from 'lucide-react'
-import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
-import { AsyncState, EmptyState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { publicMediaClient } from '@/lib/api/public-media'
-import { publicationClient } from '@/lib/api/publication'
 import type { PublicProjectResponse } from '@pathways/shared'
 
 import { PublicTrackerDetail } from './public-tracker-view'
@@ -90,56 +85,5 @@ export const PreviewFrame = ({
         draft={draft}
       />
     </div>
-  )
-}
-
-// Staff preview of the current revision's frozen snapshot, read through the authorized publication API.
-export const PublicTrackerPreview = ({ projectId }: { projectId: string }) => {
-  const publication = useAuthorizedRead(
-    'publication-detail',
-    projectId,
-    'public.preview',
-    (signal) => publicationClient.get(projectId, signal),
-  )
-  if (publication.isPending)
-    return (
-      <AsyncState
-        status="loading"
-        title="Loading preview"
-        description="Verifying the current revision."
-      />
-    )
-  if (publication.isError)
-    return (
-      <AsyncState
-        status="error"
-        title="Preview unavailable"
-        description="Current publication access could not be verified."
-        onRetry={() => void publication.refetch()}
-      />
-    )
-  const row = publication.data
-  if (!row)
-    return (
-      <EmptyState
-        action={
-          <Button asChild variant="outline">
-            <Link href="/transparency">Back to Public Tracker</Link>
-          </Button>
-        }
-        className="min-h-80 rounded-lg border border-border bg-card"
-        description="Submit a public summary for this project before opening the staff preview."
-        icon={EyeOff}
-        title="No public summary yet"
-      />
-    )
-  return (
-    <PreviewFrame
-      project={{
-        ...row.snapshot,
-        publishedAt: row.state === 'PUBLISHED' ? row.updatedAt : undefined,
-      }}
-      state={`${stateLabels[row.state]} · Revision ${row.revision}`}
-    />
   )
 }

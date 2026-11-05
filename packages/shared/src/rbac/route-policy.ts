@@ -63,12 +63,6 @@ export const routePolicy = {
     ['public.preview', 'public.publish'],
     'project',
   ),
-  transparencyPreview: entry(
-    '/projects/:projectId/transparency/preview',
-    'Public dashboard preview',
-    ['public.preview', 'public.publish'],
-    'project',
-  ),
   transparencyQueue: entry('/transparency', 'Public Tracker', ['public.preview', 'public.publish']),
   beneficiaries: entry('/beneficiaries', 'Beneficiaries', ['beneficiaries.records.read']),
   beneficiaryCreate: entry('/beneficiaries/new', 'Beneficiary registration', [
