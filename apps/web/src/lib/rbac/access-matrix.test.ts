@@ -326,7 +326,6 @@ describe('RBAC matrix', () => {
       '/budget',
       '/journey-stages',
       '/transparency',
-      '/transparency/preview',
     ]) {
       expect(getRouteAccess(role, `/projects/${projectId}${suffix}`).allowed).toBe(false)
     }
@@ -419,33 +418,14 @@ describe('RBAC matrix', () => {
     })
   })
 
-  it('limits the staff public-dashboard preview to designated internal roles', () => {
+  it('denies the removed staff preview address to every role', () => {
     expect(
       getRouteAccess(
         'Program Manager',
         '/projects/10000000-0000-4000-8000-000000000001/transparency/preview',
-      ),
-    ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
-    expect(
-      getRouteAccess(
-        'Project Manager',
-        '/projects/10000000-0000-4000-8000-000000000001/transparency/preview',
-        projectManagerAssignments,
-      ),
-    ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
-    expect(
-      getRouteAccess(
-        'Project Manager',
-        '/projects/10000000-0000-4000-8000-000000000002/transparency/preview',
-        projectManagerAssignments,
-      ),
-    ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
-    expect(
-      getRouteAccess(
-        'Project Officer',
-        '/projects/10000000-0000-4000-8000-000000000001/transparency/preview',
-      ),
-    ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
+      ).allowed,
+    ).toBe(false)
+    expect(getRouteAccess('System Administrator', '/transparency/preview').allowed).toBe(false)
   })
 
   it('keeps Project Officer detailed reports limited while allowing aggregate survey results', () => {

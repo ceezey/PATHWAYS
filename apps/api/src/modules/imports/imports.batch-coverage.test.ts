@@ -90,6 +90,23 @@ describe('batch detail coverage', () => {
     expect(JSON.stringify(detail.coverage)).not.toContain(privateValue)
   })
 
+  it('rebuilds coverage for an AUTO_SMART_V4 batch, a system column counting as ignored', async () => {
+    stage([
+      mapping('column_0001', 'MAPPED', 'first_name', 'AUTO_SMART_V4:AUTO_MATCH'),
+      mapping('column_0002', 'IGNORED', null, 'AUTO_SMART_V4:SYSTEM_COLUMN'),
+      mapping('column_0003', 'MAPPED', 'sex', 'AUTO_SMART_V4:AUTO_MATCH'),
+    ])
+    tx.dataImportRow.findMany.mockResolvedValue([
+      { rawData: { column_0001: 'Ana', column_0002: 'x', column_0003: 'MALE' } },
+    ])
+
+    expect((await service.getBatch(actor, projectId, batch().id)).coverage).toEqual({
+      coverage: 'COVERED',
+      uncoveredColumns: 0,
+      unresolvedValues: 0,
+    })
+  })
+
   it('returns COVERED when every column is mapped or ignored and every answer resolves', async () => {
     stage([
       mapping('column_0001', 'MAPPED', 'first_name'),

@@ -12,6 +12,7 @@ const report: FileCheckReport = {
   totalRows: 1,
   problemRows: 1,
   problems: [],
+  notes: [],
   canPrepareForm: false,
 }
 
@@ -79,5 +80,37 @@ describe('runFileCheck in a Web Worker', () => {
     await vi.advanceTimersByTimeAsync(30_000)
     await expect(result).resolves.toBeNull()
     expect(terminated).toBe(true)
+  })
+})
+
+describe('runFileCheck on the main thread', () => {
+  const named = {
+    formType: 'ACTIVITY',
+    fields: [
+      {
+        id: 'f1',
+        code: 'name',
+        label: 'Name',
+        dataType: 'TEXT',
+        required: false,
+        metadataKey: false,
+      },
+    ],
+  } as unknown as DigitalFormDefinition
+  const fileOf = (rows: string[][]) =>
+    new File([new Uint8Array(toWorkbookBytes(rows, 'xlsx'))], 'people.xlsx')
+
+  it('returns the report when the file only has notes', async () => {
+    const result = await runFileCheck(
+      fileOf([['Masterlist'], ['Name', 'Age', 'Sex'], ['Ana', '26', 'Female']]),
+      named,
+      '',
+    )
+    expect(result?.problems).toEqual([])
+    expect(result?.notes.map((note) => note.kind)).toEqual(['HEADER_ROW'])
+  })
+
+  it('returns null when the file has no problems and no notes', async () => {
+    await expect(runFileCheck(fileOf([['Name'], ['Ana']]), named, '')).resolves.toBeNull()
   })
 })

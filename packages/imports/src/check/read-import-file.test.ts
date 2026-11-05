@@ -76,6 +76,17 @@ describe('readImportFile', () => {
     expect(read.shown(0, 'column_0002')).toBeNull()
   })
 
+  it('maps shown dates below a blank row', () => {
+    const bytes = workbook({ Data: [['Born'], [null], [39677]] }, (sheet) => {
+      sheet.A3.z = 'yy/mm/dd'
+    })
+    const read = readImportFile(toArrayBuffer(bytes), 'XLSX', null)
+    expect(read.rowNumbers).toEqual([3])
+    expect(read.headerRowNumber).toBe(1)
+    expect(read.filledMerges).toEqual([])
+    expect(read.shown(0, 'column_0001')).toBe('08/08/17')
+  })
+
   it('maps shown dates past a coded header row', () => {
     const bytes = workbook(
       {
@@ -103,11 +114,37 @@ describe('readImportFile', () => {
     expect(read.shown(0, 'column_0001')).toBeNull()
   })
 
-  it('refuses a CSV the server refuses', () => {
-    const latin1 = Buffer.from([0x4e, 0x0a, 0xe9, 0x0a])
-    expect(() => readImportFile(toArrayBuffer(latin1), 'CSV', null)).toThrow()
+  it('reads a Windows-1252 CSV like the server', async () => {
+    const bytes = Buffer.from([
+      ...Buffer.from('Name,Town\nJose,Pe'),
+      0xf1,
+      ...Buffer.from('aranda\n'),
+    ])
+    const read = readImportFile(toArrayBuffer(bytes), 'CSV', null)
+    const server = await parseSecureImport(bytes, 'CSV')
+    expect(read.rows).toEqual(server.rows.map((row) => row.values))
+    expect(read.rows[0]?.column_0002).toBe('Peñaranda')
+    expect(read.encoding).toBe('WINDOWS-1252')
+    expect(read.encoding).toBe(server.csvEncoding)
+  })
+
+  it('leaves the encoding unset for a workbook', () => {
+    const read = readImportFile(
+      toArrayBuffer(workbook({ Data: [['Name'], ['Ana']] })),
+      'XLSX',
+      null,
+    )
+    expect(read.encoding).toBeUndefined()
+  })
+
+  it('refuses a CSV with a zero byte with the server code, never a raw decoder error', async () => {
     const binary = Buffer.from([0x4e, 0x0a, 0x41, 0x00, 0x0a])
-    expect(() => readImportFile(toArrayBuffer(binary), 'CSV', null)).toThrow()
+    expect(() => readImportFile(toArrayBuffer(binary), 'CSV', null)).toThrowError(
+      expect.objectContaining({ code: 'CSV_BINARY_CONTENT' }),
+    )
+    await expect(parseSecureImport(binary, 'CSV')).rejects.toMatchObject({
+      code: 'CSV_BINARY_CONTENT',
+    })
   })
 
   it('refuses a workbook with links, which the server refuses', () => {

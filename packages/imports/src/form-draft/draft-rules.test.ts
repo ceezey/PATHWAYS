@@ -76,6 +76,26 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     })
   })
 
+  it('keeps a formula-like alias source on a Washington Group field', () => {
+    const first = fixture()
+    const { questionFields } = wgRule(first)
+    const [seeing] = questionFields
+    const level = find(first, seeing)?.allowedValues?.[0] ?? ''
+    const existing = [
+      ...REGISTRATION,
+      ...first.fields
+        .filter((field) => questionFields.includes(field.code))
+        .map((field) => ({
+          ...field,
+          id: field.code,
+          ...(field.code === seeing ? { valueAliases: [{ from: '-none-', to: level }] } : {}),
+        })),
+    ]
+    const aliases = find(draft(fixtureColumns(), existing), seeing)?.valueAliases
+    expect(aliases).toContainEqual({ from: '-none-', to: level })
+    expect(aliases?.length).toBeGreaterThan(1)
+  })
+
   it('when one flag row disagrees, proposes the rule, keeps the flag as a plain field and adds WASHINGTON_GROUP_FLAG_DISAGREES', () => {
     const result = withColumn(COLUMN.flag, (values) =>
       values.map((value, row) => (row === 0 ? value !== true : value)),
@@ -96,6 +116,15 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(find(result, 'living_with_disability')?.dataType).toBe('INTEGER')
     expect(find(result, 'disability_status')?.sourceNames).toBeUndefined()
     expect(find(result, 'disability_status')?.valueAliases).toBeUndefined()
+  })
+
+  it('does not list disability status as unfed when its own Washington Group rule computes it', () => {
+    const result = withColumn(COLUMN.flag, (values) => values.map((value) => (value ? 1 : 0)))
+    expect(wgRule(result).questionFields).toHaveLength(6)
+    expect(result.summary.needsCheck).not.toContainEqual({
+      fieldCode: 'disability_status',
+      reason: 'SADDD_NO_COLUMN',
+    })
   })
 
   describe('a row with all six Washington Group answers blank and a filled flag', () => {
@@ -333,20 +362,8 @@ describe('proposeIntakeRules on the Futuremakers fixture', () => {
     expect(rule(result, parents[0])).toBeUndefined()
   })
 
-  it('adds ID_FROM_INITIALS_AND_BIRTH_DATE on beneficiary_code', () => {
-    expect(rule(fixture(), 'beneficiary_code')).toEqual({
-      kind: 'ID_FROM_INITIALS_AND_BIRTH_DATE',
-      firstNameField: 'first_name',
-      lastNameField: 'last_name',
-      birthField: 'birth_date',
-    })
-  })
-
-  it('skips ID_FROM_INITIALS_AND_BIRTH_DATE when one code does not match', () => {
-    const result = withColumn(COLUMN.code, (values) =>
-      values.map((value, row) => (row === 0 ? 'XX01012000' : value)),
-    )
-    expect(rule(result, 'beneficiary_code')).toBeUndefined()
+  it('never adds an ID pattern check on beneficiary_code, even when every code follows one', () => {
+    expect(rule(fixture(), 'beneficiary_code')).toBeUndefined()
   })
 
   it('proposes SAME_ANSWER_AS only on participation and lists every rule once, none asking for a check', () => {

@@ -12,7 +12,9 @@ import {
   type NormalizedImportValue,
   applyIntakeRules,
 } from './intake-rules'
+import { choiceAnswers } from './mappers/smart-match-values'
 import { type ImportColumnRule, mapKey } from './value-map'
+import { automaticValue } from './value-map-suggest'
 
 export interface ImportRowNormalizationResult {
   valid: boolean
@@ -29,6 +31,7 @@ function convert(
   field: FormFieldValidationContract,
   raw: unknown,
   date?: ImportDateRule,
+  resolve?: (raw: string) => string | null,
 ): { value: NormalizedImportValue; error?: ImportValueError } {
   if (raw === null || raw === undefined || raw === '') return { value: null }
   if (field.dataType === 'TEXT' || field.dataType === 'LONG_TEXT' || field.dataType === 'SELECT') {
@@ -65,10 +68,13 @@ function convert(
     }
   }
   if (field.dataType === 'DATE') {
-    if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
-      return { value: raw.trim() }
-    }
-    const read = typeof raw === 'string' && date ? readDate(raw, date) : null
+    const text = typeof raw === 'string' ? raw.trim() : ''
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return { value: text }
+    // An ISO date with a time part is year-first whatever order the column uses.
+    const rule = /^\d{4}-\d{2}-\d{2}[T ]/i.test(text)
+      ? { order: 'YMD' as const, referenceYear: 0 }
+      : date
+    const read = rule ? readDate(text, rule) : null
     if (read) return { value: read }
     return {
       value: null,
@@ -80,31 +86,24 @@ function convert(
     if (typeof raw === 'string' && /^(true|false)$/i.test(raw.trim())) {
       return { value: raw.trim().toLowerCase() === 'true' }
     }
+    // The yes and no words Suggest proposes apply without a click (cr-pathways-yes-no-boolean-import).
+    const read =
+      typeof raw === 'string' || typeof raw === 'number' ? automaticValue(String(raw), field) : null
+    if (read) return { value: read === 'true' }
     return {
       value: null,
       error: conversionError(field, 'AMBIGUOUS_BOOLEAN', 'Expected true or false.'),
     }
   }
   if (field.dataType === 'MULTIPLE_SELECT') {
-    if (Array.isArray(raw) && raw.every((value) => typeof value === 'string')) {
-      return { value: raw }
-    }
-    if (typeof raw === 'string') {
-      try {
-        const parsed: unknown = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.every((value) => typeof value === 'string')) {
-          return { value: parsed }
-        }
-      } catch {
-        // The bounded error below deliberately avoids reflecting source values.
-      }
-    }
+    const answers = choiceAnswers(raw, resolve ?? (() => null))
+    if (answers) return { value: answers }
     return {
       value: null,
       error: conversionError(
         field,
         'AMBIGUOUS_MULTI_SELECT',
-        'Expected a JSON array of choice strings.',
+        'Expected a JSON array or a delimited list of choices.',
       ),
     }
   }
@@ -160,15 +159,21 @@ export function normalizeImportedRow(
     const rule = Object.hasOwn(rules, field.code) ? rules[field.code] : undefined
     let raw = translate(rawValuesByFieldCode[field.code], rule)
     if (!isBlankRaw(rawValuesByFieldCode[field.code])) sourceProvided.add(field.code)
-    if (field.dataType === 'SELECT' && typeof raw === 'boolean') raw = String(raw)
+    // A true/false or whole-number cell is read as its text, as the mapping step shows it.
+    if (
+      field.dataType === 'SELECT' &&
+      (typeof raw === 'boolean' || (typeof raw === 'number' && Number.isSafeInteger(raw)))
+    ) {
+      raw = String(raw)
+    }
     if (field.dataType === 'SELECT' && typeof raw === 'string' && raw !== '') {
-      raw = resolverFor(field)(raw) ?? raw
+      raw = resolverFor(field)(raw) ?? automaticValue(raw, field) ?? raw
     }
     const declared =
       rule?.dataType && rule.dataType !== field.dataType
-        ? convert({ ...field, dataType: rule.dataType }, raw, rule.date)
+        ? convert({ ...field, dataType: rule.dataType }, raw, rule.date, resolverFor(field))
         : null
-    let converted = declared?.error ? declared : convert(field, raw, rule?.date)
+    let converted = declared?.error ? declared : convert(field, raw, rule?.date, resolverFor(field))
     if (field.dataType === 'MULTIPLE_SELECT' && Array.isArray(converted.value)) {
       const resolveElement = resolverFor(field)
       converted = { value: converted.value.map((item) => resolveElement(item) ?? item) }
@@ -182,6 +187,14 @@ export function normalizeImportedRow(
     }
     values[field.code] = converted.value
     if (converted.error) errors.push(converted.error)
+  }
+  // A defaulted identifier type only names the namespace of a value, so with no value it is dropped.
+  if (
+    values.external_identifier_type != null &&
+    values.external_identifier_value == null &&
+    !Object.hasOwn(rawValuesByFieldCode, 'external_identifier_type')
+  ) {
+    values.external_identifier_type = null
   }
   if (errors.length > 0) return { valid: false, values, errors, warnings: [] }
   const intake = options

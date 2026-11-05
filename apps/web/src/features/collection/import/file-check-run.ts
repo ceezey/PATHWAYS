@@ -19,7 +19,7 @@ export interface FileCheckRequest {
   uploadDate: string
 }
 
-/** What the file would need reviewed one by one, or null when it is clean or cannot be read here. */
+/** What the file would need reviewed one by one or how it was read, or null when it is clean or cannot be read here. */
 export function runFileCheckRequest(request: FileCheckRequest): FileCheckReport | null {
   try {
     const report = checkImportFile({
@@ -28,7 +28,7 @@ export function runFileCheckRequest(request: FileCheckRequest): FileCheckReport 
       fields: request.fields,
       uploadDate: request.uploadDate,
     })
-    return report.problems.length ? report : null
+    return report.problems.length || report.notes.length ? report : null
   } catch {
     return null
   }

@@ -341,7 +341,7 @@ BEGIN
  FOR c IN SELECT * FROM (VALUES
   ('V2 algorithm id','AUTO_SMART_V2',0,good,'22023'),
   ('V1 algorithm id','AUTO_CODE_LABEL_V1',0,good,'22023'),
-  ('unknown algorithm id','AUTO_SMART_V4',0,good,'22023'),
+  ('unknown algorithm id','AUTO_SMART_V5',0,good,'22023'),
   ('null algorithm',NULL,0,good,'22023'),
   ('bad expected revision','AUTO_SMART_V3',2,good,'22023'),
   ('not an array','AUTO_SMART_V3',0,'{"a":1}','22023'),

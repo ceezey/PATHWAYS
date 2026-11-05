@@ -41,9 +41,10 @@ export const sadddQuerySchema = z
 
 export type SadddQuery = z.infer<typeof sadddQuerySchema>
 
-const bucket = z
+export const metricBucketSchema = z
   .object({ key: z.string().max(80), label: z.string().max(160), metric: metricCellSchema })
   .strict()
+const bucket = metricBucketSchema
 
 const contextFields = {
   contractVersion: z.literal(P06_CONTRACT_VERSION),

@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer'
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
+import { IMPORT_ENGINEERING_LIMITS } from '../limits'
 import { excelSerialToIsoDate } from './excel-date'
 import { normalizeMatrix } from './matrix'
 import { parseSecureImport } from './secure'
@@ -17,7 +18,15 @@ function workbookBuffer(rows: unknown[][], mutate?: (sheet: XLSX.WorkSheet) => v
 }
 
 const grid = (buffer: Buffer, sheetName: string | null = null, wantDateText = true) =>
-  workbookGrid(XLSX, buffer, 'buffer', sheetName, excelSerialToIsoDate, wantDateText)
+  workbookGrid(
+    XLSX,
+    buffer,
+    'buffer',
+    sheetName,
+    excelSerialToIsoDate,
+    wantDateText,
+    IMPORT_ENGINEERING_LIMITS.maxCells,
+  )
 
 describe('workbookGrid', () => {
   it('matches the secure parser', async () => {
@@ -77,10 +86,34 @@ describe('workbookGrid', () => {
     const result = grid(buffer)
 
     expect(result.matrix).toEqual([
+      [null, null],
       ['Name', 'Date of Birth'],
+      [null, null],
       ['Ana', '2008-08-17'],
     ])
-    expect(result.dateText).toEqual({ '1:1': '08/08/17' })
+    expect(result.firstRowNumber).toBe(1)
+    expect(result.dateText).toEqual({ '3:1': '08/08/17' })
+  })
+
+  it('numbers rows from the range start and shifts merges with it', () => {
+    const buffer = workbookBuffer(
+      [
+        [null, null],
+        [null, null],
+        ['Name', 'Brgy'],
+        ['Ana', 'San Jose'],
+        ['Ben', null],
+      ],
+      (sheet) => {
+        sheet['!ref'] = 'A3:B5'
+        sheet['!merges'] = [{ s: { r: 3, c: 1 }, e: { r: 4, c: 1 } }]
+      },
+    )
+    const result = grid(buffer)
+
+    expect(result.firstRowNumber).toBe(3)
+    expect(result.matrix[0]).toEqual(['Name', 'Brgy'])
+    expect(result.merges).toEqual([{ firstRow: 1, lastRow: 2, firstColumn: 1, lastColumn: 1 }])
   })
 
   it('skips the shown date text when it is not wanted', () => {
@@ -91,6 +124,37 @@ describe('workbookGrid', () => {
 
     expect(result.matrix).toEqual([['Date of Birth'], ['2008-08-17']])
     expect(result.dateText).toEqual({})
+  })
+
+  it('reads a sheet dimensioned to the last row and column by its cells only', async () => {
+    // The sheet XML declares the whole sheet, as a file with formatted empty rows and columns does.
+    const files = XLSX.CFB.read(workbookBuffer([['Name'], ['Ana'], ['Ben']]), { type: 'buffer' })
+    const entry = files.FileIndex[files.FullPaths.indexOf('Root Entry/xl/worksheets/sheet1.xml')]
+    entry.content = Buffer.from(
+      String(entry.content).replace(
+        /<dimension ref="[^"]*"\/>/,
+        '<dimension ref="A1:XFD1048576"/>',
+      ),
+    )
+    entry.size = entry.content.length
+    const buffer = Buffer.from(XLSX.CFB.write(files, { type: 'buffer', fileType: 'zip' }))
+    const started = performance.now()
+    const result = grid(buffer)
+    const parsed = await parseSecureImport(buffer, 'XLSX')
+
+    expect(result.matrix).toEqual([['Name'], ['Ana'], ['Ben']])
+    expect(parsed.rows.map((row) => row.sourceRowNumber)).toEqual([2, 3])
+    expect(performance.now() - started).toBeLessThan(2_000)
+  })
+
+  it('refuses values spread over more rows than the cell limit before building the matrix', async () => {
+    const buffer = workbookBuffer([['Name'], ['Ana']], (sheet) => {
+      sheet.A300000 = { t: 's', v: 'Ben' }
+      sheet['!ref'] = 'A1:A300000'
+    })
+
+    expect(() => grid(buffer)).toThrow(expect.objectContaining({ code: 'ROW_LIMIT' }))
+    await expect(parseSecureImport(buffer, 'XLSX')).rejects.toMatchObject({ code: 'ROW_LIMIT' })
   })
 
   it('throws when the chosen sheet is not in the workbook', () => {

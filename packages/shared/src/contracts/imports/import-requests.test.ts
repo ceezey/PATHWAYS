@@ -49,6 +49,15 @@ describe('mapping value map contract', () => {
     expect(accepts(importMappingItemRequest, item([{ from: 'M', to: 'Male' }], 'TEXT'))).toBe(true)
   })
 
+  it('accepts formula-like text on the from side only', () => {
+    expect(accepts(importMappingItemRequest, item([{ from: '-none-', to: 'NOT_SPECIFIED' }]))).toBe(
+      true,
+    )
+    expect(accepts(importMappingItemRequest, item([{ from: '-', to: 'NOT_SPECIFIED' }]))).toBe(true)
+    expect(accepts(importMappingItemRequest, item([{ from: 'x', to: '=1' }]))).toBe(false)
+    expect(accepts(importMappingItemRequest, item([{ from: 'a\u0007', to: 'b' }]))).toBe(false)
+  })
+
   it('rejects an oversized map, an unknown type, and formula-like or control text', () => {
     const many = Array.from({ length: 51 }, (_, index) => ({ from: `k${index}`, to: 'v' }))
     expect(accepts(importMappingItemRequest, item(many))).toBe(false)
@@ -56,7 +65,6 @@ describe('mapping value map contract', () => {
     expect(accepts(importMappingItemRequest, item([{ from: 'M', to: '=HYPERLINK("x")' }]))).toBe(
       false,
     )
-    expect(accepts(importMappingItemRequest, item([{ from: '@SUM(1)', to: 'v' }]))).toBe(false)
     expect(accepts(importMappingItemRequest, item([{ from: 'M', to: '-cmd' }]))).toBe(false)
     const bell = String.fromCharCode(7)
     expect(accepts(importMappingItemRequest, item([{ from: 'M', to: `a${bell}b` }]))).toBe(false)
@@ -232,7 +240,8 @@ describe('save mapping body rules', () => {
     ['blank map source', withMap([{ from: '  ', to: 'v' }]), false],
     ['map target of 101', withMap([{ from: 'M', to: 'x'.repeat(101) }]), false],
     ['map entry without target', withMap([{ from: 'M' }]), false],
-    ['plus prefix on map source', withMap([{ from: '+1', to: 'v' }]), false],
+    ['plus prefix on map source', withMap([{ from: '+1', to: 'v' }]), true],
+    ['plus prefix on map target', withMap([{ from: 'M', to: '+x' }]), false],
     ['control character in map target', withMap([{ from: 'M', to: `a${bell}b` }]), false],
     ['unknown key on the body', { ...body([column()]), extra: 1 }, false],
     ['unknown key on a mapping', body([column({ extra: 1 })]), false],

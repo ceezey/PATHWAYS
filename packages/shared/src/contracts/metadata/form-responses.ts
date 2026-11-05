@@ -34,6 +34,7 @@ export const draftNeedsCheckReasons = [
   'CONSENT_SOURCE_PROPOSED',
   'WASHINGTON_GROUP_FLAG_DISAGREES',
   'ANSWER_KEY_NEEDED',
+  'SADDD_NO_COLUMN',
 ] as const
 // Reasons open older drafts stored for what the drafter now accepts itself; dropped on read.
 const acceptedDraftReasons = [

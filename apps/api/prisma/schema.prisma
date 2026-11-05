@@ -235,6 +235,7 @@ model SystemUser {
   projectPublication_submittedBy              ProjectPublication[]               @relation("ProjectPublication_submittedBy")
   projectPublication_approvedBy               ProjectPublication[]               @relation("ProjectPublication_approvedBy")
   projectPublication_publishedBy              ProjectPublication[]               @relation("ProjectPublication_publishedBy")
+  projectPublication_livePublishedBy          ProjectPublication[]               @relation("ProjectPublication_livePublishedBy")
   publicationRequest_actor                    PublicationRequest[]               @relation("PublicationRequest_actor")
   expenseSignoff_signedOffBy                  ExpenseSignoff[]                   @relation("ExpenseSignoff_signedOffBy")
   stepUpPin                                   UserStepUpPin?                     @relation("UserStepUpPin_user")
@@ -2423,8 +2424,8 @@ model Report {
   @@schema("pathways")
 }
 
-// Public tracker state; written only by 0034 publication functions. State,
-// snapshot allowlist and distinct-approver CHECK constraints live in SQL.
+// Public tracker state; written only through the 0034 guard as 0085 replaced it. State, snapshot allowlist,
+// live-column and distinct-approver CHECK constraints live in SQL; live_* hold the last published revision.
 model ProjectPublication {
   organizationId String               @map("organization_id") @db.Uuid
   projectId      String               @map("project_id") @db.Uuid
@@ -2440,10 +2441,15 @@ model ProjectPublication {
   publishedById  String?              @map("published_by_id") @db.Uuid
   publishedAt    DateTime?            @map("published_at") @db.Timestamptz(3)
   updatedAt      DateTime             @default(now()) @map("updated_at") @db.Timestamptz(3)
+  liveRevision      Int?              @map("live_revision")
+  liveSnapshot      Json?             @map("live_snapshot")
+  livePublishedAt   DateTime?         @map("live_published_at") @db.Timestamptz(3)
+  livePublishedById String?           @map("live_published_by_id") @db.Uuid
   project        Project              @relation("ProjectPublication_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_project_id_fkey")
   submittedBy    SystemUser           @relation("ProjectPublication_submittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_submitted_by_id_fkey")
   approvedBy     SystemUser?          @relation("ProjectPublication_approvedBy", fields: [organizationId, approvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_approved_by_id_fkey")
   publishedBy    SystemUser?          @relation("ProjectPublication_publishedBy", fields: [organizationId, publishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_published_by_id_fkey")
+  livePublishedBy SystemUser?         @relation("ProjectPublication_livePublishedBy", fields: [organizationId, livePublishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_live_published_by_id_fkey")
   requests       PublicationRequest[] @relation("PublicationRequest_publication")
 
   @@id([organizationId, projectId], map: "project_publications_pkey")

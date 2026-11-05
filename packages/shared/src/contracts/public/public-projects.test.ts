@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { publicProjectResponse, publicationTransitionRequest } from './public-projects'
+import {
+  publicProjectResponse,
+  publicationSelection,
+  publicationTransitionRequest,
+} from './public-projects'
 
 const snapshot = {
   id: '10000000-0000-4000-8000-000000000001',
@@ -12,6 +16,15 @@ const snapshot = {
   startDate: '2026-01-01',
   endDate: null,
   publishedAt: '2026-09-27T00:00:00.000Z',
+  media: [],
+  views: [],
+}
+const mediaId = '30000000-0000-4000-8000-000000000003'
+const mediaItem = {
+  id: mediaId,
+  type: 'PHOTO',
+  contentType: 'image/jpeg',
+  caption: 'Synthetic caption',
 }
 
 describe('public project contracts', () => {
@@ -86,5 +99,60 @@ describe('public project contracts', () => {
   ])('checks the publication body: %s', (_label, change, accepted) => {
     const body = { clientRequestId: '20000000-0000-4000-8000-000000000002', expectedRevision: 0 }
     expect(publicationTransitionRequest.safeParse({ ...body, ...change }).success).toBe(accepted)
+  })
+
+  it('refuses a snapshot without media or views', () => {
+    const { media: _media, ...noMedia } = snapshot
+    const { views: _views, ...noViews } = snapshot
+    expect(publicProjectResponse.safeParse(noMedia).success).toBe(false)
+    expect(publicProjectResponse.safeParse(noViews).success).toBe(false)
+  })
+
+  it.each([
+    ['one photo and two views', { media: [mediaItem], views: ['kpi', 'map'] }, true],
+    ['an unknown view', { views: ['budget'] }, false],
+    [
+      'a video content type on a photo',
+      { media: [{ ...mediaItem, contentType: 'video/mp4' }] },
+      true,
+    ],
+    [
+      'an application content type',
+      { media: [{ ...mediaItem, contentType: 'application/pdf' }] },
+      false,
+    ],
+    ['an empty caption', { media: [{ ...mediaItem, caption: '' }] }, false],
+    ['an extra media key', { media: [{ ...mediaItem, storageKey: 'x' }] }, false],
+    ['24 media items', { media: Array.from({ length: 24 }, () => mediaItem) }, true],
+    ['25 media items', { media: Array.from({ length: 25 }, () => mediaItem) }, false],
+    ['six views', { views: ['kpi', 'saddd', 'participation', 'timeline', 'map', 'kpi'] }, false],
+  ])('checks the public selection: %s', (_label, change, accepted) => {
+    expect(publicProjectResponse.safeParse({ ...snapshot, ...change }).success).toBe(accepted)
+  })
+
+  it('leaves media id uniqueness to the database', () => {
+    const twice = { media: [mediaItem, mediaItem] }
+    expect(publicProjectResponse.safeParse({ ...snapshot, ...twice }).success).toBe(true)
+  })
+
+  it('trims a caption in a publication selection and refuses extra keys', () => {
+    const picked = { media: [{ id: mediaId, caption: '  Caption  ' }], views: ['saddd'] }
+    expect(publicationSelection.parse(picked).media[0].caption).toBe('Caption')
+    expect(publicationSelection.safeParse({ ...picked, extra: 1 }).success).toBe(false)
+    expect(
+      publicationSelection.safeParse({ media: [{ id: mediaId, caption: '   ' }], views: [] })
+        .success,
+    ).toBe(false)
+  })
+
+  it('carries an optional selection on the transition body', () => {
+    const body = { clientRequestId: '20000000-0000-4000-8000-000000000002', expectedRevision: 0 }
+    expect(
+      publicationTransitionRequest.safeParse({ ...body, selection: { media: [], views: [] } })
+        .success,
+    ).toBe(true)
+    expect(
+      publicationTransitionRequest.safeParse({ ...body, selection: { media: [] } }).success,
+    ).toBe(false)
   })
 })

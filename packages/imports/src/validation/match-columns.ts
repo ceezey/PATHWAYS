@@ -3,7 +3,7 @@ import {
   AUTO_SMART_V2_LIMITS,
   type SmartMatchColumn,
   type SmartMatchDecision,
-  smartMatchColumnsV3,
+  smartMatchColumnsV4,
 } from '../mappers/smart-match'
 import { matchBySourceCode } from '../mappers/source-code-match'
 import type { ImportSourceColumn } from '../parser/matrix'
@@ -42,7 +42,7 @@ export function matchColumns(
     fields,
   )
   const coded = new Set(byCode.values())
-  const rest = smartMatchColumnsV3(
+  const rest = smartMatchColumnsV4(
     columns.filter((column) => !byCode.has(column.key)),
     fields.filter((field) => !coded.has(field.code)),
   )

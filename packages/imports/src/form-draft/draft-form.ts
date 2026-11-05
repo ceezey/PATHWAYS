@@ -3,15 +3,17 @@ import {
   type DigitalFormType,
   type FormFieldRequest,
   formDefinitionLimits,
+  valueMapSourceText,
   valueMapText,
 } from '@pathways/shared'
 import { answerResolver, comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
+import { fedCodes, unfedSadddFields } from '../check/saddd-columns'
 import {
   SMART_REVIEW_SYNONYMS_V2,
   type SmartMatchDecision,
   normalizeMappingNameV1,
 } from '../mappers/smart-match'
-import { STOP_WORDS } from '../mappers/smart-match-rules'
+import { REFUSED_TAGS, STOP_WORDS } from '../mappers/smart-match-rules'
 import { boundedSamples, valueGate } from '../mappers/smart-match-values'
 import { type ImportValueMapEntry, mapKey } from '../value-map'
 import { suggestValueMap } from '../value-map-suggest'
@@ -36,6 +38,7 @@ export type NeedsCheckReason =
   | 'CONSENT_SOURCE_PROPOSED'
   | 'WASHINGTON_GROUP_FLAG_DISAGREES'
   | 'ANSWER_KEY_NEEDED'
+  | 'SADDD_NO_COLUMN'
 
 /** Field codes and counts only; no source value ever enters the summary. */
 export interface DraftSummary {
@@ -94,33 +97,6 @@ const DATA_CONSENT_HEADER_WORDS = new Set([
   'you',
   'your',
   'my',
-])
-// A tag after a dash can be a program name, so tags naming someone else or a refusal are refused by name.
-const REFUSED_TAGS = new Set([
-  'parent',
-  'parents',
-  'guardian',
-  'guardians',
-  'mother',
-  'father',
-  'spouse',
-  'caregiver',
-  'staff',
-  'enumerator',
-  'no',
-  'not',
-  'none',
-  'withdrawn',
-  'revoked',
-  'declined',
-  'refused',
-  'denied',
-  'rejected',
-  'hindi',
-  'ayaw',
-  'magulang',
-  'nanay',
-  'tatay',
 ])
 // Parts of header words that may mark a person's own answer about taking part, in English and Filipino; "participat" leaves out "participant".
 const OWN_ANSWER_STEMS = [
@@ -297,7 +273,7 @@ function choicesOf(texts: readonly string[]) {
     )
     if (!to || seen.has(mapKey(text))) continue
     seen.add(mapKey(text))
-    if (valueMapText(1).safeParse(text).success && valueMapText(1).safeParse(to).success)
+    if (valueMapSourceText(1).safeParse(text).success && valueMapText(1).safeParse(to).success)
       aliases.push({ from: text, to })
   }
   return { options, aliases: aliases.slice(0, LIMITS.aliases) }
@@ -409,11 +385,15 @@ export function draftFormFromImport(input: {
     if (field.dataType === 'SELECT') return true
     const allowed = field.allowedValues ?? []
     return (
-      valueGate(boundedSamples(present), {
-        field: { ...field, id: field.id ?? field.code },
-        allowed: new Set(allowed.map(normalizeMappingNameV1)),
-        resolve: answerResolver(allowed, field.valueAliases ?? []),
-      }) === 'PASS'
+      valueGate(
+        boundedSamples(present),
+        {
+          field: { ...field, id: field.id ?? field.code },
+          allowed: new Set(allowed.map(normalizeMappingNameV1)),
+          resolve: answerResolver(allowed, field.valueAliases ?? []),
+        },
+        true,
+      ) === 'PASS'
     )
   }
 
@@ -605,5 +585,12 @@ export function draftFormFromImport(input: {
     summary.needsCheck.length
   if (changed === 0) throw new FormDraftError('NOTHING_TO_ADD')
   if (drafted.length > LIMITS.fields) throw new FormDraftError('FIELD_LIMIT')
+  // Listed only on a draft that already changes something, so it never decides NOTHING_TO_ADD.
+  for (const { fieldCode } of unfedSadddFields(
+    new Set(byCode.keys()),
+    fedCodes(drafted, mapping.values()),
+    new Map(),
+  ))
+    flag(fieldCode, 'SADDD_NO_COLUMN')
   return { fields: drafted.map(({ id, ...field }) => field), summary }
 }

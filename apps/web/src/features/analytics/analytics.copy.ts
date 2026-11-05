@@ -1,4 +1,4 @@
-import type { DescriptiveAnalytics } from '@pathways/shared'
+import type { DescriptiveAnalytics, PublicView } from '@pathways/shared'
 
 export const analysisViews = [
   { value: 'kpi', label: 'KPI / indicator performance' },
@@ -22,6 +22,10 @@ export const SURVEY_CLOSED_PERIOD_MESSAGE =
   'Survey results for your role are released after the reporting period closes. Choose a closed period.'
 export const SURVEY_FROZEN_CAPTION =
   'Released once for this closed period; figures do not change on later views.'
+
+/** The publication queue opens with this view already added to the selection. */
+export const publicPageHref = (projectId: string, view: PublicView) =>
+  `/transparency?projectId=${projectId}&addView=${view}`
 
 export const exportFormats = ['CSV', 'XLS', 'XLSX', 'PDF'] as const
 export type ExportFormat = (typeof exportFormats)[number]

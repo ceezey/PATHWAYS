@@ -23,12 +23,21 @@ export type ImportDateOrder = (typeof importDateOrders)[number]
 // No control characters, and no leading formula trigger (= + @ or a minus that is not a number).
 const safeMapText = /^(?![=+@\t\r]|-(?!\d))\P{Cc}*$/u
 
-// One side of a value map entry, trimmed first.
+// The target side of a value map entry, trimmed first.
 export const valueMapText = (min: number) =>
   trimmedInput(
     lengthString(min, importRequestLimits.maxValueMapTextLength).refine(
       (value) => safeMapText.test(value),
       'Control characters and formula prefixes are not allowed.',
+    ),
+  )
+
+// The source side of a value map entry: formula-like text such as -none- is a real file value, so only control characters are refused.
+export const valueMapSourceText = (min: number) =>
+  trimmedInput(
+    lengthString(min, importRequestLimits.maxValueMapTextLength).refine(
+      (value) => !/\p{Cc}/u.test(value),
+      'Control characters are not allowed.',
     ),
   )
 
@@ -56,7 +65,7 @@ export const importMappingItemRequest = z
     ignored: z.boolean(),
     dataType: z.enum(supportedFormFieldTypes).nullish(),
     valueMap: z
-      .array(z.object({ from: valueMapText(1), to: valueMapText(0) }).strict())
+      .array(z.object({ from: valueMapSourceText(1), to: valueMapText(0) }).strict())
       .min(1)
       .max(importRequestLimits.maxValueMapEntries)
       .nullish(),

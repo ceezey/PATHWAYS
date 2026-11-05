@@ -3,6 +3,7 @@ import {
   type FieldIntakeRule,
   completedYearsAt,
   formDefinitionLimits,
+  valueMapSourceText,
   valueMapText,
 } from '@pathways/shared'
 import { comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
@@ -154,7 +155,10 @@ export function proposeIntakeRules(
       for (const { from, to } of pairs) {
         const target = optionOf(to)
         if (from === target || seen.has(mapKey(from))) continue
-        if (!valueMapText(1).safeParse(from).success || !valueMapText(1).safeParse(target).success)
+        if (
+          !valueMapSourceText(1).safeParse(from).success ||
+          !valueMapText(1).safeParse(target).success
+        )
           continue
         seen.add(mapKey(from))
         aliases.push({ from, to: target })
@@ -364,38 +368,7 @@ export function proposeIntakeRules(
     }
   }
 
-  function identifier() {
-    const field = open('beneficiary_code')
-    const code = columnFor('beneficiary_code')
-    const first = columnFor('first_name')
-    const last = columnFor('last_name')
-    const birth = columnFor('birth_date')
-    if (!field || !code || !first || !last || !birth) return
-    let checked = 0
-    for (const row of rowIndexes) {
-      const [given, family] = [first.values[row], last.values[row]]
-      const born = toDay(birth.values[row])
-      if (isBlank(code.values[row]) || typeof given !== 'string' || typeof family !== 'string')
-        continue
-      if (!born || !given.trim() || !family.trim()) continue
-      const [year, month, day] = birth.values[row]
-        ? String(birth.values[row]).trim().split('-')
-        : []
-      const expected = `${given.trim()[0]}${family.trim()[0]}${month}${day}${year}`
-      if (String(code.values[row]).trim().toUpperCase() !== expected.toUpperCase()) return
-      checked++
-    }
-    if (checked > 0)
-      propose(field, {
-        kind: 'ID_FROM_INITIALS_AND_BIRTH_DATE',
-        firstNameField: 'first_name',
-        lastNameField: 'last_name',
-        birthField: 'birth_date',
-      })
-  }
-
   washingtonGroup()
   ages()
   followUps()
-  identifier()
 }

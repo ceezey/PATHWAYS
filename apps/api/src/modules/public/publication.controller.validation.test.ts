@@ -71,4 +71,21 @@ describe('publication routes leave the body to the service', () => {
       expect(transition).toHaveBeenCalledWith(actor, projectId, operation, body)
     },
   )
+
+  it('submit hands a selection outside the schema to the service and answers the fixed text', async () => {
+    const body = {
+      clientRequestId: projectId,
+      expectedRevision: 0,
+      summary: 'Synthetic summary.',
+      selection: { media: [{ id: 'not-a-uuid', caption: '' }], views: ['budget'] },
+    }
+    const response = await fetch(`${base}/submit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ message: 'Invalid publication request.' })
+    expect(transition).toHaveBeenCalledWith(actor, projectId, 'SUBMIT', body)
+  })
 })

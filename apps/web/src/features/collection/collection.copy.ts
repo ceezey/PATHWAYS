@@ -23,6 +23,8 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
   WASHINGTON_GROUP_FLAG_DISAGREES:
     'The disability yes or no column disagrees with the Washington Group answers on some rows. Check before publishing.',
   ANSWER_KEY_NEEDED: 'Mark the correct answers for this score',
+  SADDD_NO_COLUMN:
+    'No column in the file feeds this breakdown field, so the file adds nothing to its breakdown. Confirm if that is expected.',
 }
 
 /** Words of the answer key a person marks for a total score. */
@@ -69,7 +71,7 @@ export const ruleKindLabels: Record<(typeof INTAKE_RULE_KINDS)[number], string> 
   SAME_ANSWER_AS: 'Same answer as the data processing consent',
   AGE_CHECK: 'Check the age column against a birth date',
   FOLLOW_UP_OF: 'Fill only when another field has certain answers',
-  ID_FROM_INITIALS_AND_BIRTH_DATE: 'Check the ID against initials and birth date',
+  ID_FROM_INITIALS_AND_BIRTH_DATE: 'ID against initials and birth date (no longer checked)',
   TOTAL_SCORE: 'Check the total score against the answer key',
 }
 

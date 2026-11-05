@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common'
 import {
   AUTO_SMART_V2_LIMITS,
   AUTO_SMART_V3,
+  AUTO_SMART_V4,
   type CoverageField,
   importCoverage,
 } from '@pathways/imports/server'
@@ -64,8 +65,9 @@ interface StoredDecision {
 }
 
 /**
- * Coverage of a batch still on its automatic AUTO_SMART_V3 revision, rebuilt from the stored
- * mapping rows with the inputs automatic mapping uses; null for any other batch. Counts only.
+ * Coverage of a batch still on its automatic AUTO_SMART_V3 or AUTO_SMART_V4 revision, rebuilt
+ * from the stored mapping rows with the inputs automatic mapping uses; null for any other batch.
+ * Counts only.
  */
 export async function readBatchCoverage(
   tx: Tx,
@@ -78,7 +80,9 @@ export async function readBatchCoverage(
     !['UPLOADED', 'MAPPED'].includes(batch.status) ||
     batch.mappingRevision !== 1 ||
     mappings.length < 1 ||
-    !mappings.every((mapping) => mapping.validationMessage?.startsWith(`${AUTO_SMART_V3}:`))
+    !mappings.every((mapping) =>
+      [AUTO_SMART_V3, AUTO_SMART_V4].some((id) => mapping.validationMessage?.startsWith(`${id}:`)),
+    )
   ) {
     return null
   }

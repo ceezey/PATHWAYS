@@ -40,9 +40,12 @@ export interface ProofFileItem {
 
 export const megabytes = (bytes: number) => `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
 
-export const statusLabel = (status: FileStatus) =>
+// A chosen file waits on the user's Upload press, then is hashed before it uploads.
+export const statusLabel = (status: FileStatus, busy = false) =>
   status === 'waiting'
-    ? 'Waiting'
+    ? busy
+      ? 'Preparing'
+      : 'Ready to upload'
     : status === 'uploading'
       ? 'Uploading'
       : status === 'uploaded'

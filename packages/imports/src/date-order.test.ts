@@ -13,6 +13,18 @@ describe('text dates', () => {
     expect(readDate('next week', { order: 'DMY', referenceYear: 2026 })).toBeNull()
   })
 
+  it('reads the date part of a text date that carries a time and zone', () => {
+    expect(readDate('2026/01/10 9:15:22 AM GMT+8', { order: 'YMD', referenceYear: 2026 })).toBe(
+      '2026-01-10',
+    )
+    expect(readDate('1/10/2026 14:05', { order: 'MDY', referenceYear: 2026 })).toBe('2026-01-10')
+    expect(readDate('2026/01/10T09:15:22Z', { order: 'YMD', referenceYear: 2026 })).toBe(
+      '2026-01-10',
+    )
+    expect(readDate('2026/01/10 25:99', { order: 'YMD', referenceYear: 2026 })).toBeNull()
+    expect(readDate('2026/02/31 09:00', { order: 'YMD', referenceYear: 2026 })).toBeNull()
+  })
+
   it('lists only the orders that read every value, ignoring blanks and ISO dates', () => {
     expect(fittingDateOrders(['15/03/2026', '01/02/2026', ''], 2026)).toEqual(['DMY'])
     expect(fittingDateOrders(['26/03/15', '26/05/31'], 2026)).toEqual(['YMD', 'DMY'])
