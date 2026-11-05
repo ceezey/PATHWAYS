@@ -16,8 +16,10 @@ const typeLabels: Record<string, string> = {
   'video/quicktime': 'MOV',
   'video/webm': 'WebM',
 }
+// A chosen file waits on the user's Upload press, then is hashed before it uploads.
 const statusLabel = {
-  waiting: 'Waiting',
+  waiting: 'Ready to upload',
+  preparing: 'Preparing',
   uploading: 'Uploading',
   uploaded: 'Uploaded',
   failed: 'Failed',
@@ -61,7 +63,9 @@ export const MediaUploadFields = ({
                 {item.file.name} · {formatMediaFileSize(item.file.size)}
               </span>
               <span className="flex shrink-0 items-center gap-2">
-                <span>{statusLabel[item.status]}</span>
+                <span>
+                  {statusLabel[busy && item.status === 'waiting' ? 'preparing' : item.status]}
+                </span>
                 {item.status === 'failed' && item.mediaId ? (
                   <Button
                     aria-label={`Retry ${item.file.name}`}
