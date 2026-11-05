@@ -103,16 +103,12 @@ export function ImportMappingCard({
   const dateColumn = (key: string) =>
     (rules[key]?.dataType ||
       selectedForm?.fields.find((field) => field.code === mapping[key])?.dataType) === 'DATE'
-  // What import reads on its own in a true/false or choice column, and the values nothing converts.
+  // What import reads on its own in a true/false or choice column, by the field's own type as normalization does.
   const translations = (key: string) => {
     const field = selectedForm?.fields.find((item) => item.code === mapping[key])
-    if (!field) return { automatic: [], unmatched: [] }
-    const dataType = rules[key]?.dataType || field.dataType
-    return columnTranslations(
-      columnValues.get(key) ?? [],
-      { ...field, dataType },
-      rules[key]?.pairs ?? [],
-    )
+    return field
+      ? columnTranslations(columnValues.get(key) ?? [], field, rules[key]?.pairs ?? [])
+      : { automatic: [], unmatched: [] }
   }
   // Listed above the filter, because a column read entirely on its own needs no decision and is hidden.
   const translatedColumns = sourceColumns.flatMap((column) => {
@@ -122,13 +118,13 @@ export function ImportMappingCard({
       : []
   })
   const undecided = (key: string) =>
-    translations(key).unmatched.length > 0 ||
     !mapping[key] ||
     mapping[key] === '__pending__' ||
     openSuggestions.some((item) => item.column.key === key) ||
     (dateColumn(key) &&
       !rules[key]?.dateOrder &&
-      columnDateOrders(columnValues.get(key), referenceYear).needsChoice)
+      columnDateOrders(columnValues.get(key), referenceYear).needsChoice) ||
+    translations(key).unmatched.length > 0
   const undecidedKeys = () =>
     new Set(sourceColumns.filter((column) => undecided(column.key)).map((column) => column.key))
   // The columns undecided when the filter was switched on, so deciding one keeps it in view.

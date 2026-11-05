@@ -159,7 +159,13 @@ export function normalizeImportedRow(
     const rule = Object.hasOwn(rules, field.code) ? rules[field.code] : undefined
     let raw = translate(rawValuesByFieldCode[field.code], rule)
     if (!isBlankRaw(rawValuesByFieldCode[field.code])) sourceProvided.add(field.code)
-    if (field.dataType === 'SELECT' && typeof raw === 'boolean') raw = String(raw)
+    // A true/false or whole-number cell is read as its text, as the mapping step shows it.
+    if (
+      field.dataType === 'SELECT' &&
+      (typeof raw === 'boolean' || (typeof raw === 'number' && Number.isSafeInteger(raw)))
+    ) {
+      raw = String(raw)
+    }
     if (field.dataType === 'SELECT' && typeof raw === 'string' && raw !== '') {
       raw = resolverFor(field)(raw) ?? automaticValue(raw, field) ?? raw
     }

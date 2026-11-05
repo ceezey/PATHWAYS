@@ -196,6 +196,36 @@ describe('ImportMappingCard value translations', () => {
     expect(screen.getByText('Show only columns that need a decision (1 of 1)')).toBeTruthy()
   })
 
+  it('reads a choice column by its form field type, whatever type the column declares', () => {
+    renderCard({
+      receipts: {},
+      mapping: { column_0001: 'sex' },
+      columnValues: new Map([['column_0001', ['Babae', 'X']]]),
+      selectedForm: {
+        fields: [
+          {
+            code: 'sex',
+            label: 'Sex',
+            dataType: 'SELECT',
+            allowedValues: ['MALE', 'FEMALE'],
+            valueAliases: null,
+          },
+        ],
+      },
+      rules: { column_0001: { dataType: 'TEXT', pairs: [] } },
+    })
+    expect(
+      screen.getByText(
+        'Translated automatically: Given name (Babae → FEMALE). Add a translation on the column to change one.',
+      ),
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        '1 value matches no answer: X. Add a translation for each, or rows with these values will be invalid.',
+      ),
+    ).toBeTruthy()
+  })
+
   it('a saved translation settles a leftover value', () => {
     consentCard(['Maybe'], {
       column_0001: { dataType: '', pairs: [{ from: 'Maybe', to: 'false' }] },

@@ -375,6 +375,49 @@ describe('import normalization contract', () => {
       expect(read('Yes', flipped).values.consent).toBe(false)
     })
 
+    it('keeps the consent guarantees under the automatic reading', () => {
+      const consent = intake({ code: 'consent', dataType: 'BOOLEAN', required: true })
+      const read = (raw: unknown) => normalizeImportedRow([consent], { consent: raw })
+      for (const blank of ['', '  ']) {
+        expect(read(blank).values.consent).toBeNull()
+        expect(read(blank).valid).toBe(false)
+      }
+      expect(read('A. Yes').values.consent).toBe(true)
+      for (const unknown of ['N/A', 't', '2', 2]) {
+        expect(read(unknown).errors[0]?.code).toBe('AMBIGUOUS_BOOLEAN')
+      }
+      // A no-word copied by the same-answer rule stays false on both consent fields.
+      const list = [
+        intake({
+          code: 'consent_recorded',
+          dataType: 'BOOLEAN',
+          rule: { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' },
+        }),
+        intake({ code: 'data_processing_consent_recorded', dataType: 'BOOLEAN' }),
+      ]
+      const copied = normalizeImportedRow(
+        list,
+        { data_processing_consent_recorded: 'Hindi' },
+        {},
+        options,
+      )
+      expect(copied.values).toMatchObject({
+        consent_recorded: false,
+        data_processing_consent_recorded: false,
+      })
+    })
+
+    it('reads a number cell in a choice field like its text, and stored values stay the same', () => {
+      const works = intake({ code: 'works', dataType: 'SELECT', allowedValues: ['YES', 'NO'] })
+      expect(normalizeImportedRow([works], { works: 1 }).values.works).toBe('YES')
+      expect(normalizeImportedRow([works], { works: 0 }).values.works).toBe('NO')
+      expect(normalizeImportedRow([works], { works: 2 }).valid).toBe(false)
+      // Promotion re-normalizes stored values, which must not change.
+      const consent = intake({ code: 'consent', dataType: 'BOOLEAN' })
+      const stored = normalizeImportedRow([works, consent], { works: 'Oo', consent: 'Yes' }).values
+      expect(normalizeImportedRow([works, consent], stored).values).toEqual(stored)
+    })
+
     it('reads the Suggest word lists in a single choice field only', () => {
       const sex = intake({ code: 'sex', dataType: 'SELECT', allowedValues: ['MALE', 'FEMALE'] })
       expect(normalizeImportedRow([sex], { sex: 'Babae' }).values.sex).toBe('FEMALE')

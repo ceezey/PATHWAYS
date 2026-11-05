@@ -84,6 +84,14 @@ describe('column translations', () => {
     ).toEqual({ automatic: [{ from: 'Yes', to: 'true' }], unmatched: [] })
   })
 
+  it('leaves a value the form answer aliases already settle out of both lists', () => {
+    const aliased = { ...sex, valueAliases: [{ from: 'Lalaki po', to: 'MALE' }] }
+    expect(columnTranslations(['lalaki po', 'Babae'], aliased, [])).toEqual({
+      automatic: [{ from: 'Babae', to: 'FEMALE' }],
+      unmatched: [],
+    })
+  })
+
   it('reports nothing for a field type Suggest does not serve', () => {
     const text = { dataType: 'TEXT', allowedValues: null, valueAliases: null } as const
     expect(columnTranslations(['anything'], text, [])).toEqual({ automatic: [], unmatched: [] })
