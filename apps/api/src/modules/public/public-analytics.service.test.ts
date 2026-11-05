@@ -1,5 +1,6 @@
 import 'reflect-metadata'
 
+import { Logger } from '@nestjs/common'
 import { publicAnalyticsResponse } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -124,6 +125,30 @@ describe('public analytics', () => {
   it('a payload that breaks its schema gives 503', async () => {
     sql({ total: 'x' })
     await expect(service.read(projectId, 'saddd')).rejects.toMatchObject({ status: 503 })
+  })
+
+  it('logs each 503 at warn with the error name or code and the view only', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    queryRaw.mockRejectedValue(
+      Object.assign(new Error(`relation secret_table ${projectId}`), { code: 'P2010' }),
+    )
+    await expect(service.read(projectId, 'kpi')).rejects.toMatchObject({ status: 503 })
+    expect(warn).toHaveBeenLastCalledWith({
+      event: 'PATHWAYS_PUBLIC_ANALYTICS_QUERY_FAILED',
+      view: 'kpi',
+      error: 'P2010',
+    })
+    sql({ total: 'x' })
+    await expect(service.read(projectId, 'saddd')).rejects.toMatchObject({ status: 503 })
+    expect(warn).toHaveBeenLastCalledWith({
+      event: 'PATHWAYS_PUBLIC_ANALYTICS_SHAPE_FAILED',
+      view: 'saddd',
+      error: 'ZodError',
+    })
+    const logged = JSON.stringify(warn.mock.calls)
+    expect(logged).not.toContain(projectId)
+    expect(logged).not.toContain('secret_table')
+    warn.mockRestore()
   })
 
   it('reads the live view on every call', async () => {

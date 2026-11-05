@@ -1,4 +1,10 @@
-import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 import {
   type PublicAnalyticsResponse,
   type PublicView,
@@ -13,6 +19,7 @@ import { z } from 'zod'
 
 import { UUID_PATTERN } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
+import { prismaDiagnosticCode } from '../../prisma/transaction-diagnostic'
 import {
   buildTimelineAnalytics,
   timelineAggregateSchema,
@@ -35,6 +42,7 @@ const mapData = z.object({ area: z.string().nullable(), towns: townReachSchema }
 const kpiData = z.array(z.record(z.string(), z.unknown())).max(100)
 // The public page has no organization; the timeline builder only needs a well-formed scope.
 const NO_ORGANIZATION = '00000000-0000-0000-0000-000000000000'
+const logger = new Logger('PublicAnalyticsService')
 
 @Injectable()
 export class PublicAnalyticsService {
@@ -50,8 +58,8 @@ export class PublicAnalyticsService {
       const [row] = await this.prisma.$queryRaw<Array<{ data: unknown }>>`
         SELECT pathways.p87_public_view(${projectId}::uuid,${wanted.data}) AS data`
       data = row?.data
-    } catch {
-      throw this.unavailable()
+    } catch (error) {
+      throw this.unavailable('PATHWAYS_PUBLIC_ANALYTICS_QUERY_FAILED', wanted.data, error)
     }
     if (data === null || data === undefined) throw new NotFoundException('View unavailable.')
     try {
@@ -59,12 +67,22 @@ export class PublicAnalyticsService {
         view: wanted.data,
         ...this.shape(projectId, wanted.data, data),
       })
-    } catch {
-      throw this.unavailable()
+    } catch (error) {
+      throw this.unavailable('PATHWAYS_PUBLIC_ANALYTICS_SHAPE_FAILED', wanted.data, error)
     }
   }
 
-  private unavailable() {
+  // Fixed diagnostics only: the Prisma code or error name and the view, never the message, SQL, project id or keys.
+  private unavailable(event: string, view: PublicView, error: unknown) {
+    try {
+      logger.warn({
+        event,
+        view,
+        error: prismaDiagnosticCode(error) || (error instanceof Error ? error.name : 'UNKNOWN'),
+      })
+    } catch {
+      // Diagnostics must not change the fixed 503.
+    }
     return new ServiceUnavailableException('Public analytics are temporarily unavailable.')
   }
 
