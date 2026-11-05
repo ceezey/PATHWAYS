@@ -56,6 +56,16 @@ describe('public gallery', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('hides a tile and its caption when its image or video fails to load', () => {
+    const { container } = render(<PublicGallery items={[...items]} />)
+    fireEvent.error(container.querySelector('img[alt="Opening day"]') as Element)
+    expect(screen.queryByText('Opening day')).toBeNull()
+    expect(screen.getByTestId('gallery-lead').textContent).toContain('Site walk')
+    fireEvent.error(container.querySelector('video') as Element)
+    expect(screen.queryByText('Site walk')).toBeNull()
+    expect(screen.getByText('Group photo')).toBeTruthy()
+  })
+
   it('shows a neutral placeholder for an item without a source', () => {
     render(<PublicGallery items={[...items]} />)
     expect(screen.getByText('Preview not available')).toBeTruthy()

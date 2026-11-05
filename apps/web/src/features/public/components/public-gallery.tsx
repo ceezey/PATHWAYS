@@ -17,11 +17,21 @@ type GalleryItem = {
 }
 
 // Blob and API URLs cannot use the Next.js image optimizer.
-const Media = ({ item, className }: { item: GalleryItem; className: string }) =>
+const Media = ({
+  item,
+  className,
+  onError,
+}: { item: GalleryItem; className: string; onError: () => void }) =>
   item.type === 'PHOTO' ? (
-    <img alt={item.caption} className={className} src={item.src} />
+    <img alt={item.caption} className={className} onError={onError} src={item.src} />
   ) : (
-    <video className={`${className} bg-ink`} controls preload="metadata" src={item.src}>
+    <video
+      className={`${className} bg-ink`}
+      controls
+      onError={onError}
+      preload="metadata"
+      src={item.src}
+    >
       <track kind="captions" />
     </video>
   )
@@ -30,8 +40,9 @@ const Media = ({ item, className }: { item: GalleryItem; className: string }) =>
 const Tile = ({
   item,
   large,
+  onError,
   onOpen,
-}: { item: GalleryItem; large?: boolean; onOpen: () => void }) => {
+}: { item: GalleryItem; large?: boolean; onError: () => void; onOpen: () => void }) => {
   const open = `View full size: ${item.caption}`
   return (
     <figure className="space-y-2">
@@ -45,11 +56,11 @@ const Tile = ({
           </div>
         ) : item.type === 'PHOTO' ? (
           <button aria-label={open} className="block h-full w-full" onClick={onOpen} type="button">
-            <Media className="h-full w-full object-cover" item={item} />
+            <Media className="h-full w-full object-cover" item={item} onError={onError} />
           </button>
         ) : (
           <>
-            <Media className="h-full w-full object-contain" item={item} />
+            <Media className="h-full w-full object-contain" item={item} onError={onError} />
             <button
               aria-label={open}
               className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-md bg-ink/70 text-white hover:bg-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -66,11 +77,17 @@ const Tile = ({
   )
 }
 
-// One large lead item, a grid of the rest, and a full-size view with the caption.
+// One large lead item, a grid of the rest, and a full-size view with the caption; an item that fails to load is hidden.
 export const PublicGallery = ({ items }: { items: GalleryItem[] }) => {
   const [active, setActive] = useState<GalleryItem | null>(null)
-  if (items.length === 0) return null
-  const [lead, ...rest] = items
+  const [broken, setBroken] = useState<ReadonlySet<string>>(new Set())
+  const shown = items.filter((item) => !broken.has(item.id))
+  if (shown.length === 0) return null
+  const hide = (id: string) => () => {
+    setBroken((previous) => new Set(previous).add(id))
+    setActive((current) => (current?.id === id ? null : current))
+  }
+  const [lead, ...rest] = shown
   return (
     <section className={`${shell} pb-8 sm:pb-12`}>
       <Card className="space-y-5 p-6 sm:p-8">
@@ -81,12 +98,17 @@ export const PublicGallery = ({ items }: { items: GalleryItem[] }) => {
           </h2>
         </div>
         <div data-testid="gallery-lead">
-          <Tile item={lead} large onOpen={() => setActive(lead)} />
+          <Tile item={lead} large onError={hide(lead.id)} onOpen={() => setActive(lead)} />
         </div>
         {rest.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="gallery-grid">
             {rest.map((item) => (
-              <Tile item={item} key={item.id} onOpen={() => setActive(item)} />
+              <Tile
+                item={item}
+                key={item.id}
+                onError={hide(item.id)}
+                onOpen={() => setActive(item)}
+              />
             ))}
           </div>
         )}
@@ -97,7 +119,11 @@ export const PublicGallery = ({ items }: { items: GalleryItem[] }) => {
             <DialogHeader>
               <DialogTitle>{active.caption}</DialogTitle>
             </DialogHeader>
-            <Media className="max-h-[60vh] w-full object-contain" item={active} />
+            <Media
+              className="max-h-[60vh] w-full object-contain"
+              item={active}
+              onError={hide(active.id)}
+            />
           </DialogContent>
         ) : null}
       </Dialog>
