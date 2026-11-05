@@ -391,6 +391,21 @@ describe('FileCheckDialog notes', () => {
     expect(props.onUploadAnyway).toHaveBeenCalledTimes(1)
   })
 
+  it('shows the enrollment date note and does not block upload for someone who cannot manage forms', () => {
+    const later = {
+      kind: 'ENROLLMENT_DATE_LATER' as const,
+      fieldCode: 'enrollment_date',
+      message:
+        "No enrollment date column. You will confirm enrollment dates after upload (proposed from 'Timestamp').",
+    }
+    const props = open({ canManageForms: false }, { ...notesOnly, notes: [later] })
+    expect(screen.getByText(later.message)).toBeTruthy()
+    const upload = screen.getByRole('button', { name: 'Upload anyway' })
+    expect(upload.getAttribute('aria-disabled')).toBeNull()
+    fireEvent.click(upload)
+    expect(props.onUploadAnyway).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps focus on Fix the file for a notes-only report', async () => {
     open({}, notesOnly)
     const fix = screen.getByRole('button', { name: 'Fix the file' })

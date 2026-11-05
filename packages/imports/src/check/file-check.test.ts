@@ -649,3 +649,58 @@ describe('checkImportFile notes on how the file was read', () => {
     expect(merged[10].message).toBe('and 2 more')
   })
 })
+
+describe('checkImportFile enrollment date left for confirmation', () => {
+  const enrollment = field('enrollment_date', 'Enrollment date', 'DATE', { required: true })
+  const fields = [firstName, enrollment]
+  // A registration file with no consent column also reports its held rows, which these tests leave out.
+  const missing = (report: ReturnType<typeof check>) =>
+    report.problems
+      .filter((problem) => problem.kind === 'NO_COLUMN')
+      .map((problem) => problem.fieldCode)
+  const noteKinds = (report: ReturnType<typeof check>) =>
+    report.notes.filter((note) => note.kind === 'ENROLLMENT_DATE_LATER')
+
+  it('tells the person the dates are confirmed after upload, naming the time column', () => {
+    const report = check(
+      [
+        ['First name', 'Timestamp'],
+        ['Ana', '2026-01-10 09:30:00'],
+      ],
+      fields,
+      'BENEFICIARY_REGISTRATION',
+    )
+    expect(missing(report)).toEqual([])
+    expect(noteKinds(report).map((note) => note.message)).toEqual([
+      "No enrollment date column. You will confirm enrollment dates after upload (proposed from 'Timestamp').",
+    ])
+    expect(noteKinds(report)[0].fieldCode).toBe('enrollment_date')
+  })
+
+  it('words the note without a header when the file has no time column', () => {
+    const report = check([['First name'], ['Ana']], fields, 'BENEFICIARY_REGISTRATION')
+    expect(missing(report)).toEqual([])
+    expect(noteKinds(report).map((note) => note.message)).toEqual([
+      'No enrollment date column. You will confirm enrollment dates after upload.',
+    ])
+  })
+
+  it('gives no note when the file has an enrollment date column', () => {
+    const report = check(
+      [
+        ['First name', 'Enrollment date'],
+        ['Ana', '2026-01-10'],
+      ],
+      fields,
+      'BENEFICIARY_REGISTRATION',
+    )
+    expect(missing(report)).toEqual([])
+    expect(noteKinds(report)).toEqual([])
+  })
+
+  it('keeps the missing column problem on any other form type', () => {
+    const report = check([['First name'], ['Ana']], fields, 'ACTIVITY_MONITORING')
+    expect(missing(report)).toEqual(['enrollment_date'])
+    expect(noteKinds(report)).toEqual([])
+  })
+})

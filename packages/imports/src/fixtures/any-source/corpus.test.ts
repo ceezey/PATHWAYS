@@ -52,6 +52,8 @@ const KEY_FIELDS = [
 const headerNote = 'Headers read from row 4. The rows above it were skipped as titles.'
 const sexNote = (header: string) =>
   `No column feeds Sex, so this file adds nothing to the sex breakdown. The file's '${header}' was suggested.`
+const enrollmentNote = (header: string | null) =>
+  `No enrollment date column. You will confirm enrollment dates after upload${header ? ` (proposed from '${header}')` : ''}.`
 const disabilityNote = (header: string | null) =>
   `No column feeds Disability status, so this file adds nothing to the disability status breakdown.${header ? ` The file's '${header}' was suggested.` : ''}`
 
@@ -139,8 +141,8 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
     headerRowNumber: 1,
     fields: MAPPED_WITH_DISABILITY,
     systemColumns: ['_id', '_uuid', '_index'],
-    notes: [],
-    problems: ['NO_COLUMN enrollment_date'],
+    notes: [enrollmentNote('_submission_time')],
+    problems: [],
     draft: ['start', 'end', 'submission_time'],
     reviewer: [['_submission_time', 'enrollment_date']],
     second: {
@@ -154,8 +156,8 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
     headerRowNumber: 1,
     fields: MAPPED_WITH_DISABILITY,
     systemColumns: ['meta-instanceID', 'KEY', 'SubmitterID'],
-    notes: [],
-    problems: ['NO_COLUMN enrollment_date'],
+    notes: [enrollmentNote('SubmissionDate')],
+    problems: [],
     draft: ['submissiondate', 'start', 'end'],
     reviewer: [['SubmissionDate', 'enrollment_date']],
     second: {
@@ -168,8 +170,8 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
     headerRowNumber: 1,
     fields: ALL_MAPPED,
     systemColumns: [],
-    notes: [disabilityNote(null)],
-    problems: ['NO_COLUMN enrollment_date'],
+    notes: [enrollmentNote('Timestamp'), disabilityNote(null)],
+    problems: [],
     draft: [
       'timestamp',
       'do_you_have_a_disability',
@@ -317,11 +319,9 @@ describe('any-source corpus', () => {
       fields: published,
       uploadDate: UPLOAD_DATE,
     })
-    expect(report.problems.map((problem) => `${problem.kind} ${problem.fieldCode}`)).toEqual([
-      'NO_COLUMN enrollment_date',
-    ])
+    expect(report.problems).toEqual([])
     expect(report.problemRows).toBe(0)
-    expect(report.notes).toEqual([])
+    expect(report.notes.map((note) => note.message)).toEqual([enrollmentNote('_submission_time')])
   })
 
   it.each(FIXTURES)(

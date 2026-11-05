@@ -5,10 +5,12 @@ import { type DraftField, draftFormFromImport } from '../form-draft/draft-form'
 import type { IntakeField } from '../intake-rules'
 import type { CoverageField } from '../mappers/coverage'
 import { normalizeImportedRow } from '../normalization'
+import { submissionTimeColumn } from '../submission-time'
 import { matchColumns } from '../validation/match-columns'
 import {
   type ColumnMapping,
   columnRules,
+  deferredRequired,
   isSupplied,
   normalizeIdentifier,
   stableJson,
@@ -40,7 +42,7 @@ export interface FileCheckProblem {
 
 /** Something about how the file was read or what it feeds, shown beside the problems. */
 export interface FileCheckNote {
-  kind: 'SADDD_NO_COLUMN' | 'HEADER_ROW' | 'ENCODING' | 'MERGED_FILL'
+  kind: 'SADDD_NO_COLUMN' | 'HEADER_ROW' | 'ENCODING' | 'MERGED_FILL' | 'ENROLLMENT_DATE_LATER'
   message: string
   fieldCode?: string
   columnLetter?: string
@@ -165,7 +167,9 @@ export function checkImportFile(input: {
   }
 
   const mappedCodes = new Set(mappedFields.map((field) => field.code))
-  const problems: FileCheckProblem[] = unsuppliedRequired(fields, mappedCodes).map((field) => ({
+  // A deferred field the server holds rows for is a note, not a missing column.
+  const deferred = deferredRequired(formType, fields)
+  const problems: FileCheckProblem[] = unsuppliedRequired(deferred, mappedCodes).map((field) => ({
     kind: 'NO_COLUMN',
     fieldCode: field.code,
     fieldLabel: field.label,
@@ -397,6 +401,19 @@ export function checkImportFile(input: {
     }
   }
   const notes: FileCheckNote[] = readingNotes(file)
+  const later = unsuppliedRequired(fields, mappedCodes).some(
+    (field) =>
+      field.code === 'enrollment_date' &&
+      !problems.some((problem) => problem.fieldCode === field.code),
+  )
+  if (later) {
+    const time = submissionTimeColumn(file.sourceColumns)
+    notes.push({
+      kind: 'ENROLLMENT_DATE_LATER',
+      fieldCode: 'enrollment_date',
+      message: `No enrollment date column. You will confirm enrollment dates after upload${time ? ` (proposed from '${time.header}')` : ''}.`,
+    })
+  }
   for (const { fieldCode, suggestedHeader } of unfedSadddFields(
     new Set(fieldByCode.keys()),
     fedCodes(fields, fed),
