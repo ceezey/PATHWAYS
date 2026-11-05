@@ -1,7 +1,5 @@
 'use client'
 
-import { type DateOrder, fittingDateOrders, submissionTimeColumn } from '@pathways/imports'
-import { businessCalendarDate } from '@pathways/shared'
 import { useEffect, useState } from 'react'
 
 import { MetricTooltip } from '@/components/pathways'
@@ -28,24 +26,6 @@ import { ImportReviewDialog } from './import-review-dialog'
 // The info tip beside a reason that needs explaining.
 const ReasonHelp = ({ text, rowNumber }: { text?: string; rowNumber: number }) =>
   text ? <MetricTooltip label={`row ${rowNumber} reason`}>{text}</MetricTooltip> : null
-
-// The submission time column's date order: its mapping's, else the one order every held value fits, else none.
-function timeColumnOrder(
-  batch: ImportBatchDefinition,
-  held: ImportRowDefinition[],
-  key: string,
-): DateOrder | null {
-  const mapped = batch.mappings?.find(
-    (item) => item.status === 'MAPPED' && item.sourceFieldName === key,
-  )
-  if (mapped?.dateOrder) return mapped.dateOrder
-  const year = Number(businessCalendarDate(new Date(batch.uploadedAt), 'Asia/Manila').slice(0, 4))
-  const orders = fittingDateOrders(
-    held.map((row) => row.rawData[key]),
-    year,
-  )
-  return orders.length === 1 ? orders[0] : null
-}
 
 /** The batch results and the rows held for a person to decide. */
 export function ImportHeldList({
@@ -117,8 +97,6 @@ export function ImportHeldList({
   const dateRows = held.filter(
     (row) => row.status === 'UNPROCESSED' && row.processingErrorCode === 'ENROLLMENT_DATE_REQUIRED',
   )
-  const headers = batch.sourceColumns ?? []
-  const timeColumn = submissionTimeColumn(headers)
   return (
     <>
       <Card>
@@ -190,8 +168,9 @@ export function ImportHeldList({
       </Card>
       <EnrollmentDatePanel
         batchId={batch.id}
-        dateOrder={timeColumn ? timeColumnOrder(batch, held, timeColumn.key) : null}
-        headers={headers}
+        // The server's order for the whole batch, so the proposals match what it will save.
+        dateOrder={batch.submissionTimeDateOrder ?? null}
+        headers={batch.sourceColumns ?? []}
         onConfirmed={onChanged}
         projectId={batch.projectId}
         uploadedAt={batch.uploadedAt}

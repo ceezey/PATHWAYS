@@ -219,20 +219,33 @@ describe('import held list', () => {
     state.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
   })
 
-  it('offers the enrollment dates panel with a proposal from the submission time, to a processor', async () => {
-    state.profile.permissions = ['imports.read', 'imports.process']
-    const timed = {
-      ...batch,
-      uploadedAt: '2026-02-01T00:00:00Z',
-      sourceColumns: [{ key: 'column_0003', header: 'Timestamp', columnIndex: 3 }],
-    } as unknown as ImportBatchDefinition
+  describe('the enrollment dates panel', () => {
+    const timed = (order: string | null) =>
+      ({
+        ...batch,
+        uploadedAt: '2026-02-01T00:00:00Z',
+        sourceColumns: [{ key: 'column_0003', header: 'Timestamp', columnIndex: 3 }],
+        submissionTimeDateOrder: order,
+      }) as unknown as ImportBatchDefinition
     const row = (index: number, time: string) => ({
       ...held('ENROLLMENT_DATE_REQUIRED', index),
       rawData: { column_0001: `First${index}`, column_0002: `Last${index}`, column_0003: time },
     })
-    await show([row(0, '15/01/2026 10:21:44'), row(1, '31/01/2026 08:00:00')], timed)
-    expect(screen.getByRole('region', { name: 'Enrollment dates to confirm' })).toBeTruthy()
-    expect(screen.getByLabelText('Row 2: First0 Last0, proposed 2026-01-15')).toBeTruthy()
+    const rows = [row(0, '03/01/2026 10:21:44'), row(1, '31/01/2026 08:00:00')]
+
+    it("is offered to a processor, proposing from the submission time in the server's date order", async () => {
+      state.profile.permissions = ['imports.read', 'imports.process']
+      await show(rows, timed('MDY'))
+      expect(screen.getByRole('region', { name: 'Enrollment dates to confirm' })).toBeTruthy()
+      expect(screen.getByLabelText('Row 2: First0 Last0, proposed 2026-03-01')).toBeTruthy()
+      expect(screen.getByLabelText('Row 3: First1 Last1, No submission time')).toBeTruthy()
+    })
+
+    it('guesses no order from the held rows when the server gives none', async () => {
+      state.profile.permissions = ['imports.read', 'imports.process']
+      await show(rows, timed(null))
+      expect(screen.getByLabelText('Row 2: First0 Last0, No submission time')).toBeTruthy()
+    })
   })
 
   it('hides the enrollment dates panel without imports.process', async () => {
