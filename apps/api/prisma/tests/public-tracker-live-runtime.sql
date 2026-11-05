@@ -110,7 +110,7 @@ SELECT pg_temp.refused('insert with live columns refused', format($s$INSERT INTO
  '{"media":[],"views":[]}',%L,1)$s$,pg_temp.u(1),pg_temp.u(43),pg_temp.u(21)),'23514','Live publication');
 SELECT pg_temp.refused('insert with views refused', format($s$INSERT INTO pathways.project_publications(organization_id,project_id,
  revision,state,last_operation,summary,snapshot,submitted_by_id) VALUES(%L,%L,1,'FOR_REVIEW','SUBMIT','Summary',
- '{"media":[],"views":["kpi"]}',%L)$s$,pg_temp.u(1),pg_temp.u(43),pg_temp.u(21)),'23514','Public view selection');
+ '{"media":[],"views":["survey"]}',%L)$s$,pg_temp.u(1),pg_temp.u(43),pg_temp.u(21)),'23514','Public view selection');
 
 -- Project 41: revision 1 is submitted, approved and published.
 SELECT pg_temp.submit_first(41,'Summary one');
@@ -134,7 +134,7 @@ SELECT pg_temp.ok('publish_moves_live', (SELECT live_revision=2 AND live_publish
 -- A WITHDRAW receipt is refused when this transaction made no withdraw.
 SELECT pg_temp.refused('withdraw_receipt_without_withdraw', pg_temp.receipt_sql(22,41,901,'WITHDRAW'),'23514','same-transaction transition');
 
--- Revision 3 waits for review while revision 2 is live; the caller cannot set live columns, pick unknown media (0086) or choose views.
+-- Revision 3 waits for review while revision 2 is live; the caller cannot set live columns, pick unknown media (0086) or an unknown view (0087).
 SELECT pg_temp.move(21,41,$$revision=3,state='FOR_REVIEW',summary='Summary three'$$);
 SELECT pg_temp.act_as(22);
 SELECT pg_temp.refused('live columns set only by publish', format($s$UPDATE pathways.project_publications SET live_revision=3
@@ -145,7 +145,7 @@ SELECT pg_temp.refused('nonempty_media_or_views_refused_0085 media', format($s$U
  'caption','A photo')),'views','[]'::jsonb) WHERE organization_id=%L AND project_id=%L$s$,pg_temp.u(99),pg_temp.u(1),pg_temp.u(41)),
  '23514','Media not publishable');
 SELECT pg_temp.refused('nonempty_media_or_views_refused_0085 views', format($s$UPDATE pathways.project_publications SET revision=4,
- snapshot='{"media":[],"views":["kpi"]}' WHERE organization_id=%L AND project_id=%L$s$,pg_temp.u(1),pg_temp.u(41)),
+ snapshot='{"media":[],"views":["survey"]}' WHERE organization_id=%L AND project_id=%L$s$,pg_temp.u(1),pg_temp.u(41)),
  '23514','Public view selection');
 
 -- public_read_live_only: with no app context the public read returns revision 2, not the revision 3 under review.
