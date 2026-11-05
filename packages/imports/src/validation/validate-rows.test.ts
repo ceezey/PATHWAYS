@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import type { IntakeField } from '../intake-rules'
-import { type ColumnMapping, unsuppliedRequired, validateRows } from './validate-rows'
+import {
+  type ColumnMapping,
+  DEFERRED_REGISTRATION_FIELDS,
+  deferredRequired,
+  unsuppliedRequired,
+  validateRows,
+} from './validate-rows'
 
 const text = (code: string, required = false): IntakeField => ({
   code,
@@ -100,6 +106,65 @@ describe('validateRows', () => {
     )
     expect(results.map((result) => result.values.birth_date)).toEqual(['2008-08-17', '2009-04-05'])
     expect(results.every((result) => result.valid)).toBe(true)
+  })
+})
+
+describe('a registration row with no enrollment date', () => {
+  const enrollment: IntakeField = {
+    code: 'enrollment_date',
+    label: 'Enrollment date',
+    dataType: 'DATE',
+    required: true,
+  }
+  const calculatedAge: IntakeField = {
+    ...age,
+    rule: { kind: 'AGE_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' },
+  }
+  const birth: IntakeField = {
+    code: 'birth_date',
+    label: 'Birth',
+    dataType: 'DATE',
+    required: true,
+  }
+  const fields = [text('first_name', true), birth, enrollment, calculatedAge]
+  const raws = [
+    { first_name: 'Ana', birth_date: '1990-01-01', enrollment_date: '2026-01-15' },
+    { first_name: 'Ben', birth_date: '1990-01-01', enrollment_date: '' },
+  ]
+
+  it('validates with a null enrollment date and no age', () => {
+    const results = run('BENEFICIARY_REGISTRATION', fields, raws)
+    expect(results.map((result) => result.valid)).toEqual([true, true])
+    expect(results[1].values.enrollment_date).toBeNull()
+    expect(results[1].values.age).toBeNull()
+    expect(results[0].values.age).toBe(36)
+  })
+
+  it('keeps the required error on any other form type', () => {
+    const results = run('STAGE_SURVEY', fields, raws)
+    expect(results.map((result) => result.valid)).toEqual([true, false])
+    expect(codes(results[1])).toEqual(['required'])
+  })
+})
+
+describe('deferredRequired', () => {
+  const fields: IntakeField[] = [
+    text('first_name', true),
+    { code: 'enrollment_date', label: 'Enrollment', dataType: 'DATE', required: true },
+  ]
+
+  it('relaxes only the deferred fields of a registration form', () => {
+    expect(DEFERRED_REGISTRATION_FIELDS).toEqual(['enrollment_date'])
+    const relaxed = deferredRequired('BENEFICIARY_REGISTRATION', fields)
+    expect(relaxed.map((field) => [field.code, field.required])).toEqual([
+      ['first_name', true],
+      ['enrollment_date', false],
+    ])
+    expect(fields[1].required).toBe(true)
+  })
+
+  it('returns the fields unchanged for any other form type', () => {
+    expect(deferredRequired('STAGE_SURVEY', fields)).toBe(fields)
   })
 })
 

@@ -877,22 +877,25 @@ describe('metadata-driven intake validation', () => {
     }
   })
 
+  const registrationColumns = [
+    'beneficiary_code',
+    'first_name',
+    'last_name',
+    'birth_date',
+    'enrollment_date',
+    'consent_recorded',
+    'guardian_consent_recorded',
+  ]
+
   const registrationStore = (
     copyConsent = true,
     edit = (row: (typeof participants)[number]) => row,
+    columns = registrationColumns,
   ) => {
     const fields = registrationFields(copyConsent)
     return createStore(
       fields,
-      mappedColumns(fields, [
-        'beneficiary_code',
-        'first_name',
-        'last_name',
-        'birth_date',
-        'enrollment_date',
-        'consent_recorded',
-        'guardian_consent_recorded',
-      ]),
+      mappedColumns(fields, columns),
       participants.map((row) => edit({ ...row })),
       {
         form: {
@@ -1023,6 +1026,42 @@ describe('metadata-driven intake validation', () => {
     expect(state.store.rows.every((row) => row.status === 'PENDING')).toBe(true)
     expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
     expect(state.store.submissions).toHaveLength(0)
+  })
+
+  // Drops the enrollment column and shifts the later cells left to match.
+  const withoutEnrollment = (row: (typeof participants)[number]) => ({
+    ...row,
+    column_0005: row.column_0006,
+    column_0006: row.column_0007,
+    column_0007: undefined as never,
+  })
+  const noEnrollmentColumns = registrationColumns.filter((code) => code !== 'enrollment_date')
+
+  it('a registration file with no enrollment date column validates and leaves the date null', async () => {
+    state.store = registrationStore(true, withoutEnrollment, noEnrollmentColumns)
+
+    await validate(service())
+
+    const writes = rowWrites()
+    expect(writes.map((row) => row.status)).toEqual(Array(10).fill('VALID'))
+    // An unmapped date is not in the row values at all, so a reader treats absent like null.
+    expect(writes[0].normalized_data).toMatchObject({ age_at_registration: null })
+    expect(writes[0].normalized_data).not.toHaveProperty('enrollment_date')
+  })
+
+  it('a registration file missing another required column is still refused', async () => {
+    state.store = registrationStore(
+      true,
+      (row) => ({ ...row, column_0005: row.column_0007, column_0006: undefined as never }),
+      noEnrollmentColumns.filter((code) => code !== 'consent_recorded'),
+    )
+
+    await expect(validate(service())).rejects.toThrow(
+      new BadRequestException(
+        'Every required form field must have a source mapping. No source for: consent_recorded.',
+      ),
+    )
+    expect(fakeTx.$executeRaw).not.toHaveBeenCalled()
   })
 
   it('re-importing existing participants is held as DUPLICATE_IDENTITY, not failed', async () => {

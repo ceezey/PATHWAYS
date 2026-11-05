@@ -28,7 +28,9 @@ const smartMatch = [
 ]
 
 const validation = [
+  'DEFERRED_REGISTRATION_FIELDS',
   'columnRules',
+  'deferredRequired',
   'isBlank',
   'isSupplied',
   'matchColumns',

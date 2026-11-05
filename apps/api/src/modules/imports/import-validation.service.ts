@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException } from '@nestjs/common'
 import {
   IMPORT_ENGINEERING_LIMITS,
   type IntakeField,
+  deferredRequired,
   isSupplied,
   unsuppliedRequired,
   validateRows,
@@ -91,7 +92,10 @@ export async function validateBatchRows(
   })
   const mappedCodes = new Set(mappedFields.map((field) => field.code))
   const formIntake = formFields.map(intakeField)
-  const unsupplied = unsuppliedRequired(formIntake, mappedCodes)
+  const unsupplied = unsuppliedRequired(
+    deferredRequired(batch.form.formType, formIntake),
+    mappedCodes,
+  )
   if (unsupplied.length) {
     throw new BadRequestException(
       `Every required form field must have a source mapping. No source for: ${unsupplied.map((field) => field.code).join(', ')}.`,
