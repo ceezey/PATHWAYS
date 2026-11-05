@@ -47,10 +47,18 @@ describe('publicMediaClient staff media requests', () => {
 
   it('lists the media with the abort signal and refuses an answer that is not a list', async () => {
     const signal = new AbortController().signal
-    request.requestFoundation.mockResolvedValue({ items: [item] })
-    await expect(publicMediaClient.list(projectId, signal)).resolves.toEqual({ items: [item] })
+    const body = { items: [item], beneficiaryMediaNeedsStepUp: true }
+    request.requestFoundation.mockResolvedValue(body)
+    await expect(publicMediaClient.list(projectId, signal)).resolves.toEqual(body)
     expect(request.requestFoundation).toHaveBeenCalledWith(path, { signal })
-    request.requestFoundation.mockResolvedValue({ items: [{ id: 1 }] })
+    request.requestFoundation.mockResolvedValue({ items: [item] })
+    await expect(publicMediaClient.list(projectId)).rejects.toThrow(
+      'Invalid public media response.',
+    )
+    request.requestFoundation.mockResolvedValue({
+      items: [{ id: 1 }],
+      beneficiaryMediaNeedsStepUp: false,
+    })
     await expect(publicMediaClient.list(projectId)).rejects.toThrow(
       'Invalid public media response.',
     )
