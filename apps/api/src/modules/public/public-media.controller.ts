@@ -16,9 +16,16 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
-import { PublicMediaService } from './public-media.service'
+import { PublicMediaService, type StepUpSession } from './public-media.service'
+
+// The guard-verified session, for the step-up check on enrollment-linked rows.
+const session = (request: AuthenticatedRequest): StepUpSession => ({
+  auth: request.auth,
+  sessionId: request.authSessionId,
+})
 
 // Listing and viewing media also need evidence.read; the service checks it because the guard accepts any listed permission.
+// Enrollment-linked rows also need a fresh beneficiary step-up, which the service checks once it has read the row.
 @Controller('projects/:projectId/public-media')
 export class PublicMediaController {
   constructor(@Inject(PublicMediaService) private readonly media: PublicMediaService) {}
@@ -27,7 +34,7 @@ export class PublicMediaController {
   @RequirePermission('public.preview')
   @Header('Cache-Control', 'private, no-store')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
-    return this.media.list(requestIdentity(request), projectId)
+    return this.media.list(requestIdentity(request), projectId, session(request))
   }
 
   @Get('limits')
@@ -67,7 +74,7 @@ export class PublicMediaController {
     @Param('projectId') projectId: string,
     @Param('mediaId') mediaId: string,
   ) {
-    return this.media.submit(requestIdentity(request), projectId, mediaId)
+    return this.media.submit(requestIdentity(request), projectId, mediaId, session(request))
   }
 
   @Post(':mediaId/approve')
@@ -78,7 +85,7 @@ export class PublicMediaController {
     @Param('projectId') projectId: string,
     @Param('mediaId') mediaId: string,
   ) {
-    return this.media.approve(requestIdentity(request), projectId, mediaId)
+    return this.media.approve(requestIdentity(request), projectId, mediaId, session(request))
   }
 
   @Post(':mediaId/reject')
@@ -90,7 +97,7 @@ export class PublicMediaController {
     @Param('mediaId') mediaId: string,
     @Body() body: unknown,
   ) {
-    return this.media.reject(requestIdentity(request), projectId, mediaId, body)
+    return this.media.reject(requestIdentity(request), projectId, mediaId, body, session(request))
   }
 
   @Get(':mediaId/content')
@@ -104,7 +111,12 @@ export class PublicMediaController {
   ) {
     if (request.headers.range !== undefined)
       throw new BadRequestException('Partial content is unavailable.')
-    const file = await this.media.content(requestIdentity(request), projectId, mediaId)
+    const file = await this.media.content(
+      requestIdentity(request),
+      projectId,
+      mediaId,
+      session(request),
+    )
     // A failed integrity check destroys the connection, so a client never receives a complete unverified file.
     return new StreamableFile(file.body, {
       type: file.contentType,

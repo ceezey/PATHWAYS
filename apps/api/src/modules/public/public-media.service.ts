@@ -13,6 +13,7 @@ import type { Prisma } from '@prisma/client'
 
 import {
   MAX_BENEFICIARY_MEDIA_FILES,
+  MAX_PUBLIC_MEDIA_LISTED,
   type PublicMediaListResponse,
   type ReservePublicMediaRequest,
   aggregateOnlyRoles,
@@ -21,7 +22,11 @@ import {
   publicMediaRejectRequest,
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
-import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import {
+  type ApplicationIdentity,
+  UUID_PATTERN,
+  type VerifiedAuthIdentity,
+} from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
@@ -31,6 +36,7 @@ import {
   evidenceExtension,
   proofDeclarations,
 } from '../activities/activity-proof.helpers'
+import { BeneficiaryStepUpService } from '../auth/beneficiary-step-up.service'
 import { streamVerifiedMedia, verifyUploadedMedia } from '../activities/private-media-access'
 import {
   PRIVATE_STORAGE_FACTORIES,
@@ -38,7 +44,6 @@ import {
 } from '../storage/private-storage-factories'
 import { StorageService } from '../storage/storage.service'
 
-const MAX_LISTED_MEDIA = 500
 const unavailable = () => new NotFoundException('Public media unavailable.')
 // Rows with no activity, expense or submission link: new uploads and beneficiary media.
 const unlinked = { activityId: null, expenseId: null, sourceSubmissionId: null } as const
@@ -57,6 +62,12 @@ function requireEvidenceRead(actor: ApplicationIdentity) {
     throw new ForbiddenException('Evidence access is required to view media.')
 }
 
+/** The verified session the auth guard attached, read for the beneficiary step-up check. */
+export type StepUpSession = { auth?: VerifiedAuthIdentity; sessionId?: string }
+
+/** An enrollment-linked row was read without a fresh step-up; it passes the operation boundary as a 403. */
+class StepUpNeeded extends ForbiddenException {}
+
 /** Enrollment-linked media keeps the beneficiary module's gates: records.read and no aggregate-only role. */
 const canSeeBeneficiaryMedia = (actor: ApplicationIdentity) =>
   !aggregateOnlyRoles.includes(actor.roles[0]) &&
@@ -70,7 +81,41 @@ export class PublicMediaService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
     @Inject(PRIVATE_STORAGE_FACTORIES) private readonly storageFactories: PrivateStorageFactories,
+    @Inject(BeneficiaryStepUpService) private readonly stepUp: BeneficiaryStepUpService,
   ) {}
+
+  /** The beneficiary step-up arguments for one handler, as the auth guard passes them. */
+  private stepUpArgs(
+    identity: ApplicationIdentity,
+    session: StepUpSession,
+    projectId: string,
+    handler: string,
+  ) {
+    return [
+      session.auth ?? identity,
+      identity,
+      `PublicMediaController.${handler}`,
+      projectId,
+      session.sessionId ?? '',
+    ] as const
+  }
+
+  /** Runs the work without step-up, and again after a fresh step-up only when it read an enrollment-linked row. */
+  private async withStepUp<T>(
+    identity: ApplicationIdentity,
+    session: StepUpSession,
+    projectId: string,
+    handler: string,
+    work: (steppedUp: boolean) => Promise<T>,
+  ) {
+    try {
+      return await work(false)
+    } catch (error) {
+      if (!(error instanceof StepUpNeeded)) throw error
+    }
+    await this.stepUp.enforce(...this.stepUpArgs(identity, session, projectId, handler))
+    return work(true)
+  }
 
   limits() {
     return {
@@ -87,6 +132,7 @@ export class PublicMediaService {
     requestedProjectId: string,
     mediaId: string,
     where: Prisma.EvidenceMediaWhereInput = {},
+    steppedUp = false,
   ) {
     const projectId = await requireScopedProject(tx, actor, requestedProjectId)
     if (!UUID_PATTERN.test(mediaId)) throw unavailable()
@@ -119,40 +165,66 @@ export class PublicMediaService {
     if (!row) throw unavailable()
     if (row.enrollmentId !== null && !canSeeBeneficiaryMedia(actor))
       throw new ForbiddenException('Beneficiary media access is required.')
+    if (row.enrollmentId !== null && !steppedUp) throw new StepUpNeeded()
     return { projectId, row }
   }
 
-  list(identity: ApplicationIdentity, requestedProjectId: string) {
+  /** Queued rows first so none falls off the cap; enrollment-linked rows also need a fresh step-up. */
+  async list(
+    identity: ApplicationIdentity,
+    requestedProjectId: string,
+    session: StepUpSession = {},
+  ) {
+    // Checked before the read only for an actor who could see beneficiary rows at all.
+    const fresh =
+      canSeeBeneficiaryMedia(identity) &&
+      hasAtomicPermission(identity.roles[0], identity.permissions, 'evidence.read') &&
+      (await this.stepUp.isFresh(...this.stepUpArgs(identity, session, requestedProjectId, 'list')))
     return withAuthorizedOperation(this.prisma, identity, 'public.preview', async (tx, actor) => {
       requireEvidenceRead(actor)
       const projectId = await requireScopedProject(tx, actor, requestedProjectId)
-      const rows = await tx.evidenceMedia.findMany({
-        where: {
-          ...listed,
-          ...(canSeeBeneficiaryMedia(actor) ? {} : { enrollmentId: null }),
-          organizationId: actor.organizationId,
-          projectId,
-        },
-        select: {
-          id: true,
-          type: true,
-          contentType: true,
-          fileName: true,
-          status: true,
-          storageReady: true,
-          publicVisibilityStatus: true,
-          submittedById: true,
-          publicSubmittedById: true,
-          rejectionReason: true,
-          activityId: true,
-          activityUpdateId: true,
-          enrollmentId: true,
-        },
-        orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
-        take: MAX_LISTED_MEDIA,
+      const scoped = { ...listed, organizationId: actor.organizationId, projectId }
+      const beneficiary = canSeeBeneficiaryMedia(actor)
+      const where = { ...scoped, ...(beneficiary && fresh ? {} : { enrollmentId: null }) }
+      const inQueue = { publicVisibilityStatus: 'FOR_REVIEW', status: { not: 'REJECTED' } } as const
+      const select = {
+        id: true,
+        type: true,
+        contentType: true,
+        fileName: true,
+        status: true,
+        storageReady: true,
+        publicVisibilityStatus: true,
+        submittedById: true,
+        publicSubmittedById: true,
+        rejectionReason: true,
+        activityId: true,
+        activityUpdateId: true,
+        enrollmentId: true,
+      } satisfies Prisma.EvidenceMediaSelect
+      const queued = await tx.evidenceMedia.findMany({
+        where: { ...where, ...inQueue },
+        select,
+        orderBy: [{ publicSubmittedAt: 'desc' }, { id: 'asc' }],
+        take: MAX_PUBLIC_MEDIA_LISTED,
       })
+      const rest = await tx.evidenceMedia.findMany({
+        where: { ...where, NOT: inQueue },
+        select,
+        orderBy: [{ submittedAt: 'desc' }, { id: 'asc' }],
+        take: MAX_PUBLIC_MEDIA_LISTED - queued.length,
+      })
+      // True only when beneficiary rows exist that this actor could see after a step-up.
+      const beneficiaryMediaNeedsStepUp =
+        beneficiary &&
+        !fresh &&
+        (await tx.evidenceMedia.findFirst({
+          where: { ...scoped, enrollmentId: { not: null } },
+          select: { id: true },
+        })) !== null
       return {
-        items: rows.map((row) => ({
+        beneficiaryMediaNeedsStepUp,
+        items: [...queued, ...rest].map((row) => ({
           id: row.id,
           type: row.type as 'PHOTO' | 'VIDEO',
           contentType: row.contentType,
@@ -325,61 +397,89 @@ export class PublicMediaService {
   }
 
   /** Sends ready beneficiary photos and videos to the queue; uploads are queued when finalized. */
-  submit(identity: ApplicationIdentity, requestedProjectId: string, mediaId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'public.preview', async (tx, actor) => {
-      const { projectId, row } = await this.requireMedia(tx, actor, requestedProjectId, mediaId)
-      if (
-        row.enrollmentId === null ||
-        row.activityId !== null ||
-        row.expenseId !== null ||
-        row.sourceSubmissionId !== null ||
-        !row.storageReady ||
-        row.status === 'REJECTED' ||
-        row.publicVisibilityStatus !== 'PRIVATE'
-      )
-        throw new ConflictException(
-          'Only ready beneficiary photos and videos can be sent for public review.',
+  submit(
+    identity: ApplicationIdentity,
+    requestedProjectId: string,
+    mediaId: string,
+    session: StepUpSession = {},
+  ) {
+    return this.withStepUp(identity, session, requestedProjectId, 'submit', (steppedUp) =>
+      withAuthorizedOperation(this.prisma, identity, 'public.preview', async (tx, actor) => {
+        const { projectId, row } = await this.requireMedia(
+          tx,
+          actor,
+          requestedProjectId,
+          mediaId,
+          {},
+          steppedUp,
         )
-      return this.queue(tx, actor, projectId, row.id, { ...unlinked, storageReady: true })
-    })
+        if (
+          row.enrollmentId === null ||
+          row.activityId !== null ||
+          row.expenseId !== null ||
+          row.sourceSubmissionId !== null ||
+          !row.storageReady ||
+          row.status === 'REJECTED' ||
+          row.publicVisibilityStatus !== 'PRIVATE'
+        )
+          throw new ConflictException(
+            'Only ready beneficiary photos and videos can be sent for public review.',
+          )
+        return this.queue(tx, actor, projectId, row.id, { ...unlinked, storageReady: true })
+      }),
+    )
   }
 
   /** Approves a queued row for someone other than its uploader and its queue sender. */
-  approve(identity: ApplicationIdentity, requestedProjectId: string, mediaId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'public.approve', async (tx, actor) => {
-      const { projectId, row } = await this.requireMedia(tx, actor, requestedProjectId, mediaId)
-      if (
-        row.publicVisibilityStatus !== 'FOR_REVIEW' ||
-        row.status === 'REJECTED' ||
-        !row.storageReady
-      )
-        throw new ConflictException('This media is not awaiting public approval.')
-      if (actor.userId === row.publicSubmittedById || actor.userId === row.submittedById)
-        throw new ForbiddenException('A different reviewer must approve this media.')
-      const moved = await tx.evidenceMedia.updateMany({
-        where: {
-          id: row.id,
-          organizationId: actor.organizationId,
+  approve(
+    identity: ApplicationIdentity,
+    requestedProjectId: string,
+    mediaId: string,
+    session: StepUpSession = {},
+  ) {
+    return this.withStepUp(identity, session, requestedProjectId, 'approve', (steppedUp) =>
+      withAuthorizedOperation(this.prisma, identity, 'public.approve', async (tx, actor) => {
+        const { projectId, row } = await this.requireMedia(
+          tx,
+          actor,
+          requestedProjectId,
+          mediaId,
+          {},
+          steppedUp,
+        )
+        if (
+          row.publicVisibilityStatus !== 'FOR_REVIEW' ||
+          row.status === 'REJECTED' ||
+          !row.storageReady
+        )
+          throw new ConflictException('This media is not awaiting public approval.')
+        if (actor.userId === row.publicSubmittedById || actor.userId === row.submittedById)
+          throw new ForbiddenException('A different reviewer must approve this media.')
+        const moved = await tx.evidenceMedia.updateMany({
+          where: {
+            id: row.id,
+            organizationId: actor.organizationId,
+            projectId,
+            publicVisibilityStatus: 'FOR_REVIEW',
+            status: { not: 'REJECTED' },
+          },
+          data: {
+            publicVisibilityStatus: 'APPROVED',
+            publicApprovedById: actor.userId,
+            publicApprovedAt: new Date(),
+          },
+        })
+        if (moved.count !== 1) throw new ConflictException('Media changed. Reload and retry.')
+        await writeAuditLog(tx, actor, {
           projectId,
-          publicVisibilityStatus: 'FOR_REVIEW',
-          status: { not: 'REJECTED' },
-        },
-        data: {
-          publicVisibilityStatus: 'APPROVED',
-          publicApprovedById: actor.userId,
-          publicApprovedAt: new Date(),
-        },
-      })
-      if (moved.count !== 1) throw new ConflictException('Media changed. Reload and retry.')
-      await writeAuditLog(tx, actor, {
-        projectId,
-        action: 'PUBLIC_MEDIA_APPROVED',
-        entityType: 'EvidenceMedia',
-        entityId: row.id,
-        changes: {},
-      })
-      return { mediaId: row.id, publicStatus: 'APPROVED' as const }
-    })
+          action: 'PUBLIC_MEDIA_APPROVED',
+          entityType: 'EvidenceMedia',
+          entityId: row.id,
+          changes: {},
+        })
+        return { mediaId: row.id, publicStatus: 'APPROVED' as const }
+      }),
+    )
   }
 
   /** Rejects a queued or approved row; it keeps its public status and stops being pickable. */
@@ -388,54 +488,78 @@ export class PublicMediaService {
     requestedProjectId: string,
     mediaId: string,
     input: unknown,
+    session: StepUpSession = {},
   ) {
     const parsed = publicMediaRejectRequest.safeParse(input)
     if (!parsed.success)
       throw new BadRequestException('A rejection reason of 1 to 2000 characters is required.')
-    return withAuthorizedOperation(this.prisma, identity, 'public.approve', async (tx, actor) => {
-      const { projectId, row } = await this.requireMedia(tx, actor, requestedProjectId, mediaId)
-      if (row.publicVisibilityStatus === 'PRIVATE' || row.status !== 'PENDING')
-        throw new ConflictException('This media is not in the public queue.')
-      if (actor.userId === row.submittedById)
-        throw new ForbiddenException('A different reviewer must reject this media.')
-      const moved = await tx.evidenceMedia.updateMany({
-        where: {
-          id: row.id,
-          organizationId: actor.organizationId,
+    return this.withStepUp(identity, session, requestedProjectId, 'reject', (steppedUp) =>
+      withAuthorizedOperation(this.prisma, identity, 'public.approve', async (tx, actor) => {
+        const { projectId, row } = await this.requireMedia(
+          tx,
+          actor,
+          requestedProjectId,
+          mediaId,
+          {},
+          steppedUp,
+        )
+        if (row.publicVisibilityStatus === 'PRIVATE' || row.status !== 'PENDING')
+          throw new ConflictException('This media is not in the public queue.')
+        if (actor.userId === row.submittedById)
+          throw new ForbiddenException('A different reviewer must reject this media.')
+        const moved = await tx.evidenceMedia.updateMany({
+          where: {
+            id: row.id,
+            organizationId: actor.organizationId,
+            projectId,
+            publicVisibilityStatus: { in: ['FOR_REVIEW', 'APPROVED'] },
+            status: 'PENDING',
+          },
+          data: {
+            status: 'REJECTED',
+            rejectedById: actor.userId,
+            rejectedAt: new Date(),
+            rejectionReason: parsed.data.reason,
+          },
+        })
+        if (moved.count !== 1) throw new ConflictException('Media changed. Reload and retry.')
+        await writeAuditLog(tx, actor, {
           projectId,
-          publicVisibilityStatus: { in: ['FOR_REVIEW', 'APPROVED'] },
-          status: 'PENDING',
-        },
-        data: {
-          status: 'REJECTED',
-          rejectedById: actor.userId,
-          rejectedAt: new Date(),
-          rejectionReason: parsed.data.reason,
-        },
-      })
-      if (moved.count !== 1) throw new ConflictException('Media changed. Reload and retry.')
-      await writeAuditLog(tx, actor, {
-        projectId,
-        action: 'PUBLIC_MEDIA_REJECTED',
-        entityType: 'EvidenceMedia',
-        entityId: row.id,
-        changes: { reason: parsed.data.reason },
-      })
-      return { mediaId: row.id, status: 'REJECTED' as const }
-    })
+          action: 'PUBLIC_MEDIA_REJECTED',
+          entityType: 'EvidenceMedia',
+          entityId: row.id,
+          changes: { reason: parsed.data.reason },
+        })
+        return { mediaId: row.id, status: 'REJECTED' as const }
+      }),
+    )
   }
 
   /** Streams a verified file; the stream withholds its last bytes unless size and digest still match. */
-  async content(identity: ApplicationIdentity, requestedProjectId: string, mediaId: string) {
-    const target = await withAuthorizedOperation(
-      this.prisma,
+  async content(
+    identity: ApplicationIdentity,
+    requestedProjectId: string,
+    mediaId: string,
+    session: StepUpSession = {},
+  ) {
+    const target = await this.withStepUp(
       identity,
-      'public.preview',
-      async (tx, actor) => {
-        requireEvidenceRead(actor)
-        const found = await this.requireMedia(tx, actor, requestedProjectId, mediaId, listed)
-        return { ...found, organizationId: actor.organizationId }
-      },
+      session,
+      requestedProjectId,
+      'content',
+      (steppedUp) =>
+        withAuthorizedOperation(this.prisma, identity, 'public.preview', async (tx, actor) => {
+          requireEvidenceRead(actor)
+          const found = await this.requireMedia(
+            tx,
+            actor,
+            requestedProjectId,
+            mediaId,
+            listed,
+            steppedUp,
+          )
+          return { ...found, organizationId: actor.organizationId }
+        }),
     )
     return streamVerifiedMedia(this.env, this.storageFactories, target)
   }

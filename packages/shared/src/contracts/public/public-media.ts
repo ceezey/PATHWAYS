@@ -37,6 +37,12 @@ export const publicMediaListItem = z.object({
 })
 export type PublicMediaListItem = z.infer<typeof publicMediaListItem>
 
-// Body of GET projects/:projectId/public-media.
-export const publicMediaListResponse = z.object({ items: z.array(publicMediaListItem).max(500) })
+// The most rows GET projects/:projectId/public-media returns, queued rows first.
+export const MAX_PUBLIC_MEDIA_LISTED = 500
+
+// Body of GET projects/:projectId/public-media; the flag says beneficiary media was left out until a fresh step-up.
+export const publicMediaListResponse = z.object({
+  items: z.array(publicMediaListItem).max(MAX_PUBLIC_MEDIA_LISTED),
+  beneficiaryMediaNeedsStepUp: z.boolean(),
+})
 export type PublicMediaListResponse = z.infer<typeof publicMediaListResponse>

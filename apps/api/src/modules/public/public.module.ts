@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { AuthModule } from '../auth/auth.module'
 import { PublicAnalyticsController } from './public-analytics.controller'
 import { PublicAnalyticsService } from './public-analytics.service'
 import { PublicMediaStreamController } from './public-media-stream.controller'
@@ -9,6 +10,7 @@ import { PublicProjectsController } from './public-projects.controller'
 import { PublicService } from './public.service'
 import { PublicationController } from './publication.controller'
 @Module({
+  imports: [AuthModule],
   controllers: [
     PublicProjectsController,
     PublicationController,

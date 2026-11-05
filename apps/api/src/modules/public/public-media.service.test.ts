@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { StorageService } from '@app/modules/storage/storage.service'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
+import type { BeneficiaryStepUpService } from '../auth/beneficiary-step-up.service'
 import type { PrivateStorageFactories } from '../storage/private-storage-factories'
 
 const state = vi.hoisted(() => ({ actor: undefined as ApplicationIdentity | undefined }))
@@ -66,6 +68,10 @@ const reviewer = identity(reviewerId, [
 ])
 
 const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
+const stepUp = { enforce: vi.fn(), isFresh: vi.fn() }
+const session = { auth: { id: 'auth-subject', aal: 'aal2' as const }, sessionId: 'session-1' }
+const stepUpRequired = () =>
+  new ForbiddenException({ statusCode: 403, code: STEP_UP_REQUIRED_CODE, message: 'MFA' })
 const storageFactories = {
   createPrivateUploadVerifier: () => reader.verify,
   createPrivateObjectStreamer: () => ({ release: reader.release }),
@@ -74,6 +80,7 @@ const service = new PublicMediaService(
   {} as PrismaService,
   storage as unknown as StorageService,
   storageFactories,
+  stepUp as unknown as BeneficiaryStepUpService,
 )
 
 const sha = 'a'.repeat(64)
@@ -116,6 +123,8 @@ beforeEach(() => {
   tx.project.findFirst.mockResolvedValue({ id: projectId })
   tx.evidenceMedia.findFirst.mockResolvedValue(row())
   tx.evidenceMedia.updateMany.mockResolvedValue({ count: 1 })
+  tx.evidenceMedia.findMany.mockResolvedValue([])
+  stepUp.isFresh.mockResolvedValue(true)
 })
 
 describe('public media upload', () => {
@@ -378,7 +387,7 @@ describe('public media list and content', () => {
   const proof = { activityId: 'a', activityUpdateId: 'u' }
 
   it('list marks pickable per the rule', async () => {
-    tx.evidenceMedia.findMany.mockResolvedValue([
+    tx.evidenceMedia.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
       listed({ id: 'proof-ok', ...proof, status: 'VERIFIED' }),
       listed({ id: 'proof-approved', ...proof, status: 'APPROVED' }),
       listed({ id: 'proof-pending', ...proof }),
@@ -412,7 +421,7 @@ describe('public media list and content', () => {
   })
 
   it('list names the source of each row', async () => {
-    tx.evidenceMedia.findMany.mockResolvedValue([
+    tx.evidenceMedia.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
       listed({ id: 'a', ...proof }),
       listed({ id: 'b', enrollmentId: 'e' }),
       listed({ id: 'c' }),
@@ -527,3 +536,132 @@ describe('beneficiary media gates', () => {
     })
   })
 })
+
+describe('beneficiary media step-up', () => {
+  const beneficiaryRow = queued({ enrollmentId: 'e1', publicSubmittedById: senderId })
+
+  it('list leaves out and flags enrollment-linked rows without a fresh step-up', async () => {
+    stepUp.isFresh.mockResolvedValue(false)
+    tx.evidenceMedia.findFirst.mockResolvedValue({ id: 'hidden' })
+    const result = await service.list(uploader, projectId, session)
+    expect(result.beneficiaryMediaNeedsStepUp).toBe(true)
+    for (const [query] of tx.evidenceMedia.findMany.mock.calls)
+      expect(query.where).toMatchObject({ enrollmentId: null })
+    expect(tx.evidenceMedia.findFirst.mock.calls[0][0].where).toMatchObject({
+      organizationId,
+      projectId,
+      enrollmentId: { not: null },
+    })
+    expect(stepUp.isFresh).toHaveBeenCalledWith(
+      session.auth,
+      uploader,
+      'PublicMediaController.list',
+      projectId,
+      'session-1',
+    )
+  })
+
+  it('list does not flag when no beneficiary media exists', async () => {
+    stepUp.isFresh.mockResolvedValue(false)
+    tx.evidenceMedia.findFirst.mockResolvedValue(null)
+    await expect(service.list(uploader, projectId, session)).resolves.toMatchObject({
+      beneficiaryMediaNeedsStepUp: false,
+    })
+  })
+
+  it('list includes enrollment-linked rows with a fresh step-up', async () => {
+    const result = await service.list(uploader, projectId, session)
+    expect(result.beneficiaryMediaNeedsStepUp).toBe(false)
+    for (const [query] of tx.evidenceMedia.findMany.mock.calls)
+      expect(query.where).not.toHaveProperty('enrollmentId')
+    expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('list neither checks nor flags step-up for a role without beneficiary access', async () => {
+    state.actor = identity(reviewerId, ['public.preview', 'evidence.read'])
+    tx.evidenceMedia.findFirst.mockResolvedValue({ id: 'hidden' })
+    await expect(service.list(state.actor, projectId, session)).resolves.toMatchObject({
+      beneficiaryMediaNeedsStepUp: false,
+    })
+    expect(stepUp.isFresh).not.toHaveBeenCalled()
+  })
+
+  it('content, submit, approve and reject answer 403 STEP_UP_REQUIRED without a fresh step-up', async () => {
+    state.actor = reviewer
+    stepUp.enforce.mockRejectedValue(stepUpRequired())
+    for (const [handler, call] of [
+      ['content', () => service.content(reviewer, projectId, mediaId, session)],
+      ['submit', () => service.submit(reviewer, projectId, mediaId, session)],
+      ['approve', () => service.approve(reviewer, projectId, mediaId, session)],
+      ['reject', () => service.reject(reviewer, projectId, mediaId, { reason: 'No' }, session)],
+    ] as const) {
+      tx.evidenceMedia.findFirst.mockResolvedValue(
+        handler === 'submit' ? row({ enrollmentId: 'e1', storageReady: true }) : beneficiaryRow,
+      )
+      await expect(call()).rejects.toMatchObject({
+        status: 403,
+        response: { code: STEP_UP_REQUIRED_CODE },
+      })
+      expect(stepUp.enforce).toHaveBeenLastCalledWith(
+        session.auth,
+        reviewer,
+        `PublicMediaController.${handler}`,
+        projectId,
+        'session-1',
+      )
+    }
+    expect(tx.evidenceMedia.updateMany).not.toHaveBeenCalled()
+    expect(reader.release).not.toHaveBeenCalled()
+  })
+
+  it('approves enrollment-linked media after a fresh step-up', async () => {
+    state.actor = reviewer
+    tx.evidenceMedia.findFirst.mockResolvedValue(beneficiaryRow)
+    await expect(service.approve(reviewer, projectId, mediaId, session)).resolves.toMatchObject({
+      publicStatus: 'APPROVED',
+    })
+    expect(stepUp.enforce).toHaveBeenCalledOnce()
+    expect(tx.evidenceMedia.updateMany).toHaveBeenCalledOnce()
+  })
+
+  it('serves and approves unlinked media with no step-up check', async () => {
+    state.actor = reviewer
+    tx.evidenceMedia.findFirst.mockResolvedValue(queued())
+    reader.release.mockResolvedValue('stream')
+    await service.content(reviewer, projectId, mediaId, session)
+    await service.approve(reviewer, projectId, mediaId, session)
+    expect(stepUp.enforce).not.toHaveBeenCalled()
+  })
+})
+
+describe('public media list cap', () => {
+  it('reads queued rows first so they never fall off the cap', async () => {
+    tx.evidenceMedia.findMany
+      .mockResolvedValueOnce([{ ...queuedItem, id: 'queued' }])
+      .mockResolvedValueOnce([{ ...queuedItem, id: 'newest', publicVisibilityStatus: 'PRIVATE' }])
+    const { items } = await service.list(uploader, projectId, session)
+    expect(items.map((item) => item.id)).toEqual(['queued', 'newest'])
+    const [[first], [second]] = tx.evidenceMedia.findMany.mock.calls
+    const inQueue = { publicVisibilityStatus: 'FOR_REVIEW', status: { not: 'REJECTED' } }
+    expect(first.where).toMatchObject(inQueue)
+    expect(first.take).toBe(500)
+    expect(second.where.NOT).toEqual(inQueue)
+    expect(second.orderBy).toEqual([{ submittedAt: 'desc' }, { id: 'asc' }])
+    expect(second.take).toBe(499)
+  })
+})
+
+const queuedItem = {
+  type: 'PHOTO',
+  contentType: 'image/jpeg',
+  fileName: 'a.jpg',
+  status: 'PENDING',
+  publicVisibilityStatus: 'FOR_REVIEW',
+  submittedById: uploaderId,
+  publicSubmittedById: senderId,
+  rejectionReason: null,
+  storageReady: true,
+  activityId: null,
+  activityUpdateId: null,
+  enrollmentId: null,
+}

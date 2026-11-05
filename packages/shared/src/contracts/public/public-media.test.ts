@@ -68,17 +68,32 @@ describe('public media contracts', () => {
   })
 
   it('accepts up to 500 list items and no more', () => {
-    expect(publicMediaListResponse.safeParse({ items: Array(500).fill(item) }).success).toBe(true)
-    expect(publicMediaListResponse.safeParse({ items: Array(501).fill(item) }).success).toBe(false)
+    const list = (items: unknown[]) =>
+      publicMediaListResponse.safeParse({ items, beneficiaryMediaNeedsStepUp: false }).success
+    expect(list(Array(500).fill(item))).toBe(true)
+    expect(list(Array(501).fill(item))).toBe(false)
+  })
+
+  it('requires the step-up flag', () => {
+    expect(publicMediaListResponse.safeParse({ items: [item] }).success).toBe(false)
+    expect(
+      publicMediaListResponse.safeParse({ items: [item], beneficiaryMediaNeedsStepUp: true })
+        .success,
+    ).toBe(true)
   })
 
   it('rejects an unknown source or public status', () => {
     expect(
-      publicMediaListResponse.safeParse({ items: [{ ...item, source: 'EXPENSE' }] }).success,
+      publicMediaListResponse.safeParse({
+        items: [{ ...item, source: 'EXPENSE' }],
+        beneficiaryMediaNeedsStepUp: false,
+      }).success,
     ).toBe(false)
     expect(
-      publicMediaListResponse.safeParse({ items: [{ ...item, publicStatus: 'PUBLISHED' }] })
-        .success,
+      publicMediaListResponse.safeParse({
+        items: [{ ...item, publicStatus: 'PUBLISHED' }],
+        beneficiaryMediaNeedsStepUp: false,
+      }).success,
     ).toBe(false)
   })
 })

@@ -1,5 +1,7 @@
 import 'reflect-metadata'
-import { describe, expect, it } from 'vitest'
+import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
+import { describe, expect, it, vi } from 'vitest'
 
 import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-step-up.decorator'
 import { BeneficiariesController } from '../beneficiaries/beneficiaries.controller'
@@ -7,7 +9,9 @@ import { BeneficiaryMediaController } from '../beneficiary-media/beneficiary-med
 import { BeneficiaryJourneyController } from '../participants/beneficiary-journey.controller'
 import { JourneyStagesController } from '../participants/journey-stages.controller'
 import { AuthorizedDataController } from './authorized-data.controller'
+import type { PrismaService } from '../../prisma/prisma.service'
 import { STEP_UP_WINDOW_SECONDS, evaluateBeneficiaryStepUp } from './beneficiary-step-up'
+import { BeneficiaryStepUpService } from './beneficiary-step-up.service'
 
 const now = 1_800_000_000
 
@@ -73,5 +77,28 @@ describe('approved Beneficiary step-up route list', () => {
     expect(required(AuthorizedDataController.prototype, 'projects')).toBe(false)
     expect(required(BeneficiariesController.prototype, 'registrationContext')).toBe(false)
     expect(required(JourneyStagesController.prototype, 'list')).toBe(false)
+  })
+})
+
+describe('BeneficiaryStepUpService.isFresh', () => {
+  const service = new BeneficiaryStepUpService({} as PrismaService)
+  const args = [{}, {}, 'op', 'project', 'session'] as unknown as Parameters<
+    BeneficiaryStepUpService['isFresh']
+  >
+
+  it('answers true when enforce admits and false only for STEP_UP_REQUIRED', async () => {
+    const enforce = vi.spyOn(service, 'enforce').mockResolvedValueOnce(undefined)
+    await expect(service.isFresh(...args)).resolves.toBe(true)
+    expect(enforce).toHaveBeenCalledWith(...args)
+    enforce.mockRejectedValueOnce(new ForbiddenException({ code: STEP_UP_REQUIRED_CODE }))
+    await expect(service.isFresh(...args)).resolves.toBe(false)
+  })
+
+  it('rethrows every other failure', async () => {
+    const enforce = vi.spyOn(service, 'enforce')
+    enforce.mockRejectedValueOnce(new NotFoundException('Project unavailable.'))
+    await expect(service.isFresh(...args)).rejects.toBeInstanceOf(NotFoundException)
+    enforce.mockRejectedValueOnce(new ForbiddenException('Other denial.'))
+    await expect(service.isFresh(...args)).rejects.toBeInstanceOf(ForbiddenException)
   })
 })
