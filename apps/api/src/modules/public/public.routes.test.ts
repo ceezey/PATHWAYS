@@ -54,6 +54,7 @@ describe('public and publication routes', () => {
       'GET /projects/:projectId/publication public.preview private, no-store',
       'GET /public/projects public no-store',
       'GET /public/projects/:projectId public no-store',
+      'GET /public/projects/:projectId/analytics/:view public no-store',
       'GET /public/projects/:projectId/media/:mediaId public no-store',
       'POST /projects/:projectId/public-media/:mediaId/approve public.approve private, no-store',
       'POST /projects/:projectId/public-media/:mediaId/finalize public.preview private, no-store',

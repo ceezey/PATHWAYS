@@ -21,7 +21,7 @@ import { type ResolvedPlace, resolvePlaces } from './ph-places'
 const projectLimit = 100
 
 // One row per recorded town; a project never spans more than the country's cities and municipalities.
-const townReachSchema = z
+export const townReachSchema = z
   .array(
     z.object({
       town: z.string().nullable(),

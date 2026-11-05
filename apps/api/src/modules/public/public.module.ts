@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common'
+import { PublicAnalyticsController } from './public-analytics.controller'
+import { PublicAnalyticsService } from './public-analytics.service'
 import { PublicMediaStreamController } from './public-media-stream.controller'
 import { PublicMediaStreamService } from './public-media-stream.service'
 import { PublicMediaController } from './public-media.controller'
@@ -12,7 +14,8 @@ import { PublicationController } from './publication.controller'
     PublicationController,
     PublicMediaController,
     PublicMediaStreamController,
+    PublicAnalyticsController,
   ],
-  providers: [PublicService, PublicMediaService, PublicMediaStreamService],
+  providers: [PublicService, PublicMediaService, PublicMediaStreamService, PublicAnalyticsService],
 })
 export class PublicModule {}
