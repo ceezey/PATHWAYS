@@ -108,7 +108,10 @@ describe('publicMediaClient staff media requests', () => {
   it('downloads the content as a blob', async () => {
     const blob = new Blob(['bytes'])
     request.requestFoundationResponse.mockResolvedValue({ blob: async () => blob })
-    await expect(publicMediaClient.contentBlob(projectId, mediaId)).resolves.toBe(blob)
-    expect(request.requestFoundationResponse).toHaveBeenCalledWith(`${path}/${mediaId}/content`)
+    const { signal } = new AbortController()
+    await expect(publicMediaClient.contentBlob(projectId, mediaId, signal)).resolves.toBe(blob)
+    expect(request.requestFoundationResponse).toHaveBeenCalledWith(`${path}/${mediaId}/content`, {
+      signal,
+    })
   })
 })

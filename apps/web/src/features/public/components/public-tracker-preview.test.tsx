@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PublicTrackerPreview } from './public-tracker-preview'
@@ -56,13 +56,20 @@ describe('public tracker staff preview', () => {
     expect(screen.getByText('No public summary yet')).toBeTruthy()
   })
 
+  const photo = (n: number) => ({
+    id: `20000000-0000-4000-8000-00000000000${n}`,
+    type: 'PHOTO' as const,
+    contentType: 'image/jpeg',
+    caption: `Photo ${n}`,
+  })
+  const video = {
+    ...photo(3),
+    type: 'VIDEO' as const,
+    contentType: 'video/mp4',
+    caption: 'Video 3',
+  }
   const withMedia = () => {
-    const media = ['a', 'b'].map((x) => ({
-      id: `20000000-0000-4000-8000-00000000000${x === 'a' ? 1 : 2}`,
-      type: 'PHOTO' as const,
-      contentType: 'image/jpeg',
-      caption: `Photo ${x}`,
-    }))
+    const media = [photo(1), photo(2), video]
     read.result = {
       isPending: false,
       isError: false,
@@ -88,18 +95,32 @@ describe('public tracker staff preview', () => {
     return media
   }
 
-  it('shows picked media from authorized blobs and revokes them on unmount', async () => {
+  it('renders the page at once while photo downloads are pending', () => {
+    withMedia()
+    client.contentBlob.mockReturnValue(new Promise(() => {}))
+    render(<PublicTrackerPreview projectId={projectId} />)
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Synthetic preview project' }),
+    ).toBeTruthy()
+    expect(screen.getByText('Approved synthetic summary.')).toBeTruthy()
+    expect(screen.getAllByText('Loading preview')).toHaveLength(2)
+  })
+
+  it('shows photos from authorized blobs and aborts and revokes them on unmount', async () => {
     withMedia()
     client.contentBlob.mockResolvedValue(new Blob(['x']))
     const { unmount } = render(<PublicTrackerPreview projectId={projectId} />)
-    await waitFor(() => expect(screen.getByAltText('Photo a').getAttribute('src')).toBe('blob:1'))
-    expect(screen.getByAltText('Photo b').getAttribute('src')).toBe('blob:2')
+    await waitFor(() => expect(screen.getByAltText('Photo 1').getAttribute('src')).toBe('blob:1'))
+    expect(screen.getByAltText('Photo 2').getAttribute('src')).toBe('blob:2')
+    const signal = client.contentBlob.mock.calls[0][2] as AbortSignal
+    expect(signal.aborted).toBe(false)
     unmount()
+    expect(signal.aborted).toBe(true)
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:1')
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:2')
   })
 
-  it('shows a placeholder for an item the viewer may not read and renders the rest', async () => {
+  it('shows a placeholder for a photo the viewer may not read and renders the rest', async () => {
     const media = withMedia()
     client.contentBlob.mockImplementation(async (_project: string, id: string) => {
       if (id === media[0].id) throw new Error('forbidden')
@@ -107,8 +128,21 @@ describe('public tracker staff preview', () => {
     })
     render(<PublicTrackerPreview projectId={projectId} />)
     await waitFor(() => expect(screen.getByText('Preview not available')).toBeTruthy())
-    expect(screen.getByAltText('Photo b')).toBeTruthy()
-    expect(screen.queryByAltText('Photo a')).toBeNull()
-    expect(screen.getByText('Photo a')).toBeTruthy()
+    await waitFor(() => expect(screen.getByAltText('Photo 2')).toBeTruthy())
+    expect(screen.queryByAltText('Photo 1')).toBeNull()
+    expect(screen.getByText('Photo 1')).toBeTruthy()
+  })
+
+  it('fetches a video only after Load video preview is activated', async () => {
+    withMedia()
+    client.contentBlob.mockResolvedValue(new Blob(['x']))
+    const { container } = render(<PublicTrackerPreview projectId={projectId} />)
+    await waitFor(() => expect(screen.getByAltText('Photo 2')).toBeTruthy())
+    expect(client.contentBlob).toHaveBeenCalledTimes(2)
+    expect(client.contentBlob.mock.calls.some(([, id]) => id === video.id)).toBe(false)
+    expect(container.querySelector('video')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Load video preview' }))
+    await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
+    expect(client.contentBlob.mock.calls.at(-1)?.[1]).toBe(video.id)
   })
 })

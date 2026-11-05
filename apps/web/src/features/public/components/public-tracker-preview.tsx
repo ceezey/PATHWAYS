@@ -2,7 +2,7 @@
 
 import { EyeOff } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { AsyncState, EmptyState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
@@ -21,33 +21,51 @@ const stateLabels = {
 
 const noMedia: PublicProjectResponse['media'] = []
 
-// Loads each picked item as an authorized blob URL; an item that fails (403) maps to '' and shows a placeholder.
+type Slot = { url: string } | 'loading' | 'failed'
+
+// Photos load as authorized blobs at once, a video only when asked; unmount aborts downloads and revokes the URLs.
 const usePreviewMedia = (projectId: string, media: PublicProjectResponse['media']) => {
-  const [urls, setUrls] = useState<Record<string, string> | null>(null)
+  const [slots, setSlots] = useState<Record<string, Slot>>({})
+  const loader = useRef<(id: string) => void>(() => {})
   useEffect(() => {
-    if (media.length === 0) return
-    let cancelled = false
+    const controller = new AbortController()
     const made: string[] = []
-    setUrls(null)
-    Promise.all(
-      media.map(async ({ id }) => {
-        try {
-          const blob = await publicMediaClient.contentBlob(projectId, id)
-          if (cancelled) return [id, ''] as const
+    const set = (id: string, slot: Slot) => setSlots((all) => ({ ...all, [id]: slot }))
+    const load = (id: string) => {
+      set(id, 'loading')
+      publicMediaClient
+        .contentBlob(projectId, id, controller.signal)
+        .then((blob) => {
+          if (controller.signal.aborted) return
           const url = URL.createObjectURL(blob)
           made.push(url)
-          return [id, url] as const
-        } catch {
-          return [id, ''] as const
-        }
-      }),
-    ).then((entries) => !cancelled && setUrls(Object.fromEntries(entries)))
+          set(id, { url })
+        })
+        .catch(() => !controller.signal.aborted && set(id, 'failed'))
+    }
+    loader.current = load
+    setSlots({})
+    for (const item of media) if (item.type === 'PHOTO') load(item.id)
     return () => {
-      cancelled = true
+      controller.abort()
       for (const url of made) URL.revokeObjectURL(url)
     }
   }, [projectId, media])
-  return urls
+  const src = (id: string) => {
+    const slot = slots[id]
+    return typeof slot === 'object' ? slot.url : ''
+  }
+  const placeholder = (id: string) => {
+    const slot = slots[id]
+    if (slot === 'loading') return 'Loading preview'
+    if (slot || media.find((item) => item.id === id)?.type !== 'VIDEO') return undefined
+    return (
+      <Button onClick={() => loader.current(id)} size="sm" type="button" variant="outline">
+        Load video preview
+      </Button>
+    )
+  }
+  return { src, placeholder }
 }
 
 // Staff preview of the current revision's frozen snapshot, read through the authorized publication API.
@@ -59,8 +77,8 @@ export const PublicTrackerPreview = ({ projectId }: { projectId: string }) => {
     (signal) => publicationClient.get(projectId, signal),
   )
   const media = publication.data?.snapshot.media ?? noMedia
-  const urls = usePreviewMedia(projectId, media)
-  if (publication.isPending || (media.length > 0 && !urls))
+  const preview = usePreviewMedia(projectId, media)
+  if (publication.isPending)
     return (
       <AsyncState
         status="loading"
@@ -100,7 +118,8 @@ export const PublicTrackerPreview = ({ projectId }: { projectId: string }) => {
           publishedAt: row.state === 'PUBLISHED' ? row.updatedAt : undefined,
         }}
         state={`${stateLabels[row.state]} · Revision ${row.revision}`}
-        mediaSrc={(id) => urls?.[id] ?? ''}
+        mediaSrc={preview.src}
+        mediaPlaceholder={preview.placeholder}
       />
     </div>
   )

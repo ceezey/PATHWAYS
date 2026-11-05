@@ -61,4 +61,10 @@ describe('public gallery', () => {
     expect(screen.getByText('Preview not available')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'View full size: Gone' })).toBeNull()
   })
+
+  it('shows a given placeholder in place of the default', () => {
+    render(<PublicGallery items={[{ ...items[3], placeholder: 'Loading preview' }]} />)
+    expect(screen.getByText('Loading preview')).toBeTruthy()
+    expect(screen.queryByText('Preview not available')).toBeNull()
+  })
 })

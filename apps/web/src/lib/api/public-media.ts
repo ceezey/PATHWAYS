@@ -65,8 +65,10 @@ export const publicMediaClient = {
     })
   },
 
-  async contentBlob(projectId: string, mediaId: string): Promise<Blob> {
-    const response = await requestFoundationResponse(`${itemPath(projectId, mediaId)}/content`)
+  async contentBlob(projectId: string, mediaId: string, signal?: AbortSignal): Promise<Blob> {
+    const response = await requestFoundationResponse(`${itemPath(projectId, mediaId)}/content`, {
+      signal,
+    })
     return response.blob()
   },
 }

@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, CalendarDays, MapPin, ShieldCheck, Wrench } from 'lucide-react'
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
@@ -130,10 +131,12 @@ export const PublicTrackerDetail = ({
   project,
   state,
   mediaSrc = (id) => publicMediaUrl(project.id, id),
+  mediaPlaceholder,
 }: {
   project: Snapshot
   state?: string
   mediaSrc?: (id: string) => string
+  mediaPlaceholder?: (id: string) => ReactNode
 }) => (
   <div className="bg-surface-subtle" data-public-mode={state ? 'staff-preview' : 'public'}>
     <PublicNotice preview={Boolean(state)} />
@@ -221,6 +224,7 @@ export const PublicTrackerDetail = ({
         type,
         caption,
         src: mediaSrc(id),
+        placeholder: mediaPlaceholder?.(id),
       }))}
     />
   </div>
