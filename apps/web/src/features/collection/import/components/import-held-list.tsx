@@ -1,5 +1,7 @@
 'use client'
 
+import { type DateOrder, fittingDateOrders, submissionTimeColumn } from '@pathways/imports'
+import { businessCalendarDate } from '@pathways/shared'
 import { useEffect, useState } from 'react'
 
 import { MetricTooltip } from '@/components/pathways'
@@ -19,12 +21,31 @@ import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
 import { headClass, participantName, rowReason, rowReasonHelp } from '../import.utils'
+import { EnrollmentDatePanel } from './enrollment-date-panel'
 import { GuardianApprovalPanel } from './guardian-approval-panel'
 import { ImportReviewDialog } from './import-review-dialog'
 
 // The info tip beside a reason that needs explaining.
 const ReasonHelp = ({ text, rowNumber }: { text?: string; rowNumber: number }) =>
   text ? <MetricTooltip label={`row ${rowNumber} reason`}>{text}</MetricTooltip> : null
+
+// The submission time column's date order: its mapping's, else the one order every held value fits, else none.
+function timeColumnOrder(
+  batch: ImportBatchDefinition,
+  held: ImportRowDefinition[],
+  key: string,
+): DateOrder | null {
+  const mapped = batch.mappings?.find(
+    (item) => item.status === 'MAPPED' && item.sourceFieldName === key,
+  )
+  if (mapped?.dateOrder) return mapped.dateOrder
+  const year = Number(businessCalendarDate(new Date(batch.uploadedAt), 'Asia/Manila').slice(0, 4))
+  const orders = fittingDateOrders(
+    held.map((row) => row.rawData[key]),
+    year,
+  )
+  return orders.length === 1 ? orders[0] : null
+}
 
 /** The batch results and the rows held for a person to decide. */
 export function ImportHeldList({
@@ -93,6 +114,11 @@ export function ImportHeldList({
       rowNumber: row.rowNumber,
       name: participantName(row, batch.mappings),
     }))
+  const dateRows = held.filter(
+    (row) => row.status === 'UNPROCESSED' && row.processingErrorCode === 'ENROLLMENT_DATE_REQUIRED',
+  )
+  const headers = batch.sourceColumns ?? []
+  const timeColumn = submissionTimeColumn(headers)
   return (
     <>
       <Card>
@@ -162,6 +188,19 @@ export function ImportHeldList({
           ) : null}
         </CardContent>
       </Card>
+      <EnrollmentDatePanel
+        batchId={batch.id}
+        dateOrder={timeColumn ? timeColumnOrder(batch, held, timeColumn.key) : null}
+        headers={headers}
+        onConfirmed={onChanged}
+        projectId={batch.projectId}
+        rows={dateRows.map((row) => ({
+          id: row.id,
+          rowNumber: row.rowNumber,
+          name: participantName(row, batch.mappings),
+          rawData: row.rawData,
+        }))}
+      />
       <GuardianApprovalPanel
         batchId={batch.id}
         lead={leadToGuardian}
