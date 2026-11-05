@@ -33,6 +33,15 @@ type PublicationRow = {
   publishedById: string | null
   updatedAt: Date
 }
+// The publication guard's refusal of a chosen photo or video that is no longer pickable (0086 p85_publication_media).
+const mediaNotPublishable = (error: unknown) => {
+  const meta = (error as { meta?: { code?: unknown; message?: unknown } } | null)?.meta
+  return (
+    meta?.code === '23514' &&
+    typeof meta.message === 'string' &&
+    meta.message.includes('Media not publishable')
+  )
+}
 const permissions = {
   SUBMIT: 'public.preview',
   APPROVE: 'public.approve',
@@ -173,13 +182,20 @@ export class PublicService {
           throw new ConflictException('Publication is not in the required review stage.')
         // The trigger validates the picks and fills the other snapshot keys.
         const picked = Prisma.sql`jsonb_build_object('media',${JSON.stringify(body.selection?.media)}::jsonb,'views',${JSON.stringify(body.selection?.views)}::jsonb)`
+        const write = async (query: Prisma.Sql) => {
+          try {
+            return await tx.$queryRaw<PublicationRow[]>(query)
+          } catch (error) {
+            if (mediaNotPublishable(error))
+              throw new BadRequestException('A chosen photo or video is no longer publishable.')
+            throw error
+          }
+        }
         let row: PublicationRow | undefined
         if (!current) {
           if (operation !== 'SUBMIT')
             throw new ConflictException('Submit the public summary first.')
-          ;[row] = await tx.$queryRaw<
-            PublicationRow[]
-          >(Prisma.sql`INSERT INTO pathways.project_publications
+          ;[row] = await write(Prisma.sql`INSERT INTO pathways.project_publications
           (organization_id,project_id,revision,state,last_operation,summary,snapshot,submitted_by_id)
           VALUES(${actor.organizationId}::uuid,${projectId}::uuid,1,'FOR_REVIEW','SUBMIT',${body.summary},${picked},${actor.userId}::uuid)
           RETURNING ${rowSelection}`)
@@ -203,9 +219,8 @@ export class PublicService {
             sets.push(
               Prisma.sql`live_revision=NULL,live_snapshot=NULL,live_published_at=NULL,live_published_by_id=NULL`,
             )
-          ;[row] = await tx.$queryRaw<
-            PublicationRow[]
-          >(Prisma.sql`UPDATE pathways.project_publications SET ${Prisma.join(sets)}
+          ;[row] =
+            await write(Prisma.sql`UPDATE pathways.project_publications SET ${Prisma.join(sets)}
           WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND revision=${body.expectedRevision}
           RETURNING ${rowSelection}`)
         }

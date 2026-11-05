@@ -237,6 +237,29 @@ describe('publication live revisions', () => {
     expect(updates[0].values).toContain(JSON.stringify(sent.media))
     expect(updates[0].values).toContain(JSON.stringify(sent.views))
   })
+  it('submit answers 400 only for the guard refusing a chosen item', async () => {
+    current = row('PUBLISHED')
+    const base = tx.$queryRaw.getMockImplementation()
+    const refusal = (message: string) =>
+      Object.assign(new Error('Raw query failed.'), {
+        code: 'P2010',
+        meta: { code: '23514', message },
+      })
+    let failure = refusal('ERROR: Media not publishable')
+    tx.$queryRaw.mockImplementation((query: { sql?: string } | string[]) => {
+      const text = Array.isArray(query) ? query.join('') : (query.sql ?? '')
+      if (text.includes('UPDATE pathways.project_publications')) throw failure
+      return base?.(query)
+    })
+    const send = () =>
+      service.transition(actor, projectId, 'SUBMIT', { ...submit, selection: sent })
+    await expect(send()).rejects.toMatchObject({
+      status: 400,
+      message: 'A chosen photo or video is no longer publishable.',
+    })
+    failure = refusal('Public view selection unavailable')
+    await expect(send()).rejects.toBe(failure)
+  })
   it('submit requires selection and summary together', async () => {
     current = row('FOR_REVIEW')
     // The parse throws before any promise exists, so each call is wrapped.
