@@ -88,11 +88,12 @@ async function proposedDates(
   const column = submissionTimeColumn(safeSourceColumns(batch.sourceHeaders))
   if (!column) return rows.map(() => null)
   const times = rows.map((row) => safeRawData(row.rawData)[column.key])
-  const direct = times.map((time) => proposedEnrollmentDate(time, column.header, null))
+  const year = Number(uploadDate.slice(0, 4))
+  const direct = times.map((time) => proposedEnrollmentDate(time, column.header, null, year))
   // Only a text date needs the batch's date order, so the batch is read only then.
   if (direct.every(Boolean)) return direct
   const order = await timeColumnOrder(tx, actor, batch, column.key, uploadDate)
-  return times.map((time) => proposedEnrollmentDate(time, column.header, order))
+  return times.map((time) => proposedEnrollmentDate(time, column.header, order, year))
 }
 
 // The row's values with the confirmed date, its calculated fields such as the age worked out again from it.

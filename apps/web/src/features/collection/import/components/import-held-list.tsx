@@ -194,6 +194,7 @@ export function ImportHeldList({
         headers={headers}
         onConfirmed={onChanged}
         projectId={batch.projectId}
+        uploadedAt={batch.uploadedAt}
         rows={dateRows.map((row) => ({
           id: row.id,
           rowNumber: row.rowNumber,

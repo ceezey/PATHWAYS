@@ -30,12 +30,13 @@ function isRealDate(iso: string): boolean {
 
 /**
  * The enrollment date a submission time proposes, as YYYY-MM-DD in Manila (UTC+8, no daylight saving).
- * A date-only value is kept as written, a time with a zone is converted from it, a time with no zone is UTC except under the Google Forms Timestamp header where it is local, and non-ISO text is Google Forms local time read in `order`.
+ * A date-only value is kept as written, a time with a zone is converted from it, a time with no zone is UTC except under the Google Forms Timestamp header where it is local, and non-ISO text is Google Forms local time read in `order`, a two-digit year against `referenceYear` (the batch upload year).
  */
 export function proposedEnrollmentDate(
   value: unknown,
   header: string,
   order: DateOrder | null,
+  referenceYear: number,
 ): string | null {
   if (typeof value === 'number') return excelSerialToIsoDate(value, false)
   if (typeof value !== 'string') return null
@@ -44,6 +45,7 @@ export function proposedEnrollmentDate(
   const match = dateTime.exec(text)
   if (match) {
     const [, day, clock, zone, sign, hours, minutes] = match
+    if (!isRealDate(day)) return null
     const offset = sign ? `${sign}${hours}:${minutes ?? '00'}` : 'Z'
     const time = Date.parse(`${day}T${clock}${offset}`)
     if (Number.isNaN(time)) return null
@@ -51,6 +53,5 @@ export function proposedEnrollmentDate(
     return new Date(time + MANILA_OFFSET_MS).toISOString().slice(0, 10)
   }
   if (!order) return null
-  const referenceYear = new Date(Date.now() + MANILA_OFFSET_MS).getUTCFullYear()
   return readDate(text, { order, referenceYear })
 }

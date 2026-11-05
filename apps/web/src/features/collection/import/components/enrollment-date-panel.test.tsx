@@ -29,6 +29,8 @@ const rows = (count: number) =>
     rawData: { column_0002: index === 2 ? null : '2026-01-14T16:30:00Z' },
   }))
 const onConfirmed = vi.fn()
+// Just after Manila midnight, so the upload date in Manila is a day after the UTC date.
+const uploadedAt = '2026-01-31T16:30:00Z'
 const show = (count: number, columns = headers) =>
   render(
     <EnrollmentDatePanel
@@ -38,6 +40,7 @@ const show = (count: number, columns = headers) =>
       onConfirmed={onConfirmed}
       projectId="project-1"
       rows={rows(count)}
+      uploadedAt={uploadedAt}
     />,
   )
 const proposedButton = () =>

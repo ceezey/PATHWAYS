@@ -31,6 +31,7 @@ export function EnrollmentDatePanel({
   rows,
   headers,
   dateOrder,
+  uploadedAt,
   onConfirmed,
 }: {
   projectId: string
@@ -38,6 +39,7 @@ export function EnrollmentDatePanel({
   rows: HeldEnrollmentRow[]
   headers: readonly { key: string; header: string }[]
   dateOrder: DateOrder | null
+  uploadedAt: string
   onConfirmed: () => Promise<void> | void
 }) {
   const { profile } = useCurrentRole()
@@ -52,8 +54,10 @@ export function EnrollmentDatePanel({
   if (!principalHasAtomicPermission(profile, 'imports.process') || rows.length === 0) return null
 
   const column = submissionTimeColumn(headers)
+  const uploadDate = businessCalendarDate(new Date(uploadedAt), 'Asia/Manila')
+  const year = Number(uploadDate.slice(0, 4))
   const proposal = (row: HeldEnrollmentRow) =>
-    column ? proposedEnrollmentDate(row.rawData[column.key], column.header, dateOrder) : null
+    column ? proposedEnrollmentDate(row.rawData[column.key], column.header, dateOrder, year) : null
   // A row confirmed or removed since the last refresh drops out of the selection.
   const chosen = rows.filter((row) => selected.has(row.id))
   const toggle = (rowId: string, on: boolean) =>
