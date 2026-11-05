@@ -17,6 +17,7 @@ import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports'
 import {
   type ApproveGuardianConsentRequest,
   type AutomaticImportMappingRequest,
+  type ConfirmEnrollmentDatesRequest,
   type ImportRowsQuery,
   type ProcessImportRequest,
   type RerunImportRequest,
@@ -26,6 +27,7 @@ import {
   type ValidateImportRequest,
   approveGuardianConsentRequest,
   automaticImportMappingRequest,
+  confirmEnrollmentDatesRequest,
   importRowsQuery,
   processImportRequest,
   rerunImportRequest,
@@ -38,6 +40,7 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
+import { EnrollmentDateService } from './enrollment-date.service'
 import { GuardianApprovalService } from './guardian-approval.service'
 import { ImportReviewService } from './import-review.service'
 import { ImportsService, type UploadedImportFile } from './imports.service'
@@ -48,6 +51,7 @@ export class ImportsController {
     @Inject(ImportsService) private readonly imports: ImportsService,
     @Inject(ImportReviewService) private readonly review: ImportReviewService,
     @Inject(GuardianApprovalService) private readonly guardians: GuardianApprovalService,
+    @Inject(EnrollmentDateService) private readonly enrollmentDates: EnrollmentDateService,
   ) {}
 
   @Get()
@@ -165,6 +169,17 @@ export class ImportsController {
     @Body(new ZodPipe(approveGuardianConsentRequest)) body: ApproveGuardianConsentRequest,
   ) {
     return this.guardians.approve(requestIdentity(request), projectId, batchId, body)
+  }
+
+  @Post(':batchId/enrollment-dates')
+  @RequirePermission('imports.process')
+  confirmEnrollmentDates(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Body(new ZodPipe(confirmEnrollmentDatesRequest)) body: ConfirmEnrollmentDatesRequest,
+  ) {
+    return this.enrollmentDates.confirm(requestIdentity(request), projectId, batchId, body)
   }
 
   @Post(':batchId/automatic-mapping')
