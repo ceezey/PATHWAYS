@@ -3,6 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PathwaysClientError } from '@/lib/api/core/request'
+import {
+  STEP_UP_COMPLETED_EVENT,
+  STEP_UP_REQUIRED_EVENT,
+} from '@/lib/auth/beneficiary-step-up-events'
 
 import { PublicMediaPicker } from './public-media-picker'
 
@@ -26,6 +30,7 @@ const item = (n: number, patch: object = {}) => ({
 const state = vi.hoisted(() => ({
   permissions: [] as string[],
   items: [] as object[],
+  needsStepUp: false,
   error: null as unknown,
   refetch: vi.fn(),
   submit: vi.fn(),
@@ -45,7 +50,10 @@ vi.mock('@/hooks/use-authorized-read', () => ({
   ) => {
     state.reads.push(enabled)
     return {
-      data: enabled && !state.error ? { items: state.items } : undefined,
+      data:
+        enabled && !state.error
+          ? { items: state.items, beneficiaryMediaNeedsStepUp: state.needsStepUp }
+          : undefined,
       isPending: false,
       isError: Boolean(state.error),
       error: state.error,
@@ -69,6 +77,7 @@ describe('public media picker', () => {
     vi.clearAllMocks()
     state.permissions = ['public.preview', 'evidence.read']
     state.items = []
+    state.needsStepUp = false
     state.error = null
     state.reads = []
     state.refetch.mockResolvedValue(undefined)
@@ -215,5 +224,65 @@ describe('public media picker', () => {
     expect(
       within(screen.getByRole('list', { name: 'Chosen media' })).getAllByRole('listitem'),
     ).toHaveLength(1)
+  })
+
+  it('flags chosen items that are no longer publishable and reports the block', () => {
+    state.items = [item(0), item(1, { pickable: false, status: 'REJECTED' })]
+    const onBlockedChange = vi.fn()
+    const value = [
+      { id: ids[0], caption: 'A' },
+      { id: ids[1], caption: 'B' },
+      { id: ids[2], caption: 'C' },
+    ]
+    const view = render(
+      <PublicMediaPicker
+        projectId={projectId}
+        value={value}
+        onChange={vi.fn()}
+        onBlockedChange={onBlockedChange}
+      />,
+    )
+    const chosen = within(screen.getByRole('list', { name: 'Chosen media' }))
+    expect(chosen.getAllByText('No longer publishable. Remove it to submit.')).toHaveLength(2)
+    expect(screen.getByRole('alert').textContent).toBe(
+      'A chosen photo or video is no longer publishable. Remove it to submit.',
+    )
+    expect(onBlockedChange).toHaveBeenLastCalledWith(true)
+    view.rerender(
+      <PublicMediaPicker
+        projectId={projectId}
+        value={[value[0]]}
+        onChange={vi.fn()}
+        onBlockedChange={onBlockedChange}
+      />,
+    )
+    expect(screen.queryByText('No longer publishable. Remove it to submit.')).toBeNull()
+    expect(onBlockedChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('offers step-up when beneficiary media is hidden and reloads once verified', () => {
+    state.items = [item(0)]
+    state.needsStepUp = true
+    const onBlockedChange = vi.fn()
+    const required = vi.fn()
+    window.addEventListener(STEP_UP_REQUIRED_EVENT, required)
+    render(
+      <PublicMediaPicker
+        projectId={projectId}
+        value={[{ id: ids[2], caption: 'Hidden' }]}
+        onChange={vi.fn()}
+        onBlockedChange={onBlockedChange}
+      />,
+    )
+    expect(
+      screen.getByText('Beneficiary photos and videos are hidden until you verify again.'),
+    ).toBeTruthy()
+    expect(screen.queryByText('No longer publishable. Remove it to submit.')).toBeNull()
+    expect(onBlockedChange).toHaveBeenLastCalledWith(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Verify again' }))
+    expect(required).toHaveBeenCalledOnce()
+    window.dispatchEvent(new Event(STEP_UP_COMPLETED_EVENT))
+    expect(state.refetch).toHaveBeenCalled()
+    window.removeEventListener(STEP_UP_REQUIRED_EVENT, required)
   })
 })

@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AsyncState } from '@/components/pathways'
@@ -12,9 +12,14 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { publicMediaClient } from '@/lib/api/public-media'
-import type { PublicMediaListItem, PublicationSelection } from '@pathways/shared'
+import {
+  MAX_PUBLIC_MEDIA_LISTED,
+  type PublicMediaListItem,
+  type PublicationSelection,
+} from '@pathways/shared'
 
 import { AddPublicMediaDialog } from './add-public-media-dialog'
+import { PublicMediaStepUpNote } from './public-media-step-up-note'
 import { PublicMediaThumb } from './public-media-thumb'
 
 const MAX_MEDIA = 24
@@ -31,11 +36,13 @@ const notPickable = (item: PublicMediaListItem) =>
 // Chooses, captions and orders the photos and videos of the public page, from the system or newly uploaded.
 export const PublicMediaPicker = ({
   disabled = false,
+  onBlockedChange,
   onChange,
   projectId,
   value,
 }: {
   disabled?: boolean
+  onBlockedChange?: (blocked: boolean) => void
   onChange: (next: Picked) => void
   projectId: string
   value: Picked
@@ -57,6 +64,21 @@ export const PublicMediaPicker = ({
     !canReadEvidence ||
     (list.isError && list.error instanceof PathwaysClientError && list.error.code === 'forbidden')
   const full = value.length >= MAX_MEDIA
+  // A missing item counts only when the list is complete: loaded, under the cap and with no beneficiary rows hidden.
+  const complete =
+    list.data !== undefined &&
+    !list.isError &&
+    items.length < MAX_PUBLIC_MEDIA_LISTED &&
+    !list.data.beneficiaryMediaNeedsStepUp
+  const unpublishable = (id: string) => {
+    const known = byId.get(id)
+    return known ? !known.pickable : complete
+  }
+  const blocked = value.some((entry) => unpublishable(entry.id))
+  useEffect(() => {
+    onBlockedChange?.(blocked)
+    return () => onBlockedChange?.(false)
+  }, [blocked, onBlockedChange])
 
   const edit = (index: number, caption: string) =>
     onChange(value.map((entry, at) => (at === index ? { ...entry, caption } : entry)))
@@ -113,6 +135,11 @@ export const PublicMediaPicker = ({
                     value={entry.caption}
                   />
                   <p className="truncate text-xs text-muted-foreground">{name}</p>
+                  {unpublishable(entry.id) ? (
+                    <p className="text-xs text-destructive">
+                      No longer publishable. Remove it to submit.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex gap-1">
                   <Button
@@ -158,13 +185,21 @@ export const PublicMediaPicker = ({
           A caption is required for every photo or video.
         </p>
       ) : null}
+      {blocked ? (
+        <p className="text-sm text-destructive" role="alert">
+          A chosen photo or video is no longer publishable. Remove it to submit.
+        </p>
+      ) : null}
 
       <Tabs defaultValue="system">
         <TabsList>
           <TabsTrigger value="system">From the system</TabsTrigger>
           <TabsTrigger value="upload">Upload new</TabsTrigger>
         </TabsList>
-        <TabsContent className="pt-3" value="system">
+        <TabsContent className="space-y-3 pt-3" value="system">
+          {list.data?.beneficiaryMediaNeedsStepUp ? (
+            <PublicMediaStepUpNote onVerified={() => void list.refetch()} />
+          ) : null}
           {noEvidence ? (
             <p className="text-sm text-muted-foreground">
               You need evidence access to pick existing media. Upload new instead.

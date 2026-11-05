@@ -14,6 +14,7 @@ import { usePermission } from '@/hooks/use-permission'
 import { publicMediaClient } from '@/lib/api/public-media'
 import type { PublicMediaListItem } from '@pathways/shared'
 
+import { PublicMediaStepUpNote } from './public-media-step-up-note'
 import { PublicMediaThumb } from './public-media-thumb'
 
 const sourceLabel = { UPLOAD: 'New upload', BENEFICIARY: 'Beneficiary media', ACTIVITY: 'Activity' }
@@ -62,6 +63,11 @@ export const PublicMediaQueue = ({ projectId }: { projectId: string }) => {
       title="Awaiting public media approval"
       description="A different reviewer approves each photo or video before it can be picked for the public page."
     >
+      {list.data?.beneficiaryMediaNeedsStepUp ? (
+        <div className="mb-3">
+          <PublicMediaStepUpNote onVerified={() => void list.refetch()} />
+        </div>
+      ) : null}
       {!canReadEvidence ? (
         <p className="text-sm text-muted-foreground">
           You need evidence access to review the media queue.

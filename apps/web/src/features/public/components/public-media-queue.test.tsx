@@ -25,6 +25,7 @@ const state = vi.hoisted(() => ({
   user: 'reviewer',
   permissions: [] as string[],
   items: [] as object[],
+  needsStepUp: false,
   refetch: vi.fn(),
   approve: vi.fn(),
   reject: vi.fn(),
@@ -44,7 +45,9 @@ vi.mock('@/hooks/use-authorized-read', () => ({
     _read: unknown,
     enabled = true,
   ) => ({
-    data: enabled ? { items: state.items } : undefined,
+    data: enabled
+      ? { items: state.items, beneficiaryMediaNeedsStepUp: state.needsStepUp }
+      : undefined,
     isPending: false,
     isError: false,
     error: null,
@@ -69,11 +72,21 @@ describe('public media queue', () => {
     state.user = 'reviewer'
     state.permissions = ['public.preview', 'public.approve', 'evidence.read']
     state.items = [item()]
+    state.needsStepUp = false
     state.refetch.mockResolvedValue(undefined)
     state.approve.mockResolvedValue(undefined)
     state.reject.mockResolvedValue(undefined)
   })
   afterEach(cleanup)
+
+  it('offers step-up when beneficiary media is hidden from the queue', () => {
+    state.needsStepUp = true
+    render(<PublicMediaQueue projectId={projectId} />)
+    expect(
+      screen.getByText('Beneficiary photos and videos are hidden until you verify again.'),
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Verify again' })).toBeTruthy()
+  })
 
   it('lists only items awaiting approval under the queue title', () => {
     state.items = [

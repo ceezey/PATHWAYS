@@ -97,13 +97,18 @@ const pickedId = '20000000-0000-4000-8000-000000000009'
 // A stand-in picker: the real one has its own tests, here only the selection wiring matters.
 vi.mock('./public-media-picker', () => ({
   PublicMediaPicker: ({
+    onBlockedChange,
     onChange,
     value,
   }: {
+    onBlockedChange: (blocked: boolean) => void
     onChange: (next: { id: string; caption: string }[]) => void
     value: { id: string; caption: string }[]
   }) => (
     <div>
+      <button type="button" onClick={() => onBlockedChange(true)}>
+        Report unpublishable media
+      </button>
       <output aria-label="Picked media">{JSON.stringify(value)}</output>
       <button type="button" onClick={() => onChange([...value, { id: pickedId, caption: 'New' }])}>
         Pick media
@@ -325,6 +330,13 @@ describe('publication current project and revision boundaries', () => {
       summary: 'First fictional summary',
       selection: { media: [], views: [] },
     })
+  })
+  it('disables submit while the picker reports an unpublishable chosen item', () => {
+    render(<PublicationQueueWorkspace />)
+    const submit = () => screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement
+    expect(submit().disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Report unpublishable media' }))
+    expect(submit().disabled).toBe(true)
   })
   it('sends each picked photo as id and caption only', async () => {
     state.snapshotMedia = [

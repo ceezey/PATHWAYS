@@ -49,6 +49,7 @@ export const PublicationQueueWorkspace = ({
   // The view chosen on the analytics page stays pre-added until it is submitted or the project changes.
   const [pendingView, setPendingView] = useState(initialAddView)
   const [busy, setBusy] = useState(false)
+  const [mediaBlocked, setMediaBlocked] = useState(false)
   const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
   const projects = useAuthorizedRead('publication-projects', null, 'public.preview', (signal) =>
     projectsClient.getProjects(signal),
@@ -323,6 +324,7 @@ export const PublicationQueueWorkspace = ({
               </Label>
               <PublicMediaPicker
                 disabled={!owner || busy}
+                onBlockedChange={setMediaBlocked}
                 onChange={(next) => edit({ media: next })}
                 projectId={id}
                 value={media}
@@ -354,6 +356,7 @@ export const PublicationQueueWorkspace = ({
                     busy ||
                     !summary.trim() ||
                     !captionsReady ||
+                    mediaBlocked ||
                     !permitted('public.preview')
                   }
                   onClick={() => void act('submit')}
