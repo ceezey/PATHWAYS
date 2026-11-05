@@ -129,6 +129,15 @@ vi.mock('sonner', () => ({
   },
 }))
 
+// Submit needs a change from the saved revision, so submitting tests edit the summary first.
+const editSummary = (value = 'Edited fictional summary') =>
+  fireEvent.change(screen.getByLabelText('Public summary'), { target: { value } })
+const submitDisabled = () =>
+  (screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement).disabled
+// The editor is released (not busy) once the summary field is editable again.
+const summaryEditable = () =>
+  !(screen.getByLabelText('Public summary') as HTMLTextAreaElement).disabled
+
 describe('publication current project and revision boundaries', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -203,10 +212,7 @@ describe('publication current project and revision boundaries', () => {
       if (purpose === 'approve') state.canApprove = false
       else state.canPublish = false
       view.rerender(<PublicationQueueWorkspace />)
-      expect(screen.getByLabelText('Public summary')).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Submit summary' }).hasAttribute('disabled')).toBe(
-        false,
-      )
+      expect(summaryEditable()).toBe(true)
       await act(async () =>
         finish({ revision: 1, state: purpose === 'approve' ? 'APPROVED' : 'PUBLISHED' }),
       )
@@ -240,17 +246,15 @@ describe('publication current project and revision boundaries', () => {
       }),
     )
     const view = render(<PublicationQueueWorkspace />)
+    editSummary()
     fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
     state.canApprove = false
     view.rerender(<PublicationQueueWorkspace />)
-    expect(screen.getByRole('button', { name: 'Submit summary' }).hasAttribute('disabled')).toBe(
-      true,
-    )
+    expect(submitDisabled()).toBe(true)
+    expect(summaryEditable()).toBe(false)
     await act(async () => finish({ revision: 2, state: 'FOR_REVIEW' }))
     expect(state.success).toHaveBeenCalledOnce()
-    expect(screen.getByRole('button', { name: 'Submit summary' }).hasAttribute('disabled')).toBe(
-      false,
-    )
+    expect(summaryEditable()).toBe(true)
   })
   it('releases only its pending marker when authority is invalidated before passive cleanup', async () => {
     let finish: (value: unknown) => void = () => {}
@@ -260,6 +264,7 @@ describe('publication current project and revision boundaries', () => {
       }),
     )
     render(<PublicationQueueWorkspace />)
+    editSummary()
     fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
     expect(screen.getByRole('button', { name: 'Submit summary' }).hasAttribute('disabled')).toBe(
       true,
@@ -298,18 +303,27 @@ describe('publication current project and revision boundaries', () => {
     expect((screen.getByLabelText('Public summary') as HTMLTextAreaElement).value).toBe(
       'Private proposed summary',
     )
-    expect(screen.getByRole('button', { name: 'Submit summary' }).hasAttribute('disabled')).toBe(
-      false,
-    )
+    expect(summaryEditable()).toBe(true)
   })
-  it('submit is enabled while published', async () => {
+  it('disables submit until something differs from the saved revision, and again after undo', () => {
+    render(<PublicationQueueWorkspace />)
+    expect(submitDisabled()).toBe(true)
+    editSummary('Changed fictional summary')
+    expect(submitDisabled()).toBe(false)
+    editSummary('Private proposed summary  ')
+    expect(submitDisabled()).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media' }))
+    expect(submitDisabled()).toBe(false)
+  })
+  it('submit is enabled while published once edited', async () => {
     state.publicationState = 'PUBLISHED'
     state.liveRevision = 1
     state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
     render(<PublicationQueueWorkspace />)
+    expect(summaryEditable()).toBe(true)
+    editSummary()
     const submit = screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement
     expect(submit.disabled).toBe(false)
-    expect((screen.getByLabelText('Public summary') as HTMLTextAreaElement).disabled).toBe(false)
     fireEvent.click(submit)
     await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
     expect(state.transition.mock.calls[0][2]).toMatchObject({
@@ -333,6 +347,7 @@ describe('publication current project and revision boundaries', () => {
   })
   it('disables submit while the picker reports an unpublishable chosen item', () => {
     render(<PublicationQueueWorkspace />)
+    editSummary()
     const submit = () => screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement
     expect(submit().disabled).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Report unpublishable media' }))
@@ -350,6 +365,7 @@ describe('publication current project and revision boundaries', () => {
     state.snapshotViews = ['kpi', 'map']
     state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
     render(<PublicationQueueWorkspace />)
+    editSummary()
     fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
     await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
     expect(state.transition.mock.calls[0][2].selection).toEqual({
@@ -410,12 +426,12 @@ describe('publication current project and revision boundaries', () => {
       'Project coverage map',
     ]
     const box = (name: string) => screen.getByRole('checkbox', { name }) as HTMLInputElement
-    it('lists the five views in order, checked from the snapshot', () => {
+    it('lists the snapshot views first in their public order, then the unticked ones', () => {
       state.snapshotViews = ['map', 'kpi']
       render(<PublicationQueueWorkspace />)
       expect(
         screen.getAllByRole('checkbox').map((input) => input.closest('label')?.textContent),
-      ).toEqual(labels)
+      ).toEqual([labels[4], labels[0], labels[1], labels[2], labels[3]])
       expect(labels.map((name) => box(name).checked)).toEqual([true, false, false, false, true])
     })
     it('pre-checks the view from Add to public page and submits it last', async () => {
@@ -437,14 +453,12 @@ describe('publication current project and revision boundaries', () => {
       await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
       expect(state.transition.mock.calls[0][2].selection.views).toEqual(['map', 'timeline'])
     })
-    it('lets the pre-added view be unchecked before submitting', async () => {
-      state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+    it('lets the pre-added view be unchecked, which leaves nothing to submit', () => {
       render(<PublicationQueueWorkspace initialProjectId={projectId} initialAddView="kpi" />)
+      expect(submitDisabled()).toBe(false)
       fireEvent.click(box('KPI / indicator performance'))
       expect(box('KPI / indicator performance').checked).toBe(false)
-      fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
-      await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
-      expect(state.transition.mock.calls[0][2].selection.views).toEqual([])
+      expect(submitDisabled()).toBe(true)
     })
     it('disables approval and publishing until the edited views are resubmitted', () => {
       const view = render(<PublicationQueueWorkspace />)
@@ -463,6 +477,7 @@ describe('publication current project and revision boundaries', () => {
   })
   it('disables submit while a picked item has a blank caption', () => {
     render(<PublicationQueueWorkspace />)
+    editSummary()
     const submit = () =>
       (screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement).disabled
     expect(submit()).toBe(false)

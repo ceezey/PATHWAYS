@@ -15,8 +15,10 @@ import { publicMediaClient } from '@/lib/api/public-media'
 import type { PublicMediaListItem, PublicationSelection } from '@pathways/shared'
 
 import { AddPublicMediaDialog } from './add-public-media-dialog'
+import { DropLine } from './drop-line'
 import { PublicMediaStepUpNote } from './public-media-step-up-note'
 import { PublicMediaThumb } from './public-media-thumb'
+import { useDragReorder } from './use-drag-reorder'
 
 const MAX_MEDIA = 24
 type Picked = PublicationSelection['media']
@@ -75,6 +77,18 @@ export const PublicMediaPicker = ({
     ;[next[index], next[index + step]] = [next[index + step], next[index]]
     onChange(next)
   }
+  const place = (id: string, to: number) => {
+    const moved = value.find((entry) => entry.id === id)
+    if (!moved) return
+    const next = value.filter((entry) => entry.id !== id)
+    next.splice(to, 0, moved)
+    onChange(next)
+  }
+  const drag = useDragReorder(
+    value.map((entry) => entry.id),
+    disabled,
+    place,
+  )
   const send = async (item: PublicMediaListItem) => {
     if (sending) return
     setSending(item.id)
@@ -94,73 +108,83 @@ export const PublicMediaPicker = ({
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">Photos and videos</h3>
         <p className="text-xs text-muted-foreground">
-          Up to {MAX_MEDIA}. Each needs a public caption, and the order below is the order shown.
+          Up to {MAX_MEDIA}. Each needs a public caption. Laid out as the public page shows them:
+          drag a tile or use the arrows to reorder.
         </p>
       </div>
       {value.length ? (
-        <ul aria-label="Chosen media" className="space-y-3">
+        // The public gallery layout: the first item large across the top, the rest in a grid.
+        <ul aria-label="Chosen media" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {value.map((entry, index) => {
             const known = byId.get(entry.id)
             const name = known?.fileName ?? `Media ${index + 1}`
             return (
-              <li className="flex flex-wrap items-start gap-3" key={entry.id}>
-                {known && canReadEvidence ? (
-                  <PublicMediaThumb
-                    label={name}
-                    mediaId={entry.id}
-                    projectId={projectId}
-                    type={known.type}
-                  />
-                ) : null}
-                <div className="min-w-0 flex-1 space-y-1">
-                  <Input
-                    aria-invalid={!entry.caption.trim()}
-                    aria-label={`Public caption for ${name}`}
-                    disabled={disabled}
-                    maxLength={300}
-                    onChange={(event) => edit(index, event.target.value)}
-                    placeholder="Public caption"
-                    value={entry.caption}
-                  />
-                  <p className="truncate text-xs text-muted-foreground">{name}</p>
-                  {unpublishable(entry.id) ? (
-                    <p className="text-xs text-destructive">
-                      No longer publishable. Remove it to submit.
-                    </p>
+              <li
+                className={`relative space-y-2 ${index === 0 ? 'sm:col-span-2 lg:col-span-3' : ''} ${drag.dragging === entry.id ? 'opacity-60' : ''}`}
+                key={entry.id}
+                {...drag.itemProps(entry.id, index)}
+              >
+                <DropLine axis="vertical" side={drag.landing(index)} />
+                <div
+                  className={`relative overflow-hidden rounded-lg bg-muted ${index === 0 ? 'aspect-video' : 'aspect-[4/3]'} ${drag.dragging === entry.id ? 'ring-2 ring-primary' : ''}`}
+                >
+                  {known && canReadEvidence ? (
+                    <PublicMediaThumb
+                      fill
+                      label={name}
+                      mediaId={entry.id}
+                      projectId={projectId}
+                      type={known.type}
+                    />
                   ) : null}
+                  <div className="absolute right-2 top-2 flex gap-1 rounded-md bg-card/90 p-1 shadow-sm">
+                    <Button
+                      aria-label={`Move ${name} up`}
+                      disabled={disabled || index === 0}
+                      onClick={() => move(index, -1)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      aria-label={`Move ${name} down`}
+                      disabled={disabled || index === value.length - 1}
+                      onClick={() => move(index, 1)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      aria-label={`Remove ${name}`}
+                      disabled={disabled}
+                      onClick={() => onChange(value.filter((_, at) => at !== index))}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-1">
-                  <Button
-                    aria-label={`Move ${name} up`}
-                    disabled={disabled || index === 0}
-                    onClick={() => move(index, -1)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ArrowUp className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    aria-label={`Move ${name} down`}
-                    disabled={disabled || index === value.length - 1}
-                    onClick={() => move(index, 1)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ArrowDown className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    aria-label={`Remove ${name}`}
-                    disabled={disabled}
-                    onClick={() => onChange(value.filter((_, at) => at !== index))}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                </div>
+                <Input
+                  aria-invalid={!entry.caption.trim()}
+                  aria-label={`Public caption for ${name}`}
+                  disabled={disabled}
+                  maxLength={300}
+                  onChange={(event) => edit(index, event.target.value)}
+                  placeholder="Public caption"
+                  value={entry.caption}
+                />
+                <p className="truncate text-xs text-muted-foreground">{name}</p>
+                {unpublishable(entry.id) ? (
+                  <p className="text-xs text-destructive">
+                    No longer publishable. Remove it to submit.
+                  </p>
+                ) : null}
               </li>
             )
           })}

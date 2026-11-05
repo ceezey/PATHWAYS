@@ -5,21 +5,23 @@ import { useEffect, useState } from 'react'
 
 import { publicMediaClient } from '@/lib/api/public-media'
 
-const box =
-  'flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground'
-
 // A photo loads as an authorized blob once it scrolls into view; a video shows a placeholder and is never fetched for a list.
+// `fill` sizes it to its parent tile instead of the 64 px list square.
 export const PublicMediaThumb = ({
+  fill = false,
   label,
   mediaId,
   projectId,
   type,
 }: {
+  fill?: boolean
   label: string
   mediaId: string
   projectId: string
   type: 'PHOTO' | 'VIDEO'
 }) => {
+  const size = fill ? 'h-full w-full' : 'h-16 w-16 rounded-md'
+  const box = `flex ${size} shrink-0 items-center justify-center bg-muted text-muted-foreground`
   const [url, setUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [node, setNode] = useState<HTMLElement | null>(null)
@@ -63,7 +65,7 @@ export const PublicMediaThumb = ({
     )
   if (url)
     // Blob URLs are browser-local and cannot use the Next.js image optimizer.
-    return <img alt={label} className="h-16 w-16 shrink-0 rounded-md object-cover" src={url} />
+    return <img alt={label} className={`${size} shrink-0 object-cover`} src={url} />
   return (
     <span
       aria-label={failed ? `Preview unavailable: ${label}` : `Loading preview: ${label}`}
