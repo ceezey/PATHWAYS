@@ -554,6 +554,28 @@ describe('enrollment date confirmation', () => {
     }
   })
 
+  it('refuses a Project Officer a row that would link a participant already in PATHWAYS, with no write', async () => {
+    // The Student ID belongs to a participant enrolled elsewhere whose identity agrees: a link.
+    fakeTx.beneficiaryIdentifier.findUnique.mockResolvedValueOnce({
+      beneficiaryId: 'person',
+    } as never)
+    const profile = {
+      firstName: 'Synthetic',
+      lastName: 'Person1',
+      birthDate: new Date('1990-02-01T00:00:00.000Z'),
+    }
+    fakeTx.beneficiary.findFirst
+      .mockResolvedValueOnce(profile as never)
+      .mockResolvedValueOnce(profile as never)
+      .mockResolvedValueOnce({ code: 'PW0000000001' } as never)
+    const before = structuredClone(store.rows)
+    const refused = confirm()
+    await expect(refused).rejects.toBeInstanceOf(ConflictException)
+    await expect(refused).rejects.toThrow('Row 1 belongs to a participant already in PATHWAYS.')
+    expectNoWrites()
+    expect(store.rows).toEqual(before)
+  })
+
   describe('a minor', () => {
     beforeEach(() => {
       store.rows[0].normalizedData = heldValues(1, minor)
