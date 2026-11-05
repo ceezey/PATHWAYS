@@ -74,6 +74,8 @@ describe('package entry points', () => {
         'resolveAnswer',
         'stripLetterPrefix',
         'suggestValueMap',
+        'automaticValue',
+        'columnTranslations',
         'toCsv',
         'toWorkbookBytes',
         'toXlsxBuffer',

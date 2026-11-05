@@ -90,7 +90,8 @@ describe('import normalization contract', () => {
       integer: '01',
       decimal: '1e2',
       date: '09/13/2026',
-      boolean: 'yes',
+      // A yes-word now reads as true (cr-pathways-yes-no-boolean-import), so an unknown word stays ambiguous.
+      boolean: 'maybe',
       select: 'C',
       multi: '[1, 2]',
     })
@@ -266,7 +267,9 @@ describe('import normalization contract', () => {
         valueAliases: [{ from: 'true', to: 'YES' }],
       })
       expect(normalizeImportedRow([yesNo], { works: true }).values.works).toBe('YES')
-      expect(normalizeImportedRow([yesNo], { works: false }).errors).toEqual([
+      // With no alias, false takes the pair Suggest proposes; an unknown answer is still refused.
+      expect(normalizeImportedRow([yesNo], { works: false }).values.works).toBe('NO')
+      expect(normalizeImportedRow([yesNo], { works: 'maybe' }).errors).toEqual([
         expect.objectContaining({ fieldCode: 'works', code: 'invalid_value' }),
       ])
     })
@@ -357,6 +360,29 @@ describe('import normalization contract', () => {
       expect(normalizeImportedRow([operation], { registration_operation: undefined }).valid).toBe(
         false,
       )
+    })
+
+    it('reads the Suggest yes and no words in a true/false field, and a saved translation wins', () => {
+      const consent = intake({ code: 'consent', dataType: 'BOOLEAN' })
+      const read = (raw: unknown, rules = {}) =>
+        normalizeImportedRow([consent], { consent: raw }, rules)
+      for (const yes of ['Yes', ' oo ', 'OPO', 'y', '1', 1]) {
+        expect(read(yes).values.consent).toBe(true)
+      }
+      for (const no of ['No', 'Hindi', 'n', '0', 0]) expect(read(no).values.consent).toBe(false)
+      expect(read('Maybe').errors[0]?.code).toBe('AMBIGUOUS_BOOLEAN')
+      const flipped = { consent: { valueMap: buildImportValueMap([{ from: 'Yes', to: 'false' }]) } }
+      expect(read('Yes', flipped).values.consent).toBe(false)
+    })
+
+    it('reads the Suggest word lists in a single choice field only', () => {
+      const sex = intake({ code: 'sex', dataType: 'SELECT', allowedValues: ['MALE', 'FEMALE'] })
+      expect(normalizeImportedRow([sex], { sex: 'Babae' }).values.sex).toBe('FEMALE')
+      expect(normalizeImportedRow([sex], { sex: 'lalaki' }).values.sex).toBe('MALE')
+      expect(normalizeImportedRow([sex], { sex: 'Unknown' }).valid).toBe(false)
+      // Suggest does not serve multiple choice, so neither does the automatic reading.
+      const many = intake({ code: 'many', dataType: 'MULTIPLE_SELECT', allowedValues: ['FEMALE'] })
+      expect(normalizeImportedRow([many], { many: 'Babae' }).valid).toBe(false)
     })
 
     it('drops a defaulted identifier type when the row has no identifier value', () => {
