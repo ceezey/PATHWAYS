@@ -359,6 +359,32 @@ describe('import normalization contract', () => {
       )
     })
 
+    it('drops a defaulted identifier type when the row has no identifier value', () => {
+      const type = intake({
+        code: 'external_identifier_type',
+        dataType: 'TEXT',
+        importDefault: 'STUDENT_ID_BARANGAY_CERTIFICATE',
+      })
+      const value = intake({ code: 'external_identifier_value', dataType: 'TEXT' })
+      // No ID column, and a mapped blank ID cell: the default names nothing.
+      expect(normalizeImportedRow([type, value], {}).values.external_identifier_type).toBeNull()
+      expect(
+        normalizeImportedRow([type, value], { external_identifier_value: '' }).values
+          .external_identifier_type,
+      ).toBeNull()
+      expect(
+        normalizeImportedRow([type, value], { external_identifier_value: 'SID-1' }).values,
+      ).toMatchObject({
+        external_identifier_type: 'STUDENT_ID_BARANGAY_CERTIFICATE',
+        external_identifier_value: 'SID-1',
+      })
+      // A type the file itself supplies is kept, so a real half pair still fails registration.
+      expect(
+        normalizeImportedRow([type, value], { external_identifier_type: 'NATIONAL_ID' }).values
+          .external_identifier_type,
+      ).toBe('NATIONAL_ID')
+    })
+
     it('a MULTIPLE_SELECT importDefault fills a one-element array', () => {
       const multi = intake({
         code: 'multi',

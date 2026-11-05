@@ -177,6 +177,14 @@ export function normalizeImportedRow(
     values[field.code] = converted.value
     if (converted.error) errors.push(converted.error)
   }
+  // A defaulted identifier type only names the namespace of a value, so with no value it is dropped.
+  if (
+    values.external_identifier_type != null &&
+    values.external_identifier_value == null &&
+    !Object.hasOwn(rawValuesByFieldCode, 'external_identifier_type')
+  ) {
+    values.external_identifier_type = null
+  }
   if (errors.length > 0) return { valid: false, values, errors, warnings: [] }
   const intake = options
     ? applyIntakeRules(fields, values, sourceProvided, options.uploadDate)
