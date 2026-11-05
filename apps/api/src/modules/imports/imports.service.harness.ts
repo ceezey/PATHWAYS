@@ -120,7 +120,7 @@ export const tx = {
     updateMany: vi.fn(),
     count: vi.fn(),
   },
-  metadataMapping: { findMany: vi.fn(), createMany: vi.fn() },
+  metadataMapping: { findMany: vi.fn(), findFirst: vi.fn(), createMany: vi.fn() },
   formField: { findMany: vi.fn(), findFirst: vi.fn() },
   formSubmission: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   formResponseValue: { createMany: vi.fn() },

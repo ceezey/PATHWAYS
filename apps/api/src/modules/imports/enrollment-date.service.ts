@@ -1,9 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common'
 import {
-  type DateOrder,
-  IMPORT_ENGINEERING_LIMITS,
   type IntakeField,
-  fittingDateOrders,
   normalizeImportedRow,
   proposedEnrollmentDate,
   submissionTimeColumn,
@@ -31,6 +28,7 @@ import {
 } from './import-review.service'
 import { intakeField } from './import-validation.service'
 import { safeRawData, safeSourceColumns } from './imports.helpers'
+import { timeColumnOrder } from './time-column-order'
 
 // The ceiling a verified transaction may have, as guardian approval has.
 const CONFIRM_TRANSACTION_TIMEOUT_MS = 30_000
@@ -45,37 +43,6 @@ interface HeldRow {
 
 const named = (rows: readonly HeldRow[]) =>
   `${rows.length === 1 ? 'Row' : 'Rows'} ${rows.map((row) => row.rowNumber).join(', ')}`
-
-// The time column's date order: its mapping's when it has one, else the one order every value in the batch fits.
-async function timeColumnOrder(
-  tx: Tx,
-  actor: ApplicationIdentity,
-  batch: Batch,
-  key: string,
-  uploadDate: string,
-): Promise<DateOrder | null> {
-  const mapping = await tx.metadataMapping.findFirst({
-    where: {
-      organizationId: actor.organizationId,
-      importBatchId: batch.id,
-      revision: batch.mappingRevision,
-      sourceFieldName: key,
-      status: 'MAPPED',
-    },
-    select: { dateOrder: true },
-  })
-  if (mapping?.dateOrder) return mapping.dateOrder as DateOrder
-  const raws = await tx.dataImportRow.findMany({
-    where: { organizationId: actor.organizationId, importBatchId: batch.id },
-    select: { rawData: true },
-    take: IMPORT_ENGINEERING_LIMITS.maxRows,
-  })
-  const orders = fittingDateOrders(
-    raws.map((row) => safeRawData(row.rawData)[key]),
-    Number(uploadDate.slice(0, 4)),
-  )
-  return orders.length === 1 ? orders[0] : null
-}
 
 // Each row's date proposed from the batch's submission time, or null when it has none.
 async function proposedDates(

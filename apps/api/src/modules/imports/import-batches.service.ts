@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common'
-import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
+import { IMPORT_ENGINEERING_LIMITS, submissionTimeColumn } from '@pathways/imports/server'
 import {
   type ImportBatchDetailResponse,
   type ImportMappingResponse,
@@ -13,10 +13,12 @@ import { Prisma } from '@prisma/client'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { readBatchCoverage } from './batch-coverage'
 import { safeSourceColumns } from './imports.helpers'
 import { type BatchRow, batchSelection, mapBatch } from './imports.mapper'
 import { findStageForm } from './stage-form-lookup'
+import { timeColumnOrder } from './time-column-order'
 
 export async function listProjectBatches(tx: Tx, actor: ApplicationIdentity, projectId: string) {
   const scopedProjectId = await requireScopedProject(tx, actor, projectId)
@@ -137,6 +139,30 @@ async function readWaitingRows(tx: Tx, batch: Pick<BatchRow, 'id' | 'parentBatch
 export const countRows = (counts: BatchRowCounts, keep: (row: BatchRowCounts[number]) => boolean) =>
   counts.reduce((sum, row) => (keep(row) ? sum + row.rows : sum), 0)
 
+/** The order the confirm service reads the submission time column with, while registration rows wait for an enrollment date. */
+async function heldTimeColumnOrder(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: BatchRow,
+  sourceColumns: readonly { key: string; header: string }[],
+) {
+  const column = submissionTimeColumn(sourceColumns)
+  if (batch.form.formType !== 'BENEFICIARY_REGISTRATION' || !column) return null
+  const held = await tx.dataImportRow.count({
+    where: {
+      organizationId: actor.organizationId,
+      projectId: batch.projectId,
+      importBatchId: batch.id,
+      status: 'UNPROCESSED',
+      processingErrorCode: 'ENROLLMENT_DATE_REQUIRED',
+      resolvedAt: null,
+    },
+  })
+  // Uploaded and created at share the insert's timestamp, so this is the upload date the confirm service uses.
+  const uploadDate = currentBusinessDate(batch.uploadedAt)
+  return held > 0 ? timeColumnOrder(tx, actor, batch, column.key, uploadDate) : null
+}
+
 export async function readBatchDetail(
   tx: Tx,
   actor: ApplicationIdentity,
@@ -187,6 +213,7 @@ export async function readBatchDetail(
       }),
     ),
     coverage: await readBatchCoverage(tx, actor, batch, mappings),
+    submissionTimeDateOrder: await heldTimeColumnOrder(tx, actor, batch, sourceColumns),
   }
 }
 
