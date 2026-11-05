@@ -61,4 +61,30 @@ describe('import target select', () => {
     fireEvent.change(screen.getByLabelText('Search fields'), { target: { value: 'beneficiary_' } })
     expect(options()).toContain('Beneficiary code (beneficiary_code)')
   })
+
+  it('sends a letter typed on a list item to the search box', () => {
+    open()
+    const item = screen.getAllByRole('option')[0]
+    item.focus()
+    fireEvent.keyDown(item, { key: 'l' })
+    const search = screen.getByLabelText('Search fields') as HTMLInputElement
+    expect(document.activeElement).toBe(search)
+    expect(search.value).toBe('l')
+    expect(options()).toContain('Last name (last_name)')
+    expect(options()).not.toContain('Sex (sex)')
+  })
+
+  it('moves from the first item up into the search box', () => {
+    open()
+    const first = screen.getAllByRole('option')[0]
+    first.focus()
+    fireEvent.keyDown(first, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByLabelText('Search fields'))
+  })
+
+  it('says when a search matches nothing but the chosen field', () => {
+    open('sex')
+    fireEvent.change(screen.getByLabelText('Search fields'), { target: { value: 'zzz' } })
+    expect(screen.getByRole('status').textContent).toBe('No matching fields.')
+  })
 })
