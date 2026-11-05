@@ -31,10 +31,7 @@ export function authorizationPathForUiPath(input: string): string | null {
     const id = pathname.split('/')[2]
     if (!routeUuidPattern.test(id)) return null
     canonical = '/recommendations'
-  } else if (/^\/transparency\/[^/]+\/preview\/?$/.test(pathname))
-    canonical = pathname
-      .replace(/^\/transparency\//, '/projects/')
-      .replace(/\/preview\/?$/, '/transparency/preview')
+  }
 
   const route = matchRoute(canonical)?.route
   if (!route) return null
