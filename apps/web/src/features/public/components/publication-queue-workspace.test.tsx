@@ -389,6 +389,66 @@ describe('publication current project and revision boundaries', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pick media' }))
     expect(publish()).toBe(true)
   })
+  describe('chart views', () => {
+    const labels = [
+      'KPI / indicator performance',
+      'SADDD (sex, age, disability)',
+      'Participation patterns',
+      'Timeline adherence',
+      'Project coverage map',
+    ]
+    const box = (name: string) => screen.getByRole('checkbox', { name }) as HTMLInputElement
+    it('lists the five views in order, checked from the snapshot', () => {
+      state.snapshotViews = ['map', 'kpi']
+      render(<PublicationQueueWorkspace />)
+      expect(
+        screen.getAllByRole('checkbox').map((input) => input.closest('label')?.textContent),
+      ).toEqual(labels)
+      expect(labels.map((name) => box(name).checked)).toEqual([true, false, false, false, true])
+    })
+    it('pre-checks the view from Add to public page and submits it last', async () => {
+      state.snapshotViews = ['map']
+      state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+      render(<PublicationQueueWorkspace initialProjectId={projectId} initialAddView="kpi" />)
+      expect(box('KPI / indicator performance').checked).toBe(true)
+      fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+      await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+      expect(state.transition.mock.calls[0][2].selection.views).toEqual(['map', 'kpi'])
+    })
+    it('removes an unchecked view and appends a checked one', async () => {
+      state.snapshotViews = ['kpi', 'map']
+      state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+      render(<PublicationQueueWorkspace />)
+      fireEvent.click(box('KPI / indicator performance'))
+      fireEvent.click(box('Timeline adherence'))
+      fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+      await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+      expect(state.transition.mock.calls[0][2].selection.views).toEqual(['map', 'timeline'])
+    })
+    it('lets the pre-added view be unchecked before submitting', async () => {
+      state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+      render(<PublicationQueueWorkspace initialProjectId={projectId} initialAddView="kpi" />)
+      fireEvent.click(box('KPI / indicator performance'))
+      expect(box('KPI / indicator performance').checked).toBe(false)
+      fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+      await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+      expect(state.transition.mock.calls[0][2].selection.views).toEqual([])
+    })
+    it('disables approval and publishing until the edited views are resubmitted', () => {
+      const view = render(<PublicationQueueWorkspace />)
+      const approve = () =>
+        (screen.getByRole('button', { name: 'Approve revision' }) as HTMLButtonElement).disabled
+      expect(approve()).toBe(false)
+      fireEvent.click(box('Participation patterns'))
+      expect(approve()).toBe(true)
+      view.unmount()
+      state.publicationState = 'APPROVED'
+      render(<PublicationQueueWorkspace initialProjectId={projectId} initialAddView="saddd" />)
+      expect((screen.getByRole('button', { name: 'Publish' }) as HTMLButtonElement).disabled).toBe(
+        true,
+      )
+    })
+  })
   it('disables submit while a picked item has a blank caption', () => {
     render(<PublicationQueueWorkspace />)
     const submit = () =>

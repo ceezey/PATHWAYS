@@ -13,7 +13,7 @@ import { projectsClient } from '@/lib/api/projects'
 import { publicationClient } from '@/lib/api/publication'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import type { PublicationSelection } from '@pathways/shared'
+import { type PublicView, type PublicationSelection, publicView } from '@pathways/shared'
 import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -22,9 +22,18 @@ import { toast } from 'sonner'
 import { PublicMediaPicker } from './public-media-picker'
 import { PublicMediaQueue } from './public-media-queue'
 
+const viewLabels: Record<PublicView, string> = {
+  kpi: 'KPI / indicator performance',
+  saddd: 'SADDD (sex, age, disability)',
+  participation: 'Participation patterns',
+  timeline: 'Timeline adherence',
+  map: 'Project coverage map',
+}
+
 export const PublicationQueueWorkspace = ({
   initialProjectId,
-}: { initialProjectId?: string } = {}) => {
+  initialAddView,
+}: { initialProjectId?: string; initialAddView?: PublicView } = {}) => {
   const { profile } = useCurrentRole()
   const [query, setQuery] = useState('')
   const [selection, setSelection] = useState<string | null>(initialProjectId ?? null)
@@ -35,7 +44,10 @@ export const PublicationQueueWorkspace = ({
     revision: number
     summary?: string
     media?: PublicationSelection['media']
+    views?: PublicView[]
   } | null>(null)
+  // The view chosen on the analytics page stays pre-added until it is submitted or the project changes.
+  const [pendingView, setPendingView] = useState(initialAddView)
   const [busy, setBusy] = useState(false)
   const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
   const projects = useAuthorizedRead('publication-projects', null, 'public.preview', (signal) =>
@@ -93,9 +105,17 @@ export const PublicationQueueWorkspace = ({
   const savedMedia: PublicationSelection['media'] =
     current?.snapshot.media.map(({ id, caption }) => ({ id, caption })) ?? []
   const media = liveDraft?.media ?? savedMedia
+  const savedViews: PublicView[] = current?.snapshot.views ?? []
+  const views =
+    liveDraft?.views ??
+    (pendingView && id === initialProjectId && !savedViews.includes(pendingView)
+      ? [...savedViews, pendingView]
+      : savedViews)
   // An edited summary or selection must be submitted and approved again before it can go live.
   const edited =
-    summary !== current?.summary || JSON.stringify(media) !== JSON.stringify(savedMedia)
+    summary !== current?.summary ||
+    JSON.stringify(media) !== JSON.stringify(savedMedia) ||
+    JSON.stringify(views) !== JSON.stringify(savedViews)
   const captionsReady = media.every((entry) => entry.caption.trim())
   const permitted = usePermission()
   // biome-ignore lint/correctness/useExhaustiveDependencies: Clear transient state when its authorization ownership changes.
@@ -111,7 +131,11 @@ export const PublicationQueueWorkspace = ({
       setBusy(false)
     }
   }, [approveOwner?.key, approveOwner?.generation, publishOwner?.key, publishOwner?.generation])
-  const edit = (change: { summary?: string; media?: PublicationSelection['media'] }) =>
+  const edit = (change: {
+    summary?: string
+    media?: PublicationSelection['media']
+    views?: PublicView[]
+  }) =>
     owner &&
     id &&
     setDraft({
@@ -130,14 +154,13 @@ export const PublicationQueueWorkspace = ({
     const currentOwner = () => capturedPreview.isCurrent() && captured.isCurrent()
     const operationOwner = { isCurrent: currentOwner }
     activeOperation.current = operationOwner
-    // The picker edits the photos and videos; the views stay as the working snapshot has them.
     const submission =
       operation === 'submit'
         ? {
             summary: summary.trim(),
             selection: {
               media: media.map(({ id, caption }) => ({ id, caption: caption.trim() })),
-              views: current?.snapshot.views ?? [],
+              views,
             },
           }
         : {}
@@ -153,6 +176,7 @@ export const PublicationQueueWorkspace = ({
       if (!currentOwner()) return
       requests.acknowledge(clientRequestId)
       setDraft(null)
+      setPendingView(undefined)
       await publication.refetch()
       if (currentOwner())
         toast.success(
@@ -238,6 +262,7 @@ export const PublicationQueueWorkspace = ({
                     onClick={() => {
                       setSelection(project.id)
                       setDraft(null)
+                      setPendingView(undefined)
                     }}
                   >
                     <span className="font-semibold">{project.title}</span>
@@ -302,6 +327,25 @@ export const PublicationQueueWorkspace = ({
                 projectId={id}
                 value={media}
               />
+              <fieldset className="space-y-2" disabled={!owner || busy}>
+                <legend className="text-sm font-medium">Charts on the public page</legend>
+                {publicView.options.map((view) => (
+                  <label className="flex min-h-11 items-center gap-3 text-sm" key={view}>
+                    <input
+                      checked={views.includes(view)}
+                      onChange={(event) =>
+                        edit({
+                          views: event.target.checked
+                            ? [...views, view]
+                            : views.filter((entry) => entry !== view),
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    {viewLabels[view]}
+                  </label>
+                ))}
+              </fieldset>
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
