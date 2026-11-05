@@ -40,6 +40,17 @@ describe('public tracker view', () => {
     expect(screen.queryByText(/project progress/i)).toBeNull()
   })
 
+  it('draws the chosen live views and marks a failed one unavailable', () => {
+    render(
+      <PublicTrackerDetail
+        project={{ ...snapshot, views: ['timeline', 'kpi'] }}
+        analytics={{ kpi: null }}
+      />,
+    )
+    expect(screen.getByRole('heading', { name: 'Project progress' })).toBeTruthy()
+    expect(screen.getAllByText('Data unavailable')).toHaveLength(2)
+  })
+
   it('hides the Photos and videos heading without media', () => {
     render(<PublicTrackerDetail project={snapshot} />)
     expect(screen.queryByRole('heading', { name: 'Photos and videos' })).toBeNull()

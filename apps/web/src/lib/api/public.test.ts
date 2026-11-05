@@ -4,7 +4,7 @@ vi.mock('@/lib/env', () => ({
   webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api/' },
 }))
 
-import { readPublicSnapshots } from './public'
+import { readPublicAnalytics, readPublicSnapshots } from './public'
 
 const snapshot = {
   id: '10000000-0000-4000-8000-000000000001',
@@ -114,5 +114,42 @@ describe('public snapshot client', () => {
   ])('rejects %s', async (_label, change) => {
     reply([{ ...snapshot, ...change }])
     await expect(readPublicSnapshots()).rejects.toThrow()
+  })
+})
+
+describe('public analytics client', () => {
+  const body = { view: 'map', places: [] }
+
+  it('reads one view anonymously from the exact analytics URL', async () => {
+    const fetcher = reply(body)
+    await expect(readPublicAnalytics(snapshot.id, 'map')).resolves.toEqual(body)
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      `http://127.0.0.1:4000/api/public/projects/${snapshot.id}/analytics/map`,
+    )
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+    })
+  })
+
+  it('answers not found for a malformed id without calling the API', async () => {
+    const fetcher = reply(body)
+    await expect(readPublicAnalytics('not-a-uuid', 'map')).rejects.toThrow('PUBLIC_NOT_FOUND')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [404, 'PUBLIC_NOT_FOUND'],
+    [503, 'PUBLIC_UNAVAILABLE'],
+  ])('maps status %s to %s', async (status, message) => {
+    reply({}, status)
+    await expect(readPublicAnalytics(snapshot.id, 'kpi')).rejects.toThrow(message)
+  })
+
+  it('refuses a body that is not the requested view', async () => {
+    reply(body)
+    await expect(readPublicAnalytics(snapshot.id, 'kpi')).rejects.toThrow()
   })
 })

@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { webEnv } from '@/lib/env'
-import type { PublicProjectResponse } from '@pathways/shared'
+import type { PublicAnalyticsResponse, PublicProjectResponse, PublicView } from '@pathways/shared'
 
 import { PublicGallery } from './public-gallery'
+import { PublicProgress } from './public-progress'
 
 // Renders only the PRD-F13 allowlisted snapshot fields; nothing else crosses into the public view.
 type Snapshot = Omit<PublicProjectResponse, 'publishedAt'> & { publishedAt?: string }
@@ -132,11 +133,13 @@ export const PublicTrackerDetail = ({
   state,
   mediaSrc = (id) => publicMediaUrl(project.id, id),
   mediaPlaceholder,
+  analytics,
 }: {
   project: Snapshot
   state?: string
   mediaSrc?: (id: string) => string
   mediaPlaceholder?: (id: string) => ReactNode
+  analytics?: Partial<Record<PublicView, PublicAnalyticsResponse | null>>
 }) => (
   <div className="bg-surface-subtle" data-public-mode={state ? 'staff-preview' : 'public'}>
     <PublicNotice preview={Boolean(state)} />
@@ -227,5 +230,6 @@ export const PublicTrackerDetail = ({
         placeholder: mediaPlaceholder?.(id),
       }))}
     />
+    <PublicProgress views={project.views} data={analytics} placeholder={Boolean(state)} />
   </div>
 )

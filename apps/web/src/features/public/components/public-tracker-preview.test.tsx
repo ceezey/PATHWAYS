@@ -50,6 +50,37 @@ describe('public tracker staff preview', () => {
     expect(screen.getByText('Staff preview.')).toBeTruthy()
   })
 
+  it('shows a placeholder instead of fetching each chosen live view', () => {
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
+    read.result = {
+      isPending: false,
+      isError: false,
+      data: {
+        revision: 1,
+        state: 'FOR_REVIEW',
+        summary: 'Approved synthetic summary.',
+        snapshot: {
+          id: projectId,
+          title: 'Synthetic preview project',
+          code: 'SYN-02',
+          approvedSummary: 'Approved synthetic summary.',
+          area: null,
+          sector: null,
+          startDate: null,
+          endDate: null,
+          media: [],
+          views: ['kpi', 'timeline'],
+        },
+        updatedAt: '2026-10-01T00:00:00.000Z',
+      },
+    }
+    render(<PublicTrackerPreview projectId={projectId} />)
+    expect(screen.getAllByText('Live chart appears here once published')).toHaveLength(2)
+    expect(fetcher).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
   it('asks for a submitted summary when no publication row exists', () => {
     read.result = { isPending: false, isError: false, data: null }
     render(<PublicTrackerPreview projectId={projectId} />)

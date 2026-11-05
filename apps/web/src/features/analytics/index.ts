@@ -10,3 +10,7 @@ export {
   useParticipationBreakdown,
 } from './hooks/use-analytics-insights'
 export { activeIndicators, progressRows } from './kpi-rows.utils'
+export { AnalyticsCoverageMap } from './components/analytics-coverage-map'
+export { SadddChart } from './components/analytics-charts'
+export { ChartPanel, UnavailableChart } from './components/chart-panel'
+export { toProjectMapFeatures } from './hooks/use-project-map'
