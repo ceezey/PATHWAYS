@@ -92,7 +92,7 @@ describe('import normalization contract', () => {
       date: '09/13/2026',
       boolean: 'yes',
       select: 'C',
-      multi: 'A,B',
+      multi: '[1, 2]',
     })
 
     expect(result.valid).toBe(false)
@@ -282,6 +282,48 @@ describe('import normalization contract', () => {
       ).toEqual(['Alpha', 'Beta'])
       const result = normalizeImportedRow([multi], { multi: '["A. Alpha","Zeta"]' })
       expect(result.errors).toEqual([expect.objectContaining({ code: 'invalid_value' })])
+    })
+
+    it('splits delimited and Kobo space-separated multi-select text', () => {
+      const multi = (allowedValues: string[]) =>
+        intake({ code: 'multi', dataType: 'MULTIPLE_SELECT', allowedValues })
+      const read = (allowedValues: string[], text: string) =>
+        normalizeImportedRow([multi(allowedValues)], { multi: text }).values.multi
+      expect(read(['Rice', 'Corn'], 'Rice; Corn')).toEqual(['Rice', 'Corn'])
+      expect(read(['Rice', 'Corn'], 'Rice, Corn')).toEqual(['Rice', 'Corn'])
+      expect(read(['rice', 'corn'], 'rice corn')).toEqual(['rice', 'corn'])
+      expect(read(['Brown rice', 'Corn'], 'Brown rice')).toEqual(['Brown rice'])
+    })
+
+    it('keeps a whole phrase that is an option before splitting it on spaces', () => {
+      const multi = intake({
+        code: 'multi',
+        dataType: 'MULTIPLE_SELECT',
+        allowedValues: ['Not applicable', 'Not', 'applicable'],
+      })
+      expect(normalizeImportedRow([multi], { multi: 'Not applicable' }).values.multi).toEqual([
+        'Not applicable',
+      ])
+    })
+
+    it('reads a date cell that carries a time part and keeps the date as written', () => {
+      const date = intake({ code: 'on', dataType: 'DATE' })
+      const rule = (order: 'YMD' | 'MDY') => ({
+        on: { dataType: 'DATE' as const, date: { order, referenceYear: 2026 } },
+      })
+      const read = (text: string, order: 'YMD' | 'MDY' = 'YMD') =>
+        normalizeImportedRow([date], { on: text }, rule(order))
+      expect(read('2026/01/10 9:15:22 AM GMT+8').values.on).toBe('2026-01-10')
+      expect(read('1/10/2026 14:05', 'MDY').values.on).toBe('2026-01-10')
+      expect(read('2026-01-10T09:15:22Z').values.on).toBe('2026-01-10')
+      expect(
+        normalizeImportedRow(
+          [date],
+          { on: '2026-01-10T09:15:22' },
+          { on: { dataType: 'DATE', date: { order: 'DMY', referenceYear: 2026 } } },
+        ).values.on,
+      ).toBe('2026-01-10')
+      expect(read('2026/01/10 25:99').valid).toBe(false)
     })
 
     it('importDefault CREATE fills registration_operation', () => {

@@ -581,6 +581,13 @@ describe('draftFormFromImport rules', () => {
       })
     })
 
+    it('keeps the option but drops the alias when a lettered answer reads as a formula', () => {
+      const answers = [...Array(10).fill('A. -none-'), ...Array(9).fill('B. Married')]
+      const field = find(draft([columnOf('Civil status', answers, 1)], [], 'OTHER'), 'civil_status')
+      expect(field?.allowedValues).toEqual(['-none-', 'Married'])
+      expect(field?.valueAliases).toEqual([{ from: 'B. Married', to: 'Married' }])
+    })
+
     it('keeps an unlettered answer out of an existing choice field and asks a person', () => {
       const fields: DraftField[] = [
         {
@@ -676,6 +683,14 @@ describe('draftFormFromImport rules', () => {
       const result = draft([columnOf(header, answers, 1)])
       expect(sources(result, 'sex')).toBeUndefined()
       expect(result.summary.addedFields).toHaveLength(1)
+    })
+
+    it('keeps "Kasarian ng magulang" out of sex and offers plain "Kasarian" only as a suggestion', () => {
+      const parent = draft([columnOf('Kasarian ng magulang', answers, 1)])
+      expect(sources(parent, 'sex')).toBeUndefined()
+      expect(parent.summary.addedFields).toHaveLength(1)
+      const own = draft([columnOf('Kasarian', answers, 1)])
+      expect(sources(own, 'sex')).toEqual(['Kasarian'])
     })
 
     it.each([
@@ -876,7 +891,8 @@ describe('draftFormFromImport rules', () => {
           published,
         )
         expect(find(result, 'consent_recorded')?.rule?.kind).toBe('SAME_ANSWER_AS')
-        expect(result.summary.needsCheck).toEqual([])
+        const reasons = result.summary.needsCheck.map((item) => item.reason)
+        expect(reasons.filter((reason) => reason !== 'SADDD_NO_COLUMN')).toEqual([])
       })
 
       it('keeps copying beside an own-answer field the form already has', () => {
@@ -921,9 +937,13 @@ describe('draftFormFromImport rules', () => {
     })
   })
 
-  it('lists nothing for a file with no ID column', () => {
+  it('flags only the unfed breakdown fields for a file with no participant ID column', () => {
     const result = draft([columnOf('Guardian ID', ['A-1', 'A-2'], 1)])
-    expect(result.summary.needsCheck).toEqual([])
+    expect(result.summary.needsCheck.map((item) => item.reason)).toEqual([
+      'SADDD_NO_COLUMN',
+      'SADDD_NO_COLUMN',
+      'SADDD_NO_COLUMN',
+    ])
   })
 
   describe('a column of lettered answers', () => {
@@ -951,5 +971,34 @@ describe('draftFormFromImport rules', () => {
       const result = draft([columnOf('Track', values, 1)])
       expect(find(result, 'track')?.dataType).toBe('SELECT')
     })
+  })
+})
+
+describe('draftFormFromImport on breakdown fields with no column', () => {
+  it('lists each unfed breakdown field of a draft that changes something', () => {
+    const result = draft([columnOf('Favourite colour', ['red', 'blue'], 1)])
+    expect(result.summary.needsCheck).toEqual([
+      { fieldCode: 'sex', reason: 'SADDD_NO_COLUMN' },
+      { fieldCode: 'birth_date', reason: 'SADDD_NO_COLUMN' },
+      { fieldCode: 'disability_status', reason: 'SADDD_NO_COLUMN' },
+    ])
+  })
+
+  it('leaves out a group that a column feeds, by birth date or by age', () => {
+    const result = draft([
+      columnOf('Favourite colour', ['red', 'blue'], 1),
+      columnOf('Sex', ['MALE', 'FEMALE'], 2),
+      columnOf('Age at registration', [20, 30], 3),
+    ])
+    expect(result.summary.needsCheck).toEqual([
+      { fieldCode: 'disability_status', reason: 'SADDD_NO_COLUMN' },
+    ])
+  })
+
+  it('does not turn a draft with nothing to add into one', () => {
+    const covered = [columnOf('First Name', ['Ana'], 1), columnOf('Last Name', ['Reyes'], 2)]
+    expect(() => draft(covered, REGISTRATION, 'OTHER')).toThrowError(
+      expect.objectContaining({ code: 'NOTHING_TO_ADD' }),
+    )
   })
 })

@@ -94,6 +94,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0081_submission_check_once',
       '0082_permission_check_plpgsql',
       '0083_stage_import',
+      '0084_smart_mapping_v4',
       '0085_public_tracker_live_revision',
       '0086_public_tracker_media',
       '0087_public_tracker_analytics',

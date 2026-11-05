@@ -2,12 +2,20 @@ import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
+import { type CsvEncoding, decodeCsv } from '../parser/csv-encoding'
 import { excelSerialToIsoDate } from '../parser/excel-date'
 import { detectFileParts, registrationRange, selectPartColumns } from '../parser/file-parts'
-import { ImportParseError, type ImportSourceColumn, normalizeMatrix } from '../parser/matrix'
+import type { MatrixMerge } from '../parser/header-row'
+import {
+  type FilledMerge,
+  ImportParseError,
+  type ImportSourceColumn,
+  normalizeMatrix,
+} from '../parser/matrix'
 import { normalizeNewlines } from '../parser/newlines'
 import { workbookGrid } from '../parser/workbook-grid'
 import { inspectXlsxContainer } from '../parser/xlsx-container'
+import { isBlank } from '../validation/match-columns'
 
 type CellValue = string | number | boolean | null
 
@@ -18,6 +26,14 @@ export interface ReadImportFile {
   // The server's sourceRowNumber of each row.
   rowNumbers: number[]
   formulaGap?: string
+  // How a CSV's bytes were decoded; unset for other file types.
+  encoding?: CsvEncoding
+  // The 1-based file row the headers were read from.
+  headerRowNumber: number
+  // A row above the header holds a value, so it was skipped as a title rather than as a blank row.
+  titleRows: boolean
+  // Merged data cells copied down their rows.
+  filledMerges: FilledMerge[]
   // The date cell's text as the file shows it, else null.
   shown: (rowIndex: number, key: string) => string | null
 }
@@ -31,16 +47,17 @@ export function readImportFile(
   let matrix: unknown[][]
   let formulaGap: string | undefined
   let dateText: Record<string, string> = {}
+  let encoding: CsvEncoding | undefined
+  let firstRowNumber = 1
+  let merges: MatrixMerge[] = []
   if (fileType === 'CSV') {
-    // The server refuses a CSV that is not UTF-8 or holds a zero byte, so the check leaves it to the server.
-    if (new Uint8Array(input).includes(0)) {
-      throw new ImportParseError('CSV_BINARY_CONTENT', 'The CSV contains binary content.')
-    }
+    const decoded = decodeCsv(new Uint8Array(input))
+    encoding = decoded.encoding
     // Options match the parser worker in parser/secure.ts.
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(input)
+    const text = decoded.text
     const parsed = Papa.parse<unknown[]>(normalizeNewlines(text), {
       header: false,
-      skipEmptyLines: 'greedy',
+      skipEmptyLines: false,
       dynamicTyping: false,
     })
     if (parsed.errors.some((error) => error.code !== 'UndetectableDelimiter')) {
@@ -50,7 +67,15 @@ export function readImportFile(
   } else {
     // The server's container limits run before the workbook is unzipped, so a refused container is never read.
     if (fileType === 'XLSX') inspectXlsxContainer(new Uint8Array(input))
-    const grid = workbookGrid(XLSX, input, 'array', sheetName, excelSerialToIsoDate, true)
+    const grid = workbookGrid(
+      XLSX,
+      input,
+      'array',
+      sheetName,
+      excelSerialToIsoDate,
+      true,
+      IMPORT_ENGINEERING_LIMITS.maxCells,
+    )
     // The server refuses a workbook with macros or links, so the check leaves it to the server.
     if (grid.links || grid.macros) {
       throw new ImportParseError(
@@ -68,9 +93,9 @@ export function readImportFile(
         `This workbook has ${grid.sheetNames.length} worksheets. Choose the sheet to import, then upload again.`,
       )
     }
-    ;({ matrix, formulaGap, dateText } = grid)
+    ;({ matrix, formulaGap, dateText, firstRowNumber, merges } = grid)
   }
-  const whole = normalizeMatrix(matrix)
+  const whole = normalizeMatrix(matrix, { firstRowNumber, merges })
   // A file with survey stages is checked on its registration columns only, as the server stages it.
   const parts = detectFileParts(whole)
   const { rows, sourceColumns } = parts.length
@@ -82,7 +107,13 @@ export function readImportFile(
     rows: rows.map((row) => row.values),
     rowNumbers,
     formulaGap,
+    encoding,
+    headerRowNumber: whole.headerRowNumber,
+    titleRows: matrix
+      .slice(0, whole.headerRowNumber - firstRowNumber)
+      .some((row) => Array.isArray(row) && row.some((cell) => !isBlank(cell))),
+    filledMerges: whole.filledMerges,
     shown: (rowIndex, key) =>
-      dateText[`${rowNumbers[rowIndex] - 1}:${Number(key.slice(7)) - 1}`] ?? null,
+      dateText[`${rowNumbers[rowIndex] - firstRowNumber}:${Number(key.slice(7)) - 1}`] ?? null,
   }
 }

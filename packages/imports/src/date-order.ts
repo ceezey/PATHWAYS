@@ -1,5 +1,7 @@
 import { type ImportDateOrder, importDateOrders } from '@pathways/shared'
 
+import { timePart } from './time-part'
+
 // Where the year, month and day sit in a text date such as 26/03/15.
 export const DATE_ORDERS = importDateOrders
 export type DateOrder = ImportDateOrder
@@ -10,8 +12,8 @@ export interface ImportDateRule {
   referenceYear: number
 }
 
-const datePattern = /^(\d{1,4})[/.-](\d{1,2})[/.-](\d{1,4})$/
-const isoDate = /^\d{4}-\d{2}-\d{2}$/
+const datePattern = new RegExp(String.raw`^(\d{1,4})[/.-](\d{1,2})[/.-](\d{1,4})${timePart}$`, 'i')
+const isoDate = new RegExp(String.raw`^\d{4}-\d{2}-\d{2}${timePart}$`, 'i')
 
 /** Reads a text date in the given order as YYYY-MM-DD, or null when it is not a real calendar date. */
 export function readDate(text: string, rule: ImportDateRule): string | null {

@@ -13,9 +13,9 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 DO $$ DECLARE fn record; BEGIN
- IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0083_stage_import'
+ IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0084_smart_mapping_v4'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
- THEN RAISE EXCEPTION '0085 requires the verified 0083 state and migration identity'; END IF;
+ THEN RAISE EXCEPTION '0085 requires the verified 0084 state and migration identity'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.project_publications'::pg_catalog.regclass)<>'prisma'
   OR EXISTS(SELECT FROM pg_catalog.pg_attribute a WHERE a.attrelid='pathways.project_publications'::pg_catalog.regclass
    AND a.attname LIKE 'live\_%' AND NOT a.attisdropped)

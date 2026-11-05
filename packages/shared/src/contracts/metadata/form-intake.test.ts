@@ -50,8 +50,13 @@ describe('form field intake metadata', () => {
     )
   })
 
+  it('accepts formula-like alias source text', () => {
+    const alias = { ...select('sex'), valueAliases: [{ from: '-none-', to: 'NOT_SPECIFIED' }] }
+    expect(formFieldRequest.safeParse(alias).success).toBe(true)
+  })
+
   it('refuses formula-like alias text and malformed rules', () => {
-    const alias = { ...select('sex'), valueAliases: [{ from: '=SUM(A1)', to: 'FEMALE' }] }
+    const alias = { ...select('sex'), valueAliases: [{ from: 'F', to: '=SUM(A1)' }] }
     expect(formFieldRequest.safeParse(alias).success).toBe(false)
     const rule = {
       ...text('x'),

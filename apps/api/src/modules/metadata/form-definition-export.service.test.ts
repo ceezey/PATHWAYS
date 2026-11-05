@@ -150,6 +150,46 @@ describe('form-definition export', () => {
     })
   })
 
+  describe('abuse: formula-like text from file headers and values', () => {
+    const risky = ['+639170000001', '=1+1', '@x', '-x']
+    const [status, score] = form().formField_form
+    const hostile = () =>
+      form({
+        name: risky[0],
+        formField_form: [
+          {
+            ...status,
+            label: risky[1],
+            importDefault: risky[2],
+            allowedValues: risky,
+            sourceNames: risky,
+            valueAliases: [{ from: risky[3], to: risky[0] }],
+          },
+          { ...score, label: risky[3], code: risky[2] },
+        ],
+      })
+
+    it('CSV quotes leading cells and keeps option, source name and alias text intact', async () => {
+      tx.digitalForm.findFirst.mockResolvedValue(hostile())
+      const { bytes } = await service.export(state.actor, projectId, formId, 'CSV')
+      const text = bytes.toString('utf8')
+      for (const value of risky) expect(text).toContain(`"'${value}"`)
+      expect(text).not.toContain("''")
+      expect(text).toContain(JSON.stringify(risky).replaceAll('"', '""'))
+    })
+
+    it.each(['XLSX', 'XLS'] as const)('%s quotes leading cells exactly once', async (format) => {
+      tx.digitalForm.findFirst.mockResolvedValue(hostile())
+      const { bytes } = await service.export(state.actor, projectId, formId, format)
+      const { rows } = parseWorkbook(
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      )
+      expect(rows.map((row) => row.form_name)).toEqual(["'+639170000001", "'+639170000001"])
+      expect(rows.map((row) => row.field_label).sort()).toEqual(["'-x", "'=1+1"])
+      expect(rows.map((row) => row.import_default).filter(Boolean)).toEqual(["'@x"])
+    })
+  })
+
   it('export includes the four properties', async () => {
     const result = await service.export(state.actor, projectId, formId, 'CSV')
     const lines = result.bytes

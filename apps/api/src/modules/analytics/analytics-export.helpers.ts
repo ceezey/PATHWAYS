@@ -1,5 +1,10 @@
 import { BadRequestException, Logger, ServiceUnavailableException } from '@nestjs/common'
-import type { DescriptiveAnalytics, SurveyAnalytics, TimelineAnalytics } from '@pathways/shared'
+import {
+  type DescriptiveAnalytics,
+  type SurveyAnalytics,
+  type TimelineAnalytics,
+  neutralizeCell,
+} from '@pathways/shared'
 import { faultCause } from '../../prisma/transaction-diagnostic'
 import {
   ReportArtifactInputError,
@@ -7,10 +12,10 @@ import {
   reportMime,
 } from '../reports/report-artifact'
 
-/** Neutralizes spreadsheet formula prefixes and quotes every field. */
+/** Neutralizes spreadsheet formula prefixes in text and quotes every field; numbers stay typed. */
 function csvField(value: string | number | null): string {
   const text = value === null ? '' : String(value)
-  const safe = /^[=+\-@\t\r]/.test(text) && !/^-?\d/.test(text) ? `'${text}` : text
+  const safe = typeof value === 'string' ? neutralizeCell(text) : text
   return `"${safe.replace(/"/g, '""')}"`
 }
 

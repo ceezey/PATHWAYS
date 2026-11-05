@@ -301,7 +301,14 @@ describe('file check agrees with the server', () => {
     ])
     expect(view.fixedOnLater.size).toBe(2)
     expect(view.held.size).toBe(0)
-    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [], canPrepareForm: false })
+    expect(report).toMatchObject({
+      totalRows: 3,
+      problemRows: 0,
+      problems: [],
+      canPrepareForm: false,
+    })
+    // The sex column is held with its field suggested, because the answers are not options.
+    expect(report.notes.map((note) => note.fieldCode)).toEqual(['sex'])
   })
 
   it('a CSV with text dates: held and reported alike', async () => {

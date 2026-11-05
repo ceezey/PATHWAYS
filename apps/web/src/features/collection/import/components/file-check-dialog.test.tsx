@@ -10,6 +10,7 @@ import { FileCheckDialog } from './file-check-dialog'
 const report: FileCheckReport = {
   totalRows: 100,
   problemRows: 95,
+  notes: [],
   canPrepareForm: true,
   problems: [
     {
@@ -152,6 +153,7 @@ describe('FileCheckDialog', () => {
     const fileOnly: FileCheckReport = {
       totalRows: 100,
       problemRows: 0,
+      notes: [],
       canPrepareForm: false,
       problems: [
         report.problems[1],
@@ -332,5 +334,66 @@ describe('FileCheckDialog', () => {
     render(<Harness />)
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     await waitFor(() => expect(document.activeElement).toBe(fileInput.current))
+  })
+})
+
+describe('FileCheckDialog notes', () => {
+  afterEach(cleanup)
+
+  const notes: FileCheckReport['notes'] = [
+    {
+      kind: 'HEADER_ROW',
+      message: 'Headers read from row 3. The rows above it were skipped as titles.',
+    },
+    {
+      kind: 'MERGED_FILL',
+      columnLetter: 'B',
+      rows: [4, 7],
+      message: 'Merged cells in column B were copied down to rows 4 to 7.',
+    },
+  ]
+  const notesOnly: FileCheckReport = {
+    totalRows: 10,
+    problemRows: 0,
+    problems: [],
+    notes,
+    canPrepareForm: false,
+  }
+
+  it('lists the notes under their heading above the problem table', () => {
+    open({}, { ...report, notes })
+    const heading = screen.getByRole('heading', { name: 'How PATHWAYS read this file' })
+    const list = within(screen.getByRole('dialog')).getByRole('list')
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(notes.map((note) => note.message))
+    const table = screen.getByRole('table')
+    expect(heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows no heading or list when there are no notes', () => {
+    open()
+    expect(screen.queryByText('How PATHWAYS read this file')).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
+  })
+
+  it('words a notes-only report, shows no problem table and still uploads', () => {
+    const props = open({}, notesOnly)
+    expect(
+      screen.getByText(
+        'PATHWAYS read this file with the changes below. Check them before uploading.',
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByRole('table')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Upload anyway' }))
+    expect(props.onUploadAnyway).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps focus on Fix the file for a notes-only report', async () => {
+    open({}, notesOnly)
+    const fix = screen.getByRole('button', { name: 'Fix the file' })
+    await waitFor(() => expect(document.activeElement).toBe(fix))
   })
 })

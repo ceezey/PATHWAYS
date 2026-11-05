@@ -1,8 +1,11 @@
 import { Worker } from 'node:worker_threads'
 
 import { IMPORT_ENGINEERING_LIMITS, type SupportedImportFileType } from '../limits'
+import { type CsvEncoding, decodeCsv } from './csv-encoding'
 import { excelSerialToIsoDate } from './excel-date'
+import type { MatrixMerge } from './header-row'
 import {
+  type FilledMerge,
   ImportParseError,
   type ImportSourceColumn,
   type ParsedImportRow,
@@ -22,6 +25,8 @@ interface WorkerResult {
   formulaGap?: string
   links?: boolean
   macros?: boolean
+  firstRowNumber?: number
+  merges?: MatrixMerge[]
   error?: string
 }
 
@@ -29,6 +34,9 @@ interface SecureImportParseResult {
   sourceColumns: ImportSourceColumn[]
   rows: ParsedImportRow[]
   sheetNames: string[]
+  csvEncoding?: CsvEncoding
+  headerRowNumber: number
+  filledMerges: FilledMerge[]
 }
 
 // The PDF table reconstruction, the Excel date conversion and the newline normalizer are embedded
@@ -43,9 +51,9 @@ try {
   const input = Buffer.from(workerData.input);
   if (workerData.fileType === 'CSV') {
     const Papa = require(workerData.papaPath);
-    const parsed = Papa.parse(normalizeNewlines(input.toString('utf8')), {
+    const parsed = Papa.parse(normalizeNewlines(workerData.text), {
       header: false,
-      skipEmptyLines: 'greedy',
+      skipEmptyLines: false,
       dynamicTyping: false,
       transform: value => value,
     });
@@ -115,18 +123,20 @@ try {
       }
     })().catch(() => parentPort.postMessage({ error: 'PDF_PARSE_FAILED' }));
   } else {
-    const grid = (${workbookGrid.toString()})(require(workerData.xlsxPath), input, 'buffer', workerData.sheetName, excelSerialToIsoDate, false);
+    const grid = (${workbookGrid.toString()})(require(workerData.xlsxPath), input, 'buffer', workerData.sheetName, excelSerialToIsoDate, false, workerData.maxCells);
     parentPort.postMessage({
       matrix: grid.matrix,
       sheetNames: grid.sheetNames,
       formulaGap: grid.formulaGap,
       links: grid.links,
       macros: grid.macros,
+      firstRowNumber: grid.firstRowNumber,
+      merges: grid.merges,
     });
   }
 } catch (error) {
-  const missing = error && error.code === 'WORKBOOK_SHEET_MISSING';
-  parentPort.postMessage({ error: missing ? 'WORKBOOK_SHEET_MISSING' : 'PARSER_REJECTED_INPUT' });
+  const known = error && (error.code === 'WORKBOOK_SHEET_MISSING' || error.code === 'ROW_LIMIT');
+  parentPort.postMessage({ error: known ? error.code : 'PARSER_REJECTED_INPUT' });
 }
 `
 
@@ -135,15 +145,6 @@ function inspectXlsSignature(input: Buffer) {
   if (input.length < compound.length || !input.subarray(0, compound.length).equals(compound)) {
     reject('FILE_SIGNATURE_INVALID', 'The XLS file signature is invalid.')
   }
-}
-
-function inspectCsv(input: Buffer) {
-  try {
-    new TextDecoder('utf-8', { fatal: true }).decode(input)
-  } catch {
-    reject('CSV_ENCODING_INVALID', 'CSV files must use valid UTF-8 encoding.')
-  }
-  if (input.includes(0)) reject('CSV_BINARY_CONTENT', 'The CSV contains binary content.')
 }
 
 function inspectPdfSignature(input: Buffer) {
@@ -171,6 +172,7 @@ function runParserWorker(
   fileType: SupportedImportFileType,
   limits: ParserLimits,
   sheetName: string | null,
+  text: string | null,
 ) {
   return new Promise<WorkerResult>((resolve, rejectPromise) => {
     const worker = new Worker(WORKER_SOURCE, {
@@ -180,11 +182,13 @@ function runParserWorker(
         input,
         fileType,
         sheetName,
+        text,
         papaPath: require.resolve('papaparse'),
         xlsxPath: require.resolve('xlsx'),
         unpdfPath: fileType === 'PDF' ? require.resolve('unpdf') : null,
         maxPdfPages: limits.maxPdfPages,
         maxPdfTextItems: limits.maxPdfTextItems,
+        maxCells: limits.maxCells,
         pdfTableLimits: {
           maxPdfTextItems: limits.maxPdfTextItems,
           maxSourceColumns: limits.maxSourceColumns,
@@ -273,12 +277,18 @@ export async function parseSecureImport(
   if (input.length > IMPORT_ENGINEERING_LIMITS.maxBytes) {
     reject('FILE_SIZE_LIMIT', 'The file exceeds the upload byte limit.')
   }
-  if (fileType === 'CSV') inspectCsv(input)
+  const csv = fileType === 'CSV' ? decodeCsv(input) : null
   if (fileType === 'XLSX') inspectXlsxContainer(input)
   if (fileType === 'XLS') inspectXlsSignature(input)
   if (fileType === 'PDF') inspectPdfSignature(input)
   const workbook = fileType === 'XLSX' || fileType === 'XLS'
-  const parsed = await runParserWorker(input, fileType, limits, workbook ? sheetName : null)
+  const parsed = await runParserWorker(
+    input,
+    fileType,
+    limits,
+    workbook ? sheetName : null,
+    csv?.text ?? null,
+  )
   if (parsed.error) {
     const code = workerErrorCodes.has(parsed.error) ? parsed.error : 'PARSER_REJECTED_INPUT'
     reject(code, parserErrorMessages[code] ?? genericParserMessage)
@@ -302,10 +312,16 @@ export async function parseSecureImport(
       `This workbook has ${parsed.sheetNames?.length ?? 0} worksheets. Choose the sheet to import, then upload again.`,
     )
   }
-  const normalized = normalizeMatrix(parsed.matrix ?? [])
+  const normalized = normalizeMatrix(parsed.matrix ?? [], {
+    firstRowNumber: parsed.firstRowNumber,
+    merges: parsed.merges,
+  })
   return {
     sourceColumns: normalized.sourceColumns,
     rows: normalized.rows,
     sheetNames: parsed.sheetNames ?? [],
+    csvEncoding: csv?.encoding,
+    headerRowNumber: normalized.headerRowNumber,
+    filledMerges: normalized.filledMerges,
   }
 }

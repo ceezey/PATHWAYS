@@ -268,16 +268,15 @@ describe('text-layer PDF import', () => {
     })
   })
 
-  it('applies the formula guard to PDF cells', async () => {
+  it('imports formula-like PDF cells as text', async () => {
     const pdf = buildPdf([
       tablePage([
         ['name', 'value'],
         ['x', '=HYPERLINK(1)'],
       ]),
     ])
-    await expect(parseSecureImport(pdf, 'PDF')).rejects.toMatchObject({
-      code: 'CELL_FORMULA_UNSAFE',
-    })
+    const parsed = await parseSecureImport(pdf, 'PDF')
+    expect(Object.values(parsed.rows[0].values)).toEqual(['x', '=HYPERLINK(1)'])
   }, 20_000)
 })
 

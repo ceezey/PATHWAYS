@@ -19,6 +19,7 @@ import {
 import { type DateHelp, dateHelp } from './date-help'
 import { consentHeld, dateOrderChoices, fixedOnce } from './held-rules'
 import type { ReadImportFile } from './read-import-file'
+import { fedCodes, unfedSadddFields } from './saddd-columns'
 
 /** A published form field as the check needs it. */
 export type CheckField = IntakeField & { id: string; metadataKey: boolean; required: boolean }
@@ -37,10 +38,20 @@ export interface FileCheckProblem {
   date?: DateHelp
 }
 
+/** Something about how the file was read or what it feeds, shown beside the problems. */
+export interface FileCheckNote {
+  kind: 'SADDD_NO_COLUMN' | 'HEADER_ROW' | 'ENCODING' | 'MERGED_FILL'
+  message: string
+  fieldCode?: string
+  columnLetter?: string
+  rows?: number[]
+}
+
 export interface FileCheckReport {
   totalRows: number
   problemRows: number
   problems: FileCheckProblem[]
+  notes: FileCheckNote[]
   // A required column is missing, the server would accept the file, and its draft would change the form.
   canPrepareForm: boolean
 }
@@ -65,6 +76,53 @@ const duplicated = (code: string, fieldCode: string, values: Record<string, unkn
     key: stableJson(parts),
     shown: parts.map((part) => (part == null || part === '' ? '(blank)' : String(part))).join(', '),
   }
+}
+
+const MAX_MERGE_LINES = 10
+
+// A non-ASCII letter shows whether the Windows text decoding gave readable names.
+const NON_ASCII_LETTER = /(?=\P{ASCII})\p{L}/u
+
+/** How the file was read: a skipped title area, Windows text decoding and merged cells copied down. */
+function readingNotes(file: ReadImportFile): FileCheckNote[] {
+  const notes: FileCheckNote[] = []
+  if (file.titleRows) {
+    notes.push({
+      kind: 'HEADER_ROW',
+      message: `Headers read from row ${file.headerRowNumber}. The rows above it were skipped as titles.`,
+    })
+  }
+  if (file.encoding === 'WINDOWS-1252') {
+    const values = [
+      ...file.sourceColumns.map((column) => column.header),
+      ...file.rows.flatMap((row) => Object.values(row)),
+    ]
+    const example = values.find(
+      (value): value is string => typeof value === 'string' && NON_ASCII_LETTER.test(value),
+    )
+    if (example !== undefined) {
+      notes.push({
+        kind: 'ENCODING',
+        message: `This CSV was read as Windows text. Check that names look right, for example '${example}'.`,
+      })
+    }
+  }
+  for (const merge of file.filledMerges.slice(0, MAX_MERGE_LINES)) {
+    const letter = XLSX.utils.encode_col(merge.columnIndex - 1)
+    notes.push({
+      kind: 'MERGED_FILL',
+      columnLetter: letter,
+      rows: [merge.firstRowNumber, merge.lastRowNumber],
+      message: `Merged cells in column ${letter} were copied down to rows ${merge.firstRowNumber} to ${merge.lastRowNumber}.`,
+    })
+  }
+  if (file.filledMerges.length > MAX_MERGE_LINES) {
+    notes.push({
+      kind: 'MERGED_FILL',
+      message: `and ${file.filledMerges.length - MAX_MERGE_LINES} more`,
+    })
+  }
+  return notes
 }
 
 const NO_COLUMN_MESSAGE =
@@ -325,10 +383,38 @@ export function checkImportFile(input: {
     }
   }
 
+  // A suggested column is not a mapping, so only the server's mapped decisions feed a breakdown field.
+  const fed = new Set<string>()
+  const suggestions = new Map<string, string>()
+  for (const decision of decisions) {
+    const column = file.sourceColumns.find((candidate) => candidate.key === decision.sourceKey)
+    if (decision.status === 'MAPPED') {
+      const code = fieldById.get(decision.targetFieldId ?? '')?.code
+      if (code) fed.add(code)
+    } else if (decision.status === 'PENDING' && column) {
+      const code = fieldById.get(decision.suggestedFieldId ?? '')?.code
+      if (code && !suggestions.has(code)) suggestions.set(code, column.header)
+    }
+  }
+  const notes: FileCheckNote[] = readingNotes(file)
+  for (const { fieldCode, suggestedHeader } of unfedSadddFields(
+    new Set(fieldByCode.keys()),
+    fedCodes(fields, fed),
+    suggestions,
+  )) {
+    const label = fieldByCode.get(fieldCode)?.label ?? fieldCode
+    notes.push({
+      kind: 'SADDD_NO_COLUMN',
+      fieldCode,
+      message: `No column feeds ${label}, so this file adds nothing to the ${label.toLowerCase()} breakdown.${suggestedHeader === null ? '' : ` The file's '${suggestedHeader}' was suggested.`}`,
+    })
+  }
+
   return {
     totalRows: file.rows.length,
     problemRows: problemRows.size,
     problems: [...problems, ...rowProblems],
+    notes,
     // The server refuses to draft from a file with no rows, and refuses the upload of a formula with no saved value.
     canPrepareForm:
       file.rows.length > 0 &&

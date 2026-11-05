@@ -62,7 +62,7 @@ function DateBlock({ date }: { date: NonNullable<FileCheckProblem['date']> }) {
 
 const UPLOAD_HINT_ID = 'file-check-upload-hint'
 
-/** Tells the person which rows would need one-by-one review and asks them to fix the file first. */
+/** Shows the problems and notes about the chosen file, which rows would need one-by-one review, and asks the person to fix the file first. */
 export function FileCheckDialog({
   report,
   fileInput,
@@ -106,46 +106,60 @@ export function FileCheckDialog({
         <DialogHeader>
           <DialogTitle>Check your file before uploading</DialogTitle>
           <DialogDescription className="sr-only">
-            Problems found in the chosen file.
+            Problems and notes about the chosen file.
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>
             {refusedReason ??
-              (report.problemRows === 0
-                ? 'The file has problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.'
-                : `${report.problemRows} of ${report.totalRows} rows have problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.${uploadBlocked ? '' : ' Uploaded as it is, each of these rows has to be reviewed here one by one.'}`)}
+              (report.problems.length === 0
+                ? 'PATHWAYS read this file with the changes below. Check them before uploading.'
+                : report.problemRows === 0
+                  ? 'The file has problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.'
+                  : `${report.problemRows} of ${report.totalRows} rows have problems you can fix in the file. Fixing them in your spreadsheet first makes the upload go smoothly.${uploadBlocked ? '' : ' Uploaded as it is, each of these rows has to be reviewed here one by one.'}`)}
           </p>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className={headClass}>Column</TableHead>
-              <TableHead className={headClass}>Problem</TableHead>
-              <TableHead className={cn(headClass, 'text-right')}>Rows</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {report.problems.map((problem) => (
-              <TableRow
-                key={`${problem.kind}:${problem.fieldCode}:${problem.code}:${problem.message}`}
-              >
-                <TableCell className="align-top">{column(problem)}</TableCell>
-                <TableCell className="align-top">
-                  <p>{problem.message}</p>
-                  {problem.exampleRows.length ? (
-                    <p className="text-xs text-muted-foreground">
-                      {`Rows ${problem.exampleRows.join(', ')}`}
-                    </p>
-                  ) : null}
-                  {problem.date ? <DateBlock date={problem.date} /> : null}
-                </TableCell>
-                <TableCell className="text-right align-top">{problem.rowCount}</TableCell>
+        {report.notes.length ? (
+          <section className="space-y-1">
+            <h3 className="text-sm font-medium">How PATHWAYS read this file</h3>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {report.notes.map((note) => (
+                <li key={`${note.kind}:${note.fieldCode ?? ''}:${note.message}`}>{note.message}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {report.problems.length ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className={headClass}>Column</TableHead>
+                <TableHead className={headClass}>Problem</TableHead>
+                <TableHead className={cn(headClass, 'text-right')}>Rows</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {report.problems.map((problem) => (
+                <TableRow
+                  key={`${problem.kind}:${problem.fieldCode}:${problem.code}:${problem.message}`}
+                >
+                  <TableCell className="align-top">{column(problem)}</TableCell>
+                  <TableCell className="align-top">
+                    <p>{problem.message}</p>
+                    {problem.exampleRows.length ? (
+                      <p className="text-xs text-muted-foreground">
+                        {`Rows ${problem.exampleRows.join(', ')}`}
+                      </p>
+                    ) : null}
+                    {problem.date ? <DateBlock date={problem.date} /> : null}
+                  </TableCell>
+                  <TableCell className="text-right align-top">{problem.rowCount}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : null}
         <DialogFooter>
           {uploadBlocked ? <UnavailableHint id={UPLOAD_HINT_ID} message={blockedReason} /> : null}
           <Button

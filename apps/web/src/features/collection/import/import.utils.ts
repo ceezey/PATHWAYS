@@ -80,7 +80,7 @@ const matchReasonLabels: Record<string, string> = {
 /** Why the server auto-mapped a column, or null for manual and pending choices. */
 export function automaticMatchReason(stored: StoredMapping | undefined) {
   if (stored?.status !== 'MAPPED' || !stored.validationMessage) return null
-  if (/^AUTO_SMART_V[23]:/.test(stored.validationMessage)) {
+  if (/^AUTO_SMART_V[234]:/.test(stored.validationMessage)) {
     return matchReasonLabels[stored.matchReason ?? ''] ?? 'automatic match'
   }
   return stored.validationMessage.startsWith('AUTO_CODE_LABEL_V1:') ? 'exact name' : null

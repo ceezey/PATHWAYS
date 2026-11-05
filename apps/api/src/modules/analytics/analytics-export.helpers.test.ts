@@ -1,3 +1,4 @@
+import { parseWorkbook } from '@pathways/imports'
 import type { DescriptiveAnalytics, SurveyAnalytics, TimelineAnalytics } from '@pathways/shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as reportArtifact from '../reports/report-artifact'
@@ -107,4 +108,38 @@ describe('analytics export file names, formats and empty cells', () => {
       expect(render).toHaveBeenCalledWith('Synthetic', [['A', '', '7']], format)
     },
   )
+})
+
+describe('analytics export abuse', () => {
+  const risky = ['+639170000001', '=1+1', '@x', '-x', '-1+1']
+  const table: AnalyticsTable = [
+    ['label', 'value'],
+    ...risky.map((label): Array<string | number | null> => [label, label]),
+    ['typed number', -5],
+  ]
+
+  it('quotes formula-like text in CSV and leaves a typed number alone', async () => {
+    const csv = (await exportArtifact('CSV', 'Synthetic', table, 'base')).bytes.toString('utf8')
+    for (const value of risky) expect(csv).toContain(`"'${value}","'${value}"`)
+    expect(csv).toContain('"typed number","-5"')
+  })
+
+  it.each(['XLSX', 'XLS'] as const)('quotes formula-like text in %s', async (format) => {
+    const { bytes } = await exportArtifact(format, 'Synthetic', table, 'base')
+    const workbook = parseWorkbook(
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+    )
+    expect(workbook.rows.slice(0, risky.length).map((row) => row.label)).toEqual(
+      risky.map((value) => `'${value}`),
+    )
+  })
+
+  it('quotes a formula-like activity label in the survey table', async () => {
+    const survey = surveyAnalyticsTable({
+      overall: { ...group, label: '=cmd' },
+      byActivity: [],
+    } as unknown as SurveyAnalytics)
+    const csv = (await exportArtifact('CSV', 'Synthetic', survey, 'base')).bytes.toString('utf8')
+    expect(csv).toContain(`"'=cmd - Paired assessments"`)
+  })
 })

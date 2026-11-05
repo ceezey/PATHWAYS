@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 61-row migration ledger (baseline plus 0027-0057, 0058-0083 and 0085-0087) this script must produce, in order. This is
+// The exact 62-row migration ledger (baseline plus 0027-0057 and 0058-0087) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted/plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -67,6 +67,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0081_submission_check_once',
   '0082_permission_check_plpgsql',
   '0083_stage_import',
+  '0084_smart_mapping_v4',
   '0085_public_tracker_live_revision',
   '0086_public_tracker_media',
   '0087_public_tracker_analytics',
@@ -247,6 +248,8 @@ export function buildPlan() {
     { type: 'deploy', migrations: range(82, 82) },
     // 0083 needs no preprovision: prisma owns the import batch guard, the survey subject guard and the assessment source guard.
     { type: 'deploy', migrations: range(83, 83) },
+    // 0084 needs no preprovision: prisma owns p78_record_smart_mapping.
+    { type: 'deploy', migrations: range(84, 84) },
     // 0085 needs no preprovision: prisma owns project_publications and p34_guard_publication.
     { type: 'deploy', migrations: range(85, 85) },
     // 0086 needs no preprovision: prisma owns evidence_media, p3_guard_public_evidence and p85_publication_media.

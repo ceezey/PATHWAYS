@@ -132,7 +132,13 @@ describe('checkImportFile canPrepareForm', () => {
 describe('checkImportFile', () => {
   it('a clean file has no problems', () => {
     const report = check([header, good, ['Cai', '1999-05-05', 27]], [firstName, birthDate, age])
-    expect(report).toEqual({ totalRows: 2, problemRows: 0, problems: [], canPrepareForm: false })
+    expect(report).toEqual({
+      totalRows: 2,
+      problemRows: 0,
+      problems: [],
+      notes: [],
+      canPrepareForm: false,
+    })
   })
 
   it('a missing required column is reported once', () => {
@@ -186,7 +192,14 @@ describe('checkImportFile', () => {
       ],
       [firstName, birthDate, age, sex],
     )
-    expect(report).toEqual({ totalRows: 3, problemRows: 0, problems: [], canPrepareForm: false })
+    expect(report).toMatchObject({
+      totalRows: 3,
+      problemRows: 0,
+      problems: [],
+      canPrepareForm: false,
+    })
+    // The column is held with the sex field suggested, because 'Other' is not an option.
+    expect(report.notes.map((note) => note.fieldCode)).toEqual(['sex'])
   })
 
   it('a date no order can read is reported', () => {
@@ -467,5 +480,172 @@ describe('checkImportFile on a file with parts', () => {
     })
     expect(report.problems).toEqual([])
     expect(report.totalRows).toBe(12)
+  })
+})
+
+describe('checkImportFile notes on breakdown fields with no column', () => {
+  const disability = field('disability_status', 'Disability status', 'SELECT', {
+    allowedValues: ['With disability', 'Without disability'],
+  })
+  const displayName = field('display_name', 'Display name', 'TEXT')
+  const registration = [displayName, sex, birthDate, age, disability]
+
+  it('names the header suggested for sex and says nothing of birth date when age is fed', () => {
+    const report = check(
+      [
+        ['Kasarian', 'Pangalan', 'Edad'],
+        ['Babae', 'Ana', 26],
+      ],
+      [displayName, sex, birthDate, age],
+      'BENEFICIARY_REGISTRATION',
+    )
+    expect(report.notes).toEqual([
+      {
+        kind: 'SADDD_NO_COLUMN',
+        fieldCode: 'sex',
+        message:
+          "No column feeds Sex, so this file adds nothing to the sex breakdown. The file's 'Kasarian' was suggested.",
+      },
+    ])
+  })
+
+  it('words a group with no suggestion without one', () => {
+    const report = check([['Pangalan'], ['Ana']], [displayName, disability])
+    expect(report.notes).toEqual([
+      {
+        kind: 'SADDD_NO_COLUMN',
+        fieldCode: 'disability_status',
+        message:
+          'No column feeds Disability status, so this file adds nothing to the disability status breakdown.',
+      },
+    ])
+  })
+
+  it('counts a disability status the Washington Group questions compute as fed', () => {
+    const questions = ['seeing', 'hearing', 'walking', 'remembering', 'self_care', 'talking'].map(
+      (code) =>
+        field(`wg_${code}`, `Difficulty ${code}`, 'SELECT', {
+          allowedValues: ['No difficulty', 'Some difficulty', 'A lot of difficulty'],
+        }),
+    )
+    const computed = field('disability_status', 'Disability status', 'SELECT', {
+      allowedValues: ['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'],
+      rule: {
+        kind: 'WASHINGTON_GROUP_DISABILITY',
+        questionFields: questions.map((question) => question.code),
+        disabilityValues: ['A lot of difficulty'],
+      },
+    })
+    const report = check(
+      [questions.map((question) => question.label), questions.map(() => 'No difficulty')],
+      [...questions, computed],
+    )
+    expect(report.notes).toEqual([])
+  })
+
+  it('counts a column with only blank cells as feeding nothing, as the draft does', () => {
+    const report = check(
+      [
+        ['Pangalan', 'Sex'],
+        ['Ana', ''],
+      ],
+      [displayName, sex],
+    )
+    expect(report.notes.map((note) => note.fieldCode)).toEqual(['sex'])
+  })
+
+  it('gives no note when all three groups have a column', () => {
+    const report = check(
+      [
+        ['Sex', 'Age at registration', 'Disability status'],
+        ['Female', 26, 'With disability'],
+      ],
+      registration,
+    )
+    expect(report.notes).toEqual([])
+  })
+})
+
+describe('checkImportFile notes on how the file was read', () => {
+  const disability = field('disability_status', 'Disability status', 'SELECT', {
+    allowedValues: ['With disability', 'Without disability'],
+  })
+  const fields = [firstName, sex, birthDate, age, disability]
+  const checkCsv = (bytes: Buffer) =>
+    checkImportFile({
+      file: readImportFile(toArrayBuffer(bytes), 'CSV', null),
+      formType: 'ACTIVITY',
+      fields,
+      uploadDate: '2026-10-28',
+    })
+
+  it('a CSV with a title row, Windows-1252 text and no Sex column gives the three notes', () => {
+    const csv = [
+      'Masterlist',
+      'First name,Age at registration,Disability status',
+      'Ana,26,With disability',
+      'Peñafiel,27,Without disability',
+    ].join('\n')
+    const report = checkCsv(Buffer.from(csv, 'latin1'))
+    expect(report.notes).toEqual([
+      {
+        kind: 'HEADER_ROW',
+        message: 'Headers read from row 2. The rows above it were skipped as titles.',
+      },
+      {
+        kind: 'ENCODING',
+        message:
+          "This CSV was read as Windows text. Check that names look right, for example 'Peñafiel'.",
+      },
+      {
+        kind: 'SADDD_NO_COLUMN',
+        fieldCode: 'sex',
+        message: 'No column feeds Sex, so this file adds nothing to the sex breakdown.',
+      },
+    ])
+  })
+
+  it('gives no header note when only blank rows are above the header', () => {
+    const csv = [
+      '',
+      ',,,',
+      'First name,Sex,Age at registration,Disability status',
+      'Ana,Female,26,With disability',
+    ].join('\n')
+    const file = readImportFile(toArrayBuffer(Buffer.from(csv)), 'CSV', null)
+    expect(file.headerRowNumber).toBe(3)
+    expect(checkCsv(Buffer.from(csv)).notes).toEqual([])
+  })
+
+  it('a clean file gives no notes', () => {
+    const csv = [
+      'First name,Sex,Age at registration,Disability status',
+      'Ana,Female,26,With disability',
+    ].join('\n')
+    expect(checkCsv(Buffer.from(csv)).notes).toEqual([])
+  })
+
+  it('names each merged run by its column letter and rows, and caps the lines at ten', () => {
+    const rows = [
+      ['First name', 'Sex', 'Age at registration', 'Disability status'],
+      ...Array.from({ length: 24 }, (_, index) => [
+        `Person ${index}`,
+        index % 2 === 0 ? 'Female' : '',
+        26,
+        'With disability',
+      ]),
+    ]
+    const report = check(rows, fields, 'ACTIVITY', (sheet) => {
+      // Twelve merges in column B (Sex), each two rows tall.
+      sheet['!merges'] = Array.from({ length: 12 }, (_, index) => ({
+        s: { r: 1 + index * 2, c: 1 },
+        e: { r: 2 + index * 2, c: 1 },
+      }))
+    })
+    const merged = report.notes.filter((note) => note.kind === 'MERGED_FILL')
+    expect(merged).toHaveLength(11)
+    expect(merged[0].message).toBe('Merged cells in column B were copied down to rows 2 to 3.')
+    expect(merged[9].message).toBe('Merged cells in column B were copied down to rows 20 to 21.')
+    expect(merged[10].message).toBe('and 2 more')
   })
 })

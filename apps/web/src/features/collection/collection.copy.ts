@@ -23,6 +23,8 @@ export const needsCheckLabels: Record<(typeof draftNeedsCheckReasons)[number], s
   WASHINGTON_GROUP_FLAG_DISAGREES:
     'The disability yes or no column disagrees with the Washington Group answers on some rows. Check before publishing.',
   ANSWER_KEY_NEEDED: 'Mark the correct answers for this score',
+  SADDD_NO_COLUMN:
+    'No column in the file feeds this breakdown field, so the file adds nothing to its breakdown. Confirm if that is expected.',
 }
 
 /** Words of the answer key a person marks for a total score. */

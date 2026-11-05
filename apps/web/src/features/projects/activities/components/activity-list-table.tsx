@@ -1,5 +1,6 @@
 'use client'
 
+import { neutralizeCell } from '@pathways/shared'
 import { ArrowDown, ArrowUp, Download, MoreHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -40,11 +41,7 @@ const budgetText = (activity: ActivitySummary) =>
 const indicatorsText = (activity: ActivitySummary) =>
   String(activity.indicatorCount ?? activity.indicatorIds.length)
 
-// A leading formula character is neutralized so spreadsheets never run exported text.
-const csvCell = (value: string) => {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
-  return `"${safe.replace(/"/g, '""')}"`
-}
+const csvCell = (value: string) => `"${neutralizeCell(value).replace(/"/g, '""')}"`
 
 const activitiesCsv = (rows: ActivitySummary[], columns: ColumnKey[]) => {
   const cells: Record<ColumnKey, (activity: ActivitySummary) => string> = {

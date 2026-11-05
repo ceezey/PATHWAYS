@@ -1,5 +1,6 @@
+import { parseWorkbook } from '@pathways/imports'
 import { describe, expect, it } from 'vitest'
-import { createReportArtifact, reportMime, safeSpreadsheetCell } from './report-artifact'
+import { createReportArtifact, reportMime } from './report-artifact'
 
 describe('bounded truthful report artifacts', () => {
   it('sends the bare CSV mime accepted by the private bucket allow-list', () => {
@@ -39,7 +40,6 @@ describe('bounded truthful report artifacts', () => {
     expect(text).toContain('Peña — village')
     expect(text).toContain('"\'=SUM(1,2)"')
     expect(text).toContain('"quote """')
-    expect(safeSpreadsheetCell(' \t+4')).toBe("' \t+4")
   })
   it.each(['XLSX', 'XLS'] as const)(
     'produces real %s bytes with formula text neutralized',
@@ -57,6 +57,19 @@ describe('bounded truthful report artifacts', () => {
       )
     },
   )
+  it('abuse: CSV, XLSX and XLS quote stored formula-like text exactly once', async () => {
+    const risky = ['+639170000001', '=1+1', '@x', '-x']
+    const rows = [['Value'], ...risky.map((value) => [value])]
+    const csv = (await createReportArtifact('Title', rows, 'CSV')).toString('utf8')
+    for (const value of risky) expect(csv).toContain(`"'${value}"`)
+    for (const format of ['XLSX', 'XLS'] as const) {
+      const bytes = await createReportArtifact('Title', rows, format)
+      const workbook = parseWorkbook(
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      )
+      expect(workbook.rows.map((row) => row.Value)).toEqual(risky.map((value) => `'${value}`))
+    }
+  })
   it('produces an embedded Unicode tagged PDF with title and language', async () => {
     const bytes = await createReportArtifact(
       'Peña — report',
