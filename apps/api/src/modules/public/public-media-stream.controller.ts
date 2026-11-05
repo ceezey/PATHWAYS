@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common'
 
 import { Public } from '../../common/decorators/public.decorator'
-import { PublicMediaStreamService } from './public-media-stream.service'
+import { PublicMediaStreamService, RangeNotSatisfiable } from './public-media-stream.service'
 
 @Controller('public/projects/:projectId/media')
 export class PublicMediaStreamController {
@@ -28,7 +28,11 @@ export class PublicMediaStreamController {
     @Headers('range') range: string | undefined,
     @Res({ passthrough: true }) response: ServerResponse,
   ) {
-    const file = await this.media.open(projectId, mediaId, range)
+    const file = await this.media.open(projectId, mediaId, range).catch((error: unknown) => {
+      if (error instanceof RangeNotSatisfiable)
+        response.setHeader('Content-Range', `bytes */${error.byteSize}`)
+      throw error
+    })
     response.statusCode = file.status
     if (file.isVideo) response.setHeader('Accept-Ranges', 'bytes')
     if (file.contentRange) response.setHeader('Content-Range', file.contentRange)
