@@ -28,7 +28,8 @@ DO $$ DECLARE fn record; BEGIN
    (4,'pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)','2c9dba260db07a6fcc317c2f0cbad04a','s'),
    (5,'pathways.p06_indicator_values(uuid,text)','8d89974bf5632a2b5e2e99a6c5735141','s'),
    (6,'pathways.p10_f9_timeline_aggregate(uuid,uuid,date)','3cce9cf594fcc6123b1fff49b176ba0d','s'),
-   (7,'pathways.p10_f9_timeline_last_completion(uuid,uuid)','0856ec76564f9786147488db63961898','s')) w(n,sig,md5,vol)
+   (7,'pathways.p10_f9_timeline_last_completion(uuid,uuid)','0856ec76564f9786147488db63961898','s'),
+   (8,'pathways.p06_participation_breakdown(uuid,date,date)','18e89eb9b6b9d4eaea9b2b3a4072be97','s')) w(n,sig,md5,vol)
   LEFT JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig) LOOP
   IF fn.prosrc IS NULL OR pg_catalog.pg_get_userbyid(fn.proowner)<>'prisma' OR NOT fn.prosecdef OR fn.provolatile<>fn.vol
    OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""'] OR pg_catalog.md5(fn.prosrc)<>fn.md5
@@ -563,7 +564,69 @@ BEGIN
   RETURN pathways.p87_timeline_last_completion_core(wanted_org, wanted_project);
 END $$;
 
--- 6. With no app context prisma reads the KPI sources or a release row only while the live revision shows kpi or saddd.
+-- 6. Participation: the 0066 breakdown without its actor checks. Its filters and grouping already equal
+-- AnalyticsInsightsService.participation, so the gated breakdown calls it too.
+-- shortcut: the filters are duplicated in AnalyticsInsightsService.participation; upgrade by having the service call this core.
+CREATE FUNCTION pathways.p87_participation_core(org uuid, project uuid, start_on date, end_on date) RETURNS jsonb
+ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+DECLARE
+  result jsonb;
+BEGIN
+  IF (start_on IS NULL) <> (end_on IS NULL) OR end_on < start_on
+     OR start_on < DATE '1900-01-01' OR end_on > DATE '2100-12-31' THEN
+    RAISE EXCEPTION 'Invalid participation period' USING ERRCODE = '22023';
+  END IF;
+
+  WITH accepted AS MATERIALIZED (
+    SELECT p.activity_id, a.title, to_char(p.participation_date, 'YYYY-MM') AS month,
+      p.attendance_status::text AS status
+    FROM pathways.beneficiary_activity_participations p
+    JOIN pathways.beneficiary_project_enrollments e
+      ON e.organization_id = p.organization_id AND e.project_id = p.project_id AND e.id = p.enrollment_id
+    JOIN pathways.beneficiaries ben ON ben.organization_id = e.organization_id AND ben.id = e.beneficiary_id
+    JOIN pathways.project_activities a
+      ON a.organization_id = p.organization_id AND a.project_id = p.project_id AND a.id = p.activity_id
+    JOIN pathways.form_submissions s
+      ON s.organization_id = p.organization_id AND s.project_id = p.project_id AND s.id = p.source_submission_id
+    WHERE p.organization_id = org AND p.project_id = project
+      AND (start_on IS NULL OR p.participation_date BETWEEN start_on AND end_on)
+      AND ben.archived_at IS NULL AND NOT ben.is_dummy_record
+      AND a.archived_at IS NULL AND a.status <> 'CANCELLED'
+      AND s.status = 'VALIDATED' AND NOT s.is_dummy_record
+  )
+  SELECT jsonb_build_object(
+    'projectId', project,
+    'total', (SELECT count(*) FROM accepted),
+    'totalSuppressed', false,
+    'byActivity', (SELECT coalesce(jsonb_agg(jsonb_build_object('activityId', g.activity_id, 'activityName', g.title,
+        'count', g.n, 'suppressed', false) ORDER BY g.title, g.activity_id), '[]'::jsonb)
+      FROM (SELECT activity_id, min(title) AS title, count(*) AS n FROM accepted GROUP BY activity_id) g),
+    'byMonth', (SELECT coalesce(jsonb_agg(jsonb_build_object('month', g.month, 'count', g.n, 'suppressed', false)
+        ORDER BY g.month), '[]'::jsonb)
+      FROM (SELECT month, count(*) AS n FROM accepted GROUP BY month) g),
+    'byAttendanceStatus', (SELECT jsonb_agg(jsonb_build_object('status', v.status, 'count', coalesce(g.n, 0),
+        'suppressed', false) ORDER BY v.ord)
+      FROM (VALUES ('PRESENT', 1), ('ABSENT', 2), ('COMPLETED', 3), ('NOT_COMPLETED', 4), ('EXCUSED', 5)) v(status, ord)
+      LEFT JOIN (SELECT status, count(*) AS n FROM accepted GROUP BY status) g USING (status)))
+  INTO result;
+  RETURN result;
+END $$;
+
+CREATE OR REPLACE FUNCTION pathways.p06_participation_breakdown(wanted_project uuid, start_on date DEFAULT NULL, end_on date DEFAULT NULL)
+ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+DECLARE
+  org uuid := nullif(current_setting('app.organization_id', true), '')::uuid;
+BEGIN
+  IF org IS NULL OR wanted_project IS NULL
+     OR NOT pathways.p06_can('monitoring.read', wanted_project)
+     OR NOT pathways.p06_can('analytics.descriptive.read', wanted_project)
+     OR NOT pathways.p06_can('beneficiaries.aggregates.read', wanted_project) THEN
+    RAISE EXCEPTION 'Participation breakdown unavailable' USING ERRCODE = '42501';
+  END IF;
+  RETURN pathways.p87_participation_core(org, wanted_project, start_on, end_on);
+END $$;
+
+-- 7. With no app context prisma reads the KPI sources or a release row only while the live revision shows kpi or saddd.
 CREATE POLICY p87_prisma_live_kpi_read ON pathways.project_indicator_bindings FOR SELECT TO prisma
  USING(EXISTS(SELECT FROM pathways.project_publications pub WHERE pub.organization_id=project_indicator_bindings.organization_id
   AND pub.project_id=project_indicator_bindings.project_id AND pub.live_snapshot->'views' ? 'kpi'));
@@ -574,7 +637,7 @@ CREATE POLICY p87_prisma_live_saddd_read ON pathways.sensitive_aggregate_release
  USING(EXISTS(SELECT FROM pathways.project_publications pub WHERE pub.organization_id=sensitive_aggregate_releases.organization_id
   AND pub.project_id=sensitive_aggregate_releases.project_id AND pub.live_snapshot->'views' ? 'saddd'));
 
--- 7. The public read: one view of a live revision of an active project, computed now with no actor, or NULL.
+-- 8. The public read: one view of a live revision of an active project, computed now with no actor, or NULL.
 CREATE FUNCTION pathways.p87_public_view(wanted_project uuid, wanted_view text) RETURNS jsonb
  LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
 DECLARE live record; today date:=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date;
@@ -611,6 +674,10 @@ BEGIN
   RETURN (SELECT coalesce(jsonb_agg(k.item ORDER BY k.item->>'code',k.item->>'id'),'[]'::jsonb) FROM (
    SELECT DISTINCT ON (v.item->>'code') v.item FROM pg_catalog.unnest(pathways.p87_indicator_values_core(live.org,wanted_project,'Asia/Manila')) v(item)
    WHERE v.item->>'status'='ACTIVE' ORDER BY v.item->>'code',v.item->>'periodEnd' DESC NULLS LAST) k);
+ ELSIF wanted_view='participation' THEN
+  -- From the project start to today; a project not started yet has no attendance to show.
+  IF live.start_date IS NULL OR live.start_date>today THEN RETURN NULL; END IF;
+  RETURN pathways.p87_participation_core(live.org,wanted_project,live.start_date,today);
  ELSIF wanted_view='timeline' THEN
   -- As the internal view: the final position is read only for a completed project.
   RETURN jsonb_build_object('project',jsonb_build_object('status',live.status,'startDate',to_char(live.start_date,'YYYY-MM-DD'),
@@ -627,7 +694,7 @@ END $$;
 REVOKE ALL ON FUNCTION pathways.p87_saddd_core(uuid,uuid,date,date,text),pathways.p87_saddd_fingerprint(uuid,uuid,jsonb),
   pathways.p87_saddd_by_place_core(uuid,uuid,text),pathways.p87_indicator_value_core(uuid,uuid,uuid,text),
   pathways.p87_indicator_values_core(uuid,uuid,text),pathways.p87_timeline_core(uuid,uuid,date),
-  pathways.p87_timeline_last_completion_core(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role,pathways_runtime;
+  pathways.p87_timeline_last_completion_core(uuid,uuid),pathways.p87_participation_core(uuid,uuid,date,date) FROM PUBLIC,anon,authenticated,service_role,pathways_runtime;
 REVOKE ALL ON FUNCTION pathways.p87_public_view(uuid,text) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION pathways.p87_public_view(uuid,text) TO pathways_runtime;
 
@@ -641,20 +708,22 @@ DO $$ BEGIN
     (4,'pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)','3f969e2940ba31cf592e6feb75cc69b2','s'),
     (5,'pathways.p06_indicator_values(uuid,text)','aac67ef4de765a95bfbc24edd65f73a4','s'),
     (6,'pathways.p10_f9_timeline_aggregate(uuid,uuid,date)','2feb9edc66a5326f333a3f2b59400c76','s'),
-    (7,'pathways.p10_f9_timeline_last_completion(uuid,uuid)','28d0913ee4f26777dd9b0ff027d7f535','s')) w(n,sig,md5,vol)
+    (7,'pathways.p10_f9_timeline_last_completion(uuid,uuid)','28d0913ee4f26777dd9b0ff027d7f535','s'),
+    (8,'pathways.p06_participation_breakdown(uuid,date,date)','da745fcf47b3483a9e4dd5964f521dfc','s')) w(n,sig,md5,vol)
    JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
    WHERE pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.provolatile=w.vol
     AND p.proconfig=ARRAY['search_path=""'] AND pg_catalog.md5(p.prosrc)=w.md5
-    AND coalesce(p.proacl::text,'')=pg_catalog.current_setting('pathways_0087.acl_'||w.n))<>8
+    AND coalesce(p.proacl::text,'')=pg_catalog.current_setting('pathways_0087.acl_'||w.n))<>9
   OR (SELECT count(*) FROM (VALUES ('pathways.p87_saddd_core(uuid,uuid,date,date,text)','{prisma}'),
     ('pathways.p87_saddd_fingerprint(uuid,uuid,jsonb)','{prisma}'),('pathways.p87_saddd_by_place_core(uuid,uuid,text)','{prisma}'),
     ('pathways.p87_indicator_value_core(uuid,uuid,uuid,text)','{prisma}'),('pathways.p87_indicator_values_core(uuid,uuid,text)','{prisma}'),
     ('pathways.p87_timeline_core(uuid,uuid,date)','{prisma}'),('pathways.p87_timeline_last_completion_core(uuid,uuid)','{prisma}'),
+    ('pathways.p87_participation_core(uuid,uuid,date,date)','{prisma}'),
     ('pathways.p87_public_view(uuid,text)','{pathways_runtime,prisma}')) w(sig,grantees)
    JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
    WHERE pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.provolatile='s' AND p.proconfig=ARRAY['search_path=""']
     AND (SELECT pg_catalog.array_agg(a.grantee::pg_catalog.regrole::text ORDER BY a.grantee::pg_catalog.regrole::text)
-     FROM pg_catalog.aclexplode(p.proacl) a)=w.grantees::text[])<>8
+     FROM pg_catalog.aclexplode(p.proacl) a)=w.grantees::text[])<>9
   OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polcmd='r' AND polroles=ARRAY['prisma'::pg_catalog.regrole::oid]
    AND ((polname='p87_prisma_live_saddd_read' AND polrelid='pathways.sensitive_aggregate_releases'::pg_catalog.regclass)
     OR (polname='p87_prisma_live_kpi_read' AND polrelid IN ('pathways.project_indicator_bindings'::pg_catalog.regclass,

@@ -370,10 +370,10 @@ SELECT pg_temp.refused('public_view_requires_live other session', format('SELECT
 -- views_validator: a repeated or unknown view is refused when A submits.
 SET LOCAL SESSION AUTHORIZATION pathways_runtime;
 SELECT pg_temp.act_as(21);
-SELECT pg_temp.refused('views_validator repeated', format($s$UPDATE pathways.project_publications SET revision=2,
+SELECT pg_temp.refused('views_validator repeated', format($s$UPDATE pathways.project_publications SET revision=2,state='FOR_REVIEW',
  snapshot='{"media":[],"views":["kpi","kpi"]}' WHERE organization_id=%L AND project_id=%L$s$,pg_temp.u(1),pg_temp.u(41)),
  '23514','Public view selection');
-SELECT pg_temp.refused('views_validator unknown', format($s$UPDATE pathways.project_publications SET revision=2,
+SELECT pg_temp.refused('views_validator unknown', format($s$UPDATE pathways.project_publications SET revision=2,state='FOR_REVIEW',
  snapshot='{"media":[],"views":["survey"]}' WHERE organization_id=%L AND project_id=%L$s$,pg_temp.u(1),pg_temp.u(41)),
  '23514','Public view selection');
 
