@@ -1157,7 +1157,7 @@ SELECT ((SELECT pg_catalog.md5(prosrc)='65f2b6fe8bf48f7023dd435ca5888bdd' AND pg
   Write-Output 'FORWARD_0075_INDICATOR_SUMMARY_INVENTORY=PASS'
   # 0085 inventory: live columns and CHECKs, the prisma live-read policy, runtime-only p85 functions, and every upgraded row
   # carries media and views arrays with each PUBLISHED one live as itself.
-  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore', 'pathways_phase4_rmt_retry')) {
     $liveShape = Read-ForwardSql $db @"
 SELECT ((SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid='pathways.project_publications'::pg_catalog.regclass AND NOT attisdropped
   AND NOT attnotnull AND attname IN ('live_revision','live_snapshot','live_published_at','live_published_by_id'))=4
@@ -1177,12 +1177,13 @@ SELECT ((SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid='pathways.p
   }
   Write-Output 'FORWARD_0085_PUBLIC_TRACKER_LIVE_INVENTORY=PASS'
   # 0086 inventory: the validated public media queue CHECK, the 0086 validator and evidence guard bodies, the runtime-only
-  # p86 lookup, and every upgraded evidence row still PRIVATE.
+  # p86 lookup, the 0086 public read body, and every upgraded evidence row still PRIVATE.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
     $mediaShape = Read-ForwardSql $db @"
 SELECT (EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::pg_catalog.regclass AND conname='p3_evidence_public' AND convalidated)
  AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p85_publication_media(jsonb,uuid)'::pg_catalog.regprocedure)='60613af01de09c839c3408f0193ceb82'
  AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure)='32c52a969c76775b0a86b6731c3d6fff'
+ AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p85_public_projects(uuid,integer,integer)'::pg_catalog.regprocedure)='4ded05556c8c942b497f1845710359e2'
  AND (SELECT pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
   AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
   AND NOT has_function_privilege('service_role',p.oid,'EXECUTE') FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p86_public_media(uuid,uuid)'::pg_catalog.regprocedure)
@@ -1192,7 +1193,7 @@ SELECT (EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evi
   }
   Write-Output 'FORWARD_0086_PUBLIC_TRACKER_MEDIA_INVENTORY=PASS'
   # 0087 inventory: the five-view validator, the gated analytics bodies that call the cores, the internal cores, the
-  # runtime-only p87 public read and the prisma live-view policies.
+  # prisma-only saddd fingerprint, the runtime-only p87 public read and the prisma live-view policies with their USING text.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
     $analyticsShape = Read-ForwardSql $db @"
 SELECT ((SELECT count(*) FROM (VALUES ('pathways.p85_publication_views(jsonb)','e780b7908f1941ab6369d808a98d2c6b'),
@@ -1213,8 +1214,15 @@ SELECT ((SELECT count(*) FROM (VALUES ('pathways.p85_publication_views(jsonb)','
   AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
   AND NOT has_function_privilege('service_role',p.oid,'EXECUTE') FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p87_public_view(uuid,text)'::pg_catalog.regprocedure)
  AND has_function_privilege('pathways_runtime','pathways.p85_publication_views(jsonb)','EXECUTE')
- AND (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname IN ('p87_prisma_live_kpi_read','p87_prisma_live_saddd_read') AND polcmd='r'
-  AND polroles=ARRAY['prisma'::pg_catalog.regrole::oid])=3)::text;
+ AND (SELECT pg_catalog.array_agg(a.grantee::pg_catalog.regrole::text ORDER BY a.grantee::pg_catalog.regrole::text) FROM pg_catalog.pg_proc p,
+  pg_catalog.aclexplode(p.proacl) a WHERE p.oid='pathways.p87_saddd_fingerprint(uuid,uuid,jsonb)'::pg_catalog.regprocedure)=ARRAY['prisma']
+ AND (SELECT count(*) FROM pg_catalog.pg_policy WHERE polcmd='r' AND polroles=ARRAY['prisma'::pg_catalog.regrole::oid]
+  AND ((polname='p87_prisma_live_kpi_read' AND polrelid IN ('pathways.project_indicator_bindings'::pg_catalog.regclass,
+    'pathways.project_indicator_measurements'::pg_catalog.regclass))
+   OR (polname='p87_prisma_live_saddd_read' AND polrelid='pathways.sensitive_aggregate_releases'::pg_catalog.regclass))
+  AND pg_catalog.regexp_replace(pg_catalog.pg_get_expr(polqual,polrelid),'\s+',' ','g')=pg_catalog.format('(EXISTS ( SELECT FROM pathways.project_publications pub'
+   ||' WHERE ((pub.organization_id = %1`$s.organization_id) AND (pub.project_id = %1`$s.project_id) AND ((pub.live_snapshot -> ''views''::text) ? %2`$L::text))))',
+   (SELECT relname FROM pg_catalog.pg_class WHERE oid=polrelid),CASE WHEN polname='p87_prisma_live_kpi_read' THEN 'kpi' ELSE 'saddd' END))=3)::text;
 "@
     if ($analyticsShape.Trim() -cne 'true') { throw "0087 public tracker analytics inventory differs in $db." }
   }

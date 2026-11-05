@@ -93,6 +93,18 @@ BEGIN
  PERFORM pg_temp.act_as(21);
  PERFORM pg_temp.refused(label,pg_temp.submit_sql(media),'23514','Media not publishable');
 END $$;
+-- The media ids of project 41 in the public projection, in order.
+CREATE FUNCTION pg_temp.live_ids() RETURNS jsonb LANGUAGE sql AS $$
+ SELECT coalesce(jsonb_agg(m->>'id' ORDER BY o),'[]') FROM jsonb_array_elements(pathways.p85_public_projects(pg_temp.u(41))->0->'media')
+  WITH ORDINALITY x(m,o)
+$$;
+-- Runs one statement as the superuser with triggers off; the caller resets the session first.
+CREATE FUNCTION pg_temp.as_owner(statement text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+ SET LOCAL session_replication_role = replica;
+ EXECUTE statement;
+ SET LOCAL session_replication_role = origin;
+END $$;
 CREATE FUNCTION pg_temp.pub_move(user_n integer, assignments text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
  PERFORM pg_temp.act_as(user_n);
@@ -100,7 +112,7 @@ BEGIN
 END $$;
 
 -- Catalog: the media validator and lookup are prisma-owned definers executable by pathways_runtime only, the queue CHECK is
--- validated, and the public evidence guard has its 0086 body.
+-- validated, and the public evidence guard and the public read have their 0086 bodies.
 SELECT pg_temp.ok('catalog', (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p85_publication_media(jsonb,uuid)'::regprocedure,
    'pathways.p86_public_media(uuid,uuid)'::regprocedure)
   AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.proconfig=ARRAY['search_path=""'] AND p.provolatile='s'
@@ -108,6 +120,7 @@ SELECT pg_temp.ok('catalog', (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.
   AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))=2
  AND EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::regclass AND conname='p3_evidence_public' AND convalidated)
  AND (SELECT md5(prosrc)='32c52a969c76775b0a86b6731c3d6fff' AND NOT prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::regprocedure)
+ AND (SELECT md5(prosrc)='4ded05556c8c942b497f1845710359e2' AND prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p85_public_projects(uuid,integer,integer)'::regprocedure)
  AND EXISTS(SELECT FROM pg_catalog.pg_trigger WHERE tgname='p3_40_public' AND tgenabled='O' AND tgrelid='pathways.evidence_media'::regclass));
 
 -- Fixtures: one organization; A (21), B (22) and C (23) are Project Managers assigned to projects 41 and 42.
@@ -142,6 +155,12 @@ SELECT pg_temp.seed(109,42,'PHOTO','image/jpeg','none','PENDING');
 SELECT pg_temp.seed(110,41,'DOCUMENT','application/pdf','none','PENDING');
 SELECT pg_temp.seed(111,41,'PHOTO','image/jpeg','none','PENDING');
 SELECT pg_temp.seed(112,41,'PHOTO','image/jpeg','none','PENDING');
+-- Media 120: a stored photo of project 45 in a second organization, for the cross-organization lookup.
+INSERT INTO pathways.organizations(id,code,name) VALUES (pg_temp.u(2),'PTM_B','Synthetic second public media organization');
+INSERT INTO pathways.projects(id,organization_id,code,title,created_by_id) VALUES (pg_temp.u(45),pg_temp.u(2),'PTM_45','Synthetic PTM project 45',pg_temp.u(21));
+INSERT INTO pathways.evidence_media(id,organization_id,project_id,type,file_name,bucket,object_key,sha256,byte_size,content_type,submitted_by_id,storage_ready)
+VALUES(pg_temp.u(120),pg_temp.u(2),pg_temp.u(45),'PHOTO','proof','pathways-private',
+ format('organizations/%s/projects/%s/evidence/%s/proof',pg_temp.u(2),pg_temp.u(45),pg_temp.u(120)),repeat('c',64),10,'image/jpeg',pg_temp.u(21),true);
 SET LOCAL session_replication_role = origin;
 
 SET LOCAL SESSION AUTHORIZATION pathways_runtime;
@@ -274,11 +293,35 @@ SELECT pg_temp.submit(jsonb_build_array(pg_temp.pick(101,'Live photo'),pg_temp.p
 SELECT pg_temp.act_as(0);
 SELECT pg_temp.ok('public_media_live_only review revision', (SELECT pathways.p86_public_media(pg_temp.u(41),pg_temp.u(102)) IS NULL
  AND pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101)) IS NOT NULL));
--- A live item rejected internally afterwards is no longer served.
+SELECT pg_temp.ok('public_projection_media live', pg_temp.live_ids()=jsonb_build_array(pg_temp.u(101),pg_temp.u(112)));
+-- A live item rejected internally afterwards is no longer served, and the public projection drops it while the other stays.
 SELECT pg_temp.media_move(22,112,format($a$status='REJECTED',rejected_by_id=%L,rejected_at=now(),rejection_reason='Wrong site'$a$,pg_temp.u(22)));
 SELECT pg_temp.act_as(0);
 SELECT pg_temp.ok('public_media_live_only rejected after publish', (SELECT pathways.p86_public_media(pg_temp.u(41),pg_temp.u(112)) IS NULL
  AND pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101)) IS NOT NULL));
+SELECT pg_temp.ok('public_projection_media rejected after publish', pg_temp.live_ids()=jsonb_build_array(pg_temp.u(101)));
+-- A forged live item of another organization is neither served nor listed.
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.as_owner(format($u$UPDATE pathways.project_publications SET live_snapshot=jsonb_set(live_snapshot,'{media}',
+ (live_snapshot->'media')||jsonb_build_array(jsonb_build_object('id',%L,'type','PHOTO','contentType','image/jpeg','caption','Elsewhere')))
+ WHERE organization_id=%L AND project_id=%L$u$,pg_temp.u(120),pg_temp.u(1),pg_temp.u(41)));
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.ok('public_media_live_only other organization', pathways.p86_public_media(pg_temp.u(41),pg_temp.u(120)) IS NULL
+ AND pg_temp.live_ids()=jsonb_build_array(pg_temp.u(101)));
+-- An archived project or an inactive organization serves nothing; each is restored after its check.
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.as_owner(format('UPDATE pathways.projects SET archived_at=now() WHERE id=%L',pg_temp.u(41)));
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.ok('public_media_live_only archived project', pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101)) IS NULL);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.as_owner(format('UPDATE pathways.projects SET archived_at=NULL WHERE id=%L',pg_temp.u(41)));
+SELECT pg_temp.as_owner(format($u$UPDATE pathways.organizations SET status='INACTIVE' WHERE id=%L$u$,pg_temp.u(1)));
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.ok('public_media_live_only inactive organization', pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101)) IS NULL);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.as_owner(format($u$UPDATE pathways.organizations SET status='ACTIVE' WHERE id=%L$u$,pg_temp.u(1)));
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.ok('public_media_live_only restored', pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101)) IS NOT NULL);
 -- Withdraw removes access at once.
 SELECT pg_temp.pub_move(22,$$live_snapshot=NULL$$);
 SELECT pg_temp.act_as(0);

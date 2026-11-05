@@ -6,6 +6,7 @@
 -- approver and a rejecter of a FOR_REVIEW row to be the acting user (marked 0086). Owner, mode, search_path and ACL are kept.
 -- p85_publication_media now checks every chosen item against the pickable rule in the caller's organization and project, and
 -- answers only inside the publication guard. p86_public_media gives the storage key of an item on the live revision only.
+-- p85_public_projects keeps the 0085 body except that each live media list leaves out items rejected or gone since publishing.
 -- No new table, role or owner-role change.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -21,10 +22,11 @@ DO $$ DECLARE fn record; BEGIN
    AND conname='p3_evidence_public' AND contype='c')
   OR pg_catalog.to_regprocedure('pathways.p86_public_media(uuid,uuid)') IS NOT NULL
  THEN RAISE EXCEPTION '0086 requires prisma-owned evidence_media with p3_evidence_public and no p86 function'; END IF;
- -- The 0085 media validator is replaced and keeps its ACL; the public evidence guard must be the reviewed baseline body.
+ -- The 0085 media validator and public read are replaced and keep their ACLs; the evidence guard must be the baseline body.
  FOR fn IN SELECT w.n, w.sig, w.md5, w.secdef, w.vol, w.cfg, p.prosrc, p.proowner, p.prosecdef, p.provolatile, p.proconfig, p.proacl
   FROM (VALUES (0,'pathways.p85_publication_media(jsonb,uuid)','c03f1e3532e61630d4c976682fb7360f',true,'s',ARRAY['search_path=""']),
-   (1,'pathways.p3_guard_public_evidence()','5f70529c1edd30bba73a4c9a660f154f',false,'v',ARRAY['search_path=pg_catalog']))
+   (1,'pathways.p3_guard_public_evidence()','5f70529c1edd30bba73a4c9a660f154f',false,'v',ARRAY['search_path=pg_catalog']),
+   (2,'pathways.p85_public_projects(uuid,integer,integer)','5d468f817ce70c1d72428fc21ffe9fe6',true,'s',ARRAY['search_path=""']))
    w(n,sig,md5,secdef,vol,cfg)
   LEFT JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig) LOOP
   IF fn.prosrc IS NULL OR pg_catalog.pg_get_userbyid(fn.proowner)<>'prisma' OR fn.prosecdef<>fn.secdef OR fn.provolatile<>fn.vol
@@ -136,18 +138,39 @@ END $$;
 REVOKE ALL ON FUNCTION pathways.p86_public_media(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION pathways.p86_public_media(uuid,uuid) TO pathways_runtime;
 
--- Postconditions: the queue CHECK, the new evidence guard body with its ACL kept and still bound, the new validator body with its ACL kept,
--- and the new lookup.
+-- 5. The public read (marked 0086): a live item is listed only while its evidence row exists and is not rejected, as p86 serves it.
+CREATE OR REPLACE FUNCTION pathways.p85_public_projects(wanted_project uuid DEFAULT NULL,skip_rows integer DEFAULT 0,take_rows integer DEFAULT 50)
+ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+BEGIN
+ IF session_user<>'pathways_runtime' THEN RAISE EXCEPTION 'Public projection unavailable' USING ERRCODE='42501'; END IF;
+ IF skip_rows IS NULL OR take_rows IS NULL OR skip_rows<0 OR skip_rows>10000 OR take_rows<1 OR take_rows>100
+ THEN RAISE EXCEPTION 'Invalid public request' USING ERRCODE='22023'; END IF;
+ RETURN coalesce((SELECT jsonb_agg(q.payload ORDER BY q.project_id) FROM(
+  SELECT pub.project_id,pub.live_snapshot||jsonb_build_object('publishedAt',pub.live_published_at,
+   -- 0086: a live item whose evidence row is gone or was rejected afterwards is left out; the rest keep their order.
+   'media',coalesce((SELECT jsonb_agg(m.item ORDER BY m.n) FROM jsonb_array_elements(pub.live_snapshot->'media') WITH ORDINALITY m(item,n)
+    WHERE EXISTS(SELECT FROM pathways.evidence_media e WHERE e.organization_id=pub.organization_id AND e.project_id=pub.project_id
+     AND e.id=(m.item->>'id')::uuid AND e.status<>'REJECTED')),'[]'::jsonb)) AS payload
+  FROM pathways.project_publications pub JOIN pathways.projects p ON p.organization_id=pub.organization_id AND p.id=pub.project_id
+  JOIN pathways.organizations o ON o.id=p.organization_id
+  WHERE pub.live_snapshot IS NOT NULL AND p.archived_at IS NULL AND o.status='ACTIVE' AND o.archived_at IS NULL
+   AND (wanted_project IS NULL OR pub.project_id=wanted_project)
+  ORDER BY pub.project_id LIMIT take_rows OFFSET skip_rows)q),'[]'::jsonb);
+END $$;
+
+-- Postconditions: the queue CHECK, the new evidence guard body with its ACL kept and still bound, the new validator and public read
+-- bodies with their ACLs kept, and the new lookup.
 DO $$ BEGIN
  IF NOT EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::pg_catalog.regclass
    AND conname='p3_evidence_public' AND contype='c' AND convalidated)
   OR (SELECT relforcerowsecurity FROM pg_catalog.pg_class WHERE oid='pathways.evidence_media'::pg_catalog.regclass)
   OR (SELECT count(*) FROM (VALUES (0,'pathways.p85_publication_media(jsonb,uuid)','60613af01de09c839c3408f0193ceb82',true,'s',ARRAY['search_path=""']),
-    (1,'pathways.p3_guard_public_evidence()','32c52a969c76775b0a86b6731c3d6fff',false,'v',ARRAY['search_path=pg_catalog']))
+    (1,'pathways.p3_guard_public_evidence()','32c52a969c76775b0a86b6731c3d6fff',false,'v',ARRAY['search_path=pg_catalog']),
+    (2,'pathways.p85_public_projects(uuid,integer,integer)','4ded05556c8c942b497f1845710359e2',true,'s',ARRAY['search_path=""']))
     w(n,sig,md5,secdef,vol,cfg)
    JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
    WHERE pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef=w.secdef AND p.provolatile=w.vol AND p.proconfig=w.cfg
-    AND pg_catalog.md5(p.prosrc)=w.md5 AND coalesce(p.proacl::text,'')=pg_catalog.current_setting('pathways_0086.acl_'||w.n))<>2
+    AND pg_catalog.md5(p.prosrc)=w.md5 AND coalesce(p.proacl::text,'')=pg_catalog.current_setting('pathways_0086.acl_'||w.n))<>3
   OR NOT EXISTS(SELECT FROM pg_catalog.pg_trigger t WHERE t.tgname='p3_40_public' AND t.tgenabled='O' AND NOT t.tgisinternal
    AND t.tgrelid='pathways.evidence_media'::pg_catalog.regclass AND t.tgfoid='pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure)
   OR NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p86_public_media(uuid,uuid)'::pg_catalog.regprocedure

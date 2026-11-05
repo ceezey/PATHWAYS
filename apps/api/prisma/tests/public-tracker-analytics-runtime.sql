@@ -77,6 +77,13 @@ BEGIN
  PERFORM pg_temp.act_as(0);
  RETURN pathways.p87_public_view(pg_temp.u(project_n),view_name);
 END $$;
+-- Runs one statement as the superuser with triggers off; the caller resets the session first.
+CREATE FUNCTION pg_temp.as_owner(statement text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+ SET LOCAL session_replication_role = replica;
+ EXECUTE statement;
+ SET LOCAL session_replication_role = origin;
+END $$;
 -- Records one participation per beneficiary first_n..last_n of project 41, each with its own source submission.
 CREATE FUNCTION pg_temp.attend(activity_n integer, first_n integer, last_n integer, on_day date, status text, submission text,
  dummy boolean DEFAULT false) RETURNS void LANGUAGE plpgsql AS $$
@@ -376,6 +383,28 @@ SELECT pg_temp.refused('views_validator repeated', format($s$UPDATE pathways.pro
 SELECT pg_temp.refused('views_validator unknown', format($s$UPDATE pathways.project_publications SET revision=2,state='FOR_REVIEW',
  snapshot='{"media":[],"views":["survey"]}' WHERE organization_id=%L AND project_id=%L$s$,pg_temp.u(1),pg_temp.u(41)),
  '23514','Public view selection');
+
+-- public_view_requires_active: an archived project or an inactive organization answers NULL, and a project not started yet has
+-- no saddd or participation to show; each change is undone after its check.
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.as_owner(format('UPDATE pathways.projects SET archived_at=now() WHERE id=%L',pg_temp.u(43)));
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.ok('public_view_requires_active archived project', pg_temp.pv(43,'map') IS NULL AND pg_temp.pv(41,'map') IS NOT NULL);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.as_owner(format('UPDATE pathways.projects SET archived_at=NULL WHERE id=%L',pg_temp.u(43)));
+SELECT pg_temp.as_owner(format($u$UPDATE pathways.organizations SET status='INACTIVE' WHERE id=%L$u$,pg_temp.u(1)));
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.ok('public_view_requires_active inactive organization', pg_temp.pv(43,'map') IS NULL AND pg_temp.pv(41,'kpi') IS NULL);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.as_owner(format($u$UPDATE pathways.organizations SET status='ACTIVE' WHERE id=%L$u$,pg_temp.u(1)));
+SELECT pg_temp.as_owner(format('UPDATE pathways.projects SET start_date=%L WHERE id=%L',pg_temp.today()+5,pg_temp.u(41)));
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.ok('public_view_requires_active not started', pg_temp.pv(41,'saddd') IS NULL AND pg_temp.pv(41,'participation') IS NULL
+ AND pg_temp.pv(43,'map') IS NOT NULL);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.as_owner(format('UPDATE pathways.projects SET start_date=%L WHERE id=%L',pg_temp.today()-60,pg_temp.u(41)));
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.ok('public_view_requires_active restored', pg_temp.pv(41,'participation') IS NOT NULL);
 
 -- public_view_requires_live after withdraw: B withdraws 43 under its pending draft and 41 outright; nothing answers afterwards.
 SELECT pg_temp.move(22,43,$$live_snapshot=NULL$$);
