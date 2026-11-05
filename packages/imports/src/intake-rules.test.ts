@@ -303,13 +303,9 @@ describe('applyIntakeRules', () => {
     expect(run({ job: 'A. construction', job_other: null }).warnings).toEqual([])
   })
 
-  it('ID_FROM_INITIALS_AND_BIRTH_DATE accepts AB08172008 for Ana Bautista 2008-08-17', () => {
+  it('a stored ID_FROM_INITIALS_AND_BIRTH_DATE rule never warns, since an ID may follow any scheme', () => {
     const base = { first_name: 'Ana', last_name: 'Bautista', birth_date: '2008-08-17' }
-    expect(run({ ...base, participant_id: 'AB08172008' }).warnings).toEqual([])
-    expect(run({ ...base, participant_id: 'ab08172008' }).warnings).toEqual([])
-    expect(run({ ...base, participant_id: 'XX08172008' }).warnings).toEqual([
-      { fieldCode: 'participant_id', code: 'ID_PATTERN_MISMATCH' },
-    ])
+    expect(run({ ...base, participant_id: 'MLN-001' })).toEqual({ errors: [], warnings: [] })
   })
 
   it('a calculation never reads another calculation output', () => {

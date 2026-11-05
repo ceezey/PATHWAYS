@@ -2388,7 +2388,6 @@ exports[`regression baseline > futuremakers fixture reads, matches and drafts as
         "if_other_sector_what_job",
         "if_other_sector_what_business",
         "if_other_technical_skills_what_specific_skills_do_you_want_to_le",
-        "beneficiary_code",
       ],
       "sourceNamesAdded": [
         "enrollment_date",

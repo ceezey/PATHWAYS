@@ -71,7 +71,7 @@ export const ruleKindLabels: Record<(typeof INTAKE_RULE_KINDS)[number], string> 
   SAME_ANSWER_AS: 'Same answer as the data processing consent',
   AGE_CHECK: 'Check the age column against a birth date',
   FOLLOW_UP_OF: 'Fill only when another field has certain answers',
-  ID_FROM_INITIALS_AND_BIRTH_DATE: 'Check the ID against initials and birth date',
+  ID_FROM_INITIALS_AND_BIRTH_DATE: 'ID against initials and birth date (no longer checked)',
   TOTAL_SCORE: 'Check the total score against the answer key',
 }
 
