@@ -144,6 +144,25 @@ describe('ImportMappingCard form coverage', () => {
     renderCard()
     expect(screen.getByText('Auto-matched: exact name')).toBeTruthy()
   })
+
+  it('warns of a required field with no column, except the enrollment date of a registration form', () => {
+    const fields = [
+      { code: 'first_name', label: 'First name', dataType: 'TEXT', required: true },
+      { code: 'enrollment_date', label: 'Enrollment date', dataType: 'DATE', required: true },
+    ]
+    const warningOf = (formType: string) => {
+      cleanup()
+      renderCard({
+        receipts: {},
+        batch: { formType },
+        mapping: { column_0001: 'first_name' },
+        selectedForm: { fields },
+      })
+      return screen.queryByText(/Validation will be refused/)?.textContent ?? null
+    }
+    expect(warningOf('BENEFICIARY_REGISTRATION')).toBeNull()
+    expect(warningOf('PRE_TEST')).toContain('Enrollment date (enrollment_date)')
+  })
 })
 
 describe('ImportMappingCard value translations', () => {
