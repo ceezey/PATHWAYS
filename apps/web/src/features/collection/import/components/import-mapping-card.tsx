@@ -7,13 +7,6 @@ import { useState } from 'react'
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 import { ToggleRow } from '../../forms/components/toggle-row'
 import type { BatchIntake } from '../hooks/use-batch-intake'
@@ -24,6 +17,7 @@ import { importProcessingComplete } from '../import-auto-continue'
 import { automaticMatchReason, batchCoverage, mappingLockedStatuses } from '../import.utils'
 import { CoverageNotice } from './coverage-notice'
 import { ImportDateOrder, columnDateOrders } from './import-date-order'
+import { ImportTargetSelect } from './import-target-select'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
 
 // At most five values in a line, so a column of many distinct answers stays readable.
@@ -232,33 +226,18 @@ export function ImportMappingCard({
                   </div>
                 ) : null}
               </div>
-              <Select
-                disabled={!mappingEditable}
+              <ImportTargetSelect
+                id={`import-mapping-target-${column.key}`}
+                label={`Target for column ${column.columnIndex}: ${column.header}`}
+                fields={selectedForm?.fields ?? []}
                 value={mapping[column.key] ?? '__pending__'}
-                onValueChange={(value) =>
+                disabled={!mappingEditable}
+                onChange={(value) =>
                   !mutation.current &&
                   scope.isCurrent() &&
                   setMapping((current) => ({ ...current, [column.key]: value }))
                 }
-              >
-                <SelectTrigger
-                  aria-label={`Target for column ${column.columnIndex}: ${column.header}`}
-                  id={`import-mapping-target-${column.key}`}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__pending__">
-                    Pending: select a target or explicit ignore
-                  </SelectItem>
-                  <SelectItem value="__ignore__">Ignore this source column</SelectItem>
-                  {selectedForm?.fields.map((field) => (
-                    <SelectItem key={field.code} value={field.code}>
-                      {field.label} ({field.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
               {targetField && dateColumn(column.key) ? (
                 <ImportDateOrder
                   columnLabel={`column ${column.columnIndex}`}
