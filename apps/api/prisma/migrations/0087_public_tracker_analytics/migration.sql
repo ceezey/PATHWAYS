@@ -26,7 +26,9 @@ DO $$ DECLARE fn record; BEGIN
    (2,'pathways.p06_saddd(uuid,uuid[],date,date,text)','6a355e3d9e24c71927d8a7136ac0450f','v'),
    (3,'pathways.p06_saddd_by_place(uuid,uuid,text)','d27955ca2dfed634e337ceabf4850399','s'),
    (4,'pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)','2c9dba260db07a6fcc317c2f0cbad04a','s'),
-   (5,'pathways.p06_indicator_values(uuid,text)','8d89974bf5632a2b5e2e99a6c5735141','s')) w(n,sig,md5,vol)
+   (5,'pathways.p06_indicator_values(uuid,text)','8d89974bf5632a2b5e2e99a6c5735141','s'),
+   (6,'pathways.p10_f9_timeline_aggregate(uuid,uuid,date)','3cce9cf594fcc6123b1fff49b176ba0d','s'),
+   (7,'pathways.p10_f9_timeline_last_completion(uuid,uuid)','0856ec76564f9786147488db63961898','s')) w(n,sig,md5,vol)
   LEFT JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig) LOOP
   IF fn.prosrc IS NULL OR pg_catalog.pg_get_userbyid(fn.proowner)<>'prisma' OR NOT fn.prosecdef OR fn.provolatile<>fn.vol
    OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""'] OR pg_catalog.md5(fn.prosrc)<>fn.md5
@@ -467,7 +469,101 @@ BEGIN
   RETURN to_jsonb(pathways.p87_indicator_values_core(org, wanted_project, zone));
 END $$;
 
--- 5. With no app context prisma reads the KPI sources or a release row only while the live revision shows kpi or saddd.
+-- 5. Timeline: the 0045 aggregate and the 0068 last completion without their actor checks.
+CREATE FUNCTION pathways.p87_timeline_core(org uuid, project uuid, reporting date) RETURNS jsonb
+ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+DECLARE
+  result jsonb;
+BEGIN
+  IF reporting IS NULL THEN
+    RAISE EXCEPTION 'A reporting date is required' USING ERRCODE='22023';
+  END IF;
+
+  SELECT jsonb_build_object(
+    'activities', (
+      SELECT jsonb_build_object(
+        'eligible', count(*),
+        'completed', count(*) FILTER (WHERE a.status = 'COMPLETED'),
+        'overdue', count(*) FILTER (
+          WHERE a.status <> 'COMPLETED'
+            AND a.planned_end_date >= DATE '1900-01-01'
+            AND a.planned_end_date <= DATE '2100-12-31'
+            AND reporting > a.planned_end_date),
+        'missingDates', count(*) FILTER (
+          WHERE a.status <> 'COMPLETED'
+            AND (a.planned_end_date IS NULL
+              OR a.planned_end_date < DATE '1900-01-01'
+              OR a.planned_end_date > DATE '2100-12-31')),
+        'maxOverdueDays', max(greatest(0, reporting - a.planned_end_date)) FILTER (
+          WHERE a.status <> 'COMPLETED'
+            AND a.planned_end_date >= DATE '1900-01-01'
+            AND a.planned_end_date <= DATE '2100-12-31')
+      )
+      FROM pathways.project_activities a
+      WHERE a.organization_id = org
+        AND a.project_id = project
+        AND a.archived_at IS NULL
+        AND a.status <> 'CANCELLED'
+    ),
+    'milestones', (
+      SELECT jsonb_build_object(
+        'completed', count(*) FILTER (WHERE m.status = 'COMPLETED'),
+        'rated', count(*) FILTER (
+          WHERE m.status = 'COMPLETED' AND m.target_date IS NOT NULL AND m.completion_date IS NOT NULL),
+        'onTime', count(*) FILTER (
+          WHERE m.status = 'COMPLETED' AND m.target_date IS NOT NULL AND m.completion_date IS NOT NULL
+            AND m.completion_date <= m.target_date)
+      )
+      FROM pathways.project_milestones m
+      WHERE m.organization_id = org
+        AND m.project_id = project
+        AND m.archived_at IS NULL
+    )
+  ) INTO result;
+  RETURN result;
+END $$;
+
+CREATE FUNCTION pathways.p87_timeline_last_completion_core(org uuid, project uuid) RETURNS date
+ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+DECLARE
+  result date;
+BEGIN
+  SELECT max(a.actual_end_date) INTO result
+  FROM pathways.project_activities a
+  WHERE a.organization_id = org
+    AND a.project_id = project
+    AND a.archived_at IS NULL
+    AND a.status <> 'CANCELLED'
+    AND a.status = 'COMPLETED'
+    AND a.actual_end_date BETWEEN DATE '1900-01-01' AND DATE '2100-12-31';
+  RETURN result;
+END $$;
+
+CREATE OR REPLACE FUNCTION pathways.p10_f9_timeline_aggregate(wanted_org uuid, wanted_project uuid, reporting_on date)
+ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+BEGIN
+  IF wanted_org IS DISTINCT FROM nullif(current_setting('app.organization_id', true), '')::uuid
+     OR NOT pathways.p06_can('analytics.descriptive.read', wanted_project)
+     OR NOT pathways.p06_can('monitoring.read', wanted_project)
+  THEN
+    RAISE EXCEPTION 'Analytics scope unavailable' USING ERRCODE='42501';
+  END IF;
+  RETURN pathways.p87_timeline_core(wanted_org, wanted_project, reporting_on);
+END $$;
+
+CREATE OR REPLACE FUNCTION pathways.p10_f9_timeline_last_completion(wanted_org uuid, wanted_project uuid)
+ RETURNS date LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+BEGIN
+  IF wanted_org IS DISTINCT FROM nullif(current_setting('app.organization_id', true), '')::uuid
+     OR NOT pathways.p06_can('analytics.descriptive.read', wanted_project)
+     OR NOT pathways.p06_can('monitoring.read', wanted_project)
+  THEN
+    RAISE EXCEPTION 'Analytics scope unavailable' USING ERRCODE='42501';
+  END IF;
+  RETURN pathways.p87_timeline_last_completion_core(wanted_org, wanted_project);
+END $$;
+
+-- 6. With no app context prisma reads the KPI sources or a release row only while the live revision shows kpi or saddd.
 CREATE POLICY p87_prisma_live_kpi_read ON pathways.project_indicator_bindings FOR SELECT TO prisma
  USING(EXISTS(SELECT FROM pathways.project_publications pub WHERE pub.organization_id=project_indicator_bindings.organization_id
   AND pub.project_id=project_indicator_bindings.project_id AND pub.live_snapshot->'views' ? 'kpi'));
@@ -478,7 +574,7 @@ CREATE POLICY p87_prisma_live_saddd_read ON pathways.sensitive_aggregate_release
  USING(EXISTS(SELECT FROM pathways.project_publications pub WHERE pub.organization_id=sensitive_aggregate_releases.organization_id
   AND pub.project_id=sensitive_aggregate_releases.project_id AND pub.live_snapshot->'views' ? 'saddd'));
 
--- 6. The public read: one view of a live revision of an active project, computed now with no actor, or NULL.
+-- 7. The public read: one view of a live revision of an active project, computed now with no actor, or NULL.
 CREATE FUNCTION pathways.p87_public_view(wanted_project uuid, wanted_view text) RETURNS jsonb
  LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
 DECLARE live record; today date:=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date;
@@ -515,6 +611,12 @@ BEGIN
   RETURN (SELECT coalesce(jsonb_agg(k.item ORDER BY k.item->>'code',k.item->>'id'),'[]'::jsonb) FROM (
    SELECT DISTINCT ON (v.item->>'code') v.item FROM pg_catalog.unnest(pathways.p87_indicator_values_core(live.org,wanted_project,'Asia/Manila')) v(item)
    WHERE v.item->>'status'='ACTIVE' ORDER BY v.item->>'code',v.item->>'periodEnd' DESC NULLS LAST) k);
+ ELSIF wanted_view='timeline' THEN
+  -- As the internal view: the final position is read only for a completed project.
+  RETURN jsonb_build_object('project',jsonb_build_object('status',live.status,'startDate',to_char(live.start_date,'YYYY-MM-DD'),
+    'endDate',to_char(live.end_date,'YYYY-MM-DD')),'aggregate',pathways.p87_timeline_core(live.org,wanted_project,today),
+   'lastCompletion',CASE WHEN live.status='COMPLETED'
+    THEN to_char(pathways.p87_timeline_last_completion_core(live.org,wanted_project),'YYYY-MM-DD') END);
  ELSIF wanted_view='map' THEN
   -- This project's places and reach only; never the overview or budget.
   RETURN jsonb_build_object('area',live.live_snapshot->>'area','towns',pathways.p87_saddd_by_place_core(live.org,wanted_project,'Asia/Manila'));
@@ -524,7 +626,8 @@ END $$;
 
 REVOKE ALL ON FUNCTION pathways.p87_saddd_core(uuid,uuid,date,date,text),pathways.p87_saddd_fingerprint(uuid,uuid,jsonb),
   pathways.p87_saddd_by_place_core(uuid,uuid,text),pathways.p87_indicator_value_core(uuid,uuid,uuid,text),
-  pathways.p87_indicator_values_core(uuid,uuid,text) FROM PUBLIC,anon,authenticated,service_role,pathways_runtime;
+  pathways.p87_indicator_values_core(uuid,uuid,text),pathways.p87_timeline_core(uuid,uuid,date),
+  pathways.p87_timeline_last_completion_core(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role,pathways_runtime;
 REVOKE ALL ON FUNCTION pathways.p87_public_view(uuid,text) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION pathways.p87_public_view(uuid,text) TO pathways_runtime;
 
@@ -536,19 +639,22 @@ DO $$ BEGIN
     (2,'pathways.p06_saddd(uuid,uuid[],date,date,text)','52c7180d5550de4d48dcfcdd82cbf5fa','v'),
     (3,'pathways.p06_saddd_by_place(uuid,uuid,text)','1a61e6dfdbf63db03d334e7ab7ef69d3','s'),
     (4,'pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)','3f969e2940ba31cf592e6feb75cc69b2','s'),
-    (5,'pathways.p06_indicator_values(uuid,text)','aac67ef4de765a95bfbc24edd65f73a4','s')) w(n,sig,md5,vol)
+    (5,'pathways.p06_indicator_values(uuid,text)','aac67ef4de765a95bfbc24edd65f73a4','s'),
+    (6,'pathways.p10_f9_timeline_aggregate(uuid,uuid,date)','2feb9edc66a5326f333a3f2b59400c76','s'),
+    (7,'pathways.p10_f9_timeline_last_completion(uuid,uuid)','28d0913ee4f26777dd9b0ff027d7f535','s')) w(n,sig,md5,vol)
    JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
    WHERE pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.provolatile=w.vol
     AND p.proconfig=ARRAY['search_path=""'] AND pg_catalog.md5(p.prosrc)=w.md5
-    AND coalesce(p.proacl::text,'')=pg_catalog.current_setting('pathways_0087.acl_'||w.n))<>6
+    AND coalesce(p.proacl::text,'')=pg_catalog.current_setting('pathways_0087.acl_'||w.n))<>8
   OR (SELECT count(*) FROM (VALUES ('pathways.p87_saddd_core(uuid,uuid,date,date,text)','{prisma}'),
     ('pathways.p87_saddd_fingerprint(uuid,uuid,jsonb)','{prisma}'),('pathways.p87_saddd_by_place_core(uuid,uuid,text)','{prisma}'),
     ('pathways.p87_indicator_value_core(uuid,uuid,uuid,text)','{prisma}'),('pathways.p87_indicator_values_core(uuid,uuid,text)','{prisma}'),
+    ('pathways.p87_timeline_core(uuid,uuid,date)','{prisma}'),('pathways.p87_timeline_last_completion_core(uuid,uuid)','{prisma}'),
     ('pathways.p87_public_view(uuid,text)','{pathways_runtime,prisma}')) w(sig,grantees)
    JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
    WHERE pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.provolatile='s' AND p.proconfig=ARRAY['search_path=""']
     AND (SELECT pg_catalog.array_agg(a.grantee::pg_catalog.regrole::text ORDER BY a.grantee::pg_catalog.regrole::text)
-     FROM pg_catalog.aclexplode(p.proacl) a)=w.grantees::text[])<>6
+     FROM pg_catalog.aclexplode(p.proacl) a)=w.grantees::text[])<>8
   OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polcmd='r' AND polroles=ARRAY['prisma'::pg_catalog.regrole::oid]
    AND ((polname='p87_prisma_live_saddd_read' AND polrelid='pathways.sensitive_aggregate_releases'::pg_catalog.regclass)
     OR (polname='p87_prisma_live_kpi_read' AND polrelid IN ('pathways.project_indicator_bindings'::pg_catalog.regclass,
