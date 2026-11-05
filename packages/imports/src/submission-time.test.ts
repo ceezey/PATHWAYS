@@ -53,6 +53,15 @@ describe('proposedEnrollmentDate', () => {
     )
   })
 
+  it('keeps a Google Forms Timestamp with no zone as local time but converts one with a zone', () => {
+    expect(proposedEnrollmentDate('2026-01-15 23:30:00', 'Timestamp', null)).toBe('2026-01-15')
+    expect(proposedEnrollmentDate('2026-01-15 23:30:00', ' timestamp ', null)).toBe('2026-01-15')
+    expect(proposedEnrollmentDate('2026-01-15 23:30:00', '_submission_time', null)).toBe(
+      '2026-01-16',
+    )
+    expect(proposedEnrollmentDate('2026-01-14T16:30:00Z', 'Timestamp', null)).toBe('2026-01-15')
+  })
+
   it('proposes a date-only value as written under any header', () => {
     expect(proposedEnrollmentDate('2026-01-14', '_submission_time', 'DMY')).toBe('2026-01-14')
     expect(proposedEnrollmentDate('2026-01-14', 'Timestamp', null)).toBe('2026-01-14')
