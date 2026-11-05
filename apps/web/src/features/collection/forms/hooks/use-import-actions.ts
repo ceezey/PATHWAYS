@@ -135,7 +135,7 @@ export function useImportActions(state: CollectionState, guard: CollectionGuard)
         setParsedImport(null)
         setMappingRows([])
         setUploadProgress(100)
-        setImportStatus('ready')
+        setImportStatus('error')
         setImportMessage(IMPORT_NEEDS_OTHER_ROLE)
         return
       }

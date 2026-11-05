@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 
+import { IMPORT_NEEDS_OTHER_ROLE } from '../../collection.copy'
 import type {
   CollectionMode,
   CollectionView,
@@ -162,6 +163,7 @@ export const ImportView = ({
         <div className="mt-4 space-y-3">
           <ProgressBar
             label="File reading progress"
+            hideText={importStatus === 'error'}
             tone={
               importStatus === 'error' ? 'danger' : importStatus === 'ready' ? 'success' : 'info'
             }
@@ -188,7 +190,8 @@ export const ImportView = ({
               onPrepare={() => onPrepareForm?.()}
             />
           ) : null}
-          {importStatus === 'error' ? (
+          {/* Re-reading a refused file refuses it again, so only a read failure offers a retry. */}
+          {importStatus === 'error' && importMessage !== IMPORT_NEEDS_OTHER_ROLE ? (
             <Button size="sm" type="button" variant="outline" onClick={retrySelectedFile}>
               Retry reading file
             </Button>

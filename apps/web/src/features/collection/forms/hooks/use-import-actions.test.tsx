@@ -235,7 +235,10 @@ describe('straight-through import', () => {
       access.profile.roles = ['SYSTEM_ADMINISTRATOR']
       access.profile.permissions = allGrants.filter((grant) => grant !== 'imports.review')
       await chooseFile()
-      await screen.findByText(IMPORT_NEEDS_OTHER_ROLE)
+      const refusal = await screen.findByText(IMPORT_NEEDS_OTHER_ROLE)
+      expect(refusal.getAttribute('data-import-status')).toBe('error')
+      expect(screen.queryByText('100%')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Retry reading file' })).toBeNull()
       expect(screen.queryByText(/Preview ready for/)).toBeNull()
       expect(screen.queryByRole('button', { name: 'Proceed' })).toBeNull()
       expect(api.uploadImport).not.toHaveBeenCalled()
