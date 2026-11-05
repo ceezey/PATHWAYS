@@ -872,6 +872,32 @@ describe('resolve', () => {
     expect(store.rows[0]).toMatchObject({ status: 'PROCESSED', registrationOutcome: 'CREATED' })
   })
 
+  it('a typed client id on a row held with no id takes the form default type', async () => {
+    // Validation drops the defaulted type when the ID cell is blank, so the stored row has neither.
+    store.rows[0].normalizedData = {
+      ...fileValues,
+      external_identifier_type: null,
+      external_identifier_value: null,
+    }
+    store.rows[0].processingErrorCode = 'IDENTITY_MISSING'
+
+    await resolve({
+      saveAs: 'NEW',
+      choices: { external_identifier_value: 'OWN' },
+      own: { external_identifier_value: 'S-9' },
+    })
+
+    const [, , input] = registration.promoteRegistration.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+      { values: Json },
+    ]
+    expect(input.values).toMatchObject({
+      external_identifier_type: 'STUDENT_ID',
+      external_identifier_value: 'S-9',
+    })
+  })
+
   it('invalid own value keeps the row held', async () => {
     const attempt = resolve({
       choices: { ...keepBoth, birth_date: 'OWN' },

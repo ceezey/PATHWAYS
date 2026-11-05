@@ -427,7 +427,9 @@ function validateChosen(
   body: ResolveImportRowRequest,
   chosen: Record<string, unknown>,
 ) {
-  const prepared = { ...chosen }
+  // Validation dropped a defaulted type with no ID, so a typed ID takes the form default again.
+  const { external_identifier_type: type, ...untyped } = chosen
+  const prepared: Record<string, unknown> = type == null ? untyped : { ...chosen }
   const fields = held.fields.map((field) => {
     if (!isCalculatedRule(field.rule)) return field
     if (body.choices[field.code] && body.choices[field.code] !== 'CALCULATED') {
