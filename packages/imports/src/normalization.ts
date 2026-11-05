@@ -14,6 +14,7 @@ import {
 } from './intake-rules'
 import { choiceAnswers } from './mappers/smart-match-values'
 import { type ImportColumnRule, mapKey } from './value-map'
+import { automaticValue } from './value-map-suggest'
 
 export interface ImportRowNormalizationResult {
   valid: boolean
@@ -85,6 +86,10 @@ function convert(
     if (typeof raw === 'string' && /^(true|false)$/i.test(raw.trim())) {
       return { value: raw.trim().toLowerCase() === 'true' }
     }
+    // The yes and no words Suggest proposes apply without a click (cr-pathways-yes-no-boolean-import).
+    const read =
+      typeof raw === 'string' || typeof raw === 'number' ? automaticValue(String(raw), field) : null
+    if (read) return { value: read === 'true' }
     return {
       value: null,
       error: conversionError(field, 'AMBIGUOUS_BOOLEAN', 'Expected true or false.'),
@@ -154,9 +159,15 @@ export function normalizeImportedRow(
     const rule = Object.hasOwn(rules, field.code) ? rules[field.code] : undefined
     let raw = translate(rawValuesByFieldCode[field.code], rule)
     if (!isBlankRaw(rawValuesByFieldCode[field.code])) sourceProvided.add(field.code)
-    if (field.dataType === 'SELECT' && typeof raw === 'boolean') raw = String(raw)
+    // A true/false or whole-number cell is read as its text, as the mapping step shows it.
+    if (
+      field.dataType === 'SELECT' &&
+      (typeof raw === 'boolean' || (typeof raw === 'number' && Number.isSafeInteger(raw)))
+    ) {
+      raw = String(raw)
+    }
     if (field.dataType === 'SELECT' && typeof raw === 'string' && raw !== '') {
-      raw = resolverFor(field)(raw) ?? raw
+      raw = resolverFor(field)(raw) ?? automaticValue(raw, field) ?? raw
     }
     const declared =
       rule?.dataType && rule.dataType !== field.dataType

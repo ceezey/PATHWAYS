@@ -1,5 +1,6 @@
 'use client'
 
+import { columnTranslations } from '@pathways/imports'
 import { isCalculatedRule } from '@pathways/shared'
 import { useState } from 'react'
 
@@ -24,6 +25,12 @@ import { automaticMatchReason, batchCoverage, mappingLockedStatuses } from '../i
 import { CoverageNotice } from './coverage-notice'
 import { ImportDateOrder, columnDateOrders } from './import-date-order'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
+
+// At most five values in a line, so a column of many distinct answers stays readable.
+const listed = (values: readonly string[]) =>
+  values.length > 5
+    ? `${values.slice(0, 5).join(', ')} and ${values.length - 5} more`
+    : values.join(', ')
 
 export function ImportMappingCard({
   state,
@@ -96,13 +103,28 @@ export function ImportMappingCard({
   const dateColumn = (key: string) =>
     (rules[key]?.dataType ||
       selectedForm?.fields.find((field) => field.code === mapping[key])?.dataType) === 'DATE'
+  // What import reads on its own in a true/false or choice column, by the field's own type as normalization does.
+  const translations = (key: string) => {
+    const field = selectedForm?.fields.find((item) => item.code === mapping[key])
+    return field
+      ? columnTranslations(columnValues.get(key) ?? [], field, rules[key]?.pairs ?? [])
+      : { automatic: [], unmatched: [] }
+  }
+  // Listed above the filter, because a column read entirely on its own needs no decision and is hidden.
+  const translatedColumns = sourceColumns.flatMap((column) => {
+    const { automatic } = translations(column.key)
+    return automatic.length
+      ? [`${column.header} (${listed(automatic.map(({ from, to }) => `${from} → ${to}`))})`]
+      : []
+  })
   const undecided = (key: string) =>
     !mapping[key] ||
     mapping[key] === '__pending__' ||
     openSuggestions.some((item) => item.column.key === key) ||
     (dateColumn(key) &&
       !rules[key]?.dateOrder &&
-      columnDateOrders(columnValues.get(key), referenceYear).needsChoice)
+      columnDateOrders(columnValues.get(key), referenceYear).needsChoice) ||
+    translations(key).unmatched.length > 0
   const undecidedKeys = () =>
     new Set(sourceColumns.filter((column) => undecided(column.key)).map((column) => column.key))
   // The columns undecided when the filter was switched on, so deciding one keeps it in view.
@@ -157,6 +179,12 @@ export function ImportMappingCard({
         <output aria-live="polite" className="block text-sm text-muted-foreground">
           {mappingNotice}
         </output>
+        {translatedColumns.length ? (
+          <p className="text-sm text-muted-foreground">
+            Translated automatically: {translatedColumns.join('; ')}. Add a translation on the
+            column to change one.
+          </p>
+        ) : null}
         <ToggleRow
           checked={undecidedShown !== null}
           label={`Show only columns that need a decision (${undecidedKeys().size} of ${sourceColumns.length})`}
@@ -169,6 +197,7 @@ export function ImportMappingCard({
             (field) => field.code === mapping[column.key],
           )
           const suggestion = openSuggestions.find((item) => item.column.key === column.key)
+          const { automatic: readOnItsOwn, unmatched } = translations(column.key)
           return (
             <div
               key={column.key}
@@ -247,6 +276,20 @@ export function ImportMappingCard({
                     }))
                   }
                 />
+              ) : null}
+              {readOnItsOwn.length ? (
+                <p className="text-sm text-muted-foreground sm:col-span-2">
+                  Translated automatically:{' '}
+                  {listed(readOnItsOwn.map(({ from, to }) => `${from} → ${to}`))}. Add a translation
+                  to change one.
+                </p>
+              ) : null}
+              {unmatched.length ? (
+                <p className="text-sm text-warning sm:col-span-2">
+                  {unmatched.length === 1 ? '1 value matches' : `${unmatched.length} values match`}{' '}
+                  no answer: {listed(unmatched)}. Add a translation for each, or rows with these
+                  values will be invalid.
+                </p>
               ) : null}
               {targetField ? (
                 <details className="sm:col-span-2">
