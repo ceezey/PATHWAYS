@@ -421,11 +421,13 @@ describe('public media list and content', () => {
   })
 
   it('list names the source of each row', async () => {
-    tx.evidenceMedia.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      listed({ id: 'a', ...proof }),
-      listed({ id: 'b', enrollmentId: 'e' }),
-      listed({ id: 'c' }),
-    ])
+    tx.evidenceMedia.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        listed({ id: 'a', ...proof }),
+        listed({ id: 'b', enrollmentId: 'e' }),
+        listed({ id: 'c' }),
+      ])
     const { items } = await service.list(uploader, projectId)
     expect(items.map((item) => item.source)).toEqual(['ACTIVITY', 'BENEFICIARY', 'UPLOAD'])
     expect(tx.evidenceMedia.findMany.mock.calls[0][0].where).toMatchObject({

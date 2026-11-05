@@ -36,8 +36,8 @@ import {
   evidenceExtension,
   proofDeclarations,
 } from '../activities/activity-proof.helpers'
-import { BeneficiaryStepUpService } from '../auth/beneficiary-step-up.service'
 import { streamVerifiedMedia, verifyUploadedMedia } from '../activities/private-media-access'
+import { BeneficiaryStepUpService } from '../auth/beneficiary-step-up.service'
 import {
   PRIVATE_STORAGE_FACTORIES,
   type PrivateStorageFactories,

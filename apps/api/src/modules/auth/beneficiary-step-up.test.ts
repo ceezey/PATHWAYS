@@ -4,12 +4,12 @@ import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-step-up.decorator'
+import type { PrismaService } from '../../prisma/prisma.service'
 import { BeneficiariesController } from '../beneficiaries/beneficiaries.controller'
 import { BeneficiaryMediaController } from '../beneficiary-media/beneficiary-media.controller'
 import { BeneficiaryJourneyController } from '../participants/beneficiary-journey.controller'
 import { JourneyStagesController } from '../participants/journey-stages.controller'
 import { AuthorizedDataController } from './authorized-data.controller'
-import type { PrismaService } from '../../prisma/prisma.service'
 import { STEP_UP_WINDOW_SECONDS, evaluateBeneficiaryStepUp } from './beneficiary-step-up'
 import { BeneficiaryStepUpService } from './beneficiary-step-up.service'
 
