@@ -97,6 +97,7 @@ const scoreMismatch = 'The total score does not match the answer key'
 const holdReasons: Record<ImportHoldCode | 'TOTAL_SCORE_MISMATCH', string> = {
   CONSENT_REQUIRED: 'Consent is missing',
   GUARDIAN_CONSENT_REQUIRED: 'Under 18, waiting for guardian approval',
+  ENROLLMENT_DATE_REQUIRED: 'Enrollment date to confirm',
   AMBIGUOUS_IDENTITY: 'More than one participant could match',
   IDENTITY_REVIEW_REQUIRED: 'The participant match needs checking',
   DUPLICATE_IDENTITY: 'Looks like a participant already in PATHWAYS',

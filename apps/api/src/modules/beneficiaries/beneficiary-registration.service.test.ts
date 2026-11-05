@@ -513,6 +513,57 @@ describe('P04 beneficiary registration service', () => {
     })
   })
 
+  describe('imported rows without an enrollment date', () => {
+    const { enrollment_date: _dropped, ...withoutKey } = values()
+    const noDate = [
+      ['null', values({ enrollment_date: null })],
+      ['blank text', values({ enrollment_date: '  ' })],
+      ['absent', withoutKey as ReturnType<typeof values>],
+    ] as const
+    const minorBorn = { birth_date: '2014-01-01', age_at_registration: null, is_minor: true }
+
+    it.each(noDate)(
+      'holds a row whose enrollment date is %s for confirmation without writes',
+      async (_label, input) => {
+        await expect(promote(input, 'IMPORTED_DATASET')).resolves.toEqual({
+          kind: 'REVIEW',
+          code: 'ENROLLMENT_DATE_REQUIRED',
+        })
+        expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+        expect(tx.formSubmission.create).not.toHaveBeenCalled()
+      },
+    )
+
+    it.each(['consent_recorded', 'data_processing_consent_recorded'])(
+      'holds CONSENT_REQUIRED, not the date hold, when %s is false',
+      async (code) => {
+        await expect(
+          promote(values({ enrollment_date: null, [code]: false }), 'IMPORTED_DATASET'),
+        ).resolves.toEqual({ kind: 'REVIEW', code: 'CONSENT_REQUIRED' })
+      },
+    )
+
+    it('holds a minor for the date before the guardian check', async () => {
+      await expect(
+        promote(values({ ...minorBorn, enrollment_date: null }), 'IMPORTED_DATASET'),
+      ).resolves.toEqual({ kind: 'REVIEW', code: 'ENROLLMENT_DATE_REQUIRED' })
+    })
+
+    it.each(noDate)(
+      'still rejects direct entry whose enrollment date is %s',
+      async (_label, input) => {
+        await expect(promote(input)).rejects.toBeInstanceOf(BadRequestException)
+        expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+      },
+    )
+
+    it('leaves a row with an enrollment date unaffected', async () => {
+      await expect(promote(values(), 'IMPORTED_DATASET')).resolves.toMatchObject({
+        kind: 'PROCESSED',
+      })
+    })
+  })
+
   describe('minors without guardian consent', () => {
     const minor = (patch: Record<string, unknown> = {}) =>
       values({

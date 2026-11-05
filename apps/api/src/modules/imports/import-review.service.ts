@@ -551,6 +551,7 @@ const reviewNextStep: Record<string, string> = {
   CONSENT_REQUIRED: 'Consent is not recorded in the file, so upload a corrected file.',
   GUARDIAN_CONSENT_REQUIRED:
     'The participant is under 18 and an existing profile cannot be approved by a Project Officer, so upload a corrected file.',
+  ENROLLMENT_DATE_REQUIRED: 'Confirm the enrollment date on the import page.',
 }
 const reviewDefaultStep =
   'Open the import again to see where it stands, or upload a corrected file.'

@@ -1049,6 +1049,23 @@ describe('metadata-driven intake validation', () => {
     expect(writes[0].normalized_data).not.toHaveProperty('enrollment_date')
   })
 
+  it('processing a file with no enrollment date column holds every row for confirmation', async () => {
+    state.store = registrationStore(true, withoutEnrollment, noEnrollmentColumns)
+    const imports = registrar()
+
+    await validate(imports)
+    const processed = await runProcess(imports)
+
+    // Rows 3 and 7 are minors, yet the date hold comes before the guardian check.
+    expect(state.store.rows.map((row) => row.status)).toEqual(Array(10).fill('UNPROCESSED'))
+    expect(state.store.rows.map((row) => row.processingErrorCode)).toEqual(
+      Array(10).fill('ENROLLMENT_DATE_REQUIRED'),
+    )
+    expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+    expect(state.store.submissions).toHaveLength(0)
+    expect(processed).toMatchObject({ totals: { processed: 0, unprocessed: 10, failed: 0 } })
+  })
+
   it('a registration file missing another required column is still refused', async () => {
     state.store = registrationStore(
       true,
