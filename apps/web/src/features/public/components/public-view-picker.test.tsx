@@ -51,6 +51,22 @@ describe('public view picker', () => {
     )
   })
 
+  it('forgets a keyboard move once another chart is ticked', () => {
+    const Stateful = () => {
+      const [value, setValue] = useState<PublicView[]>(['kpi', 'saddd'])
+      return <PublicViewPicker disabled={false} onChange={setValue} value={value} />
+    }
+    render(<Stateful />)
+    const kpi = handle('KPI / indicator performance')
+    kpi.focus()
+    fireEvent.keyDown(kpi, { key: 'ArrowDown' })
+    const participation = screen.getByRole('checkbox', { name: 'Participation patterns' })
+    participation.focus()
+    fireEvent.click(participation)
+    expect(document.activeElement).not.toBe(handle('KPI / indicator performance'))
+    expect(screen.getByRole('status').textContent).toBe('')
+  })
+
   it('cancels the browser drop so a dropped image cannot navigate away', () => {
     setup(['kpi', 'map'])
     const [first, last] = screen.getAllByRole('listitem')

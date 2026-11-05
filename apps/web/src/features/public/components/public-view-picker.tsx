@@ -32,16 +32,25 @@ export const PublicViewPicker = ({
     onChange(next)
   }
   const handles = useRef(new Map<PublicView, HTMLButtonElement>())
-  const [moved, setMoved] = useState<PublicView | null>(null)
-  // React re-inserts a moved row, which drops focus, so the moved handle is focused again.
+  const pendingFocus = useRef<PublicView | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+  // React re-inserts a moved row, which drops focus, so the handle moved by a key press is focused once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Runs when the new order arrives.
   useEffect(() => {
-    if (moved && value.includes(moved)) handles.current.get(moved)?.focus()
-  }, [moved, value])
+    const view = pendingFocus.current
+    pendingFocus.current = null
+    if (view) handles.current.get(view)?.focus()
+  }, [value])
+  // A tick, untick or drag is not a keyboard move, so nothing is refocused or announced.
+  const change = (next: PublicView[]) => {
+    pendingFocus.current = null
+    setAnnouncement('')
+    onChange(next)
+  }
   const drag = useDragReorder(value, disabled, (view, to) => {
-    setMoved(null)
+    setAnnouncement('')
     move(view, to)
   })
-  const position = moved ? value.indexOf(moved) : -1
   const unticked = publicView.options.filter((view) => !value.includes(view))
   return (
     <fieldset className="space-y-2" disabled={disabled}>
@@ -65,7 +74,7 @@ export const PublicViewPicker = ({
               <label className="flex flex-1 items-center gap-3">
                 <input
                   checked
-                  onChange={() => onChange(value.filter((entry) => entry !== view))}
+                  onChange={() => change(value.filter((entry) => entry !== view))}
                   type="checkbox"
                 />
                 {viewLabels[view]}
@@ -78,7 +87,10 @@ export const PublicViewPicker = ({
                   event.preventDefault()
                   const to = index + (event.key === 'ArrowUp' ? -1 : 1)
                   if (to < 0 || to >= value.length) return
-                  setMoved(view)
+                  pendingFocus.current = view
+                  setAnnouncement(
+                    `${viewLabels[view]} moved to position ${to + 1} of ${value.length}`,
+                  )
                   move(view, to)
                 }}
                 ref={(node) => {
@@ -95,13 +107,11 @@ export const PublicViewPicker = ({
         </ol>
       ) : null}
       <output aria-live="polite" className="sr-only">
-        {moved && position >= 0
-          ? `${viewLabels[moved]} moved to position ${position + 1} of ${value.length}`
-          : ''}
+        {announcement}
       </output>
       {unticked.map((view) => (
         <label className="flex min-h-11 items-center gap-3 px-3 text-sm" key={view}>
-          <input checked={false} onChange={() => onChange([...value, view])} type="checkbox" />
+          <input checked={false} onChange={() => change([...value, view])} type="checkbox" />
           {viewLabels[view]}
         </label>
       ))}
