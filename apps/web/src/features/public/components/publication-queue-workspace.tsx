@@ -13,22 +13,16 @@ import { projectsClient } from '@/lib/api/projects'
 import { publicationClient } from '@/lib/api/publication'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { type PublicView, type PublicationSelection, publicView } from '@pathways/shared'
+import type { PublicView, PublicationSelection } from '@pathways/shared'
 import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { PublicDraftPreview } from './public-draft-preview'
 import { PublicMediaPicker } from './public-media-picker'
 import { PublicMediaQueue } from './public-media-queue'
-
-const viewLabels: Record<PublicView, string> = {
-  kpi: 'KPI / indicator performance',
-  saddd: 'SADDD (sex, age, disability)',
-  participation: 'Participation patterns',
-  timeline: 'Timeline adherence',
-  map: 'Project coverage map',
-}
+import { PublicViewPicker } from './public-view-picker'
 
 export const PublicationQueueWorkspace = ({
   initialProjectId,
@@ -112,10 +106,12 @@ export const PublicationQueueWorkspace = ({
     (pendingView && id === initialProjectId && !savedViews.includes(pendingView)
       ? [...savedViews, pendingView]
       : savedViews)
+  // Compared as submitted (trimmed), so undoing an edit or adding stray spaces is not an edit.
   // An edited summary or selection must be submitted and approved again before it can go live.
   const edited =
-    summary !== current?.summary ||
-    JSON.stringify(media) !== JSON.stringify(savedMedia) ||
+    summary.trim() !== current?.summary ||
+    JSON.stringify(media.map(({ id, caption }) => ({ id, caption: caption.trim() }))) !==
+      JSON.stringify(savedMedia) ||
     JSON.stringify(views) !== JSON.stringify(savedViews)
   const captionsReady = media.every((entry) => entry.caption.trim())
   const permitted = usePermission()
@@ -329,31 +325,18 @@ export const PublicationQueueWorkspace = ({
                 projectId={id}
                 value={media}
               />
-              <fieldset className="space-y-2" disabled={!owner || busy}>
-                <legend className="text-sm font-medium">Charts on the public page</legend>
-                {publicView.options.map((view) => (
-                  <label className="flex min-h-11 items-center gap-3 text-sm" key={view}>
-                    <input
-                      checked={views.includes(view)}
-                      onChange={(event) =>
-                        edit({
-                          views: event.target.checked
-                            ? [...views, view]
-                            : views.filter((entry) => entry !== view),
-                        })
-                      }
-                      type="checkbox"
-                    />
-                    {viewLabels[view]}
-                  </label>
-                ))}
-              </fieldset>
+              <PublicViewPicker
+                disabled={!owner || busy}
+                onChange={(next) => edit({ views: next })}
+                value={views}
+              />
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   disabled={
                     !owner ||
                     busy ||
+                    !edited ||
                     !summary.trim() ||
                     !captionsReady ||
                     mediaBlocked ||
@@ -403,10 +386,15 @@ export const PublicationQueueWorkspace = ({
                   </Button>
                 )}
               </div>
-              {current && (
-                <Button asChild variant="ghost">
-                  <Link href={`/transparency/${id}/preview`}>Staff preview</Link>
-                </Button>
+              {selected && (
+                <PublicDraftPreview
+                  current={current}
+                  edited={edited}
+                  media={media}
+                  project={selected}
+                  summary={summary}
+                  views={views}
+                />
               )}
               {current?.live && (
                 <Button asChild variant="ghost">

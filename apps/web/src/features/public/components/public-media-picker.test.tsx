@@ -209,6 +209,23 @@ describe('public media picker', () => {
     expect(onChange).toHaveBeenLastCalledWith([value[1]])
   })
 
+  it('lays out the first item as the lead tile and drags an item into its place', () => {
+    state.items = [item(0), item(1), item(2)]
+    const onChange = vi.fn()
+    const value = [0, 1, 2].map((n) => ({ id: ids[n], caption: `C${n}` }))
+    render(<PublicMediaPicker projectId={projectId} value={value} onChange={onChange} />)
+    const tiles = within(screen.getByRole('list', { name: 'Chosen media' })).getAllByRole(
+      'listitem',
+    )
+    expect(tiles[0].className).toContain('col-span')
+    expect(tiles[1].className).not.toContain('col-span')
+    fireEvent.dragStart(tiles[2])
+    fireEvent.dragOver(tiles[0])
+    expect(tiles[0].querySelector('[data-drop-line="before"]')).toBeTruthy()
+    fireEvent.drop(tiles[0])
+    expect(onChange).toHaveBeenLastCalledWith([value[2], value[0], value[1]])
+  })
+
   it('lists a chosen item once and marks it added in the system list', () => {
     state.items = [item(0)]
     render(

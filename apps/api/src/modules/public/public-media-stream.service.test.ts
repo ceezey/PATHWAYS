@@ -128,7 +128,10 @@ describe('public media stream', () => {
     ['bytes=0-1', 'image/jpeg'],
   ])('bad range gives 416: %s on %s', async (range, contentType) => {
     queryRaw.mockResolvedValue([live(contentType, 5000)])
-    await expect(service.open(projectId, mediaId, range)).rejects.toMatchObject({ status: 416 })
+    await expect(service.open(projectId, mediaId, range)).rejects.toMatchObject({
+      status: 416,
+      byteSize: 5000,
+    })
     expect(readRange).not.toHaveBeenCalled()
   })
 

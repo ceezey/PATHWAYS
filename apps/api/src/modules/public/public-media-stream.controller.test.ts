@@ -2,11 +2,12 @@ import 'reflect-metadata'
 
 import type { ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
+import { NotFoundException } from '@nestjs/common'
 import { HEADERS_METADATA } from '@nestjs/common/constants'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PublicMediaStreamController } from './public-media-stream.controller'
-import type { PublicMediaStreamService } from './public-media-stream.service'
+import { type PublicMediaStreamService, RangeNotSatisfiable } from './public-media-stream.service'
 
 const projectId = '20000000-0000-4000-8000-000000000002'
 const mediaId = '50000000-0000-4000-8000-000000000005'
@@ -76,6 +77,24 @@ describe('public media stream controller', () => {
     expect(headers['Content-Range']).toBe('bytes 0-1/5000')
     expect(headers['Accept-Ranges']).toBe('bytes')
     expect(file.getHeaders()).toMatchObject({ type: 'video/mp4', length: 2 })
+  })
+
+  it('a 416 names the full size in Content-Range and rethrows', async () => {
+    open.mockRejectedValue(new RangeNotSatisfiable(5000))
+    const { response, headers } = mockResponse()
+    await expect(controller.get(projectId, mediaId, 'bytes=abc', response)).rejects.toMatchObject({
+      status: 416,
+    })
+    expect(headers['Content-Range']).toBe('bytes */5000')
+  })
+
+  it('other errors set no Content-Range', async () => {
+    open.mockRejectedValue(new NotFoundException('Media unavailable.'))
+    const { response, headers } = mockResponse()
+    await expect(controller.get(projectId, mediaId, 'bytes=0-1', response)).rejects.toMatchObject({
+      status: 404,
+    })
+    expect(headers['Content-Range']).toBeUndefined()
   })
 
   it('full video offers ranges at status 200', async () => {
