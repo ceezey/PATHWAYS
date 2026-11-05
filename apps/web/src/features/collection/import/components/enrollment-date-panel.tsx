@@ -168,7 +168,7 @@ export function EnrollmentDatePanel({
             confirmLabel="Confirm enrollment dates"
             confirmVariant="default"
             description={`This sets the enrollment date of ${plural(chosen.length, 'participant')} and processes them. It cannot be undone here.`}
-            onConfirm={() => void confirm(confirming ?? 'proposed')}
+            onConfirm={() => confirming && void confirm(confirming)}
             onOpenChange={(open) => !open && setConfirming(null)}
             open={confirming !== null}
             title="Confirm enrollment dates?"

@@ -15,6 +15,23 @@ vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => state }))
 vi.mock('@/lib/api/imports', () => ({ importsClient: api }))
 const toast = vi.hoisted(() => ({ success: vi.fn() }))
 vi.mock('sonner', () => ({ toast }))
+// When on, a confirm button stays clickable after the dialog closes, as it does while the dialog animates out.
+const closing = vi.hoisted(() => ({ on: false }))
+vi.mock('@/components/pathways/confirmation-dialog', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/components/pathways/confirmation-dialog')>()
+  return {
+    ConfirmationDialog: (props: Parameters<typeof real.ConfirmationDialog>[0]) => (
+      <>
+        <real.ConfirmationDialog {...props} />
+        {closing.on && !props.open ? (
+          <button onClick={props.onConfirm} type="button">
+            Closing confirm
+          </button>
+        ) : null}
+      </>
+    ),
+  }
+})
 
 const headers = [
   { key: 'column_0001', header: 'Name' },
@@ -57,6 +74,7 @@ const sizes = () =>
 describe('enrollment date panel', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    closing.on = false
     state.profile.roles = ['PROJECT_OFFICER']
     state.profile.permissions = ['imports.read', 'imports.process']
     api.confirmEnrollmentDates.mockImplementation(
@@ -140,6 +158,17 @@ describe('enrollment date panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(api.confirmEnrollmentDates).not.toHaveBeenCalled()
+  })
+
+  it('a confirm click landing as the dialog closes sends nothing', () => {
+    closing.on = true
+    show(2)
+    fireEvent.click(screen.getByLabelText('Select all'))
+    fireEvent.click(proposedButton())
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Closing confirm' }))
+    expect(api.confirmEnrollmentDates).not.toHaveBeenCalled()
+    expect(onConfirmed).not.toHaveBeenCalled()
   })
 
   it('shows a refusal and leaves the rows ticked', async () => {
