@@ -90,6 +90,7 @@ export async function readBatchCoverage(
     const { fields, distinctValues } = await stagedMatchInputs(tx, actor, batch)
     const idByCode = new Map<string, CoverageField['id']>(fields.map((f) => [f.code, f.id]))
     const { coverage, uncoveredColumns, unresolvedValues } = importCoverage({
+      formType: batch.form.formType,
       decisions: mappings.map((mapping) => ({
         sourceKey: mapping.sourceFieldName,
         status:

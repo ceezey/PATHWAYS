@@ -463,6 +463,7 @@ describe('AUTO_SMART_V3', () => {
     expect(decision).toMatchObject({ status: 'MAPPED', targetFieldId: 'f-tags' })
     expect(
       importCoverage({
+        formType: 'PRE_TEST',
         decisions: [decision],
         fields: [{ ...tags, required: false }],
         distinctValues: { [decision.sourceKey]: samples },

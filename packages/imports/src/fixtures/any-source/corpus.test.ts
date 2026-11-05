@@ -7,6 +7,7 @@ import { consentHeld } from '../../check/held-rules'
 import { readImportFile } from '../../check/read-import-file'
 import { type DraftField, draftFormFromImport } from '../../form-draft/draft-form'
 import { REGISTRATION } from '../../form-draft/draft-test-support'
+import { type CoverageField, importCoverage } from '../../mappers/coverage'
 import { parseSecureImport } from '../../parser/secure'
 import { matchColumns } from '../../validation/match-columns'
 import { type ColumnMapping, validateRows } from '../../validation/validate-rows'
@@ -322,6 +323,18 @@ describe('any-source corpus', () => {
     expect(report.problems).toEqual([])
     expect(report.problemRows).toBe(0)
     expect(report.notes.map((note) => note.message)).toEqual([enrollmentNote('_submission_time')])
+    // The one-step path takes the file, as the enrollment date is confirmed after upload.
+    const distinctValues = Object.fromEntries(
+      file.sourceColumns.map((column) => [column.key, file.rows.map((row) => row[column.key])]),
+    )
+    expect(
+      importCoverage({
+        formType: 'BENEFICIARY_REGISTRATION',
+        decisions,
+        fields: published as unknown as CoverageField[],
+        distinctValues,
+      }),
+    ).toMatchObject({ coverage: 'COVERED', requiredUncovered: 0 })
   })
 
   it.each(FIXTURES)(

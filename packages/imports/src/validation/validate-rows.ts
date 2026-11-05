@@ -88,17 +88,19 @@ export function valuesByFieldCode(
   return byFieldCode
 }
 
+type SuppliedField = Pick<IntakeField, 'code' | 'required' | 'importDefault' | 'rule'>
+
 // An unmapped field still takes part when it has a default or a calculation.
-export const isSupplied = (field: IntakeField, mappedCodes: ReadonlySet<string>) =>
+export const isSupplied = (field: SuppliedField, mappedCodes: ReadonlySet<string>) =>
   mappedCodes.has(field.code) ||
   !!field.importDefault ||
   isCalculatedRule(field.rule as FieldIntakeRule | null)
 
 /** The required form fields that no column, default or calculation supplies. */
-export function unsuppliedRequired(
-  formFields: readonly IntakeField[],
+export function unsuppliedRequired<T extends SuppliedField>(
+  formFields: readonly T[],
   mappedCodes: ReadonlySet<string>,
-): IntakeField[] {
+): T[] {
   return formFields.filter((field) => field.required && !isSupplied(field, mappedCodes))
 }
 
@@ -106,8 +108,11 @@ export function unsuppliedRequired(
 export const DEFERRED_REGISTRATION_FIELDS = ['enrollment_date'] as const
 
 /** The fields with the deferred registration ones no longer required; any other form type is unchanged. */
-export function deferredRequired(formType: string, fields: readonly IntakeField[]): IntakeField[] {
-  if (formType !== 'BENEFICIARY_REGISTRATION') return fields as IntakeField[]
+export function deferredRequired<T extends Pick<IntakeField, 'code' | 'required'>>(
+  formType: string,
+  fields: readonly T[],
+): T[] {
+  if (formType !== 'BENEFICIARY_REGISTRATION') return fields as T[]
   const deferred: readonly string[] = DEFERRED_REGISTRATION_FIELDS
   return fields.map((field) =>
     deferred.includes(field.code) ? { ...field, required: false } : field,
