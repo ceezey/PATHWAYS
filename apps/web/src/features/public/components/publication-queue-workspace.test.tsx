@@ -12,6 +12,10 @@ const state = vi.hoisted(() => ({
   canApprove: true,
   canPublish: true,
   publicationState: 'FOR_REVIEW',
+  liveRevision: null as number | null,
+  noPublication: false,
+  snapshotMedia: [] as object[],
+  snapshotViews: [] as string[],
   submittedBy: 'another-reviewer',
   capturedOwnerInvalid: false,
   transition: vi.fn(),
@@ -70,18 +74,53 @@ vi.mock('@/hooks/use-authorized-read', () => ({
               sector: 'Private sector',
             },
           ]
-        : {
-            revision: 1,
-            state: state.publicationState,
-            summary: 'Private proposed summary',
-            submittedById: state.submittedBy,
-            approvedById: null,
-            publishedById: null,
-          },
+        : state.noPublication
+          ? null
+          : {
+              revision: 1,
+              state: state.publicationState,
+              summary: 'Private proposed summary',
+              snapshot: { media: state.snapshotMedia, views: state.snapshotViews },
+              live: state.liveRevision
+                ? { revision: state.liveRevision, publishedAt: '2026-09-27T00:00:00.000Z' }
+                : null,
+              submittedById: state.submittedBy,
+              approvedById: null,
+              publishedById: null,
+            },
     isPending: key === 'publication-projects' && state.projectsPending,
     isError: key === 'publication-projects' ? state.projectsError : state.publicationError,
     refetch: state.refetch,
   }),
+}))
+const pickedId = '20000000-0000-4000-8000-000000000009'
+// A stand-in picker: the real one has its own tests, here only the selection wiring matters.
+vi.mock('./public-media-picker', () => ({
+  PublicMediaPicker: ({
+    onBlockedChange,
+    onChange,
+    value,
+  }: {
+    onBlockedChange: (blocked: boolean) => void
+    onChange: (next: { id: string; caption: string }[]) => void
+    value: { id: string; caption: string }[]
+  }) => (
+    <div>
+      <button type="button" onClick={() => onBlockedChange(true)}>
+        Report unpublishable media
+      </button>
+      <output aria-label="Picked media">{JSON.stringify(value)}</output>
+      <button type="button" onClick={() => onChange([...value, { id: pickedId, caption: 'New' }])}>
+        Pick media
+      </button>
+      <button type="button" onClick={() => onChange([...value, { id: pickedId, caption: ' ' }])}>
+        Pick media without caption
+      </button>
+    </div>
+  ),
+}))
+vi.mock('./public-media-queue', () => ({
+  PublicMediaQueue: ({ projectId: id }: { projectId: string }) => <p>Queue for {id}</p>,
 }))
 vi.mock('sonner', () => ({
   toast: {
@@ -100,6 +139,10 @@ describe('publication current project and revision boundaries', () => {
     state.canApprove = true
     state.canPublish = true
     state.publicationState = 'FOR_REVIEW'
+    state.liveRevision = null
+    state.noPublication = false
+    state.snapshotMedia = []
+    state.snapshotViews = []
     state.submittedBy = 'another-reviewer'
     state.capturedOwnerInvalid = false
     state.refetch.mockResolvedValue(undefined)
@@ -258,6 +301,194 @@ describe('publication current project and revision boundaries', () => {
     expect(screen.getByRole('button', { name: 'Submit summary' }).hasAttribute('disabled')).toBe(
       false,
     )
+  })
+  it('submit is enabled while published', async () => {
+    state.publicationState = 'PUBLISHED'
+    state.liveRevision = 1
+    state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+    render(<PublicationQueueWorkspace />)
+    const submit = screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement
+    expect(submit.disabled).toBe(false)
+    expect((screen.getByLabelText('Public summary') as HTMLTextAreaElement).disabled).toBe(false)
+    fireEvent.click(submit)
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][2]).toMatchObject({
+      selection: { media: [], views: [] },
+    })
+  })
+  it('sends the summary and an empty selection on the first submit of a project', async () => {
+    state.noPublication = true
+    state.transition.mockResolvedValue({ revision: 1, state: 'FOR_REVIEW' })
+    render(<PublicationQueueWorkspace />)
+    fireEvent.change(screen.getByLabelText('Public summary'), {
+      target: { value: 'First fictional summary' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][2]).toMatchObject({
+      expectedRevision: 0,
+      summary: 'First fictional summary',
+      selection: { media: [], views: [] },
+    })
+  })
+  it('disables submit while the picker reports an unpublishable chosen item', () => {
+    render(<PublicationQueueWorkspace />)
+    const submit = () => screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement
+    expect(submit().disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Report unpublishable media' }))
+    expect(submit().disabled).toBe(true)
+  })
+  it('sends each picked photo as id and caption only', async () => {
+    state.snapshotMedia = [
+      {
+        id: '20000000-0000-4000-8000-000000000001',
+        type: 'PHOTO',
+        contentType: 'image/jpeg',
+        caption: 'A fictional caption',
+      },
+    ]
+    state.snapshotViews = ['kpi', 'map']
+    state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+    render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][2].selection).toEqual({
+      media: [{ id: '20000000-0000-4000-8000-000000000001', caption: 'A fictional caption' }],
+      views: ['kpi', 'map'],
+    })
+  })
+  it('seeds the picker from the latest snapshot and shows the media queue', () => {
+    state.snapshotMedia = [
+      {
+        id: '20000000-0000-4000-8000-000000000001',
+        type: 'PHOTO',
+        contentType: 'image/jpeg',
+        caption: 'Seeded',
+      },
+    ]
+    render(<PublicationQueueWorkspace />)
+    expect(screen.getByLabelText('Picked media').textContent).toBe(
+      JSON.stringify([{ id: '20000000-0000-4000-8000-000000000001', caption: 'Seeded' }]),
+    )
+    expect(screen.getByText(`Queue for ${projectId}`)).toBeTruthy()
+  })
+  it('sends the edited selection and keeps the snapshot views', async () => {
+    state.snapshotViews = ['kpi']
+    state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+    render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][2].selection).toEqual({
+      media: [{ id: pickedId, caption: 'New' }],
+      views: ['kpi'],
+    })
+  })
+  it('disables approval and publishing while the selection is edited', () => {
+    state.publicationState = 'FOR_REVIEW'
+    const view = render(<PublicationQueueWorkspace />)
+    const approve = () =>
+      (screen.getByRole('button', { name: 'Approve revision' }) as HTMLButtonElement).disabled
+    expect(approve()).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media' }))
+    expect(approve()).toBe(true)
+    view.unmount()
+    state.publicationState = 'APPROVED'
+    render(<PublicationQueueWorkspace />)
+    const publish = () =>
+      (screen.getByRole('button', { name: 'Publish' }) as HTMLButtonElement).disabled
+    expect(publish()).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media' }))
+    expect(publish()).toBe(true)
+  })
+  describe('chart views', () => {
+    const labels = [
+      'KPI / indicator performance',
+      'SADDD (sex, age, disability)',
+      'Participation patterns',
+      'Timeline adherence',
+      'Project coverage map',
+    ]
+    const box = (name: string) => screen.getByRole('checkbox', { name }) as HTMLInputElement
+    it('lists the five views in order, checked from the snapshot', () => {
+      state.snapshotViews = ['map', 'kpi']
+      render(<PublicationQueueWorkspace />)
+      expect(
+        screen.getAllByRole('checkbox').map((input) => input.closest('label')?.textContent),
+      ).toEqual(labels)
+      expect(labels.map((name) => box(name).checked)).toEqual([true, false, false, false, true])
+    })
+    it('pre-checks the view from Add to public page and submits it last', async () => {
+      state.snapshotViews = ['map']
+      state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+      render(<PublicationQueueWorkspace initialProjectId={projectId} initialAddView="kpi" />)
+      expect(box('KPI / indicator performance').checked).toBe(true)
+      fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+      await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+      expect(state.transition.mock.calls[0][2].selection.views).toEqual(['map', 'kpi'])
+    })
+    it('removes an unchecked view and appends a checked one', async () => {
+      state.snapshotViews = ['kpi', 'map']
+      state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+      render(<PublicationQueueWorkspace />)
+      fireEvent.click(box('KPI / indicator performance'))
+      fireEvent.click(box('Timeline adherence'))
+      fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+      await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+      expect(state.transition.mock.calls[0][2].selection.views).toEqual(['map', 'timeline'])
+    })
+    it('lets the pre-added view be unchecked before submitting', async () => {
+      state.transition.mockResolvedValue({ revision: 2, state: 'FOR_REVIEW' })
+      render(<PublicationQueueWorkspace initialProjectId={projectId} initialAddView="kpi" />)
+      fireEvent.click(box('KPI / indicator performance'))
+      expect(box('KPI / indicator performance').checked).toBe(false)
+      fireEvent.click(screen.getByRole('button', { name: 'Submit summary' }))
+      await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+      expect(state.transition.mock.calls[0][2].selection.views).toEqual([])
+    })
+    it('disables approval and publishing until the edited views are resubmitted', () => {
+      const view = render(<PublicationQueueWorkspace />)
+      const approve = () =>
+        (screen.getByRole('button', { name: 'Approve revision' }) as HTMLButtonElement).disabled
+      expect(approve()).toBe(false)
+      fireEvent.click(box('Participation patterns'))
+      expect(approve()).toBe(true)
+      view.unmount()
+      state.publicationState = 'APPROVED'
+      render(<PublicationQueueWorkspace initialProjectId={projectId} initialAddView="saddd" />)
+      expect((screen.getByRole('button', { name: 'Publish' }) as HTMLButtonElement).disabled).toBe(
+        true,
+      )
+    })
+  })
+  it('disables submit while a picked item has a blank caption', () => {
+    render(<PublicationQueueWorkspace />)
+    const submit = () =>
+      (screen.getByRole('button', { name: 'Submit summary' }) as HTMLButtonElement).disabled
+    expect(submit()).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick media without caption' }))
+    expect(submit()).toBe(true)
+  })
+  it('shows the live revision beside the working one', () => {
+    state.liveRevision = 2
+    render(<PublicationQueueWorkspace />)
+    expect(screen.getByText('Live: revision 2')).toBeTruthy()
+    expect(screen.getByText('For review')).toBeTruthy()
+  })
+  it('shows withdraw whenever a live revision exists', () => {
+    const view = render(<PublicationQueueWorkspace />)
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull()
+    state.liveRevision = 2
+    view.rerender(<PublicationQueueWorkspace />)
+    expect(screen.getByRole('button', { name: 'Withdraw' })).toBeTruthy()
+  })
+  it('describes what the submitter chooses and who approves it', () => {
+    render(<PublicationQueueWorkspace />)
+    expect(
+      screen.getByText(
+        'Choose the summary, photos, videos and charts the public page shows. Changes go live only after a different reviewer approves them.',
+      ),
+    ).toBeTruthy()
   })
   it.each(['identity', 'generation'] as const)(
     'drops callbacks and clears the draft when %s changes',

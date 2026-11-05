@@ -29,6 +29,7 @@ const actor: ApplicationIdentity = {
   permissions: ['public.preview'],
   assignedProjectIds: [projectId],
 }
+const selection = { media: [], views: [] }
 const tx = { project: { findFirst: vi.fn() }, $queryRaw: vi.fn(), $executeRaw: vi.fn() }
 const service = new PublicService({} as PrismaService)
 describe('public published projects', () => {
@@ -88,6 +89,7 @@ describe('publication canonical request recovery', () => {
       clientRequestId: requestId.toUpperCase(),
       expectedRevision: 0,
       summary: 'Synthetic approved summary.',
+      selection,
     }
     const first = await service.transition(actor, projectId.toUpperCase(), 'SUBMIT', body)
     const retry = await service.transition(actor, projectId, 'SUBMIT', {
@@ -115,6 +117,7 @@ describe('publication canonical request recovery', () => {
       clientRequestId: requestId,
       expectedRevision: 0,
       summary: 'Synthetic approved summary.',
+      selection,
     }
     await service.transition(actor, projectId, 'SUBMIT', body)
     await expect(
@@ -127,7 +130,7 @@ describe('publication canonical request recovery', () => {
   })
 })
 const otherUser = 'abcdefab-0000-4000-8000-000000000003'
-const row = (stateName: string, submittedById = otherUser) => ({
+const row = (stateName: string, submittedById = otherUser, live = stateName === 'PUBLISHED') => ({
   revision: 2,
   state: stateName,
   summary: 'Synthetic approved summary.',
@@ -136,6 +139,9 @@ const row = (stateName: string, submittedById = otherUser) => ({
   approvedById: null,
   publishedById: null,
   updatedAt: now,
+  liveRevision: live ? 2 : null,
+  liveSnapshot: live ? { id: projectId, media: [], views: [] } : null,
+  livePublishedAt: live ? now : null,
 })
 describe('publication state machine (QAD-T74, QAD-T75)', () => {
   let current: ReturnType<typeof row> | undefined
@@ -197,8 +203,146 @@ describe('publication state machine (QAD-T74, QAD-T75)', () => {
     ).rejects.toBeInstanceOf(NotFoundException)
   })
 })
+describe('publication live revisions', () => {
+  const sent = { media: [{ id: projectId, caption: 'Synthetic caption' }], views: ['kpi'] }
+  const submit = { clientRequestId: requestId, expectedRevision: 2, summary: 'New summary.' }
+  const withdraw = { clientRequestId: requestId, expectedRevision: 2 }
+  let updates: Array<{ sql: string; values: unknown[] }>
+  let current: ReturnType<typeof row> | undefined
+  beforeEach(() => {
+    vi.resetAllMocks()
+    state.actor = actor
+    state.tx = tx
+    updates = []
+    tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.$executeRaw.mockResolvedValue(1)
+    tx.$queryRaw.mockImplementation((query: { sql?: string; values?: unknown[] } | string[]) => {
+      const text = Array.isArray(query) ? query.join('') : (query.sql ?? '')
+      if (text.includes('UPDATE pathways.project_publications')) {
+        updates.push({ sql: text, values: (query as { values: unknown[] }).values })
+        return [{ ...current, revision: 3, state: 'FOR_REVIEW', updatedAt: now }]
+      }
+      if (text.includes('publication_requests')) return []
+      if (text.includes('FOR UPDATE')) return current ? [current] : []
+      return []
+    })
+  })
+  it('submit while published is allowed and sends the selection', async () => {
+    current = row('PUBLISHED')
+    await expect(
+      service.transition(actor, projectId, 'SUBMIT', { ...submit, selection: sent }),
+    ).resolves.toMatchObject({ state: 'FOR_REVIEW', revision: 3 })
+    expect(updates[0].sql).toContain('snapshot=')
+    expect(updates[0].sql).not.toContain('live_snapshot=')
+    expect(updates[0].values).toContain(JSON.stringify(sent.media))
+    expect(updates[0].values).toContain(JSON.stringify(sent.views))
+  })
+  it('submit answers 400 only for the guard refusing a chosen item', async () => {
+    current = row('PUBLISHED')
+    const base = tx.$queryRaw.getMockImplementation()
+    const refusal = (message: string) =>
+      Object.assign(new Error('Raw query failed.'), {
+        code: 'P2010',
+        meta: { code: '23514', message },
+      })
+    let failure = refusal('ERROR: Media not publishable')
+    tx.$queryRaw.mockImplementation((query: { sql?: string } | string[]) => {
+      const text = Array.isArray(query) ? query.join('') : (query.sql ?? '')
+      if (text.includes('UPDATE pathways.project_publications')) throw failure
+      return base?.(query)
+    })
+    const send = () =>
+      service.transition(actor, projectId, 'SUBMIT', { ...submit, selection: sent })
+    await expect(send()).rejects.toMatchObject({
+      status: 400,
+      message: 'A chosen photo or video is no longer publishable.',
+    })
+    failure = refusal('Public view selection unavailable')
+    await expect(send()).rejects.toBe(failure)
+  })
+  it('submit requires selection and summary together', async () => {
+    current = row('FOR_REVIEW')
+    // The parse throws before any promise exists, so each call is wrapped.
+    const noSelection = async () => service.transition(actor, projectId, 'SUBMIT', submit)
+    const noSummary = async () =>
+      service.transition(actor, projectId, 'SUBMIT', {
+        clientRequestId: requestId,
+        expectedRevision: 2,
+        selection: sent,
+      })
+    await expect(noSelection()).rejects.toMatchObject({ status: 400 })
+    await expect(noSummary()).rejects.toMatchObject({ status: 400 })
+    expect(updates).toHaveLength(0)
+  })
+  it('the request hash covers the selection', async () => {
+    let receipt: unknown
+    tx.$queryRaw.mockImplementation((query: { sql?: string } | string[]) => {
+      const text = Array.isArray(query) ? query.join('') : (query.sql ?? '')
+      if (text.includes('publication_requests')) return receipt ? [receipt] : []
+      if (text.includes('INSERT INTO'))
+        return [{ revision: 1, state: 'FOR_REVIEW', updatedAt: now }]
+      return []
+    })
+    tx.$executeRaw.mockImplementation((_query: unknown, ...values: unknown[]) => {
+      receipt = {
+        projectId: values[1],
+        operation: values[4],
+        hash: values[5],
+        revision: values[6],
+        state: values[7],
+        updatedAt: values[8],
+      }
+      return 1
+    })
+    const body = { ...submit, expectedRevision: 0, selection: sent }
+    await service.transition(actor, projectId, 'SUBMIT', body)
+    await expect(
+      service.transition(actor, projectId, 'SUBMIT', {
+        ...body,
+        selection: { ...sent, views: ['map'] },
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'Request key already used for different content.',
+    })
+  })
+  it('withdraw sets live to null and moves a published row back to review', async () => {
+    current = row('PUBLISHED')
+    await service.transition(actor, projectId, 'WITHDRAW', withdraw)
+    expect(updates[0].sql).toContain('live_snapshot=NULL')
+    expect(updates[0].sql).toContain('state=')
+    expect(updates[0].values.slice(0, 2)).toEqual([3, 'FOR_REVIEW'])
+  })
+  it.each(['FOR_REVIEW', 'APPROVED'])('withdraw keeps a %s draft as it is', async (draft) => {
+    current = row(draft, otherUser, true)
+    await service.transition(actor, projectId, 'WITHDRAW', withdraw)
+    expect(updates[0].sql).toContain('live_snapshot=NULL')
+    expect(updates[0].sql).not.toContain('state=')
+    expect(updates[0].values).not.toContain('FOR_REVIEW')
+  })
+  it('get returns live, and null when nothing is live', async () => {
+    tx.$queryRaw.mockResolvedValue([row('PUBLISHED')])
+    await expect(service.get(actor, projectId)).resolves.toMatchObject({
+      state: 'PUBLISHED',
+      live: {
+        revision: 2,
+        publishedAt: now.toISOString(),
+        snapshot: { id: projectId, publishedAt: now.toISOString() },
+      },
+    })
+    tx.$queryRaw.mockResolvedValue([row('FOR_REVIEW')])
+    await expect(service.get(actor, projectId)).resolves.toMatchObject({ live: null })
+  })
+  it('published() calls p85_public_projects', async () => {
+    const db = { $queryRaw: vi.fn().mockResolvedValue([{ projects: [] }]) }
+    await new PublicService(db as unknown as PrismaService).published().catch(() => undefined)
+    const call = db.$queryRaw.mock.calls[0][0] as string[]
+    expect(call.join('')).toContain('pathways.p85_public_projects')
+    expect(call.join('')).not.toContain('p34_public_projects')
+  })
+})
 describe('anonymous public routes (QAD-A09)', () => {
-  it('expose only the project list and project read, with no media route', () => {
+  it('anonymous project routes expose only list and read; media is served by the snapshot-gated stream controller', () => {
     const routes = Object.getOwnPropertyNames(PublicProjectsController.prototype).filter(
       (name) => name !== 'constructor',
     )
@@ -222,7 +366,7 @@ describe('publication body parse', () => {
   const valid = (operation: (typeof operations)[number], extra: Record<string, unknown> = {}) => ({
     clientRequestId: upper,
     expectedRevision: operation === 'SUBMIT' ? 0 : 2,
-    ...(operation === 'SUBMIT' ? { summary: validSummary } : {}),
+    ...(operation === 'SUBMIT' ? { summary: validSummary, selection } : {}),
     ...extra,
   })
   let writes: Array<{ values: unknown[] }>
@@ -286,6 +430,8 @@ describe('publication body parse', () => {
     await bad('SUBMIT', { clientRequestId: requestId, expectedRevision: 0 })
     for (const operation of ['APPROVE', 'PUBLISH', 'WITHDRAW'] as const)
       await bad(operation, valid(operation, { summary: validSummary }))
+    for (const operation of ['APPROVE', 'PUBLISH', 'WITHDRAW'] as const)
+      await bad(operation, valid(operation, { selection }))
   })
 
   it('bounds the summary after trimming, for SUBMIT and for the forbidden case alike', async () => {

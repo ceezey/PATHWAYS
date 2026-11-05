@@ -13,14 +13,27 @@ import { projectsClient } from '@/lib/api/projects'
 import { publicationClient } from '@/lib/api/publication'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { type PublicView, type PublicationSelection, publicView } from '@pathways/shared'
 import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { PublicMediaPicker } from './public-media-picker'
+import { PublicMediaQueue } from './public-media-queue'
+
+const viewLabels: Record<PublicView, string> = {
+  kpi: 'KPI / indicator performance',
+  saddd: 'SADDD (sex, age, disability)',
+  participation: 'Participation patterns',
+  timeline: 'Timeline adherence',
+  map: 'Project coverage map',
+}
+
 export const PublicationQueueWorkspace = ({
   initialProjectId,
-}: { initialProjectId?: string } = {}) => {
+  initialAddView,
+}: { initialProjectId?: string; initialAddView?: PublicView } = {}) => {
   const { profile } = useCurrentRole()
   const [query, setQuery] = useState('')
   const [selection, setSelection] = useState<string | null>(initialProjectId ?? null)
@@ -29,9 +42,14 @@ export const PublicationQueueWorkspace = ({
     generation: number
     projectId: string
     revision: number
-    summary: string
+    summary?: string
+    media?: PublicationSelection['media']
+    views?: PublicView[]
   } | null>(null)
+  // The view chosen on the analytics page stays pre-added until it is submitted or the project changes.
+  const [pendingView, setPendingView] = useState(initialAddView)
   const [busy, setBusy] = useState(false)
+  const [mediaBlocked, setMediaBlocked] = useState(false)
   const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
   const projects = useAuthorizedRead('publication-projects', null, 'public.preview', (signal) =>
     projectsClient.getProjects(signal),
@@ -76,14 +94,30 @@ export const PublicationQueueWorkspace = ({
   const current = ready ? publication.data : undefined
   const requests = useOperationRequestId()
   const revision = current?.revision ?? 0
-  const summary =
+  const liveDraft =
     owner &&
     draft?.owner === owner.key &&
     draft.generation === owner.generation &&
     draft.projectId === id &&
     draft.revision === revision
-      ? draft.summary
-      : (current?.summary ?? '')
+      ? draft
+      : null
+  const summary = liveDraft?.summary ?? current?.summary ?? ''
+  const savedMedia: PublicationSelection['media'] =
+    current?.snapshot.media.map(({ id, caption }) => ({ id, caption })) ?? []
+  const media = liveDraft?.media ?? savedMedia
+  const savedViews: PublicView[] = current?.snapshot.views ?? []
+  const views =
+    liveDraft?.views ??
+    (pendingView && id === initialProjectId && !savedViews.includes(pendingView)
+      ? [...savedViews, pendingView]
+      : savedViews)
+  // An edited summary or selection must be submitted and approved again before it can go live.
+  const edited =
+    summary !== current?.summary ||
+    JSON.stringify(media) !== JSON.stringify(savedMedia) ||
+    JSON.stringify(views) !== JSON.stringify(savedViews)
+  const captionsReady = media.every((entry) => entry.caption.trim())
   const permitted = usePermission()
   // biome-ignore lint/correctness/useExhaustiveDependencies: Clear transient state when its authorization ownership changes.
   useEffect(() => {
@@ -98,6 +132,21 @@ export const PublicationQueueWorkspace = ({
       setBusy(false)
     }
   }, [approveOwner?.key, approveOwner?.generation, publishOwner?.key, publishOwner?.generation])
+  const edit = (change: {
+    summary?: string
+    media?: PublicationSelection['media']
+    views?: PublicView[]
+  }) =>
+    owner &&
+    id &&
+    setDraft({
+      ...liveDraft,
+      ...change,
+      owner: owner.key,
+      generation: owner.generation,
+      projectId: id,
+      revision,
+    })
   const act = async (operation: 'submit' | 'approve' | 'publish' | 'withdraw') => {
     const captured =
       operation === 'approve' ? approveOwner : operation === 'submit' ? owner : publishOwner
@@ -106,22 +155,29 @@ export const PublicationQueueWorkspace = ({
     const currentOwner = () => capturedPreview.isCurrent() && captured.isCurrent()
     const operationOwner = { isCurrent: currentOwner }
     activeOperation.current = operationOwner
-    const body = {
-      operation,
-      expectedRevision: revision,
-      ...(operation === 'submit' ? { summary: summary.trim() } : {}),
-    }
+    const submission =
+      operation === 'submit'
+        ? {
+            summary: summary.trim(),
+            selection: {
+              media: media.map(({ id, caption }) => ({ id, caption: caption.trim() })),
+              views,
+            },
+          }
+        : {}
+    const body = { operation, expectedRevision: revision, ...submission }
     const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
     setBusy(true)
     try {
       await publicationClient.transition(id, operation, {
         clientRequestId,
         expectedRevision: revision,
-        ...(operation === 'submit' ? { summary: summary.trim() } : {}),
+        ...submission,
       })
       if (!currentOwner()) return
       requests.acknowledge(clientRequestId)
       setDraft(null)
+      setPendingView(undefined)
       await publication.refetch()
       if (currentOwner())
         toast.success(
@@ -207,6 +263,7 @@ export const PublicationQueueWorkspace = ({
                     onClick={() => {
                       setSelection(project.id)
                       setDraft(null)
+                      setPendingView(undefined)
                     }}
                   >
                     <span className="font-semibold">{project.title}</span>
@@ -223,7 +280,7 @@ export const PublicationQueueWorkspace = ({
         </SectionCard>
         <SectionCard
           title={selected?.title ?? 'Public content'}
-          description="Only the approved project summary, code, area, sector, and dates cross into the anonymous route. Internal people, expenses, assessment, and media remain private."
+          description="Choose the summary, photos, videos and charts the public page shows. Changes go live only after a different reviewer approves them."
         >
           {id && publication.isPending ? (
             <AsyncState
@@ -250,6 +307,9 @@ export const PublicationQueueWorkspace = ({
                         ? 'For review'
                         : 'Not submitted'}
                 </StatusBadge>
+                {current?.live && (
+                  <StatusBadge tone="success">Live: revision {current.live.revision}</StatusBadge>
+                )}
                 <span className="text-sm text-muted-foreground">Revision {revision}</span>
               </div>
               <Label className="space-y-2">
@@ -257,20 +317,37 @@ export const PublicationQueueWorkspace = ({
                 <Textarea
                   rows={6}
                   maxLength={4000}
-                  disabled={!owner || busy || current?.state === 'PUBLISHED'}
+                  disabled={!owner || busy}
                   value={summary}
-                  onChange={(event) =>
-                    owner &&
-                    setDraft({
-                      owner: owner.key,
-                      generation: owner.generation,
-                      projectId: id,
-                      revision,
-                      summary: event.target.value,
-                    })
-                  }
+                  onChange={(event) => owner && edit({ summary: event.target.value })}
                 />
               </Label>
+              <PublicMediaPicker
+                disabled={!owner || busy}
+                onBlockedChange={setMediaBlocked}
+                onChange={(next) => edit({ media: next })}
+                projectId={id}
+                value={media}
+              />
+              <fieldset className="space-y-2" disabled={!owner || busy}>
+                <legend className="text-sm font-medium">Charts on the public page</legend>
+                {publicView.options.map((view) => (
+                  <label className="flex min-h-11 items-center gap-3 text-sm" key={view}>
+                    <input
+                      checked={views.includes(view)}
+                      onChange={(event) =>
+                        edit({
+                          views: event.target.checked
+                            ? [...views, view]
+                            : views.filter((entry) => entry !== view),
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    {viewLabels[view]}
+                  </label>
+                ))}
+              </fieldset>
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
@@ -278,7 +355,8 @@ export const PublicationQueueWorkspace = ({
                     !owner ||
                     busy ||
                     !summary.trim() ||
-                    current?.state === 'PUBLISHED' ||
+                    !captionsReady ||
+                    mediaBlocked ||
                     !permitted('public.preview')
                   }
                   onClick={() => void act('submit')}
@@ -293,7 +371,7 @@ export const PublicationQueueWorkspace = ({
                     busy ||
                     current?.state !== 'FOR_REVIEW' ||
                     current.submittedById === profile?.userId ||
-                    summary !== current.summary ||
+                    edited ||
                     !permitted('public.approve')
                   }
                   onClick={() => void act('approve')}
@@ -306,7 +384,7 @@ export const PublicationQueueWorkspace = ({
                     !owner ||
                     busy ||
                     current?.state !== 'APPROVED' ||
-                    summary !== current.summary ||
+                    edited ||
                     !permitted('public.publish')
                   }
                   onClick={() => void act('publish')}
@@ -314,7 +392,7 @@ export const PublicationQueueWorkspace = ({
                   <Send className="mr-2 h-4 w-4" />
                   Publish
                 </Button>
-                {current?.state === 'PUBLISHED' && (
+                {current?.live && (
                   <Button
                     variant="destructive"
                     disabled={!owner || busy || !permitted('public.publish')}
@@ -330,7 +408,7 @@ export const PublicationQueueWorkspace = ({
                   <Link href={`/transparency/${id}/preview`}>Staff preview</Link>
                 </Button>
               )}
-              {current?.state === 'PUBLISHED' && (
+              {current?.live && (
                 <Button asChild variant="ghost">
                   <Link href={`/public/projects/${id}`} target="_blank" rel="noreferrer">
                     View published revision
@@ -346,6 +424,7 @@ export const PublicationQueueWorkspace = ({
           )}
         </SectionCard>
       </div>
+      {ready && id ? <PublicMediaQueue projectId={id} /> : null}
     </div>
   )
 }

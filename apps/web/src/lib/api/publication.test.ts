@@ -26,6 +26,13 @@ const snapshot = {
   sector: null,
   startDate: null,
   endDate: null,
+  media: [],
+  views: [],
+}
+const livePublication = {
+  revision: 1,
+  publishedAt: updatedAt,
+  snapshot: { ...snapshot, publishedAt: updatedAt },
 }
 const publication = {
   revision: 1,
@@ -35,6 +42,7 @@ const publication = {
   submittedById: userId,
   approvedById: null,
   publishedById: null,
+  live: null,
   updatedAt,
 }
 const json = (value: unknown) =>
@@ -79,6 +87,11 @@ describe('publicationClient publication read', () => {
     fetcher.mockResolvedValueOnce(read(null))
     await expect(client.get(projectId)).resolves.toBeNull()
   })
+  it('accepts a live revision beside the working one', async () => {
+    const body = edit({ revision: 2, live: livePublication })
+    fetcher.mockResolvedValueOnce(read(body))
+    await expect(client.get(projectId)).resolves.toEqual(body)
+  })
   it('rejects a bare row or an empty envelope', async () => {
     fetcher.mockResolvedValueOnce(json(publication))
     await expect(client.get(projectId)).rejects.toThrow('could not be validated')
@@ -120,6 +133,17 @@ describe('publicationClient publication read', () => {
     ['a private snapshot field', editSnapshot({ privateNotes: 'synthetic private data' })],
     ['a beneficiary snapshot field', editSnapshot({ beneficiaries: 12 })],
     ['an expense snapshot field', editSnapshot({ expenseAmount: '10' })],
+    [
+      'a live revision for another project',
+      edit({
+        live: { ...livePublication, snapshot: { ...livePublication.snapshot, id: otherId } },
+      }),
+    ],
+    [
+      'a live revision without a publication time',
+      edit({ live: { ...livePublication, publishedAt: undefined } }),
+    ],
+    ['a missing live field', edit({ live: undefined })],
     ['a missing snapshot field', edit({ snapshot: { ...snapshot, sector: undefined } })],
     ['revision zero', edit({ revision: 0 })],
     ['a fractional revision', edit({ revision: 1.5 })],
@@ -144,6 +168,10 @@ describe('publicationClient publication transition', () => {
       clientRequestId: requestId,
       expectedRevision: 1,
       summary: 'A fictional summary.',
+      selection: {
+        media: [{ id: otherId, caption: 'A fictional caption.' }],
+        views: ['kpi' as const],
+      },
     }
     fetcher.mockResolvedValueOnce(json(receipt))
     await expect(client.transition(projectId, operation, body, controller.signal)).resolves.toEqual(

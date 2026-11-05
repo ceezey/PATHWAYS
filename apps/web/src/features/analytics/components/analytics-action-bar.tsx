@@ -1,6 +1,7 @@
 'use client'
 
-import { ChevronDown, Download, Plus } from 'lucide-react'
+import { ChevronDown, Download, Globe, Plus } from 'lucide-react'
+import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -19,7 +20,12 @@ import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { toast } from 'sonner'
 
 import type { AnalyticsReportingPeriod } from '../analytics-reporting-periods.utils'
-import { type AnalysisView, type VisualizationType, exportFormats } from '../analytics.copy'
+import {
+  type AnalysisView,
+  type VisualizationType,
+  exportFormats,
+  publicPageHref,
+} from '../analytics.copy'
 import type { useAnalyticsExport } from '../hooks/use-analytics-export'
 import type { useAnalyticsScope } from '../hooks/use-analytics-scope'
 
@@ -102,6 +108,9 @@ export const AnalyticsActionBar = ({
     else toast.error(message)
   }
 
+  // The survey view has no public chart, so only the other views and the map can be added.
+  const publicView = mapSelected ? 'map' : analysisView
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {DASHBOARD_PINS_UI_ENABLED && pinPermitted ? (
@@ -123,6 +132,16 @@ export const AnalyticsActionBar = ({
             </p>
           ) : null}
         </div>
+      ) : null}
+      {selectedProject &&
+      publicView !== 'survey' &&
+      principalHasAtomicPermission(profile, 'public.preview') ? (
+        <Button asChild className="shrink-0" variant="outline">
+          <Link href={publicPageHref(selectedProject.id, publicView)}>
+            <Globe className="mr-2 h-4 w-4" aria-hidden="true" />
+            Add to public page
+          </Link>
+        </Button>
       ) : null}
       {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
         <div className="flex items-center">

@@ -29,11 +29,27 @@ import { readStepUpPinStatus } from './beneficiary-step-up-pin.service'
 // harmless; a missed audit is not, so entries are remembered only after commit.
 const MAX_RECORDED = 2_048
 
+/** True for the 403 STEP_UP_REQUIRED denial that enforce throws. */
+const isStepUpRequired = (error: unknown) =>
+  error instanceof ForbiddenException &&
+  (error.getResponse() as { code?: unknown }).code === STEP_UP_REQUIRED_CODE
+
 @Injectable()
 export class BeneficiaryStepUpService {
   private readonly recorded = new Set<string>()
 
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  /** The enforce check as a boolean: false only when step-up is required, every other failure still throws. */
+  async isFresh(...args: Parameters<BeneficiaryStepUpService['enforce']>): Promise<boolean> {
+    try {
+      await this.enforce(...args)
+      return true
+    } catch (error) {
+      if (isStepUpRequired(error)) return false
+      throw error
+    }
+  }
 
   async enforce(
     identity: VerifiedAuthIdentity,

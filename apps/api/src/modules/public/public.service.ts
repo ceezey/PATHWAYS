@@ -25,10 +25,22 @@ type PublicationRow = {
   state: 'FOR_REVIEW' | 'APPROVED' | 'PUBLISHED'
   summary: string
   snapshot: Prisma.JsonValue
+  liveRevision: number | null
+  liveSnapshot: Prisma.JsonValue | null
+  livePublishedAt: Date | null
   submittedById: string
   approvedById: string | null
   publishedById: string | null
   updatedAt: Date
+}
+// The publication guard's refusal of a chosen photo or video that is no longer pickable (0086 p85_publication_media).
+const mediaNotPublishable = (error: unknown) => {
+  const meta = (error as { meta?: { code?: unknown; message?: unknown } } | null)?.meta
+  return (
+    meta?.code === '23514' &&
+    typeof meta.message === 'string' &&
+    meta.message.includes('Media not publishable')
+  )
 }
 const permissions = {
   SUBMIT: 'public.preview',
@@ -36,7 +48,8 @@ const permissions = {
   PUBLISH: 'public.publish',
   WITHDRAW: 'public.publish',
 } as const
-const rowSelection = Prisma.sql`revision,state,summary,snapshot,submitted_by_id::text AS "submittedById",
+const rowSelection = Prisma.sql`revision,state,summary,snapshot,live_revision AS "liveRevision",live_snapshot AS "liveSnapshot",
+ live_published_at AS "livePublishedAt",submitted_by_id::text AS "submittedById",
  approved_by_id::text AS "approvedById",published_by_id::text AS "publishedById",updated_at AS "updatedAt"`
 
 @Injectable()
@@ -57,7 +70,7 @@ export class PublicService {
     let projects: PublicProjectResponse[]
     try {
       const [row] = await this.prisma.$queryRaw<Array<{ projects: unknown }>>`
-        SELECT pathways.p34_public_projects(${projectId ?? null}::uuid,${offset}::integer,${limit}::integer) AS projects`
+        SELECT pathways.p85_public_projects(${projectId ?? null}::uuid,${offset}::integer,${limit}::integer) AS projects`
       projects = z.array(publicProjectResponse).max(100).parse(row?.projects)
     } catch {
       // Anonymous callers get a fixed outage response, never a database diagnostic.
@@ -74,7 +87,20 @@ export class PublicService {
         PublicationRow[]
       >(Prisma.sql`SELECT ${rowSelection} FROM pathways.project_publications
         WHERE organization_id=${actor.organizationId}::uuid AND project_id=${canonicalProjectId}::uuid`)
-      return row ? { ...row, updatedAt: row.updatedAt.toISOString() } : null
+      if (!row) return null
+      const { liveRevision, liveSnapshot, livePublishedAt, ...fields } = row
+      const live =
+        liveRevision !== null && liveSnapshot !== null && livePublishedAt !== null
+          ? {
+              revision: liveRevision,
+              publishedAt: livePublishedAt.toISOString(),
+              snapshot: {
+                ...(liveSnapshot as object),
+                publishedAt: livePublishedAt.toISOString(),
+              } as PublicProjectResponse,
+            }
+          : null
+      return { ...fields, updatedAt: row.updatedAt.toISOString(), live }
     })
   }
 
@@ -85,7 +111,11 @@ export class PublicService {
     input: unknown,
   ) {
     const parsed = publicationTransitionRequest.safeParse(input)
-    if (!parsed.success || (operation === 'SUBMIT') !== (parsed.data.summary !== undefined))
+    if (
+      !parsed.success ||
+      (operation === 'SUBMIT') !== (parsed.data.summary !== undefined) ||
+      (operation === 'SUBMIT') !== (parsed.data.selection !== undefined)
+    )
       throw new BadRequestException('Invalid publication request.')
     const body = { ...parsed.data, clientRequestId: parsed.data.clientRequestId.toLowerCase() }
     return withAuthorizedOperation(
@@ -101,6 +131,7 @@ export class PublicService {
               operation,
               expectedRevision: body.expectedRevision,
               summary: body.summary ?? null,
+              selection: body.selection ?? null,
             }),
           )
           .digest('hex')
@@ -143,23 +174,30 @@ export class PublicService {
         // The database trigger also refuses this; checking here returns a clear 409 first.
         if (operation === 'APPROVE' && current?.submittedById === actor.userId)
           throw new ConflictException('A different reviewer must approve this revision.')
-        if (operation === 'SUBMIT' && current?.state === 'PUBLISHED')
-          throw new ConflictException('Withdraw the published revision before replacing it.')
         if (
           (operation === 'APPROVE' && current?.state !== 'FOR_REVIEW') ||
           (operation === 'PUBLISH' && current?.state !== 'APPROVED') ||
-          (operation === 'WITHDRAW' && current?.state !== 'PUBLISHED')
+          (operation === 'WITHDRAW' && (current?.liveRevision ?? null) === null)
         )
           throw new ConflictException('Publication is not in the required review stage.')
+        // The trigger validates the picks and fills the other snapshot keys.
+        const picked = Prisma.sql`jsonb_build_object('media',${JSON.stringify(body.selection?.media)}::jsonb,'views',${JSON.stringify(body.selection?.views)}::jsonb)`
+        const write = async (query: Prisma.Sql) => {
+          try {
+            return await tx.$queryRaw<PublicationRow[]>(query)
+          } catch (error) {
+            if (mediaNotPublishable(error))
+              throw new BadRequestException('A chosen photo or video is no longer publishable.')
+            throw error
+          }
+        }
         let row: PublicationRow | undefined
         if (!current) {
           if (operation !== 'SUBMIT')
             throw new ConflictException('Submit the public summary first.')
-          ;[row] = await tx.$queryRaw<
-            PublicationRow[]
-          >(Prisma.sql`INSERT INTO pathways.project_publications
+          ;[row] = await write(Prisma.sql`INSERT INTO pathways.project_publications
           (organization_id,project_id,revision,state,last_operation,summary,snapshot,submitted_by_id)
-          VALUES(${actor.organizationId}::uuid,${projectId}::uuid,1,'FOR_REVIEW','SUBMIT',${body.summary},'{}'::jsonb,${actor.userId}::uuid)
+          VALUES(${actor.organizationId}::uuid,${projectId}::uuid,1,'FOR_REVIEW','SUBMIT',${body.summary},${picked},${actor.userId}::uuid)
           RETURNING ${rowSelection}`)
         } else {
           const state =
@@ -170,10 +208,19 @@ export class PublicService {
                 : 'FOR_REVIEW'
           const revision =
             body.expectedRevision + (operation === 'SUBMIT' || operation === 'WITHDRAW' ? 1 : 0)
-          ;[row] = await tx.$queryRaw<
-            PublicationRow[]
-          >(Prisma.sql`UPDATE pathways.project_publications SET
-          revision=${revision},state=${state},summary=${operation === 'SUBMIT' ? body.summary : current.summary}
+          // A withdraw under a pending draft only clears the live columns and leaves the draft as it is.
+          const sets =
+            operation === 'WITHDRAW' && current.state !== 'PUBLISHED'
+              ? []
+              : [Prisma.sql`revision=${revision}`, Prisma.sql`state=${state}`]
+          if (operation === 'SUBMIT')
+            sets.push(Prisma.sql`summary=${body.summary}`, Prisma.sql`snapshot=${picked}`)
+          if (operation === 'WITHDRAW')
+            sets.push(
+              Prisma.sql`live_revision=NULL,live_snapshot=NULL,live_published_at=NULL,live_published_by_id=NULL`,
+            )
+          ;[row] =
+            await write(Prisma.sql`UPDATE pathways.project_publications SET ${Prisma.join(sets)}
           WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND revision=${body.expectedRevision}
           RETURNING ${rowSelection}`)
         }
