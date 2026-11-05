@@ -40,18 +40,28 @@ describe('ImportRowsCard warnings', () => {
     expect(screen.queryByText(/AGE_MISMATCH/)).toBeNull()
   })
 
-  it('rows card filters to rows with warnings', () => {
-    render(<ImportRowsCard state={state} />)
+  it('rows card filters to rows with errors or warnings', () => {
+    const invalid = {
+      ...row(3, []),
+      status: 'INVALID',
+      validationErrors: [{ fieldCode: 'consent', code: 'AMBIGUOUS_BOOLEAN', message: 'x' }],
+    } as ImportRowDefinition
+    render(<ImportRowsCard state={{ ...state, rows: [...state.rows, invalid] }} />)
     expect(screen.getByText('value-1', { exact: false })).toBeTruthy()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Show only rows with warnings' }))
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Show only rows with errors or warnings' }),
+    )
     expect(screen.queryByText('value-1', { exact: false })).toBeNull()
     expect(screen.getByText('value-2', { exact: false })).toBeTruthy()
+    expect(screen.getByText('value-3', { exact: false })).toBeTruthy()
   })
 
-  it('says so when no loaded row has a warning', () => {
+  it('says so when no loaded row has an error or a warning', () => {
     render(<ImportRowsCard state={{ ...state, rows: [row(1, [])] }} />)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Show only rows with warnings' }))
-    expect(screen.getByText('No loaded rows have warnings.')).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Show only rows with errors or warnings' }),
+    )
+    expect(screen.getByText('No loaded rows have errors or warnings.')).toBeTruthy()
   })
 
   it('words a hold in plain terms and keeps other processing codes as they were', () => {

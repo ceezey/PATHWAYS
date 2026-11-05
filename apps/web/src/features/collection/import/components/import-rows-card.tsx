@@ -22,8 +22,11 @@ export function ImportRowsCard({
   state,
 }: { state: Pick<ImportState, 'rows' | 'sourceColumnByKey' | 'validationErrors'> }) {
   const { rows, sourceColumnByKey, validationErrors } = state
-  const [onlyWarnings, setOnlyWarnings] = useState(false)
-  const shown = onlyWarnings ? rows.filter((row) => row.validationWarnings.length > 0) : rows
+  const [onlyFlagged, setOnlyFlagged] = useState(false)
+  // An invalid row needs attention as much as a warned one, so the filter keeps both.
+  const shown = onlyFlagged
+    ? rows.filter((row) => row.validationErrors.length > 0 || row.validationWarnings.length > 0)
+    : rows
   return (
     <Card>
       <CardHeader>
@@ -39,9 +42,9 @@ export function ImportRowsCard({
         ) : (
           <>
             <ToggleRow
-              checked={onlyWarnings}
-              label="Show only rows with warnings"
-              onChange={setOnlyWarnings}
+              checked={onlyFlagged}
+              label="Show only rows with errors or warnings"
+              onChange={setOnlyFlagged}
             />
             <div className="overflow-x-auto rounded-lg border border-border">
               <Table className="min-w-[720px]">
@@ -117,7 +120,9 @@ export function ImportRowsCard({
               </Table>
             </div>
             {shown.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No loaded rows have warnings.</p>
+              <p className="text-sm text-muted-foreground">
+                No loaded rows have errors or warnings.
+              </p>
             ) : null}
           </>
         )}
