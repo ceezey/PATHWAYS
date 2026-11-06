@@ -1,3 +1,6 @@
+import { readdirSync } from 'node:fs'
+import path from 'node:path'
+
 import { PrismaClient } from '@prisma/client'
 import { createClient } from '@supabase/supabase-js'
 
@@ -39,6 +42,15 @@ export function assertProductionTarget(env: NodeJS.ProcessEnv) {
   }
 }
 
+/** Checkout migrations the database has not finished; seeding from a newer checkout adds rows later migrations create. */
+export function unappliedCheckoutMigrations(
+  checkout: readonly string[],
+  ledger: ReadonlyArray<{ migration_name: string; finished: boolean }>,
+) {
+  const applied = new Set(ledger.filter((row) => row.finished).map((row) => row.migration_name))
+  return checkout.filter((name) => !applied.has(name))
+}
+
 async function main() {
   assertProductionTarget(process.env)
   const adminEmail = process.env.PATHWAYS_ADMIN_EMAIL?.trim().toLowerCase()
@@ -51,6 +63,18 @@ async function main() {
   })
   const prisma = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_URL } } })
   try {
+    const ledger = await prisma.$queryRaw<Array<{ migration_name: string; finished: boolean }>>`
+      SELECT migration_name, finished_at IS NOT NULL AND rolled_back_at IS NULL AS finished
+      FROM public._prisma_migrations`
+    const checkout = readdirSync(path.join(__dirname, '..', 'migrations')).filter((name) =>
+      /^\d{4}_/.test(name),
+    )
+    const missing = unappliedCheckoutMigrations(checkout, ledger)
+    if (missing.length) {
+      throw new Error(
+        `Refusing to seed: the database has not applied ${missing.length} checkout migration(s), first ${missing[0]}. Run the bootstrap from a checkout whose migrations end at the database's last migration.`,
+      )
+    }
     const buckets = await reconcileStorageBuckets(supabase.storage)
 
     let adminAuthId: string | undefined
