@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
   const tokenHashValues = request.nextUrl.searchParams.getAll('token_hash')
   const typeValues = request.nextUrl.searchParams.getAll('type')
   const keys = [...request.nextUrl.searchParams.keys()]
+  const tokenType = typeValues[0] === 'invite' ? 'invite' : 'recovery'
   const isCodeFlow =
     keys.length === 1 &&
     codeValues.length === 1 &&
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     tokenHashValues[0].length > 0 &&
     tokenHashValues[0].length <= maximumCallbackValueLength &&
     typeValues.length === 1 &&
-    typeValues[0] === 'recovery'
+    typeValues[0] === tokenType
 
   if (request.nextUrl.search.length > 4096 || (!isCodeFlow && !isTokenHashFlow)) {
     const response = redirect(recoveryErrorPath, pending)
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
     const supabase = createRecoveryRouteClient(request, pending)
     const result = isCodeFlow
       ? await supabase.auth.exchangeCodeForSession(codeValues[0])
-      : await supabase.auth.verifyOtp({ token_hash: tokenHashValues[0], type: 'recovery' })
+      : await supabase.auth.verifyOtp({ token_hash: tokenHashValues[0], type: tokenType })
     const session = result.data.session
     const user = result.data.user
     const redirectType =

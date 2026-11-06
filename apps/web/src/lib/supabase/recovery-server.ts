@@ -159,15 +159,17 @@ export const getRecoveryIdentityFromVerifiedClaims = (
     return null
   }
 
+  // An accepted invite proves inbox control the same way a recovery link does.
+  const isRecoveryMethod = (method: unknown) => method === 'recovery' || method === 'invite'
   const hasRecoveryMethod =
     Array.isArray(payload.amr) &&
     payload.amr.some(
       (entry) =>
-        entry === 'recovery' ||
+        isRecoveryMethod(entry) ||
         (Boolean(entry) &&
           typeof entry === 'object' &&
           !Array.isArray(entry) &&
-          (entry as Record<string, unknown>).method === 'recovery'),
+          isRecoveryMethod((entry as Record<string, unknown>).method)),
     )
   if (!hasRecoveryMethod) return null
 
