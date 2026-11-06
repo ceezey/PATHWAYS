@@ -186,6 +186,7 @@ test(
       // provides: the ordinary (non-superuser) "postgres" role the reviewed
       // phase6 scripts expect, the machine roles GRANT TEMPORARY references,
       // and the slice of the auth/extensions schemas the migrations touch.
+      // No supabase_privileged_role here, as on newer projects; the resume test keeps it, as on devV2.
       run(
         tool('psql'),
         [
@@ -209,7 +210,7 @@ CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service
 CREATE ROLE authenticator NOLOGIN; CREATE ROLE supabase_auth_admin NOLOGIN;
 CREATE ROLE supabase_storage_admin NOLOGIN; CREATE ROLE supabase_etl_admin NOLOGIN;
 CREATE ROLE supabase_read_only_user NOLOGIN; CREATE ROLE supabase_realtime_admin NOLOGIN;
-CREATE ROLE supabase_replication_admin NOLOGIN; CREATE ROLE supabase_privileged_role NOLOGIN;
+CREATE ROLE supabase_replication_admin NOLOGIN;
 ALTER DATABASE postgres OWNER TO postgres;
 GRANT ALL ON SCHEMA public TO postgres;
 CREATE SCHEMA extensions AUTHORIZATION postgres;
