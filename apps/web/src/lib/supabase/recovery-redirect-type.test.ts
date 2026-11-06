@@ -46,6 +46,7 @@ describe('recovery redirect type', () => {
     const { data, error } = await client.auth.exchangeCodeForSession('test-code')
 
     expect(error).toBeNull()
-    expect(data.redirectType).toBe(recoveryRedirectType)
+    // The public type omits redirectType, so read it the way the callback route does.
+    expect('redirectType' in data ? data.redirectType : null).toBe(recoveryRedirectType)
   })
 })
