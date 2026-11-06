@@ -9,6 +9,8 @@ import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 export const passwordRecoveryIntentCookie = 'pathways-local-password-recovery'
 export const passwordRecoveryIntentMaxAgeSeconds = 10 * 60
 export const passwordRecoveryGrantCapacity = 8
+// supabase-js 2.118 returns this from exchangeCodeForSession for a resetPasswordForEmail flow.
+export const recoveryRedirectType = 'recovery'
 
 interface LocalPasswordRecoveryGrant {
   expiresAt: number

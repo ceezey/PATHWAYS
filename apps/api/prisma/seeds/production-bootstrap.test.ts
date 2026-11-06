@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { assertProductionTarget } from './production-bootstrap'
+import { assertProductionTarget, unappliedCheckoutMigrations } from './production-bootstrap'
 
 const prod = 'mvzxitlbtkkyvubgbcmx'
 const dev = 'klbtoqdalmcsfjqophty'
@@ -56,5 +56,24 @@ describe('assertProductionTarget', () => {
         DIRECT_URL: 'postgresql://prisma:x@127.0.0.1:54322/postgres',
       }),
     ).toThrow('test-local mode requires loopback')
+  })
+})
+
+describe('unappliedCheckoutMigrations', () => {
+  const finished = (name: string) => ({ migration_name: name, finished: true })
+
+  it('lists checkout migrations the database has not finished', () => {
+    expect(
+      unappliedCheckoutMigrations(
+        ['0075_a', '0076_b', '0080_c'],
+        [finished('0075_a'), { migration_name: '0076_b', finished: false }],
+      ),
+    ).toEqual(['0076_b', '0080_c'])
+  })
+
+  it('accepts a database at or past the checkout', () => {
+    expect(
+      unappliedCheckoutMigrations(['0075_a'], [finished('0075_a'), finished('0076_b')]),
+    ).toEqual([])
   })
 })
