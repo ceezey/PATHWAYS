@@ -42,12 +42,14 @@ const tags: CoverageField = {
   allowedValues: ['A', 'B'],
   required: false,
 }
+const OTHER = 'PRE_TEST'
 const covered = [decision('c1', 'MAPPED', 'f-first'), decision('c2', 'MAPPED', 'f-sex')]
 
 describe('importCoverage', () => {
   it('is COVERED when every column is mapped or ignored and every answer resolves', () => {
     expect(
       importCoverage({
+        formType: OTHER,
         decisions: [...covered, decision('c3', 'IGNORED')],
         fields: [first, sex],
         distinctValues: { c2: ['MALE', 'a. female', 'Lalaki'] },
@@ -63,6 +65,7 @@ describe('importCoverage', () => {
   it('is NOT_COVERED with uncoveredColumns 1 when a new column is added', () => {
     expect(
       importCoverage({
+        formType: OTHER,
         decisions: [...covered, decision('c3', 'PENDING')],
         fields: [first, sex],
         distinctValues: { c2: ['MALE'] },
@@ -72,6 +75,7 @@ describe('importCoverage', () => {
 
   it('counts unresolved distinct values once each, across SELECT and MULTIPLE_SELECT', () => {
     const result = importCoverage({
+      formType: OTHER,
       decisions: [...covered, decision('c3', 'MAPPED', 'f-tags')],
       fields: [first, sex, tags],
       distinctValues: {
@@ -86,6 +90,7 @@ describe('importCoverage', () => {
   it('counts values that normalization would reject as unresolved', () => {
     const digits: CoverageField = { ...sex, id: 'f-digit', allowedValues: ['7'], valueAliases: [] }
     const result = importCoverage({
+      formType: OTHER,
       decisions: [decision('c2', 'MAPPED', 'f-digit'), decision('c3', 'MAPPED', 'f-tags')],
       fields: [digits, tags],
       distinctValues: { c2: [7, '7'], c3: ['A;Q', 'A Q', '["A","B"]'] },
@@ -97,6 +102,7 @@ describe('importCoverage', () => {
   it('reads delimited and Kobo space-separated MULTIPLE_SELECT text as validation does', () => {
     expect(
       importCoverage({
+        formType: OTHER,
         decisions: [decision('c3', 'MAPPED', 'f-tags')],
         fields: [tags],
         distinctValues: { c3: ['A, B', 'A;B', 'B|A', 'A B', 'b a'] },
@@ -108,6 +114,7 @@ describe('importCoverage', () => {
     const aliased: CoverageField = { ...tags, valueAliases: [{ from: 'Isa', to: 'A' }] }
     expect(
       importCoverage({
+        formType: OTHER,
         decisions: [decision('c3', 'MAPPED', 'f-tags')],
         fields: [aliased],
         distinctValues: { c3: [['Isa', 'b. B'], '["isa"]'] },
@@ -118,6 +125,7 @@ describe('importCoverage', () => {
   it('ignores distinct values of columns that are not mapped to a choice field', () => {
     expect(
       importCoverage({
+        formType: OTHER,
         decisions: [decision('c1', 'MAPPED', 'f-first'), decision('c2', 'PENDING')],
         fields: [first, sex],
         distinctValues: { c1: ['anything'], c2: ['Unknown'] },
@@ -135,12 +143,39 @@ describe('importCoverage', () => {
       rule: { kind: 'AGE_AT_DATE', birthField: 'birth_date', atField: 'enrollment_date' },
     }
     const run = (fields: CoverageField[]) =>
-      importCoverage({ decisions: [decision('c2', 'MAPPED', 'f-sex')], fields, distinctValues: {} })
+      importCoverage({
+        formType: OTHER,
+        decisions: [decision('c2', 'MAPPED', 'f-sex')],
+        fields,
+        distinctValues: {},
+      })
     expect(run([first, sex, age])).toMatchObject({ requiredUncovered: 1, coverage: 'NOT_COVERED' })
     expect(run([{ ...first, importDefault: 'Unknown' }, sex, age])).toMatchObject({
       requiredUncovered: 0,
       coverage: 'COVERED',
     })
     expect(run([{ ...first, importDefault: '' }, sex]).requiredUncovered).toBe(1)
+  })
+
+  it('leaves the enrollment date of a registration form to be confirmed after upload', () => {
+    const enrollment: CoverageField = {
+      id: 'f-enrollment',
+      code: 'enrollment_date',
+      label: 'Enrollment date',
+      dataType: 'DATE',
+      required: true,
+    }
+    const run = (formType: string) =>
+      importCoverage({
+        formType,
+        decisions: covered,
+        fields: [first, sex, enrollment],
+        distinctValues: { c2: ['MALE'] },
+      })
+    expect(run('BENEFICIARY_REGISTRATION')).toMatchObject({
+      coverage: 'COVERED',
+      requiredUncovered: 0,
+    })
+    expect(run(OTHER)).toMatchObject({ coverage: 'NOT_COVERED', requiredUncovered: 1 })
   })
 })

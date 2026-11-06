@@ -28,7 +28,9 @@ const smartMatch = [
 ]
 
 const validation = [
+  'DEFERRED_REGISTRATION_FIELDS',
   'columnRules',
+  'deferredRequired',
   'isBlank',
   'isSupplied',
   'matchColumns',
@@ -47,6 +49,7 @@ describe('package entry points', () => {
         ...smartMatch,
         ...validation,
         'DATE_ORDERS',
+        'SUBMISSION_TIME_HEADERS',
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',
         'WASHINGTON_GROUP_LEVELS_V1',
@@ -70,6 +73,8 @@ describe('package entry points', () => {
         'parseCsv',
         'parseWorkbook',
         'readDate',
+        'proposedEnrollmentDate',
+        'submissionTimeColumn',
         'readImportFile',
         'resolveAnswer',
         'stripLetterPrefix',
@@ -92,6 +97,7 @@ describe('package entry points', () => {
         ...smartMatch,
         ...validation,
         'DATE_ORDERS',
+        'SUBMISSION_TIME_HEADERS',
         'IMPORT_ENGINEERING_LIMITS',
         'IMPORT_VALUE_MAP_LIMITS',
         'WASHINGTON_GROUP_LEVELS_V1',
@@ -113,6 +119,8 @@ describe('package entry points', () => {
         'normalizeImportedRow',
         'parseSecureImport',
         'readDate',
+        'proposedEnrollmentDate',
+        'submissionTimeColumn',
         'registrationRange',
         'resolveAnswer',
         'selectPartColumns',

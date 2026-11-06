@@ -59,7 +59,12 @@ export async function recordAutomaticMapping(
   try {
     if (!receipt || typeof receipt !== 'object')
       throw new Error('Invalid automatic mapping receipt.')
-    const covered = importCoverage({ decisions, fields, distinctValues })
+    const covered = importCoverage({
+      formType: batch.form.formType,
+      decisions,
+      fields,
+      distinctValues,
+    })
     return parseAutomaticMappingReceipt(
       {
         ...receipt,

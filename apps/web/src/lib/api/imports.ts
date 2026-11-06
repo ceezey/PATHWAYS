@@ -1,6 +1,7 @@
 import type {
   ApproveGuardianConsentRequest,
   AutomaticImportMappingRequest,
+  ConfirmEnrollmentDatesRequest,
   DraftStageFormRequest,
   DraftStageFormResponse,
   ImportBatchDetailResponse,
@@ -191,5 +192,17 @@ export const importsClient = {
       `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/guardian-approvals`,
       { method: 'POST', body: JSON.stringify(body) },
     ) as Promise<{ approved: number }>
+  },
+
+  // With no date each row takes the date its submission time proposes.
+  async confirmEnrollmentDates(
+    projectId: string,
+    batchId: string,
+    body: ConfirmEnrollmentDatesRequest,
+  ) {
+    return requestFoundation(
+      `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/enrollment-dates`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ) as Promise<{ confirmed: number; waiting: number }>
   },
 }

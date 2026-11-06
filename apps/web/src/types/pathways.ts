@@ -707,7 +707,10 @@ export type ImportSourceColumn = ImportSourceColumnResponse
 // A batch from any import route; only the detail route fills the source columns and mappings.
 export type ImportBatchDefinition = ImportBatchResponse &
   Partial<
-    Pick<ImportBatchDetailResponse, 'sourceHeaders' | 'sourceColumns' | 'mappings' | 'coverage'>
+    Pick<
+      ImportBatchDetailResponse,
+      'sourceHeaders' | 'sourceColumns' | 'mappings' | 'coverage' | 'submissionTimeDateOrder'
+    >
   >
 
 export type ImportRowDefinition = ImportRowResponse

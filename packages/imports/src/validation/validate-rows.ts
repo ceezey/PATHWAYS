@@ -88,18 +88,35 @@ export function valuesByFieldCode(
   return byFieldCode
 }
 
+type SuppliedField = Pick<IntakeField, 'code' | 'required' | 'importDefault' | 'rule'>
+
 // An unmapped field still takes part when it has a default or a calculation.
-export const isSupplied = (field: IntakeField, mappedCodes: ReadonlySet<string>) =>
+export const isSupplied = (field: SuppliedField, mappedCodes: ReadonlySet<string>) =>
   mappedCodes.has(field.code) ||
   !!field.importDefault ||
   isCalculatedRule(field.rule as FieldIntakeRule | null)
 
 /** The required form fields that no column, default or calculation supplies. */
-export function unsuppliedRequired(
-  formFields: readonly IntakeField[],
+export function unsuppliedRequired<T extends SuppliedField>(
+  formFields: readonly T[],
   mappedCodes: ReadonlySet<string>,
-): IntakeField[] {
+): T[] {
   return formFields.filter((field) => field.required && !isSupplied(field, mappedCodes))
+}
+
+/** Registration fields a file may leave blank because the person confirms them after upload. */
+export const DEFERRED_REGISTRATION_FIELDS = ['enrollment_date'] as const
+
+/** The fields with the deferred registration ones no longer required; any other form type is unchanged. */
+export function deferredRequired<T extends Pick<IntakeField, 'code' | 'required'>>(
+  formType: string,
+  fields: readonly T[],
+): T[] {
+  if (formType !== 'BENEFICIARY_REGISTRATION') return fields as T[]
+  const deferred: readonly string[] = DEFERRED_REGISTRATION_FIELDS
+  return fields.map((field) =>
+    deferred.includes(field.code) ? { ...field, required: false } : field,
+  )
 }
 
 /** Normalizes every row, then marks rows that share a metadata key or a registration client identifier. */
@@ -113,9 +130,10 @@ export function validateRows(input: {
 }): ImportRowNormalizationResult[] {
   const { formType, fields, mappedFields, mappings, raws, uploadDate } = input
   const rules = columnRules(mappings, raws, Number(uploadDate.slice(0, 4)))
+  const rowFields = deferredRequired(formType, fields)
   const results = raws.map((raw) => {
     const byFieldCode = valuesByFieldCode(mappings, raw)
-    return { result: normalizeImportedRow(fields, byFieldCode, rules, { uploadDate }) }
+    return { result: normalizeImportedRow(rowFields, byFieldCode, rules, { uploadDate }) }
   })
   // Two valid rows sharing a key are both marked, so neither is guessed to be the real one.
   const markDuplicates = (

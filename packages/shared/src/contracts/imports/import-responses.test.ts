@@ -65,6 +65,7 @@ const detail = {
     },
   ],
   coverage: null,
+  submissionTimeDateOrder: null,
 }
 const row = {
   id: uuid,
@@ -93,6 +94,16 @@ describe('import response contracts', () => {
     expect(
       importRowsPageResponse.safeParse({ offset: 0, take: 100, total: 1, rows: [row] }).success,
     ).toBe(true)
+  })
+
+  it('carry the submission time date order of a detail, or null, and nothing else', () => {
+    const order = (value: unknown) =>
+      importBatchDetailResponse.safeParse({ ...detail, submissionTimeDateOrder: value }).success
+    expect(order('DMY')).toBe(true)
+    expect(order(null)).toBe(true)
+    expect(order('DAY_FIRST')).toBe(false)
+    const { submissionTimeDateOrder: _, ...missing } = detail
+    expect(importBatchDetailResponse.safeParse(missing).success).toBe(false)
   })
 
   it('accept the JSON and OTHER file types and a batch with both timestamps', () => {

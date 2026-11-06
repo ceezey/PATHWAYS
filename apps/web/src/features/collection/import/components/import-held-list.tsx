@@ -19,6 +19,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
 import { headClass, participantName, rowReason, rowReasonHelp } from '../import.utils'
+import { EnrollmentDatePanel } from './enrollment-date-panel'
 import { GuardianApprovalPanel } from './guardian-approval-panel'
 import { ImportReviewDialog } from './import-review-dialog'
 
@@ -93,6 +94,9 @@ export function ImportHeldList({
       rowNumber: row.rowNumber,
       name: participantName(row, batch.mappings),
     }))
+  const dateRows = held.filter(
+    (row) => row.status === 'UNPROCESSED' && row.processingErrorCode === 'ENROLLMENT_DATE_REQUIRED',
+  )
   return (
     <>
       <Card>
@@ -162,6 +166,21 @@ export function ImportHeldList({
           ) : null}
         </CardContent>
       </Card>
+      <EnrollmentDatePanel
+        batchId={batch.id}
+        // The server's order for the whole batch, so the proposals match what it will save.
+        dateOrder={batch.submissionTimeDateOrder ?? null}
+        headers={batch.sourceColumns ?? []}
+        onConfirmed={onChanged}
+        projectId={batch.projectId}
+        uploadedAt={batch.uploadedAt}
+        rows={dateRows.map((row) => ({
+          id: row.id,
+          rowNumber: row.rowNumber,
+          name: participantName(row, batch.mappings),
+          rawData: row.rawData,
+        }))}
+      />
       <GuardianApprovalPanel
         batchId={batch.id}
         lead={leadToGuardian}

@@ -5,6 +5,7 @@ import type { ImportBatchDefinition } from '@/types/pathways'
 import { noFormHint } from '../collection.copy'
 import {
   automaticMatchReason,
+  fieldsOfReason,
   guessFormType,
   rowReason,
   rowReasonHelp,
@@ -82,6 +83,11 @@ describe('held row reasons', () => {
         validationErrors: [],
       }),
     ).toBeUndefined()
+  })
+
+  it('points the review window of a held row at the field its hold names', () => {
+    expect(fieldsOfReason.ENROLLMENT_DATE_REQUIRED).toEqual(['enrollment_date'])
+    expect(fieldsOfReason.GUARDIAN_CONSENT_REQUIRED).toEqual(['guardian_consent_recorded'])
   })
 })
 

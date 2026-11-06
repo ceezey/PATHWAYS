@@ -61,6 +61,7 @@ const storedBatch = {
   status: 'UPLOADED',
   mappingRevision: 0,
   totalRows: 2,
+  form: { formType: 'OTHER' },
 }
 const tx = {
   project: { findFirst: vi.fn() },
@@ -389,6 +390,31 @@ describe('automatic mapping API authority boundary', () => {
       expectedMappingRevision: 0,
     })
     expect(result).toMatchObject({ coverage: 'COVERED', uncoveredColumns: 0, unresolvedValues: 0 })
+  })
+  it('a registration batch with no enrollment date column stays COVERED, the date confirmed after upload', async () => {
+    const enrollment = {
+      id: '60000000-0000-4000-8000-000000000006',
+      code: 'enrollment_date',
+      label: 'Enrollment date',
+      dataType: 'DATE',
+      isRequired: true,
+    }
+    tx.formField.findMany.mockResolvedValue([...coveredFields, enrollment])
+    const headers = tx.dataImportBatch.findFirst.getMockImplementation()
+    const coverageOf = async (formType: string) => {
+      tx.dataImportBatch.findFirst.mockImplementation(async (query: { select?: object }) =>
+        query.select && 'sourceHeaders' in query.select
+          ? headers?.(query)
+          : { ...storedBatch, form: { formType } },
+      )
+      sqlReturns(covered)
+      const result = await service.automaticMapping(actor as never, projectId, batchId, {
+        expectedMappingRevision: 0,
+      })
+      return result.coverage
+    }
+    expect(await coverageOf('BENEFICIARY_REGISTRATION')).toBe('COVERED')
+    expect(await coverageOf('OTHER')).toBe('NOT_COVERED')
   })
   it('keeps every distinct answer so one unresolved value after 100 still counts', async () => {
     const allowed = Array.from({ length: 100 }, (_, index) => `V${index + 1}`)

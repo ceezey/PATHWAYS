@@ -97,6 +97,7 @@ const scoreMismatch = 'The total score does not match the answer key'
 const holdReasons: Record<ImportHoldCode | 'TOTAL_SCORE_MISMATCH', string> = {
   CONSENT_REQUIRED: 'Consent is missing',
   GUARDIAN_CONSENT_REQUIRED: 'Under 18, waiting for guardian approval',
+  ENROLLMENT_DATE_REQUIRED: 'Enrollment date to confirm',
   AMBIGUOUS_IDENTITY: 'More than one participant could match',
   IDENTITY_REVIEW_REQUIRED: 'The participant match needs checking',
   DUPLICATE_IDENTITY: 'Looks like a participant already in PATHWAYS',
@@ -121,6 +122,7 @@ export const identityFields = ['first_name', 'last_name', 'birth_date', 'externa
 export const fieldsOfReason: Partial<Record<string, readonly string[]>> = {
   CONSENT_REQUIRED: CONSENT_FIELD_CODES,
   GUARDIAN_CONSENT_REQUIRED: ['guardian_consent_recorded'],
+  ENROLLMENT_DATE_REQUIRED: ['enrollment_date'],
   AMBIGUOUS_IDENTITY: identityFields,
   IDENTITY_REVIEW_REQUIRED: identityFields,
   DUPLICATE_IDENTITY: identityFields,

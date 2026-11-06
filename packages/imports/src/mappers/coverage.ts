@@ -1,5 +1,6 @@
-import { CALCULATED_RULE_KINDS, type FieldIntakeRule } from '@pathways/shared'
+import type { FieldIntakeRule } from '@pathways/shared'
 import { answerResolver } from '../answers'
+import { deferredRequired, unsuppliedRequired } from '../validation/validate-rows'
 import type { SmartMatchDecision, SmartMatchField } from './smart-match'
 import { choiceAnswers } from './smart-match-values'
 
@@ -27,15 +28,13 @@ function answersOf(
   return typeof value === 'boolean' ? [String(value)] : null
 }
 
-const isCalculated = (field: CoverageField) =>
-  field.rule != null && (CALCULATED_RULE_KINDS as readonly string[]).includes(field.rule.kind)
-
 /**
  * COVERED when every column is mapped or ignored, every answer of a mapped choice
- * column resolves, and every required field has a column, a default or a rule.
- * Distinct values are keyed by source key; counts only, never the values.
+ * column resolves, and every required field has a column, a default or a rule, the deferred
+ * registration fields excepted as validation does. Distinct values are keyed by source key; counts only.
  */
 export function importCoverage(input: {
+  formType: string
   decisions: readonly Pick<SmartMatchDecision, 'sourceKey' | 'status' | 'targetFieldId'>[]
   fields: readonly CoverageField[]
   distinctValues: Readonly<Record<string, readonly unknown[]>>
@@ -49,7 +48,7 @@ export function importCoverage(input: {
     if (decision.status === 'PENDING') uncoveredColumns++
     const field = decision.targetFieldId ? fieldById.get(decision.targetFieldId) : undefined
     if (decision.status !== 'MAPPED' || !field) continue
-    mapped.add(field.id)
+    mapped.add(field.code)
     if (field.dataType !== 'SELECT' && field.dataType !== 'MULTIPLE_SELECT') continue
     let resolve = resolvers.get(field.id)
     if (!resolve) {
@@ -62,9 +61,9 @@ export function importCoverage(input: {
       if (!answers || answers.some((answer) => resolve(answer) === null)) unresolvedValues++
     }
   }
-  const requiredUncovered = input.fields.filter(
-    (field) =>
-      field.required && !mapped.has(field.id) && !field.importDefault && !isCalculated(field),
+  const requiredUncovered = unsuppliedRequired(
+    deferredRequired(input.formType, input.fields),
+    mapped,
   ).length
   return {
     coverage:

@@ -1,7 +1,6 @@
 'use client'
 
-import { columnTranslations } from '@pathways/imports'
-import { isCalculatedRule } from '@pathways/shared'
+import { columnTranslations, deferredRequired, unsuppliedRequired } from '@pathways/imports'
 import { useState } from 'react'
 
 import { StatusBadge } from '@/components/pathways'
@@ -126,16 +125,11 @@ export function ImportMappingCard({
   const shownColumns = undecidedShown
     ? sourceColumns.filter((column) => undecidedShown.has(column.key) || undecided(column.key))
     : sourceColumns
-  // Mirrors the server's validation refusal: a required field needs a column, a default or a calculation.
-  const mappedCodes = new Set(Object.values(mapping))
-  const unsupplied =
-    selectedForm?.fields.filter(
-      (field) =>
-        field.required &&
-        !mappedCodes.has(field.code) &&
-        !field.importDefault &&
-        !isCalculatedRule(field.rule),
-    ) ?? []
+  // The server's validation refusal: a required field needs a column, a default or a calculation.
+  const unsupplied = unsuppliedRequired(
+    deferredRequired(batch.formType, selectedForm?.fields ?? []),
+    new Set(Object.values(mapping)),
+  )
   return (
     <Card>
       <CardHeader>

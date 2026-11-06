@@ -4,6 +4,7 @@ import { formDefinitionLimits } from '../../validation/form-data'
 import { importSourceColumnResponse } from './import-responses'
 import {
   approveGuardianConsentRequest,
+  confirmEnrollmentDatesRequest,
   importCheckpointRows,
   importHoldCode,
   resolveImportRowRequest,
@@ -102,6 +103,42 @@ describe('approveGuardianConsentRequest', () => {
     for (const consentDate of ['2026-02-30', '2026-13-01', '26-10-26', '2026-10-26T00:00:00Z']) {
       expect(accepts(approveGuardianConsentRequest, { rowIds: [uuid(1)], consentDate })).toBe(false)
     }
+  })
+})
+
+describe('confirmEnrollmentDatesRequest', () => {
+  const rows = (count: number) => Array.from({ length: count }, (_, i) => uuid(i + 1))
+
+  it('accepts 25 distinct rows with or without one date', () => {
+    expect(accepts(confirmEnrollmentDatesRequest, { rowIds: rows(importCheckpointRows) })).toBe(
+      true,
+    )
+    expect(accepts(confirmEnrollmentDatesRequest, { rowIds: rows(3), date: '2026-01-15' })).toBe(
+      true,
+    )
+  })
+
+  it('26 rows are refused', () => {
+    expect(accepts(confirmEnrollmentDatesRequest, { rowIds: rows(importCheckpointRows + 1) })).toBe(
+      false,
+    )
+    expect(accepts(confirmEnrollmentDatesRequest, { rowIds: [] })).toBe(false)
+  })
+
+  it('duplicate rows are refused', () => {
+    expect(accepts(confirmEnrollmentDatesRequest, { rowIds: [uuid(1), uuid(1)] })).toBe(false)
+  })
+
+  it('date must be a calendar date', () => {
+    for (const date of ['2026-02-30', '2026-13-01', '26-01-15', '2026-01-15T00:00:00Z']) {
+      expect(accepts(confirmEnrollmentDatesRequest, { rowIds: [uuid(1)], date })).toBe(false)
+    }
+  })
+
+  it('an unknown key is refused', () => {
+    expect(accepts(confirmEnrollmentDatesRequest, { rowIds: [uuid(1)], source: 'TYPED' })).toBe(
+      false,
+    )
   })
 })
 

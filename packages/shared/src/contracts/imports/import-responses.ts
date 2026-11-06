@@ -138,6 +138,8 @@ export const importBatchDetailResponse = importBatchResponse.extend({
   sourceColumns: z.array(importSourceColumnResponse),
   mappings: z.array(importMappingResponse),
   coverage: importCoverageResponse.nullable(),
+  // The submission time column's date order the server proposes enrollment dates with; null unless registration rows wait for one.
+  submissionTimeDateOrder: z.enum(importDateOrders).nullable(),
 })
 export type ImportBatchDetailResponse = z.infer<typeof importBatchDetailResponse>
 

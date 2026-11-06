@@ -157,6 +157,25 @@ describe('batch detail coverage', () => {
     })
   })
 
+  it('leaves the enrollment date of a registration batch to be confirmed after upload', async () => {
+    const enrollmentId = '61000000-0000-4000-8000-000000000003'
+    const fields = [
+      field(nameId, 'first_name'),
+      field(enrollmentId, 'enrollment_date', { dataType: 'DATE', isRequired: true }),
+    ]
+    const ignoredRest = [
+      mapping('column_0001', 'MAPPED', 'first_name'),
+      mapping('column_0002', 'IGNORED', null),
+      mapping('column_0003', 'IGNORED', null),
+    ]
+    const coverageOf = async (formType: string) => {
+      stage(ignoredRest, { form: { ...batch().form, formType } }, labelHeaders, fields)
+      return (await service.getBatch(actor, projectId, batch().id)).coverage?.coverage
+    }
+    expect(await coverageOf('BENEFICIARY_REGISTRATION')).toBe('COVERED')
+    expect(await coverageOf('OTHER')).toBe('NOT_COVERED')
+  })
+
   it('is null for a V2 revision, a later revision, a validated batch and an unmapped batch', async () => {
     const v2 = staged.map((item) => ({ ...item, validationMessage: 'AUTO_SMART_V2:AUTO_MATCH' }))
     const cases: Array<[unknown[], Record<string, unknown>]> = [

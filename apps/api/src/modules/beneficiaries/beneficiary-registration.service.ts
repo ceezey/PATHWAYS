@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
+import { deferredRequired } from '@pathways/imports/server'
 import {
   beneficiaryRegistrationDefinitionErrors,
   hasAtomicPermission,
@@ -122,7 +123,14 @@ export class BeneficiaryRegistrationService {
         errors: definitionErrors,
       })
     }
-    const validation = validateAndNormalizeFormData(formContract, input.values, 'final')
+    // An imported row may leave the enrollment date for a person to confirm; direct entry may not.
+    const validation = validateAndNormalizeFormData(
+      input.source === 'IMPORTED_DATASET'
+        ? deferredRequired('BENEFICIARY_REGISTRATION', formContract)
+        : formContract,
+      input.values,
+      'final',
+    )
     if (!validation.valid) {
       throw new BadRequestException({
         message: 'Registration values are invalid.',
@@ -137,6 +145,10 @@ export class BeneficiaryRegistrationService {
     if (input.source === 'IMPORTED_DATASET') {
       if (values.consent_recorded !== true || values.data_processing_consent_recorded !== true) {
         return { kind: 'REVIEW', code: 'CONSENT_REQUIRED' }
+      }
+      // The date is confirmed on the import page; it is checked after consent so a confirmed row is never re-held for consent.
+      if (values.enrollment_date == null || values.enrollment_date === '') {
+        return { kind: 'REVIEW', code: 'ENROLLMENT_DATE_REQUIRED' }
       }
       const age = values.age_at_registration
       const minor = isMinorOn(

@@ -122,17 +122,12 @@ export class GuardianApprovalService {
           ...(body.consentDate ? { date: body.consentDate } : {}),
           ...(body.note ? { note: body.note } : {}),
         }
-        // Linking or updating a found participant needs grants a Project Officer lacks, so name the row instead of failing the chunk.
         for (const { row, unchangedOf, values } of promotable) {
-          if (
-            !unchangedOf &&
-            values.registration_operation !== 'CREATE' &&
-            !mayMatchByIdentifier(actor)
-          ) {
-            throw new ConflictException(
-              `Row ${row.rowNumber} belongs to a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.`,
-            )
-          }
+          requireCreateUnlessIdentityReviewer(actor, {
+            rowNumber: row.rowNumber,
+            unchangedOf,
+            values,
+          })
         }
         const claim = await claimBatchForResolution(tx, batch.id)
         for (const { row, parked, unchangedOf, values } of promotable) {
@@ -188,42 +183,71 @@ export class GuardianApprovalService {
       if (!resolved) throw new ConflictException(noLongerApprovable(row.rowNumber))
       return { parked: true, values: resolved }
     }
-    const stored = safeRawData(row.normalizedData)
-    if (!byIdentifier) {
-      // Matched by code, the code is the identity: a taken one is a participant already here, never a reason for a new code.
-      const code = canonicalCode(stored.beneficiary_code)
-      const taken =
-        stored.registration_operation === 'CREATE' && code
-          ? await tx.beneficiary.findUnique({
-              where: { organizationId_code: { organizationId: actor.organizationId, code } },
-              select: { id: true },
-            })
-          : null
-      if (taken) {
-        throw new ConflictException(
-          `Row ${row.rowNumber} looks like a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.`,
-        )
-      }
-      return { parked: false, values: stored }
-    }
-    const file = stored as Record<string, NormalizedValue>
-    const match = await matchParticipant(tx, actor, { form, values: file })
-    // A participant already enrolled with the same details needs no new registration.
-    if (match.kind === 'SAME' && match.enrolledHere) {
-      return { parked: false, unchangedOf: match.beneficiaryId, values: stored }
-    }
-    // A row whose participant changed since it was held needs the data review instead.
-    if (match.kind === 'HOLD' || match.kind === 'CHANGED') {
+    const found = await unresolvedRowValues(tx, actor, form, {
+      rowNumber: row.rowNumber,
+      stored: safeRawData(row.normalizedData),
+      byIdentifier,
+    })
+    return { parked: false, ...found }
+  }
+}
+
+/** The values an unresolved held row is promoted with, its participant checked again by code or found again by the client's identifier. */
+export async function unresolvedRowValues(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  form: RegistrationImportForm,
+  row: { rowNumber: number; stored: Record<string, unknown>; byIdentifier: boolean },
+): Promise<{ unchangedOf?: string; values: Record<string, unknown> }> {
+  const { stored } = row
+  if (!row.byIdentifier) {
+    // Matched by code, the code is the identity: a taken one is a participant already here, never a reason for a new code.
+    const code = canonicalCode(stored.beneficiary_code)
+    const taken =
+      stored.registration_operation === 'CREATE' && code
+        ? await tx.beneficiary.findUnique({
+            where: { organizationId_code: { organizationId: actor.organizationId, code } },
+            select: { id: true },
+          })
+        : null
+    if (taken) {
       throw new ConflictException(
-        `Row ${row.rowNumber} changed since it was held. A Monitoring and Evaluation Officer must review it first.`,
+        `Row ${row.rowNumber} looks like a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.`,
       )
     }
-    const kept =
-      match.kind === 'SAME'
-        ? await rejectedBaseline(tx, actor, form, file, match.beneficiaryId)
-        : {}
-    const matched = await matchedValues(tx, actor, match, { ...stored, ...kept })
-    if (!matched) throw new ConflictException(noLongerApprovable(row.rowNumber))
-    return { parked: false, values: matched }
+    return { values: stored }
+  }
+  const file = stored as Record<string, NormalizedValue>
+  const match = await matchParticipant(tx, actor, { form, values: file })
+  // A participant already enrolled with the same details needs no new registration.
+  if (match.kind === 'SAME' && match.enrolledHere) {
+    return { unchangedOf: match.beneficiaryId, values: stored }
+  }
+  // A row whose participant changed since it was held needs the data review instead.
+  if (match.kind === 'HOLD' || match.kind === 'CHANGED') {
+    throw new ConflictException(
+      `Row ${row.rowNumber} changed since it was held. A Monitoring and Evaluation Officer must review it first.`,
+    )
+  }
+  const kept =
+    match.kind === 'SAME' ? await rejectedBaseline(tx, actor, form, file, match.beneficiaryId) : {}
+  const matched = await matchedValues(tx, actor, match, { ...stored, ...kept })
+  if (!matched) throw new ConflictException(noLongerApprovable(row.rowNumber))
+  return { values: matched }
+}
+
+/** Linking or updating a found participant needs grants a Project Officer lacks, so the row is named instead of failing the chunk. */
+export function requireCreateUnlessIdentityReviewer(
+  actor: ApplicationIdentity,
+  row: { rowNumber: number; unchangedOf?: string; values: Record<string, unknown> },
+) {
+  if (
+    !row.unchangedOf &&
+    row.values.registration_operation !== 'CREATE' &&
+    !mayMatchByIdentifier(actor)
+  ) {
+    throw new ConflictException(
+      `Row ${row.rowNumber} belongs to a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.`,
+    )
   }
 }

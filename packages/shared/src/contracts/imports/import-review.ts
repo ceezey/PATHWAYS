@@ -8,6 +8,7 @@ import { fieldIntakeRule } from '../metadata/form-intake'
 export const importHoldCodes = [
   'CONSENT_REQUIRED',
   'GUARDIAN_CONSENT_REQUIRED',
+  'ENROLLMENT_DATE_REQUIRED',
   'AMBIGUOUS_IDENTITY',
   'IDENTITY_REVIEW_REQUIRED',
   'DUPLICATE_IDENTITY',
@@ -156,3 +157,16 @@ export const approveGuardianConsentRequest = z
     }
   })
 export type ApproveGuardianConsentRequest = z.infer<typeof approveGuardianConsentRequest>
+
+// Body of POST imports/projects/:projectId/batches/:batchId/enrollment-dates; with no date each row takes its proposed one.
+export const confirmEnrollmentDatesRequest = z
+  .object({
+    rowIds: z
+      .array(uuidString)
+      .min(1)
+      .max(importCheckpointRows)
+      .refine(hasUniqueItems, 'must be unique'),
+    date: calendarDate.optional(),
+  })
+  .strict()
+export type ConfirmEnrollmentDatesRequest = z.infer<typeof confirmEnrollmentDatesRequest>
