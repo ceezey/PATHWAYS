@@ -218,7 +218,7 @@ describe('project overview metrics', () => {
     renderView()
     await waitFor(async () => expect(await tile('KPI achievement')).toBe('60.3%'))
     expect(screen.queryByText('Budget utilization')).toBeNull()
-    expect(await tile('Beneficiaries reached / target')).toBe('Suppressed (fewer than 5) / 1,200')
+    expect(await tile('Beneficiaries reached / target')).toBe('Suppressed / 1,200')
     expect(await tile('Timeline')).toBe('50%')
     expect(
       screen.getByRole('progressbar', { name: 'Timeline' }).getAttribute('aria-valuenow'),

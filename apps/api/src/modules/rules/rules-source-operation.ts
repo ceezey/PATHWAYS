@@ -26,10 +26,7 @@ export type SourceRequestKey =
   | { kind: 'CLIENT_MUTATION'; id: string }
   | { kind: 'CLIENT_MEASUREMENT'; id: string }
   | { kind: 'PROOF_FINALIZE'; id: string; phase: 'FINALIZE' }
-const uuid = z
-  .string()
-  .uuid()
-  .transform((value) => value.toLowerCase())
+const uuid = z.guid().transform((value) => value.toLowerCase())
 const instant = z.string().refine((value) => {
   try {
     return new Date(value).toISOString() === value

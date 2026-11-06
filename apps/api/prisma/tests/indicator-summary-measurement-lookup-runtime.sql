@@ -71,10 +71,10 @@ VALUES
 SET LOCAL session_replication_role = origin;
 
 -- Catalog: the reviewed body, owner, definer mode, empty search_path, no runtime grant and no residual owner chain.
-SELECT pg_temp.ok((SELECT md5(p.prosrc)='a14c59889bae818ac6dfa7263c3d264b' AND pg_get_userbyid(p.proowner)='report_projection_owner'
+SELECT pg_temp.ok((SELECT md5(p.prosrc)='65f2b6fe8bf48f7023dd435ca5888bdd' AND pg_get_userbyid(p.proowner)='report_projection_owner'
    AND p.prosecdef AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']
    FROM pg_proc p WHERE p.oid='pathways.p34_compute_indicator_value(uuid,uuid,uuid,text)'::regprocedure),
-  '1 p34_compute_indicator_value is the reviewed 0075 definition owned by report_projection_owner');
+  '1 p34_compute_indicator_value is the reviewed 0075 definition as 0076 replaced it, owned by report_projection_owner');
 SELECT pg_temp.ok(NOT has_function_privilege('pathways_runtime','pathways.p34_compute_indicator_value(uuid,uuid,uuid,text)','EXECUTE')
   AND NOT has_function_privilege('anon','pathways.p34_compute_indicator_value(uuid,uuid,uuid,text)','EXECUTE')
   AND NOT has_function_privilege('authenticated','pathways.p34_compute_indicator_value(uuid,uuid,uuid,text)','EXECUTE'),

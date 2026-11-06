@@ -9,17 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const supabase = localSupabase()
 const result = spawnSync(
   'pnpm',
-  [
-    '--filter',
-    '@pathways/api',
-    'exec',
-    'node',
-    '-r',
-    'ts-node/register',
-    '-r',
-    'tsconfig-paths/register',
-    'prisma/seeds/local-synthetic-seed.ts',
-  ],
+  ['--filter', '@pathways/api', 'exec', 'tsx', 'prisma/seeds/local-synthetic-seed.ts'],
   {
     cwd: root,
     stdio: 'inherit',

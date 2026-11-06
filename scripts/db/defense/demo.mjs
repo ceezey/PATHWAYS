@@ -29,18 +29,7 @@ function parseArgs(argv) {
 function runSeed(env, args) {
   const result = spawnSync(
     'pnpm',
-    [
-      '--filter',
-      '@pathways/api',
-      'exec',
-      'node',
-      '-r',
-      'ts-node/register',
-      '-r',
-      'tsconfig-paths/register',
-      'prisma/seeds/defense-demo-seed.ts',
-      ...args,
-    ],
+    ['--filter', '@pathways/api', 'exec', 'tsx', 'prisma/seeds/defense-demo-seed.ts', ...args],
     { cwd: root, stdio: 'inherit', shell, env: { ...process.env, ...env } },
   )
   return result.status ?? 1

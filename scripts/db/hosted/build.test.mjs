@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -10,7 +11,7 @@ import {
   resumePreflight,
   runHostedBuild,
 } from './build.mjs'
-import { BASELINE, MIGRATIONS_IN_ORDER } from './plan.mjs'
+import { BASELINE, MIGRATIONS_IN_ORDER, migrationsThrough, planThrough } from './plan.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
@@ -135,8 +136,8 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
   const kinds = io.calls.map((c) => c.kind)
   assert.ok(kinds.includes('psqlSql'))
   assert.ok(kinds.includes('resolve'))
-  assert.equal(kinds.filter((k) => k === 'deploy').length, 41)
-  assert.equal(kinds.filter((k) => k === 'psqlFile').length, 25) // 13 preprovision + 12 cleanup
+  assert.equal(kinds.filter((k) => k === 'deploy').length, 53)
+  assert.equal(kinds.filter((k) => k === 'psqlFile').length, 27) // 14 preprovision + 13 cleanup
 })
 
 test('runHostedBuild passes the captured original_prisma_database_create value to the rules cleanup', async () => {
@@ -204,6 +205,34 @@ test('runHostedBuild with resume starts after the already-applied migrations ins
     (c) => c.kind === 'psqlFile' && c.filePath.endsWith('hosted-rules-preprovision.sql'),
   )
   assert.ok(ranRulesPreprovision, 'resume must continue from the next unfinished step')
+})
+
+test('runHostedBuild with resume restages from the repo so a leftover stage copy never deploys', async () => {
+  const stageDir = path.join(root, '.tmp', 'hosted-build', 'migrations')
+  const stale = path.join(stageDir, '9999_stale_leftover')
+  mkdirSync(stale, { recursive: true })
+  writeFileSync(path.join(stale, 'migration.sql'), 'SELECT 1;')
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedPrefix = MIGRATIONS_IN_ORDER.slice(0, 5)
+  io.setLedger(
+    appliedPrefix.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  const staged = []
+  const originalDeploy = io.prismaMigrateDeploy.bind(io)
+  io.prismaMigrateDeploy = (directUrl, dir) => {
+    staged.push(readdirSync(dir).sort())
+    return originalDeploy(directUrl, dir)
+  }
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  // The first deploy after resume (0031) sees exactly the applied prefix, that step and the lock file.
+  assert.deepEqual(
+    staged[0],
+    [...appliedPrefix, '0031_f10_f11_rules_runtime', 'migration_lock.toml'].sort(),
+  )
 })
 
 test('runHostedBuild --resume refuses a target with the schema/role absent (nothing to resume)', async () => {
@@ -584,6 +613,50 @@ test('runHostedBuild fresh path (no --resume) works with an absent ledger', asyn
     (c) => c.kind === 'psqlSql' && c.sql.includes('CREATE ROLE prisma'),
   )
   assert.ok(ranCreateRole, 'a fresh run with an absent ledger must still create the prisma role')
+})
+
+const through0075 = '0075_indicator_summary_measurement_lookup'
+const finishedLedger = (names) =>
+  names.map((migration_name) => ({ migration_name, finished_at: 'now', rolled_back_at: null }))
+
+test('runHostedBuild --through 0075 stops after its cleanup and passes on a 0000-0075 ledger', async () => {
+  const io = makeFakeIO()
+  io.setLedger(finishedLedger(migrationsThrough(through0075)))
+  await runHostedBuild({ io, config: { ...config, through: through0075 } })
+  const files = io.calls.filter((c) => c.kind === 'psqlFile').map((c) => path.basename(c.filePath))
+  assert.equal(files.at(-1), 'hosted-indicator-summary-cleanup.sql')
+  assert.ok(!files.includes('hosted-saddd-exact-preprovision.sql'))
+  const deploys = planThrough(through0075).filter((step) => step.type === 'deploy').length
+  assert.equal(io.calls.filter((c) => c.kind === 'deploy').length, deploys)
+})
+
+test('postconditions --through 0075 refuses the full 0000-0083 ledger', async () => {
+  const io = makeFakeIO()
+  io.setLedger(finishedLedger(MIGRATIONS_IN_ORDER))
+  await assert.rejects(
+    () => postconditions(io, { ...config, through: through0075 }),
+    /Ledger postcondition failed: expected exactly the \d+ migrations 0000-0075/,
+  )
+})
+
+test('runHostedBuild --resume --through 0075 refuses a target already past 0075', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  io.setLedger(finishedLedger(migrationsThrough('0076_saddd_exact_counts')))
+  await assert.rejects(
+    () => runHostedBuild({ io, config: { ...config, through: through0075 }, resume: true }),
+    /already past --through/,
+  )
+  assert.ok(!io.calls.some((c) => c.kind === 'deploy' || c.kind === 'psqlFile'))
+})
+
+test('runHostedBuild --resume --through 0083 from a 0000-0075 ledger continues at the saddd-exact preprovision', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  io.setLedger(finishedLedger(migrationsThrough(through0075)))
+  await assert.rejects(() =>
+    runHostedBuild({ io, config: { ...config, through: '0083_stage_import' }, resume: true }),
+  )
+  const first = io.calls.find((c) => c.kind === 'psqlFile' || c.kind === 'deploy')
+  assert.equal(path.basename(first.filePath), 'hosted-saddd-exact-preprovision.sql')
 })
 
 test('postconditions fails when the ledger is missing a migration', async () => {

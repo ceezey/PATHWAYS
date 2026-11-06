@@ -37,7 +37,7 @@ export function classifyScoreCommentary(commentary: string | null, criterionType
 }
 
 // Evaluation and assessment ids are checked with the same UUID rule as project ids.
-export const projectIdSchema = z.string().uuid()
+export const projectIdSchema = z.guid()
 
 // The calendar date of a stored date-only value.
 export const day = (value: Date) => value.toISOString().slice(0, 10)

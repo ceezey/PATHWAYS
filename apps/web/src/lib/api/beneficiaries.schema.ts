@@ -1,6 +1,7 @@
 import {
   type BeneficiaryResponse,
   beneficiaryRegistrationDefinitionErrors,
+  formDefinitionLimits,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { z } from 'zod'
@@ -10,7 +11,7 @@ import type { BeneficiaryRecord, BeneficiaryRegistrationContext } from '@/types/
 
 const field = z
   .object({
-    id: z.string().uuid(),
+    id: z.guid(),
     code: z.string().max(64),
     label: z.string().max(160),
     dataType: z.enum([
@@ -27,7 +28,11 @@ const field = z
     metadataKey: z.boolean(),
     sadddField: z.boolean(),
     sequence: z.number().int().positive(),
-    allowedValues: z.array(z.string().max(120)).max(100).nullable().optional(),
+    allowedValues: z
+      .array(z.string().max(formDefinitionLimits.allowedValueLength))
+      .max(formDefinitionLimits.allowedValues)
+      .nullable()
+      .optional(),
     minimumValue: z.string().nullable().optional(),
     maximumValue: z.string().nullable().optional(),
     minimumDate: z.string().nullable().optional(),
@@ -38,13 +43,13 @@ const field = z
   .strict()
 const schema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.guid(),
     businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     definitions: z
       .array(
         z
           .object({
-            id: z.string().uuid(),
+            id: z.guid(),
             code: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
             version: z.number().int().positive(),
             name: z.string().min(3).max(160),

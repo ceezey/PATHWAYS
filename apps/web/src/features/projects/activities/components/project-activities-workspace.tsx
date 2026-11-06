@@ -38,6 +38,7 @@ import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityListTable } from './activity-list-table'
 import { ActivityProofDialog } from './activity-proof-dialog'
 import { ActivityStatusSummary } from './activity-status-summary'
+import { StagesWithoutActivityCard } from './stages-without-activity-card'
 
 // A saved activity keeps the list-only metrics the save response does not carry.
 const pickMetrics = (previous: ActivitySummary | undefined) => ({
@@ -319,6 +320,18 @@ export const ProjectActivitiesWorkspace = ({
 
   return (
     <>
+      <StagesWithoutActivityCard
+        activities={activities}
+        canCreate={canCreate && canReadJourneyStages && project !== null}
+        endDate={project?.endDate}
+        onCreated={() => {
+          void activityList.refetch()
+          void journeyStageRead.refetch()
+        }}
+        projectId={projectId}
+        stages={journeyStages}
+        startDate={project?.startDate}
+      />
       <FilterBar className="min-w-0 flex-wrap gap-x-3 gap-y-2 px-3 py-2">
         <ActivityStatusSummary
           activeStatus={statusFilter}

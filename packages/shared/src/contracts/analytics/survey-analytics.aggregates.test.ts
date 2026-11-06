@@ -28,7 +28,7 @@ describe('computeSurveyAnalyticsFromAggregates (trusted database aggregates)', (
     aggregate: aggregate as never,
   })
 
-  it('computes means from group sums with round1 half-away-from-zero and applies suppression', () => {
+  it('computes means from group sums with round1 half-away-from-zero and releases exact counts', () => {
     const result = computeSurveyAnalyticsFromAggregates(
       aggregateInput({
         excludedRecords: 2,
@@ -57,7 +57,7 @@ describe('computeSurveyAnalyticsFromAggregates (trusted database aggregates)', (
     expect(result.byActivity).toEqual([])
   })
 
-  it('suppresses a group with 1-4 pairs and withholds the whole breakdown', () => {
+  it('releases a group with 1-4 pairs exactly alongside a larger group', () => {
     const result = computeSurveyAnalyticsFromAggregates(
       aggregateInput({
         excludedRecords: 0,
@@ -76,18 +76,31 @@ describe('computeSurveyAnalyticsFromAggregates (trusted database aggregates)', (
             pairs: 3,
             sumPre: 120,
             sumPost: 150,
-            improved: 3,
-            same: 0,
+            improved: 2,
+            same: 1,
             declined: 0,
           },
         ],
       }),
     )
-    expect(result.overall.pairs).toMatchObject({ state: 'AVAILABLE', value: '8' })
-    for (const group of result.byActivity) expect(group.pairs.state).toBe('SUPPRESSED')
+    expect(result.overall).toMatchObject({
+      pairs: { state: 'AVAILABLE', value: '8' },
+      improved: { state: 'AVAILABLE', value: '7' },
+      same: { state: 'AVAILABLE', value: '1' },
+    })
+    expect(result.byActivity.map((group) => group.key)).toEqual(['act-a', 'act-b'])
+    expect(result.byActivity[1]).toMatchObject({
+      pairs: { state: 'AVAILABLE', value: '3' },
+      meanPre: { value: '40' },
+      meanPost: { value: '50' },
+      meanChange: { value: '10' },
+      improved: { state: 'AVAILABLE', value: '2' },
+      same: { state: 'AVAILABLE', value: '1' },
+      declined: { state: 'ZERO', value: '0' },
+    })
   })
 
-  it('withholds the breakdown when the no-activity residual is small (1-4)', () => {
+  it('keeps the breakdown exact when the no-activity residual is small (1-4)', () => {
     const result = computeSurveyAnalyticsFromAggregates(
       aggregateInput({
         excludedRecords: 0,
@@ -113,7 +126,13 @@ describe('computeSurveyAnalyticsFromAggregates (trusted database aggregates)', (
         ],
       }),
     )
-    expect(result.byActivity.every((group) => group.pairs.state === 'SUPPRESSED')).toBe(true)
+    expect(result.overall.pairs).toMatchObject({ state: 'AVAILABLE', value: '7' })
+    expect(result.byActivity).toHaveLength(1)
+    expect(result.byActivity[0]).toMatchObject({
+      key: 'act-a',
+      pairs: { state: 'AVAILABLE', value: '5' },
+      improved: { state: 'AVAILABLE', value: '5' },
+    })
   })
 
   it('is MISSING (NO_PAIRED_ASSESSMENTS) for an empty aggregate, never a fabricated zero mean', () => {
@@ -248,7 +267,8 @@ describe('computeSurveyAnalyticsFromAggregates (trusted database aggregates)', (
       expect(result.overall.pairs.value).toBe(String(expected.pairs))
       expect(Number(result.overall.meanPre.value)).toBeCloseTo(round(expected.meanPre), 5)
       expect(Number(result.overall.meanPost.value)).toBeCloseTo(round(expected.meanPost), 5)
-      // Sub-counts may be suppressed in the released view, so compare them on the aggregate.
+      expect(result.overall.improved.value).toBe(String(expected.improved))
+      expect(result.overall.declined.value).toBe(String(expected.declined))
       const groups = surveyAggregateFromRows(ordering).groups
       expect(groups.reduce((sum, group) => sum + group.improved, 0)).toBe(expected.improved)
       expect(groups.reduce((sum, group) => sum + group.declined, 0)).toBe(expected.declined)

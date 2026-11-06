@@ -1,6 +1,7 @@
 'use client'
 
-import { ChevronDown, Download, Plus } from 'lucide-react'
+import { ChevronDown, Download, Globe, Plus } from 'lucide-react'
+import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -15,10 +16,16 @@ import {
 } from '@/constants/feature-flags'
 import type { useCurrentRole } from '@/hooks/use-current-role'
 import { addPin } from '@/lib/dashboard-pins'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { toast } from 'sonner'
 
 import type { AnalyticsReportingPeriod } from '../analytics-reporting-periods.utils'
-import { type AnalysisView, exportFormats } from '../analytics.copy'
+import {
+  type AnalysisView,
+  type VisualizationType,
+  exportFormats,
+  publicPageHref,
+} from '../analytics.copy'
 import type { useAnalyticsExport } from '../hooks/use-analytics-export'
 import type { useAnalyticsScope } from '../hooks/use-analytics-scope'
 
@@ -36,6 +43,7 @@ export const AnalyticsActionBar = ({
   selectedPeriod,
   selectedProject,
   surveyUnavailable,
+  visualizationType,
 }: {
   analysisView: AnalysisView
   canExportAnalytics: boolean
@@ -50,35 +58,43 @@ export const AnalyticsActionBar = ({
   selectedPeriod: AnalyticsReportingPeriod | undefined
   selectedProject: ReturnType<typeof useAnalyticsScope>['selectedProject']
   surveyUnavailable: boolean
+  visualizationType: VisualizationType
 }) => {
-  const pinPermitted = {
-    kpi: canReadIndicators,
-    participation: canReadParticipation,
-    survey: true,
-    timeline: canReadSurveyTimeline,
-  }[analysisView]
+  // The map covers every scoped project, so it pins on its own whatever view is chosen.
+  const mapSelected = visualizationType === 'map'
+  const pinPermitted = mapSelected
+    ? principalHasAtomicPermission(profile, 'projects.read')
+    : {
+        kpi: canReadIndicators,
+        participation: canReadParticipation,
+        survey: true,
+        timeline: canReadSurveyTimeline,
+      }[analysisView]
   // The pinned card re-reads the same source, so pinning needs the same permission and period.
-  const pinBlockedReason = {
-    kpi: !canReadIndicators
-      ? 'Your role cannot read indicator progress, so this view cannot be pinned.'
-      : !selectedPeriod
-        ? 'Choose a reporting period to pin this view.'
-        : '',
-    participation: canReadParticipation
-      ? ''
-      : 'Your role cannot read participation detail, so this view cannot be pinned.',
-    survey: 'Survey improvement cannot be pinned.',
-    timeline: canReadSurveyTimeline
-      ? ''
-      : 'Your role cannot read timeline adherence, so this view cannot be pinned.',
-  }[analysisView]
+  const pinBlockedReason = mapSelected
+    ? ''
+    : {
+        kpi: !canReadIndicators
+          ? 'Your role cannot read indicator progress, so this view cannot be pinned.'
+          : !selectedPeriod
+            ? 'Choose a reporting period to pin this view.'
+            : '',
+        participation: canReadParticipation
+          ? ''
+          : 'Your role cannot read participation detail, so this view cannot be pinned.',
+        survey: 'Survey improvement cannot be pinned.',
+        timeline: canReadSurveyTimeline
+          ? ''
+          : 'Your role cannot read timeline adherence, so this view cannot be pinned.',
+      }[analysisView]
   const addToDashboard = () => {
-    if (!selectedProject || !profile?.userId || analysisView === 'survey' || pinBlockedReason)
-      return
+    if (!selectedProject || !profile?.userId || pinBlockedReason) return
+    const view = mapSelected ? 'map' : analysisView
+    if (view === 'survey') return
     const result = addPin(profile.userId, {
-      view: analysisView,
-      projectId: selectedProject.id,
-      ...(analysisView !== 'timeline' && selectedPeriod
+      view,
+      projectId: view === 'map' ? '' : selectedProject.id,
+      ...(view !== 'map' && view !== 'timeline' && selectedPeriod
         ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
         : {}),
     })
@@ -91,6 +107,9 @@ export const AnalyticsActionBar = ({
     if (result === 'added') toast.success(message)
     else toast.error(message)
   }
+
+  // The survey view has no public chart, so only the other views and the map can be added.
+  const publicView = mapSelected ? 'map' : analysisView
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -113,6 +132,16 @@ export const AnalyticsActionBar = ({
             </p>
           ) : null}
         </div>
+      ) : null}
+      {selectedProject &&
+      publicView !== 'survey' &&
+      principalHasAtomicPermission(profile, 'public.preview') ? (
+        <Button asChild className="shrink-0" variant="outline">
+          <Link href={publicPageHref(selectedProject.id, publicView)}>
+            <Globe className="mr-2 h-4 w-4" aria-hidden="true" />
+            Add to public page
+          </Link>
+        </Button>
       ) : null}
       {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
         <div className="flex items-center">

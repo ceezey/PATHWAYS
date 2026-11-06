@@ -15,15 +15,23 @@ import { FileInterceptor } from '@nestjs/platform-express'
 
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports'
 import {
+  type ApproveGuardianConsentRequest,
   type AutomaticImportMappingRequest,
+  type ConfirmEnrollmentDatesRequest,
   type ImportRowsQuery,
   type ProcessImportRequest,
+  type RerunImportRequest,
+  type ResolveImportRowRequest,
   type SaveImportMappingRequest,
   type UploadImportRequest,
   type ValidateImportRequest,
+  approveGuardianConsentRequest,
   automaticImportMappingRequest,
+  confirmEnrollmentDatesRequest,
   importRowsQuery,
   processImportRequest,
+  rerunImportRequest,
+  resolveImportRowRequest,
   saveImportMappingRequest,
   uploadImportRequest,
   validateImportRequest,
@@ -32,11 +40,19 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
+import { EnrollmentDateService } from './enrollment-date.service'
+import { GuardianApprovalService } from './guardian-approval.service'
+import { ImportReviewService } from './import-review.service'
 import { ImportsService, type UploadedImportFile } from './imports.service'
 
 @Controller('imports/projects/:projectId/batches')
 export class ImportsController {
-  constructor(@Inject(ImportsService) private readonly imports: ImportsService) {}
+  constructor(
+    @Inject(ImportsService) private readonly imports: ImportsService,
+    @Inject(ImportReviewService) private readonly review: ImportReviewService,
+    @Inject(GuardianApprovalService) private readonly guardians: GuardianApprovalService,
+    @Inject(EnrollmentDateService) private readonly enrollmentDates: EnrollmentDateService,
+  ) {}
 
   @Get()
   @RequirePermission('imports.read')
@@ -51,10 +67,11 @@ export class ImportsController {
       limits: {
         fileSize: IMPORT_ENGINEERING_LIMITS.maxBytes,
         files: 1,
-        fields: 2,
+        fields: 3,
         fieldNameSize: 64,
-        fieldSize: 256,
-        parts: 4,
+        // A 100-character sheet name can take 400 bytes in UTF-8.
+        fieldSize: 512,
+        parts: 5,
       },
     }),
   )
@@ -87,6 +104,28 @@ export class ImportsController {
     return this.imports.resumeUpload(requestIdentity(request), projectId, batchId)
   }
 
+  @Post(':batchId/rerun')
+  @RequirePermission('imports.upload')
+  rerun(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Body(new ZodPipe(rerunImportRequest)) body: RerunImportRequest,
+  ) {
+    return this.imports.rerun(requestIdentity(request), projectId, batchId, body)
+  }
+
+  @Post(':batchId/parts/:partCode/start')
+  @RequirePermission('imports.upload')
+  startPart(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('partCode') partCode: string,
+  ) {
+    return this.imports.startFilePart(requestIdentity(request), projectId, batchId, partCode)
+  }
+
   @Get(':batchId/rows')
   @RequirePermission('imports.read')
   rows(
@@ -96,6 +135,51 @@ export class ImportsController {
     @Query(new ZodPipe(importRowsQuery)) query: ImportRowsQuery,
   ) {
     return this.imports.listRows(requestIdentity(request), projectId, batchId, query)
+  }
+
+  @Get(':batchId/rows/:rowId/review')
+  @RequirePermission('imports.review')
+  reviewRow(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('rowId') rowId: string,
+  ) {
+    return this.review.review(requestIdentity(request), projectId, batchId, rowId)
+  }
+
+  @Post(':batchId/rows/:rowId/resolve')
+  @RequirePermission('imports.review')
+  resolveRow(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('rowId') rowId: string,
+    @Body(new ZodPipe(resolveImportRowRequest)) body: ResolveImportRowRequest,
+  ) {
+    return this.review.resolve(requestIdentity(request), projectId, batchId, rowId, body)
+  }
+
+  @Post(':batchId/guardian-approvals')
+  @RequirePermission('beneficiaries.guardian_consent.approve')
+  approveGuardians(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Body(new ZodPipe(approveGuardianConsentRequest)) body: ApproveGuardianConsentRequest,
+  ) {
+    return this.guardians.approve(requestIdentity(request), projectId, batchId, body)
+  }
+
+  @Post(':batchId/enrollment-dates')
+  @RequirePermission('imports.process')
+  confirmEnrollmentDates(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Body(new ZodPipe(confirmEnrollmentDatesRequest)) body: ConfirmEnrollmentDatesRequest,
+  ) {
+    return this.enrollmentDates.confirm(requestIdentity(request), projectId, batchId, body)
   }
 
   @Post(':batchId/automatic-mapping')

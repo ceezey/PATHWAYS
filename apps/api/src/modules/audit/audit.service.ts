@@ -7,7 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 
 const auditQuerySchema = z
   .object({
-    projectId: z.string().uuid().optional(),
+    projectId: z.guid().optional(),
     cursor: z
       .string()
       .max(80)
@@ -39,10 +39,7 @@ export class AuditService {
       if (projects && projects.length > 1000)
         throw new BadRequestException('Choose a project to narrow audit scope.')
       const [at, afterId] = query.cursor?.split('|') ?? []
-      if (
-        at &&
-        (Number.isNaN(new Date(at).valueOf()) || !z.string().uuid().safeParse(afterId).success)
-      )
+      if (at && (Number.isNaN(new Date(at).valueOf()) || !z.guid().safeParse(afterId).success))
         throw new BadRequestException('Invalid audit cursor.')
       const rows = await tx.auditLog.findMany({
         where: {

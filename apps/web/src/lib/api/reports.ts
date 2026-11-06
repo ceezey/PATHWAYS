@@ -11,7 +11,7 @@ import { z } from 'zod'
 
 import { ownedJsonPost, ownedJsonRead, projectPath } from '@/lib/api/core/owned-json-read'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 const reportKind = z.enum(reportKinds)
 // The stored report type also holds OTHER and the stored round status holds open states, so the client narrows both.
 const reportSchema = reportResponse.extend({ type: reportKind })

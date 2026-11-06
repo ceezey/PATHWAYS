@@ -86,6 +86,13 @@ describe('canonical least-privilege policy ceiling', () => {
       )
     }
   })
+  it('grants guardian consent approval only to Project Officer', () => {
+    for (const role of Object.keys(roleNames) as CanonicalRole[]) {
+      expect(rolePermissions[role].includes('beneficiaries.guardian_consent.approve')).toBe(
+        role === 'PROJECT_OFFICER',
+      )
+    }
+  })
   it('permits only Admin to assign Program Manager', () => {
     for (const actor of Object.keys(roleNames) as CanonicalRole[]) {
       expect(canAssignRole(actor, 'PROGRAM_MANAGER')).toBe(actor === 'SYSTEM_ADMINISTRATOR')

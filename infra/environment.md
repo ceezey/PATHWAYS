@@ -68,7 +68,7 @@ Backend-specific values used by the NestJS app:
 - `SHADOW_DATABASE_URL` must refer only to a disposable local PostgreSQL database. Never point it at Supabase, production, or a database containing data that must be preserved.
 - Do not append `?schema=pathways` to the migration connection. The single Prisma ledger remains in `public`, while Prisma multi-schema mappings place domain tables in `pathways`.
 - Enter passwords through a secure prompt or secret manager. Never commit complete database URLs.
-- On Windows, the Phase 4 protected launcher reads the separate DPAPI runtime credential and supplies `DATABASE_URL` only to its child process, without editing either ignored env file. See `infra/supabase/security-adapter/README.md`. Old migration-owner env values are not safe runtime credentials.
+- `pnpm dev` runs the API through `infra/supabase/security-adapter/dev-local.mjs`, which blanks `DIRECT_URL`, `SHADOW_DATABASE_URL` and `PGPASSWORD` for the API process. See `infra/supabase/security-adapter/README.md`. Old migration-owner env values are not safe runtime credentials.
 
 ## Notes
 
@@ -81,10 +81,8 @@ Multiple linked active profiles fail closed. Every selected protected request
 revalidates the profile, role, permissions, and scope through the dedicated
 `NOBYPASSRLS` runtime connection.
 
-Use the ignored `apps/api/.env.local` or the protected launcher's parent process
-environment; restart the API through `infra/supabase/security-adapter/Start-DevRuntime.ps1`
-using its existing documented invocation and dedicated non-owner runtime credential.
-The launcher runs the compiled API: rebuild after code changes. Do not run a
+Use the ignored `apps/api/.env.local` with the dedicated non-owner runtime
+credential and restart the API with `pnpm dev`, which rebuilds it. Do not run a
 migration or use a migration-owner/service-role credential for discovery.
 
 ### Existing environment notes

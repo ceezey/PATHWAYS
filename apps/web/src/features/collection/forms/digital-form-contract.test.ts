@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { fromDigitalForm, toDigitalFormInput } from './digital-form-contract'
+import { emptyIntake, fromDigitalForm, toDigitalFormInput } from './digital-form-contract'
 
 describe('digital form builder contract', () => {
   it('preserves options containing commas and date bounds through API round trips', () => {
@@ -17,6 +17,7 @@ describe('digital form builder contract', () => {
       journeyStageId: 'stage-id',
       updatedAt: '2026-09-13T00:00:00.000Z',
       createdByCurrentUser: true,
+      draftSummary: null,
       fields: [
         {
           code: 'choice',
@@ -95,6 +96,7 @@ describe('digital form builder contract', () => {
         minimumLength: type === 'text' ? '2' : '',
         maximumLength: type === 'text' ? '20' : '',
         mappingStatus: 'mapped',
+        ...emptyIntake,
       })),
     })
 
@@ -127,6 +129,7 @@ describe('digital form builder contract', () => {
       journeyStageId: null,
       updatedAt: '2026-09-13T00:00:00.000Z',
       createdByCurrentUser: true,
+      draftSummary: null,
       fields: [
         {
           id: 'field-id',
@@ -149,5 +152,102 @@ describe('digital form builder contract', () => {
       maximumLength: '2',
       metadataKey: true,
     })
+  })
+  it('carries intake metadata both ways and drops incomplete entries', () => {
+    const response = {
+      id: 'form-id',
+      projectId: 'project-id',
+      code: 'registration',
+      version: 2,
+      name: 'Registration',
+      description: null,
+      formType: 'BENEFICIARY_REGISTRATION' as const,
+      status: 'DRAFT' as const,
+      activityId: null,
+      journeyStageId: null,
+      updatedAt: '2026-10-23T00:00:00.000Z',
+      createdByCurrentUser: true,
+      draftSummary: null,
+      fields: [
+        {
+          id: 'sex-id',
+          code: 'sex',
+          label: 'Sex',
+          dataType: 'SELECT' as const,
+          required: true,
+          metadataKey: false,
+          sadddField: true,
+          allowedValues: ['Male', 'Female'],
+          minimumLength: null,
+          maximumLength: null,
+          sourceNames: ['Gender'],
+          valueAliases: [{ from: 'M', to: 'Male' }],
+          importDefault: 'Male',
+          rule: {
+            kind: 'AGE_AT_DATE' as const,
+            birthField: 'birth_date',
+            atField: 'enrollment_date',
+          },
+        },
+      ],
+    }
+    const fields = fromDigitalForm(response)
+    expect(fields[0]).toMatchObject({
+      sourceNames: ['Gender'],
+      valueAliases: [{ from: 'M', to: 'Male' }],
+      importDefault: 'Male',
+      rule: { kind: 'AGE_AT_DATE' },
+    })
+    const [sent] = toDigitalFormInput({
+      code: response.code,
+      name: response.name,
+      formType: response.formType,
+      fields: [
+        {
+          ...fields[0],
+          sourceNames: [' Gender ', ' '],
+          valueAliases: [
+            { from: 'M', to: 'Male' },
+            { from: '', to: 'Female' },
+          ],
+          importDefault: ' ',
+          rule: null,
+        },
+      ],
+    }).fields
+    expect(sent).toMatchObject({
+      sourceNames: ['Gender'],
+      valueAliases: [{ from: 'M', to: 'Male' }],
+    })
+    expect(sent.importDefault).toBeUndefined()
+    expect(sent.rule).toBeUndefined()
+  })
+
+  it('sends value aliases only for choice fields', () => {
+    const [sent] = toDigitalFormInput({
+      code: 'f',
+      name: 'F',
+      formType: 'OTHER',
+      fields: [
+        {
+          id: '1',
+          code: 'age',
+          label: 'Age',
+          type: 'integer',
+          required: false,
+          metadataKey: false,
+          sadddField: false,
+          allowedValues: [],
+          minimumValue: '',
+          maximumValue: '',
+          minimumLength: '',
+          maximumLength: '',
+          mappingStatus: 'mapped',
+          ...emptyIntake,
+          valueAliases: [{ from: 'x', to: 'y' }],
+        },
+      ],
+    }).fields
+    expect(sent.valueAliases).toBeUndefined()
   })
 })

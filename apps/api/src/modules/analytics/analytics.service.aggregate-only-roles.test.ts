@@ -272,7 +272,7 @@ describe('analytics descriptive views: survey and timeline', () => {
       ).rejects.toMatchObject({ status: 503 })
     })
 
-    it('abuse: suppression still runs in the API on the unsuppressed aggregate (3 pairs are suppressed)', async () => {
+    it('happy: the API releases a small survey aggregate exactly (3 pairs)', async () => {
       const { service } = harness(releasedSaddd, '2026-06-30', {
         surveyAggregate: {
           excludedRecords: 1,
@@ -297,8 +297,8 @@ describe('analytics descriptive views: survey and timeline', () => {
       expect(result).toMatchObject({
         excludedRecords: 1,
         overall: {
-          pairs: { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' },
-          meanPre: { state: 'SUPPRESSED', value: null },
+          pairs: { state: 'AVAILABLE', value: '3', reason: null },
+          meanPre: { state: 'AVAILABLE', value: '40' },
         },
       })
     })

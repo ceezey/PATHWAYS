@@ -13,9 +13,10 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { formatCalendarDay } from '@/lib/format/date'
 import { can } from '@/lib/rbac/can'
+import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
 import { nonOverlappingAnalyticsPeriods } from '../analytics-reporting-periods.utils'
-import type { AnalysisView, VisualizationType } from '../analytics.copy'
+import { type AnalysisView, type VisualizationType, publicPageHref } from '../analytics.copy'
 import { analyticsAccess, countOpenAlerts } from '../analytics.reads'
 import { businessDateInManila } from '../analytics.utils'
 import { useAnalyticsExport } from '../hooks/use-analytics-export'
@@ -265,6 +266,7 @@ export const AnalyticsDashboard = () => {
           selectedPeriod={selectedPeriod}
           selectedProject={selectedProject}
           surveyUnavailable={surveyUnavailable}
+          visualizationType={visualizationType}
         />
       </AnalyticsFilterBar>
 
@@ -390,6 +392,11 @@ export const AnalyticsDashboard = () => {
                 sadddLoading={sadddLoading}
                 sadddNotice={sadddNotice}
                 sadddOngoing={sadddOngoing}
+                publicHref={
+                  selectedProject && principalHasAtomicPermission(profile, 'public.preview')
+                    ? publicPageHref(selectedProject.id, 'saddd')
+                    : undefined
+                }
               />
             ) : null}
             {canReadDescriptive ? (

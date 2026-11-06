@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 
 import type { FormField } from '../../collection.utils'
+import { emptyIntake } from '../digital-form-contract'
 import { type OperationGuard, useFormFields } from './use-form-fields'
 
 const toasts = vi.hoisted(() => ({ success: vi.fn() }))
@@ -24,6 +25,7 @@ const field = (id: string): FormField => ({
   minimumLength: '',
   maximumLength: '',
   mappingStatus: 'mapped',
+  ...emptyIntake,
 })
 const initial = [field('a'), field('b'), field('c')]
 const guard = (): OperationGuard => ({
@@ -58,6 +60,7 @@ describe('useFormFields', () => {
       code: 'new_field_4',
       type: 'text',
       mappingStatus: 'unmapped',
+      ...emptyIntake,
     })
     expect(result.current.selectedFieldId).toBe(added.id)
     expect(operation.intent.current).toBe(1)

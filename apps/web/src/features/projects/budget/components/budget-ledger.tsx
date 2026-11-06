@@ -63,6 +63,7 @@ export const BudgetLedger = ({
         `/projects/${projectId}/finance/expenses/${expenseId}/official-receipt`,
         `disbursement-receipt-${expenseId}.pdf`,
       )
+      toast.success('Official receipt downloaded.')
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Official receipt temporarily unavailable.',

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 const revision = z.string().datetime({ offset: true })
 // A non-negative PHP amount sent as text, with at most two decimal places.
 const money = z.string().regex(/^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/)

@@ -59,3 +59,15 @@ test('truncate list equals every migration table minus the keep list', () => {
   assert.equal(new Set(truncated).size, truncated.length, 'duplicate table in list')
   assert.deepEqual([...truncated].sort(), expected)
 })
+
+test('the prerequisite guard checks the newest migration table', () => {
+  const dryRun = readFileSync(
+    path.join(root, 'infra/supabase/replay/hosted-defense-demo-wipe-dry-run.sql'),
+    'utf8',
+  )
+  for (const text of [sql, dryRun]) {
+    assert.match(text, /to_regclass\('pathways\.import_value_rejections'\) IS NULL/)
+    assert.match(text, /Migrations through 0080 not applied/)
+    assert.doesNotMatch(text, /through 0060/)
+  }
+})

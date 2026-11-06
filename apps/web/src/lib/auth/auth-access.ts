@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import type { PathwaysRole } from '@/types/pathways-role'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 
 const mfaStatusSchema = z.object({
   authUserId: uuid,

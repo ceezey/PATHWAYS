@@ -74,10 +74,10 @@ describe('project status layout', () => {
     )
     expect(screen.getByText('Needs context')).toBeTruthy()
   })
-  it('shows a suppressed figure as Fewer than 5, never zero', () => {
+  it('shows a suppressed figure as Suppressed, never zero', () => {
     render(<PrintReportView report={sampleProjectReport} />)
     const card = screen.getByText('Beneficiaries reached').parentElement as HTMLElement
-    expect(within(card).getByText('Fewer than 5')).toBeTruthy()
+    expect(within(card).getByText('Suppressed')).toBeTruthy()
     expect(within(card).queryByText('0')).toBeNull()
   })
   it('omits a section that is absent', () => {
@@ -114,7 +114,7 @@ describe('project status layout', () => {
           columns: ['Dimension', 'Category', 'Value', 'Metric state', 'Reason'],
           rows: [
             ['Sex', 'Female', '12', 'AVAILABLE', ''],
-            ['Sex', 'Male', 'Suppressed', 'SUPPRESSED', 'Small group'],
+            ['Sex', 'Male', 'Suppressed', 'SUPPRESSED', 'Withheld for this role'],
           ],
           generatedAt: '2026-10-05T03:00:00.000Z',
           unavailableReasons: [],
@@ -123,6 +123,7 @@ describe('project status layout', () => {
     )
     expect(screen.getByRole('heading', { name: 'Data' })).toBeTruthy()
     expect(screen.getByText('Available')).toBeTruthy()
-    expect(screen.getByText('Fewer than 5')).toBeTruthy()
+    // The Value cell and the SUPPRESSED pill both read Suppressed.
+    expect(screen.getAllByText('Suppressed')).toHaveLength(2)
   })
 })

@@ -1,7 +1,8 @@
 'use client'
 
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileSearch } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useRef } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, EmptyState } from '@/components/pathways'
@@ -10,18 +11,26 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 
+import { useBatchIntake } from '../hooks/use-batch-intake'
 import { useBatchProcessing } from '../hooks/use-batch-processing'
 import { useBatchReview } from '../hooks/use-batch-review'
 import { useImportLoading } from '../hooks/use-import-loading'
 import { useImportState } from '../hooks/use-import-state'
+import { showsSurveys } from '../import.utils'
 import { ImportBatchList } from './import-batch-list'
 import { ImportBatchSummary } from './import-batch-summary'
+import { ImportHeldList } from './import-held-list'
 import { ImportMappingCard } from './import-mapping-card'
+import { ImportOpenDraft } from './import-open-draft'
+import { ImportPartsCard } from './import-parts-card'
 import { ImportProcessingPanel } from './import-processing-panel'
 import { ImportRowsCard } from './import-rows-card'
 import { ImportUploadCard } from './import-upload-card'
 
-export function ImportWorkspace() {
+// An import a link asks to open, such as a dashboard guardian approval.
+type ImportTarget = { projectId: string; batchId: string }
+
+export function ImportWorkspace({ target }: { target?: ImportTarget }) {
   const { profile } = useCurrentRole()
   const scope = useSensitiveDraftOwner(profile, 'import-workspace', 'imports.read', null, null)
   if (!scope) return <output>Current import access is required.</output>
@@ -33,18 +42,31 @@ export function ImportWorkspace() {
     [...(profile?.permissions ?? [])].sort(),
     [...(profile?.assignedProjectIds ?? [])].sort(),
   ])
-  return <OwnedImportWorkspace key={scope.key + scope.generation + accessKey} scope={scope} />
+  return (
+    <OwnedImportWorkspace
+      key={scope.key + scope.generation + accessKey}
+      scope={scope}
+      target={target}
+    />
+  )
 }
-function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
+function OwnedImportWorkspace({
+  scope,
+  target,
+}: { scope: SensitiveDraftOwner; target?: ImportTarget }) {
   const { labels } = useDisplayLabels()
   const state = useImportState(scope)
-  useImportLoading(state)
+  useImportLoading(state, target?.projectId)
   const review = useBatchReview(state)
   const run = useBatchProcessing(state, review)
+  const intake = useBatchIntake(state, review, run)
   const {
     batch,
     canOpenForms,
     canProcess,
+    canUpload,
+    draftTarget,
+    isSystemAdministrator,
     loadState,
     pending,
     setLoadAttempt,
@@ -52,12 +74,23 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     sourceColumns,
   } = state
   const { process, stopProcessing, visibleProcessing } = run
+  const targetOpened = useRef(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: opens once, when the linked batch reaches the server's list.
+  useEffect(() => {
+    if (targetOpened.current || !state.batches.some((item) => item.id === target?.batchId)) return
+    targetOpened.current = true
+    void review.loadBatch(target?.batchId as string)
+  }, [state.batches])
   return (
     <div className="space-y-6">
       <PageHeader
         editableLabelKey="moduleCollection"
         title={labels.moduleCollection}
-        description="Upload a private CSV, workbook or text-based PDF, review field mappings, validate every row, and promote only valid generic submissions."
+        description={
+          isSystemAdministrator
+            ? 'Review field mappings, validate every row, and promote only valid generic submissions.'
+            : 'Upload a private CSV, workbook or text-based PDF, review field mappings, validate every row, and promote only valid generic submissions.'
+        }
         actions={
           canOpenForms ? (
             <Button asChild variant="outline">
@@ -69,6 +102,8 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
           ) : undefined
         }
       />
+
+      {draftTarget ? <ImportOpenDraft target={draftTarget} /> : null}
 
       {visibleProcessing ? (
         // Outside the disabled fieldset so Stop stays available while processing runs.
@@ -112,15 +147,41 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
           <div className="space-y-4">
             {!batch ? (
               <EmptyState
+                className="h-full"
+                icon={FileSearch}
                 title="No import selected"
-                description="Select a persisted import batch to map, validate, review, or resume."
+                description="Imports appear in the list. Select one to map, validate, review or resume it."
               />
             ) : (
               <>
-                <ImportBatchSummary review={review} batch={batch} />
+                <ImportBatchSummary
+                  review={review}
+                  intake={intake}
+                  pending={pending}
+                  batch={batch}
+                  onProcessWaiting={canProcess && canUpload ? () => void process() : undefined}
+                />
+
+                {showsSurveys(batch, state.receipts[batch.id]) ? (
+                  <ImportPartsCard batch={batch} review={review} state={state} />
+                ) : null}
+
+                <ImportHeldList
+                  batch={batch}
+                  leadToGuardian={batch.id === target?.batchId}
+                  onChanged={() => review.loadBatch(batch.id)}
+                />
 
                 {sourceColumns.length > 0 ? (
-                  <ImportMappingCard state={state} review={review} run={run} batch={batch} />
+                  // Keyed by batch so the decision filter and other card state never carry over.
+                  <ImportMappingCard
+                    key={batch.id}
+                    state={state}
+                    review={review}
+                    run={run}
+                    intake={intake}
+                    batch={batch}
+                  />
                 ) : null}
 
                 <ImportRowsCard state={state} />

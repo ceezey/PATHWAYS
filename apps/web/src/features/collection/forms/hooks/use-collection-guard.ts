@@ -33,6 +33,7 @@ export function useCollectionGuard(state: CollectionState) {
   const canOpenImport = Boolean(
     profile && getVerifiedRouteAccess(profile, '/collection/import').allowed,
   )
+  const isSystemAdministrator = profile?.roles[0] === 'SYSTEM_ADMINISTRATOR'
   const canUseExtend = Boolean(
     profile && getVerifiedRouteAccess(profile, '/collection/import?mode=extend').allowed,
   )
@@ -126,6 +127,7 @@ export function useCollectionGuard(state: CollectionState) {
     canUseExtend,
     editingReady,
     eligible,
+    isSystemAdministrator,
   }
 }
 

@@ -7,6 +7,8 @@ import {
   assertRegistrationAge,
   businessToday,
   exactDate,
+  guardianConsentRequiredMessage,
+  isMinorOn,
   yearsAt,
 } from './beneficiary-registration.helpers'
 
@@ -93,7 +95,11 @@ export function ageBandWhere(
   }
 }
 
-export function assertSubjectProfile(input: UpdateBeneficiaryRequest, current: BeneficiaryRow) {
+/** Checks a profile edit and returns the person's minor status at today, which the edit stores. */
+export function assertSubjectProfile(
+  input: UpdateBeneficiaryRequest,
+  current: BeneficiaryRow,
+): boolean {
   if (input.subjectType === 'INDIVIDUAL') {
     if (!input.firstName?.trim() || !input.lastName?.trim()) {
       throw new BadRequestException('Individual profiles require first and last names.')
@@ -131,12 +137,13 @@ export function assertSubjectProfile(input: UpdateBeneficiaryRequest, current: B
         ? yearsAt(birthDate, enrollmentDate)
         : (input.ageAtRegistration ?? null)
     if (birthDateChanged || ageChanged) assertRegistrationAge(birthDate, age, today)
-    if (age !== null && age < 18 !== current.isMinor) {
-      throw new BadRequestException(
-        'Age changes cannot contradict recorded minor/guardian consent facts.',
-      )
+    const isMinor = isMinorOn(birthDate, input.ageAtRegistration ?? null, today)
+    if (isMinor && !current.guardianConsentRecorded) {
+      throw new BadRequestException(guardianConsentRequiredMessage)
     }
-  } else if (
+    return isMinor
+  }
+  if (
     !input.displayName?.trim() ||
     input.firstName ||
     input.middleName ||
@@ -149,4 +156,5 @@ export function assertSubjectProfile(input: UpdateBeneficiaryRequest, current: B
       'Group/community profiles require a display name and cannot use person-only fields.',
     )
   }
+  return false
 }

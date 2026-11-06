@@ -32,6 +32,11 @@ const roleOverview = {
   projects: [],
   myActivities: null,
   flaggedProof: null,
+  guardianApprovals: null,
+  formDrafts: null,
+  publicationQueue: null,
+  importAttention: null,
+  ruleDrafts: null,
   recentSubmissions: null,
   submittedThisMonth: null,
   proofQueue: null,
@@ -71,9 +76,9 @@ const saddd = {
   population: 'DISTINCT_INDIVIDUALS_WITH_OVERLAPPING_ENROLLMENT',
   demographicBasis: 'CURRENT_PROFILE_NOT_HISTORICAL_SNAPSHOT',
   privacy: {
-    threshold: 5,
-    complementarySuppression: true,
-    policy: 'FIXED_CLOSED_PROJECT_PERIOD_V1',
+    threshold: 0,
+    complementarySuppression: false,
+    policy: 'FIXED_CLOSED_PROJECT_PERIOD_V2',
     crossFilters: 'PROJECT_ONLY_NO_CROSS_FILTERS',
   },
   total: cell('9'),
@@ -180,73 +185,5 @@ describe('dashboardsClient dashboard reads', () => {
       code: 'unauthorized',
     })
     expect(fetcher).not.toHaveBeenCalled()
-  })
-
-  it('rejects dashboard reads without a session', async () => {
-    browser.getSession.mockResolvedValue({ data: { session: null }, error: null })
-    await expect(client.getDashboard('Program Manager')).rejects.toMatchObject({
-      code: 'unauthorized',
-    })
-  })
-
-  it('builds the role dashboard view model from the home read', async () => {
-    fetcher.mockResolvedValueOnce(json(monitoring))
-    await expect(client.getDashboard('Program Manager')).resolves.toEqual({
-      role: 'Program Manager',
-      greetingName: 'Program Manager',
-      heading: 'Project monitoring overview',
-      summary:
-        '2026-09-01 to 2026-09-30; Asia/Manila. Current operational states; no automated success rating.',
-      primaryAction: {
-        id: 'monitoring',
-        label: 'Open monitoring',
-        kind: 'navigate',
-        href: '/analytics',
-      },
-      metrics: [
-        {
-          id: 'projects',
-          label: 'Authorized projects',
-          value: '1',
-          helperText: 'Server-derived current project scope.',
-        },
-        {
-          id: 'participation',
-          label: 'Participation records',
-          value: '12',
-          helperText: 'Committed records, not a count of people.',
-        },
-        {
-          id: 'attending',
-          label: 'Distinct attending individuals',
-          value: '8',
-          helperText: 'Present/completed attendance; deduplicated across projects.',
-        },
-        {
-          id: 'enrolled',
-          label: 'Enrolled individuals',
-          value: 'Suppressed',
-          helperText: 'Enrollment overlaps this period; privacy suppression applies.',
-        },
-      ],
-      sections: [
-        {
-          id: 'projects',
-          title: 'Authorized project workspaces',
-          emptyText: 'No projects are currently in your authorized scope.',
-          items: [
-            {
-              id: projectId,
-              title: 'Fictional project',
-              description: 'SYN-1',
-              href: `/projects/${projectId}`,
-            },
-          ],
-        },
-      ],
-    })
-    expect(String(fetcher.mock.calls[0][0])).toBe(`${base}/dashboards/home`)
-    fetcher.mockResolvedValueOnce(json({ ...monitoring, extra: 'x' }))
-    await expect(client.getDashboard('Program Manager')).rejects.toThrow()
   })
 })

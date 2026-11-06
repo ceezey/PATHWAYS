@@ -20,9 +20,12 @@ import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
+import { stageFixtureSheet } from '@pathways/imports/form-draft/futuremakers-stage-fixture'
+import { rolePermissions } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './upload-finalization-fault'
@@ -58,6 +61,91 @@ describe('P03 import service', () => {
       }),
     )
     expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+  })
+
+  it('system administrator registration upload refused before staging', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: [...rolePermissions.SYSTEM_ADMINISTRATOR],
+    }
+    tx.digitalForm.findFirst.mockResolvedValue({
+      id: formId,
+      version: 1,
+      formType: 'BENEFICIARY_REGISTRATION',
+    })
+
+    const refused = service.upload(state.actor, projectId, { formId, clientImportId }, file())
+    await expect(refused).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(refused).rejects.toThrow(
+      'Importing participants needs the Create Beneficiary Profile permission.',
+    )
+    expect(tx.dataImportBatch.create).not.toHaveBeenCalled()
+    expect(tx.dataImportRow.createMany).not.toHaveBeenCalled()
+    expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+  })
+
+  describe('a registration form with the client ID field', () => {
+    const withRole = (role: 'PROJECT_OFFICER' | 'MONITORING_AND_EVALUATION_OFFICER') => ({
+      ...actor,
+      roles: [role],
+      permissions: [...rolePermissions[role]],
+    })
+    const registrationForm = () => {
+      tx.digitalForm.findFirst.mockResolvedValue({
+        id: formId,
+        version: 1,
+        formType: 'BENEFICIARY_REGISTRATION',
+      })
+      tx.formField.findFirst.mockResolvedValue({ id: 'field' })
+    }
+
+    it('is refused for a Project Officer before anything is staged', async () => {
+      state.actor = withRole('PROJECT_OFFICER')
+      registrationForm()
+
+      const refused = service.upload(state.actor, projectId, { formId, clientImportId }, file())
+      await expect(refused).rejects.toBeInstanceOf(ForbiddenException)
+      await expect(refused).rejects.toThrow(
+        'Importing participants by client ID needs the identity review and enrollment management permissions.',
+      )
+      expect(tx.dataImportBatch.create).not.toHaveBeenCalled()
+      expect(tx.dataImportRow.createMany).not.toHaveBeenCalled()
+      expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+    })
+
+    it('is accepted for a Monitoring and Evaluation Officer', async () => {
+      state.actor = withRole('MONITORING_AND_EVALUATION_OFFICER')
+      registrationForm()
+      const source = file()
+      const sourceChecksum = createHash('sha256').update(source.buffer).digest('hex')
+      tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+        'clientImportId' in args.where ? batch({ sourceChecksum }) : batch(),
+      )
+      tx.dataImportBatch.findUnique.mockResolvedValue(batch())
+      tx.metadataMapping.findMany.mockResolvedValue([])
+
+      await expect(
+        service.upload(state.actor, projectId, { formId, clientImportId }, source),
+      ).resolves.toMatchObject({ id: batchId })
+    })
+
+    it('is accepted for a Project Officer when the form has no client ID field', async () => {
+      state.actor = withRole('PROJECT_OFFICER')
+      registrationForm()
+      tx.formField.findFirst.mockResolvedValue(null)
+      const source = file()
+      const sourceChecksum = createHash('sha256').update(source.buffer).digest('hex')
+      tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+        'clientImportId' in args.where ? batch({ sourceChecksum }) : batch(),
+      )
+      tx.dataImportBatch.findUnique.mockResolvedValue(batch())
+      tx.metadataMapping.findMany.mockResolvedValue([])
+
+      await expect(
+        service.upload(state.actor, projectId, { formId, clientImportId }, source),
+      ).resolves.toMatchObject({ id: batchId })
+    })
   })
 
   it('rejects a conflicting scoped idempotency key without replacing its object', async () => {
@@ -141,10 +229,39 @@ describe('P03 import service', () => {
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          changes: { revision: 1, mapped: 1, ignored: 1, valueMapped: 0 },
+          changes: { revision: 1, mapped: 1, ignored: 1, valueMapped: 0, dateOrdered: 0 },
         }),
       }),
     )
+  })
+
+  it('stores a date order on a date column and refuses it on any other', async () => {
+    const staged = batch({
+      sourceHeaders: [{ key: 'column_0001', header: 'Enrolled', columnIndex: 1 }],
+      status: 'UPLOADED',
+      mappingRevision: 0,
+    })
+    tx.dataImportBatch.findFirst.mockResolvedValue(staged)
+    tx.dataImportBatch.findUnique.mockResolvedValue(staged)
+    tx.formField.findMany.mockResolvedValue([
+      { id: '41000000-0000-4000-8000-000000000006', code: 'enrolled', dataType: 'DATE' },
+      { id: '41000000-0000-4000-8000-000000000007', code: 'note', dataType: 'TEXT' },
+    ])
+    const save = (targetFieldCode: string) =>
+      service.saveMapping(actor, projectId, batchId, {
+        expectedMappingRevision: 0,
+        mappings: [
+          { sourceFieldName: 'column_0001', targetFieldCode, ignored: false, dateOrder: 'YMD' },
+        ],
+      })
+
+    await save('enrolled')
+    expect(tx.metadataMapping.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ dateOrder: 'YMD' })],
+    })
+    tx.metadataMapping.createMany.mockClear()
+    await expect(save('note')).rejects.toThrow('A date order applies only to a date column.')
+    expect(tx.metadataMapping.createMany).not.toHaveBeenCalled()
   })
 
   // QAD-T54
@@ -261,6 +378,78 @@ describe('P03 import service', () => {
         }),
       }),
     )
+  })
+
+  it('upload of a file with parts stages only registration columns and stores the parts', async () => {
+    // The fixture holds no commas or quotes, so a plain join is valid CSV.
+    const source = Buffer.from(
+      stageFixtureSheet(12)
+        .map((row) => row.join(','))
+        .join('\n'),
+    )
+    const reservation = batch({
+      sourceHeaders: [],
+      storageStatus: 'RESERVED',
+      status: 'UPLOADING',
+      mappingRevision: 0,
+      totalRows: 0,
+    })
+    tx.digitalForm.findFirst.mockResolvedValue({ id: formId, version: 1 })
+    tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+      'clientImportId' in args.where ? null : reservation,
+    )
+    tx.dataImportBatch.findUnique.mockResolvedValue(reservation)
+    tx.dataImportBatch.create.mockResolvedValue({ id: batchId })
+    tx.dataImportRow.createMany.mockResolvedValue({ count: 12 })
+    tx.metadataMapping.findMany.mockResolvedValue([])
+    storage.uploadPrivateFile.mockResolvedValue({ path: 'private' })
+
+    await service.upload(
+      actor,
+      projectId,
+      { formId, clientImportId },
+      file({ buffer: source, size: source.length }),
+    )
+
+    const staged = tx.dataImportRow.createMany.mock.calls.flatMap(([args]) => args.data)
+    expect(staged).toHaveLength(12)
+    expect(Object.keys(staged[0].rawData)).toHaveLength(5)
+    expect(staged[0].rowNumber).toBe(3)
+    const finalized = tx.dataImportBatch.update.mock.calls
+      .map(([args]) => args.data)
+      .find((data) => data.status === 'UPLOADED')
+    expect(finalized.sourceHeaders).toHaveLength(5)
+    expect(finalized.totalRows).toBe(12)
+    expect(finalized.fileParts.map((part: { code: string }) => part.code)).toEqual([
+      'y8678aMM8o3',
+      'rNP4mvl5PFF',
+      'p7Wcfe1p4lp',
+      'TQFHPAzCaeI',
+    ])
+  })
+
+  it('keeps the chosen sheet of a workbook on its reservation and drops it for a CSV', async () => {
+    tx.digitalForm.findFirst.mockResolvedValue({ id: formId, version: 1 })
+    tx.dataImportBatch.findFirst.mockResolvedValue(null)
+    tx.dataImportBatch.create.mockResolvedValue({ id: batchId })
+    storage.uploadPrivateFile.mockRejectedValue(new Error('synthetic storage failure'))
+    storage.downloadPrivateFile.mockRejectedValue(new Error('synthetic storage failure'))
+    const workbook = Buffer.from([0x50, 0x4b, 0x03, 0x04, ...Array(60).fill(0)])
+    const reserve = (upload: Parameters<typeof file>[0]) =>
+      service
+        .upload(actor, projectId, { formId, clientImportId, sheetName: 'Two' }, file(upload))
+        .catch(() => undefined)
+
+    await reserve({
+      buffer: workbook,
+      originalname: 'people.xlsx',
+      mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      size: workbook.length,
+    })
+    await reserve({})
+
+    const created = tx.dataImportBatch.create.mock.calls.map(([args]) => args.data.sourceSheetName)
+    expect(created).toEqual(['Two', null])
   })
 
   it('makes only the exact W10 upload fail once after Storage and resumes without a duplicate row', async () => {

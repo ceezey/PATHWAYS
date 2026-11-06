@@ -167,4 +167,36 @@ describe('atomic definition source verification before cache reuse', () => {
       expect(tx.$queryRaw.mock.calls.at(-1)?.at(-2)).toBeNull()
     }
   })
+  it('returns a valid import draft summary for a draft and null for a published form', async () => {
+    const summary = {
+      addedFields: ['age'],
+      sourceNamesAdded: [],
+      optionsAdded: [],
+      aliasesAdded: 2,
+      defaults: [],
+      rules: [],
+      needsCheck: [],
+    }
+    const { service, setSource } = setup()
+    setSource('c'.repeat(64), { ...payload, status: 'DRAFT', draftSummary: summary } as never)
+    expect((await service.getForm(actor, project, id)).draftSummary).toEqual(summary)
+    setSource('d'.repeat(64), { ...payload, status: 'PUBLISHED', draftSummary: summary } as never)
+    expect((await service.getForm(actor, project, id)).draftSummary).toBeNull()
+  })
+  it('drops an import draft summary that fails its contract', async () => {
+    const { service, setSource } = setup()
+    setSource('c'.repeat(64), {
+      ...payload,
+      status: 'DRAFT',
+      draftSummary: { addedFields: 1 },
+    } as never)
+    expect((await service.getForm(actor, project, id)).draftSummary).toBeNull()
+  })
+  it('selects the summary for drafts only and fingerprints it with the form source', async () => {
+    const { tx, service } = setup()
+    await service.getForm(actor, project, id)
+    const sql = (tx.$queryRaw.mock.calls[0][0] as readonly string[]).join('?')
+    expect(sql).toContain("'draftSummary',CASE WHEN status='DRAFT' THEN import_draft_summary")
+    expect(sql).toMatch(/json_build_array\(f\.id,f\.project_id[^)]*f\.import_draft_summary\)/)
+  })
 })

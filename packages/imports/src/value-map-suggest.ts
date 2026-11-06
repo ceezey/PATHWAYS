@@ -1,3 +1,4 @@
+import { answerResolver, stripLetterPrefix } from './answers'
 import { IMPORT_VALUE_MAP_LIMITS, type ImportValueMapEntry, mapKey } from './value-map'
 
 /** Source words for a meaning, after the letter prefix is removed; matched as whole values only. */
@@ -11,7 +12,6 @@ const SYNONYMS: ReadonlyArray<{ words: readonly string[]; targets: readonly stri
 ]
 
 const comparable = (value: string) => mapKey(value).replace(/[\s_-]+/g, ' ')
-const withoutPrefix = (key: string) => key.replace(/^(?:[a-z]|\d{1,2})[.)]\s+/, '')
 
 export interface ValueMapSuggestion {
   pairs: ImportValueMapEntry[]
@@ -37,7 +37,7 @@ export function suggestValueMap(
     const key = mapKey(from)
     if (!key || taken.has(key) || allowedValues.includes(from)) continue
     taken.add(key)
-    const stripped = comparable(withoutPrefix(key))
+    const stripped = comparable(stripLetterPrefix(key))
     const synonym = SYNONYMS.find((group) =>
       group.words.some((word) => comparable(word) === stripped),
     )
@@ -55,4 +55,47 @@ export function suggestValueMap(
     }
   }
   return { pairs, unmatched }
+}
+
+/** The field facts the automatic reading needs. */
+export interface TranslatedField {
+  dataType: string
+  allowedValues?: readonly string[] | null
+  valueAliases?: readonly ImportValueMapEntry[] | null
+}
+
+/** The value Suggest would pair with one cell of a true/false or single choice field, else null. */
+export function automaticValue(raw: string, field: TranslatedField): string | null {
+  const targets =
+    field.dataType === 'BOOLEAN'
+      ? ['true', 'false']
+      : field.dataType === 'SELECT'
+        ? (field.allowedValues ?? [])
+        : []
+  return targets.length ? (suggestValueMap([raw], targets).pairs[0]?.to ?? null) : null
+}
+
+/** Which of a column's values import reads automatically, and which nothing converts. */
+export function columnTranslations(
+  values: readonly string[],
+  field: TranslatedField,
+  saved: readonly ImportValueMapEntry[],
+): { automatic: ImportValueMapEntry[]; unmatched: string[] } {
+  const automatic: ImportValueMapEntry[] = []
+  const unmatched: string[] = []
+  if (field.dataType !== 'BOOLEAN' && field.dataType !== 'SELECT') return { automatic, unmatched }
+  const savedKeys = new Set(
+    saved.filter((pair) => pair.from.trim()).map((pair) => mapKey(pair.from)),
+  )
+  const known = answerResolver(field.allowedValues ?? [], field.valueAliases ?? [])
+  for (const value of values) {
+    if (savedKeys.has(mapKey(value))) continue
+    const native =
+      field.dataType === 'BOOLEAN' ? /^(true|false)$/i.test(value.trim()) : known(value) !== null
+    if (native) continue
+    const to = automaticValue(value, field)
+    if (to) automatic.push({ from: value, to })
+    else unmatched.push(value)
+  }
+  return { automatic, unmatched }
 }

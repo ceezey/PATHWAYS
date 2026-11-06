@@ -33,9 +33,12 @@ afterEach(cleanup)
 /** Hovers the card so its tooltip opens, then reads the tooltip, the value and the tone class. */
 const readCard = (label: string) => {
   const root = screen.getByText(label).closest('.relative') as HTMLElement
-  fireEvent.mouseEnter(within(root).getByRole('button'))
+  const trigger = within(root).getByRole('button')
+  fireEvent.mouseEnter(trigger)
+  // The tooltip renders in a portal, linked to its trigger by aria-describedby.
+  const tipId = trigger.getAttribute('aria-describedby') ?? ''
   return {
-    tip: within(root).getByRole('tooltip').textContent,
+    tip: document.getElementById(tipId)?.textContent,
     value: root.querySelector('p.tabular-nums')?.textContent,
     tone: /bg-(\w+)-subtle/.exec(root.querySelector('div.h-10')?.className ?? '')?.[1],
   }
@@ -78,8 +81,8 @@ describe('descriptive statistics table', () => {
     sadddPeriod: { periodStart: null, periodEnd: null },
     sadddReleaseState: 'RELEASED',
     privacy: {
-      threshold: 5,
-      complementarySuppression: true,
+      threshold: 0,
+      complementarySuppression: false,
       source: 'P06_SADDD_RELEASE',
       beneficiaryRows: false,
     },
@@ -346,7 +349,7 @@ describe('survey analytics panel', () => {
   it('replaces the chart with the suppression note for a suppressed cohort', () => {
     const overall = group('OVERALL', { pairs: gap('SUPPRESSED', 'SMALL_CELL') })
     render(<SurveyAnalyticsPanel {...props} data={{ ...data, overall }} showChart />)
-    expect(screen.getByText('Suppressed (fewer than 5)', { selector: 'p.text-sm' })).toBeTruthy()
+    expect(screen.getByText('Suppressed', { selector: 'p.text-sm' })).toBeTruthy()
     expect(screen.queryByText(chartCaption)).toBeNull()
   })
 
@@ -506,8 +509,16 @@ describe('SADDD analysis panel data', () => {
     ])
   })
 
+  it('offers Add to public page only when a public href is given', () => {
+    const href = '/transparency?projectId=p1&addView=saddd'
+    const { rerender } = render(<SadddAnalysisPanel {...props} publicHref={href} />)
+    expect(screen.getByRole('link', { name: 'Add to public page' }).getAttribute('href')).toBe(href)
+    rerender(<SadddAnalysisPanel {...props} />)
+    expect(screen.queryByRole('link', { name: 'Add to public page' })).toBeNull()
+  })
+
   it('captions the counts to date only for an ongoing project', () => {
-    const caption = 'Counts to date; groups of fewer than 5 are hidden.'
+    const caption = 'Counts to date.'
     const { rerender } = render(<SadddAnalysisPanel {...props} />)
     expect(screen.getByText(caption)).toBeTruthy()
     rerender(<SadddAnalysisPanel {...props} sadddOngoing={false} />)

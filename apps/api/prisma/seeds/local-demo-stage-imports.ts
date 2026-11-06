@@ -345,11 +345,18 @@ async function runImport(
   // A batch left PROCESSING by an interrupted run is reprocessed, which reconciles its status.
   if (status === 'VALIDATED' || status === 'PROCESSING') {
     const validated = (await ctx.services.imports.getBatch(me, projectId, id)) as unknown as Batch
-    await step(`${label}: process`, () =>
-      ctx.services.imports.process(me, projectId, id, {
-        expectedValidationRevision: validated.validationRevision as number,
-      }),
-    )
+    // Each call processes at most processingClaimRows rows, so call until no valid row is left.
+    for (let call = 0; call < 20; call += 1) {
+      await step(`${label}: process`, () =>
+        ctx.services.imports.process(me, projectId, id, {
+          expectedValidationRevision: validated.validationRevision as number,
+        }),
+      )
+      const left = await ctx.owner.dataImportRow.count({
+        where: { importBatchId: id, status: 'VALID' },
+      })
+      if (!left) break
+    }
     return true
   }
   return false

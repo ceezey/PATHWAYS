@@ -259,7 +259,7 @@ const ActivityProofDialogContent = ({
                       {item.file.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {statusLabel(item.status)}
+                      {statusLabel(item.status, submitting)}
                       {item.status === 'failed' && item.error ? `: ${item.error}` : ''}
                     </p>
                   </div>

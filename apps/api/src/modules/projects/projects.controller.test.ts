@@ -83,7 +83,7 @@ describe('ProjectsController active project contract', () => {
         [updatePipe, updateKeys],
       ] as const) {
         expect(rejection(() => pipe.transform({ ...body, ...extra }))).toContain(
-          "Unrecognized key(s) in object: 'targetGoal'",
+          'Unrecognized key: "targetGoal"',
         )
       }
     },
@@ -103,7 +103,7 @@ describe('ProjectsController active project contract', () => {
         [updatePipe, updateKeys],
       ] as const) {
         expect(rejection(() => pipe.transform({ ...body, ...extra }))).toContain(
-          "Unrecognized key(s) in object: 'implementingPartners'",
+          'Unrecognized key: "implementingPartners"',
         )
       }
     },

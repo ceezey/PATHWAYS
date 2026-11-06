@@ -42,7 +42,7 @@ export const formatNumber = (value: number) => new Intl.NumberFormat('en-US').fo
  * suppressed/missing/not-applicable copy so Analytics and Overview cannot diverge.
  */
 export const metricUnavailableLabel = (cell: MetricCell) => {
-  if (cell.state === 'SUPPRESSED') return 'Suppressed (fewer than 5)'
+  if (cell.state === 'SUPPRESSED') return 'Suppressed'
   if (cell.state === 'NOT_APPLICABLE') return 'Not applicable'
   switch (cell.reason) {
     // Known empty sources: readable, but nothing recorded yet.
@@ -59,6 +59,8 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
       return 'After project close'
     case 'NOT_STARTED':
       return 'Not started yet'
+    case 'NO_RESIDENCE_MATCH':
+      return 'Town not recorded'
     case 'RESTATEMENT_REVIEW_REQUIRED':
       return 'Under review'
     // F9 survey/timeline analytics reasons (analytics.descriptive.survey.v1 /

@@ -329,6 +329,23 @@ describe('collection import workspace', () => {
   })
 })
 
+describe('collection mode tiles', () => {
+  it('selects no tile on the forms list and the open mode in the builder', async () => {
+    const view = (initialView: 'forms' | 'builder') =>
+      render(
+        <DisplayLabelsProvider>
+          <CollectionWorkspace initialMode="scratch" initialView={initialView} />
+        </DisplayLabelsProvider>,
+      )
+    view('forms')
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(screen.getByText('Build forms').closest('a')?.textContent).not.toContain('Selected')
+    cleanup()
+    view('builder')
+    expect(screen.getByText('Build forms').closest('a')?.textContent).toContain('Selected')
+  })
+})
+
 describe('collection field selection', () => {
   it('exposes and updates exactly one selected field with a visible cue', () => {
     render(
@@ -414,7 +431,7 @@ describe('collection form definition export', () => {
       </DisplayLabelsProvider>,
     )
 
-    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Activity Entry - v2')).toBeTruthy())
     expect(screen.queryByText('Download format')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
     await waitFor(() =>
@@ -426,6 +443,34 @@ describe('collection form definition export', () => {
     )
     expect(core.downloadCoreArtifact).toHaveBeenCalledTimes(1)
     expect(api.getDigitalForm).not.toHaveBeenCalled()
+  })
+
+  it('asks for a project before listing forms when there are several', async () => {
+    currentAccess.profile.assignedProjectIds = ['futuremakers-ncr', 'safe-schools']
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+      { id: 'safe-schools', title: 'Safe Schools' },
+    ])
+    const draft = {
+      ...exportForm,
+      id: 'form-2',
+      projectId: 'safe-schools',
+      name: 'Registration',
+      status: 'DRAFT',
+    }
+    api.getDigitalForms.mockImplementation(async (projectId: string) =>
+      projectId === 'safe-schools' ? [draft] : [exportForm],
+    )
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+
+    expect(await screen.findByText('Select a project to see its forms.')).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Project' })).toBeTruthy()
+    expect(screen.queryByText('Registration - v2')).toBeNull()
+    expect(screen.queryByText('Activity Entry - v2')).toBeNull()
   })
 
   it.each([
@@ -460,10 +505,60 @@ describe('collection form definition export', () => {
         <CollectionWorkspace initialView="forms" />
       </DisplayLabelsProvider>,
     )
-    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Activity Entry - v2')).toBeTruthy())
     const button = screen.queryByRole('button', { name: 'Export form' })
     if (button) fireEvent.click(button)
     expect(core.downloadCoreArtifact).not.toHaveBeenCalled()
+  })
+})
+
+describe('publishing selected drafts', () => {
+  const draftOf = (id: string, name: string) => ({
+    id,
+    projectId: 'futuremakers-ncr',
+    code: id,
+    version: 1,
+    name,
+    description: null,
+    formType: 'TRAINING_SURVEY',
+    status: 'DRAFT',
+    activityId: null,
+    journeyStageId: null,
+    updatedAt: '2026-11-04T00:00:00.000Z',
+    createdByCurrentUser: false,
+    fields: [],
+  })
+
+  it('publishes each selected draft and names a refusal without stopping the others', async () => {
+    api.getDigitalForms.mockResolvedValue([
+      draftOf('lst', 'LST Survey'),
+      draftOf('alumni', 'Alumni Survey'),
+    ])
+    api.publishDigitalForm.mockImplementation(async (_p: string, id: string) => {
+      if (id === 'lst') throw new Error('Mark the correct answers for the total score first.')
+      return { ...draftOf(id, 'Alumni Survey'), status: 'PUBLISHED' }
+    })
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all drafts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish (2)' }))
+    await waitFor(() => expect(api.publishDigitalForm).toHaveBeenCalledTimes(2))
+    expect(api.publishDigitalForm).toHaveBeenCalledWith(
+      'futuremakers-ncr',
+      'alumni',
+      '2026-11-04T00:00:00.000Z',
+    )
+    await waitFor(() =>
+      expect(toasts.error).toHaveBeenCalledWith(
+        'LST Survey - v1: Mark the correct answers for the total score first.',
+      ),
+    )
+    expect(toasts.success).toHaveBeenCalledWith('Published 1 form.')
+    // The refused draft stays selected so it can be published once fixed.
+    expect(screen.getByRole('button', { name: 'Publish (1)' })).toBeTruthy()
   })
 })
 

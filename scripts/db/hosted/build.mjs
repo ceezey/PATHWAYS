@@ -6,9 +6,10 @@
 //
 // Usage:
 //   node scripts/db/hosted/build.mjs --env-file .tmp/hosted-role-staging.env [--dry-run] [--resume]
+//     [--through <migration>]   stop after that migration (production is built only to what master ships)
 //
 // Required env vars (see scripts/db/hosted/target.mjs for exact validation):
-//   HOSTED_TARGET_REF     must equal klbtoqdalmcsfjqophty
+//   HOSTED_TARGET_REF     PATHWAYS (mvzxitlbtkkyvubgbcmx) or PATHWAYS-devV2 (klbtoqdalmcsfjqophty)
 //   HOSTED_ADMIN_URL      postgres superuser/admin connection URL
 //   HOSTED_DIRECT_URL     prisma migration connection URL
 //   PRISMA_ROLE_PASSWORD  >= 24 characters
@@ -24,7 +25,9 @@ import {
   RESIDUAL_CHAIN_MIGRATIONS,
   assertResumablePrefix,
   buildPlan,
+  migrationsThrough,
   planIndexForAppliedCount,
+  planThrough,
 } from './plan.mjs'
 import { assertEnvFileLocation, parseEnvFile, redactUrl, validateHostedEnv } from './target.mjs'
 
@@ -332,7 +335,7 @@ export async function resumePreflight(io, config) {
       config.adminUrl,
       `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
        JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
-       AND r.rolname IN ('rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','finance_operation_owner','rules_human_owner','rules_eligibility_owner','report_projection_owner');`,
+       AND r.rolname IN ('rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','finance_operation_owner','rules_human_owner','rules_eligibility_owner','report_projection_owner','rules_projection_owner');`,
     )
     residualOwnerMemberships = residualRows[0] !== '0'
   }
@@ -368,17 +371,19 @@ export async function postconditions(io, config) {
   const ledger = await readLedger(io, config.adminUrl)
   const finished = ledger.filter((row) => row.finished_at && !row.rolled_back_at)
   const names = finished.map((row) => row.migration_name).sort()
-  const expectedNames = [...MIGRATIONS_IN_ORDER].sort()
+  const ledgerNames = migrationsThrough(config.through)
+  const expectedNames = [...ledgerNames].sort()
+  const span = `0000-${ledgerNames.at(-1).slice(0, 4)}`
   if (
-    ledger.length !== MIGRATIONS_IN_ORDER.length ||
+    ledger.length !== ledgerNames.length ||
     JSON.stringify(names) !== JSON.stringify(expectedNames)
   ) {
     throw new Error(
-      `Ledger postcondition failed: expected exactly the ${MIGRATIONS_IN_ORDER.length} migrations 0000-0075, all finished and none failed`,
+      `Ledger postcondition failed: expected exactly the ${ledgerNames.length} migrations ${span}, all finished and none failed`,
     )
   }
   console.log(
-    `PASS: ledger has exactly ${MIGRATIONS_IN_ORDER.length} migrations 0000-0075, all finished and none failed`,
+    `PASS: ledger has exactly ${ledgerNames.length} migrations ${span}, all finished and none failed`,
   )
 
   const residualRows = io.psqlQuery(
@@ -386,7 +391,7 @@ export async function postconditions(io, config) {
     `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
      JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
      AND (r.rolname LIKE 'rules\\_%\\_owner' OR r.rolname IN
-       ('public_projection_owner','report_projection_owner','finance_operation_owner','rules_store_owner','rules_enqueue_owner','rules_source_proof_owner'));`,
+       ('public_projection_owner','report_projection_owner','finance_operation_owner','rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','rules_projection_owner'));`,
   )
   if (residualRows[0] !== '0') {
     throw new Error(
@@ -476,19 +481,26 @@ export async function runHostedBuild({ io, config, resume = false, log = console
   // original_prisma_database_create) forward to the matching cleanup step, either later in
   // this same process or, on --resume, recovered from the on-disk receipt below.
   let captured = {}
+  const plan = buildPlan()
+  const kept = new Set(planThrough(config.through, plan))
 
   if (resume) {
     const { appliedCount, residualOwnerMemberships } = await resumePreflight(io, config)
+    if (appliedCount > migrationsThrough(config.through).length) {
+      throw new Error(`The target is already past --through ${config.through}; refusing to resume`)
+    }
     startIndex = planIndexForAppliedCount(appliedCount, { residualOwnerMemberships })
     const receipt = io.readReceipt ? io.readReceipt() : null
     if (receipt) captured = { ...captured, ...receipt }
+    // Restage from the repo: a leftover stage copy (older or later) must never deploy with the next step.
+    resetStage()
+    stageMigrations(MIGRATIONS_IN_ORDER.slice(0, appliedCount))
     log(`Resuming at plan step ${startIndex} (${appliedCount} migrations already applied)`)
   } else {
     await preflight(io, config)
     resetStage()
   }
 
-  const plan = buildPlan()
   // Tracks a preprovision step whose matching cleanup has not yet run, so a failure in ANY
   // later step (not just the preprovision step itself, e.g. the deploy immediately after it)
   // still triggers that cleanup before the original error propagates.
@@ -496,18 +508,28 @@ export async function runHostedBuild({ io, config, resume = false, log = console
 
   for (let index = startIndex; index < plan.length; index += 1) {
     const step = plan[index]
+    if (!kept.has(step)) continue
     try {
       switch (step.type) {
         case 'create-role': {
           io.psqlSql(
             config.adminUrl,
-            `CREATE ROLE prisma LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${config.prismaPassword}';
+            // One transaction so a failed grant never leaves a half-made prisma role that blocks the rerun preflight.
+            `BEGIN;
+CREATE ROLE prisma LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${config.prismaPassword}';
 GRANT prisma TO postgres WITH INHERIT TRUE, SET TRUE;
 GRANT CREATE ON DATABASE postgres TO prisma;
 GRANT USAGE, CREATE ON SCHEMA public TO prisma;
 GRANT TEMPORARY ON DATABASE postgres TO prisma, authenticator, supabase_auth_admin, supabase_storage_admin,
-  supabase_etl_admin, supabase_read_only_user, supabase_realtime_admin, supabase_replication_admin, supabase_privileged_role;
-REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
+  supabase_etl_admin, supabase_read_only_user, supabase_realtime_admin, supabase_replication_admin;
+-- Newer Supabase projects do not have supabase_privileged_role.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'supabase_privileged_role') THEN
+    GRANT TEMPORARY ON DATABASE postgres TO supabase_privileged_role;
+  END IF;
+END $$;
+REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;
+COMMIT;`,
             { label: 'create prisma role' },
           )
           break
@@ -593,9 +615,9 @@ REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
-function printDryRunPlan(log = console.log) {
+function printDryRunPlan(through, log = console.log) {
   log('Hosted build dry run: no connection will be made. Ordered plan:')
-  const plan = buildPlan()
+  const plan = planThrough(through)
   plan.forEach((step, index) => {
     const detail =
       step.type === 'deploy'
@@ -612,22 +634,26 @@ function printDryRunPlan(log = console.log) {
     'env file location, empty-target preflight (pathways schema absent, auth.users present, prisma absent).',
   )
   log(
-    'Checks that will run after the last step: exact 0000-0075 finished ledger, no residual prisma owner',
+    `Checks that will run after the last step: exact 0000-${migrationsThrough(through).at(-1).slice(0, 4)} finished ledger, no residual prisma owner`,
   )
   log('memberships, repo-derived role/permission/grant counts.')
 }
 
 function parseArgs(argv) {
-  const args = { envFile: null, dryRun: false, resume: false }
+  const args = { envFile: null, dryRun: false, resume: false, through: null }
   for (const arg of argv) {
     if (arg === '--dry-run') args.dryRun = true
     else if (arg === '--resume') args.resume = true
     else if (arg.startsWith('--env-file=')) args.envFile = arg.slice('--env-file='.length)
     else if (arg === '--env-file') args.envFile = '__NEXT__'
     else if (args.envFile === '__NEXT__') args.envFile = arg
+    else if (arg.startsWith('--through=')) args.through = arg.slice('--through='.length)
+    else if (arg === '--through') args.through = '__NEXT__'
+    else if (args.through === '__NEXT__') args.through = arg
     else throw new Error(`Unknown argument: ${arg}`)
   }
   if (args.envFile === '__NEXT__') throw new Error('--env-file requires a path')
+  if (args.through === '__NEXT__') throw new Error('--through requires a migration name')
   return args
 }
 
@@ -635,7 +661,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
 
   if (args.dryRun) {
-    printDryRunPlan()
+    printDryRunPlan(args.through)
     return
   }
 
@@ -658,6 +684,7 @@ async function main() {
       directUrl: config.directUrl.toString(),
       prismaPassword: config.prismaPassword,
       runtimePassword: config.runtimePassword,
+      through: args.through,
     },
     resume: args.resume,
   })

@@ -118,7 +118,7 @@ describe('Analytics dashboard summary cards and descriptive statistics empty sta
     ])
     render(<AnalyticsDashboard />)
     expect(await screen.findByTestId('saddd-chart')).toBeTruthy()
-    expect(screen.queryByText('Counts to date; groups of fewer than 5 are hidden.')).toBeNull()
+    expect(screen.queryByText('Counts to date.')).toBeNull()
   })
 
   describe('descriptive statistics panel without a result', () => {

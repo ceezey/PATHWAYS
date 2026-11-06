@@ -16,6 +16,9 @@ export const batchSelection = {
   validationRevision: true,
   validatedMappingRevision: true,
   processingRevision: true,
+  parentBatchId: true,
+  partCode: true,
+  fileParts: true,
   totalRows: true,
   validRows: true,
   invalidRows: true,
@@ -23,6 +26,8 @@ export const batchSelection = {
   unprocessedRows: true,
   failedRows: true,
   failureCode: true,
+  validationNotes: true,
+  sourceSheetName: true,
   uploadedById: true,
   reviewedById: true,
   uploadedAt: true,
@@ -30,7 +35,7 @@ export const batchSelection = {
   processedAt: true,
   updatedAt: true,
   form: {
-    select: { code: true, name: true, formType: true, status: true },
+    select: { code: true, name: true, formType: true, status: true, publishedById: true },
   },
 } satisfies Prisma.DataImportBatchSelect
 
@@ -50,11 +55,21 @@ export const fieldSelection = {
   minimumLength: true,
   maximumLength: true,
   isMetadataKey: true,
+  isSadddField: true,
+  sourceNames: true,
+  valueAliases: true,
+  importDefault: true,
+  rule: true,
 } satisfies Prisma.FormFieldSelect
 
 export type FieldRow = Prisma.FormFieldGetPayload<{ select: typeof fieldSelection }>
 
-export function mapBatch(batch: BatchRow): ImportBatchResponse {
+export function mapBatch(
+  batch: BatchRow,
+  warningRows: number,
+  actorUserId: string,
+  waitingRows = 0,
+): ImportBatchResponse {
   return {
     id: batch.id,
     projectId: batch.projectId,
@@ -64,6 +79,7 @@ export function mapBatch(batch: BatchRow): ImportBatchResponse {
     formName: batch.form.name,
     formType: batch.form.formType,
     originalFileName: batch.originalFileName,
+    sourceSheetName: batch.sourceSheetName,
     fileType: batch.fileType,
     clientImportId: batch.clientImportId,
     storageStatus: batch.storageStatus,
@@ -79,11 +95,20 @@ export function mapBatch(batch: BatchRow): ImportBatchResponse {
       processed: batch.processedRows,
       unprocessed: batch.unprocessedRows,
       failed: batch.failedRows,
+      warnings: warningRows,
+      waiting: waitingRows,
     },
     failureCode: batch.failureCode,
+    failureMessage: batch.status === 'FAILED' ? (batch.validationNotes ?? null) : null,
+    uploadedByCurrentUser: batch.uploadedById === actorUserId,
     uploadedAt: batch.uploadedAt.toISOString(),
     validatedAt: batch.validatedAt?.toISOString(),
     processedAt: batch.processedAt?.toISOString(),
     updatedAt: batch.updatedAt.toISOString(),
+    parentBatchId: batch.parentBatchId,
+    partCode: batch.partCode,
+    // The column holds the FilePart list the splitter wrote.
+    fileParts: batch.fileParts as ImportBatchResponse['fileParts'],
+    parts: [],
   }
 }

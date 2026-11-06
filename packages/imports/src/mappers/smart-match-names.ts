@@ -1,7 +1,9 @@
 import {
   AUTO_SMART_V2_LIMITS,
   SMART_REVIEW_SYNONYMS_V2,
+  SMART_REVIEW_SYNONYMS_V3,
   SMART_SYNONYMS_V2,
+  SMART_SYNONYMS_V3,
   STOP_WORDS,
   type SmartMatchField,
   type SmartMatchReason,
@@ -44,6 +46,11 @@ export function prepareName(value: string): PreparedName {
   }
 }
 
+/** The key AUTO_SMART_V3 compares a source name on, so two names with one key collide for the matcher. */
+export function sourceNameKey(value: string) {
+  return prepareName(value).canonical
+}
+
 function canonicalSynonyms(source: Readonly<Record<string, readonly string[]>>) {
   const result = new Map<string, ReadonlySet<string>>()
   for (const [code, names] of Object.entries(source)) {
@@ -55,9 +62,36 @@ function canonicalSynonyms(source: Readonly<Record<string, readonly string[]>>) 
   return result
 }
 
-const AUTOMATIC_SYNONYMS = canonicalSynonyms(SMART_SYNONYMS_V2)
+export interface SynonymTables {
+  automatic: ReadonlyMap<string, ReadonlySet<string>>
+  review: ReadonlyMap<string, ReadonlySet<string>>
+}
 
-const REVIEW_SYNONYMS = canonicalSynonyms(SMART_REVIEW_SYNONYMS_V2)
+/** V2 and V3 match on these, so their results never move. */
+export const SYNONYMS_V2: SynonymTables = {
+  automatic: canonicalSynonyms(SMART_SYNONYMS_V2),
+  review: canonicalSynonyms(SMART_REVIEW_SYNONYMS_V2),
+}
+
+export const SYNONYMS_V3: SynonymTables = {
+  automatic: canonicalSynonyms(SMART_SYNONYMS_V3),
+  review: canonicalSynonyms(SMART_REVIEW_SYNONYMS_V3),
+}
+
+/**
+ * The last segment of a Kobo (a/b) or ODK (a-b) group path, or null. A header with
+ * whitespace is never a path, so labels such as "Project Donor/Name" stay whole.
+ * A "/" splits first, so "group/first-name" has the leaf "first-name".
+ */
+export function groupPathLeaf(header: string): string | null {
+  if (/\s/.test(header)) return null
+  const separator = header.includes('/') ? '/' : header.includes('-') ? '-' : null
+  if (separator === null) return null
+  const segments = header.split(separator)
+  const clean = separator === '/' ? /^[A-Za-z_][A-Za-z0-9_.-]*$/ : /^[A-Za-z_][A-Za-z0-9_.]*$/
+  if (!segments.every((segment) => clean.test(segment))) return null
+  return segments[segments.length - 1]
+}
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>) {
   if (left.size !== right.size) return false
@@ -153,18 +187,33 @@ export interface PreparedField {
   code: PreparedName
   label: PreparedName
   allowed: ReadonlySet<string>
+  /** Canonical source names this field owns alone; empty in V2. */
+  sourceNames: ReadonlySet<string>
+  /** True only in V3 for a calculated field. */
+  calculated: boolean
+  /** Resolves a SELECT answer through aliases and letter prefixes; V3 only. */
+  resolve?: (raw: string) => string | null
 }
 
-export function nameScore(source: PreparedName, target: PreparedField): ScoredName | null {
+export function nameScore(
+  source: PreparedName,
+  target: PreparedField,
+  synonyms: SynonymTables,
+): ScoredName | null {
   if (source.v1 === '') return null
+  if (target.sourceNames.has(source.canonical)) {
+    return { score: TIER.sourceName, reason: 'METADATA_SOURCE_NAME' }
+  }
   if (source.v1 === target.code.v1 || source.v1 === target.label.v1) {
     return { score: TIER.exact, reason: 'EXACT' }
   }
-  if (AUTOMATIC_SYNONYMS.get(target.code.v1)?.has(source.canonical)) {
+  // A calculated field is never guessed from a looser name (V3).
+  if (target.calculated) return null
+  if (synonyms.automatic.get(target.code.v1)?.has(source.canonical)) {
     return { score: TIER.synonym, reason: 'SYNONYM' }
   }
   // A review-only synonym stays in the suggestion band, whatever else would match.
-  if (REVIEW_SYNONYMS.get(target.code.v1)?.has(source.canonical)) {
+  if (synonyms.review.get(target.code.v1)?.has(source.canonical)) {
     return { score: TIER.reviewSynonym, reason: 'SYNONYM_REVIEW' }
   }
   const byCode = similarity(source, target.code)

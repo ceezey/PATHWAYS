@@ -81,9 +81,16 @@ export const useRegistrationValidation = ({
     submittedAge !== (beneficiary.age ?? null)
   const ageRuleMessage = ageRuleApplies ? ageAssessment.error : null
   const ageRuleField: BeneficiaryFieldKey = ageFromBirthDate ? 'birthDate' : 'age'
-  const registrationIsMinor = registrationAge === null ? null : registrationAge < 18
-  // Minor status comes from the calculated age, so guardian consent only applies to minors.
-  const showsGuardianConsent = beneficiary ? draft.isMinor : registrationIsMinor === true
+  // Minor means under 18 today, by the birth date or else the supplied age, as the server judges it.
+  const currentAge = registrationAgeAtDate(
+    acceptedBirthDate,
+    acceptedAge,
+    maxBirthDate,
+    maxBirthDate,
+  ).age
+  const registrationIsMinor = currentAge === null ? null : currentAge < 18
+  // Guardian consent only applies to minors; a record without a usable age keeps its stored status.
+  const showsGuardianConsent = registrationIsMinor ?? (beneficiary ? draft.isMinor : false)
   const validationIssues = useMemo(() => {
     const issues: ValidationIssue[] = []
 

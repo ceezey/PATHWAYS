@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common'
 import { kpiAchievement, numericMetric } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-import { suppressSmallCount } from '../dashboards/dashboards.helpers'
 import { IndicatorsService } from '../indicators/indicators.service'
 import { type CriterionType, noDataPrefix } from './evaluations.helpers'
 
@@ -26,11 +25,6 @@ const scored = (percent: number, maximumScore: string, evidence: string): Comput
   score: scaleToMax(percent, maximumScore),
   commentary: evidence,
 })
-// Counts of 1-4 are suppressed like every other aggregate.
-const smallCell = (count: number) =>
-  suppressSmallCount(numericMetric(String(count))).state === 'SUPPRESSED'
-const smallCellReason = (count: string) =>
-  `the ${count} count is below the small-cell reporting threshold (fewer than 5)`
 
 type EvaluationProject = { id: string; targetBeneficiaries: number | null }
 type Period = { start: string; end: string }
@@ -119,7 +113,6 @@ export class EvaluationMetricsService {
       WHERE organization_id = ${actor.organizationId}::uuid AND project_id = ${project.id}::uuid
         AND status IN ('ACTIVE', 'COMPLETED') AND enrollment_date <= ${periodEnd}::date`
     const enrolled = row?.count ?? 0
-    if (smallCell(enrolled)) return noData(smallCellReason('enrolled'))
     const raw = ((enrolled / project.targetBeneficiaries) * 100).toFixed(4)
     return scored(
       clampPercent(raw),
@@ -208,9 +201,6 @@ export class EvaluationMetricsService {
     const pairs = row?.pairs ?? 0
     const improved = row?.improved ?? 0
     if (pairs === 0) return noData('no paired pre/post assessments in the period')
-    if (smallCell(pairs)) return noData(smallCellReason('paired assessment'))
-    if (smallCell(improved)) return noData(smallCellReason('improved assessment'))
-    if (smallCell(pairs - improved)) return noData(smallCellReason('not-improved assessment'))
     return scored(
       (improved / pairs) * 100,
       maximumScore,

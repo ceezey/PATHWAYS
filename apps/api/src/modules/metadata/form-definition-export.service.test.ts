@@ -80,6 +80,10 @@ const form = (patch: Record<string, unknown> = {}) => ({
       maximumDate: null,
       minimumLength: null,
       maximumLength: null,
+      sourceNames: ['Attendance status', 'Present or absent'],
+      valueAliases: [{ from: 'here', to: 'present' }],
+      importDefault: 'present',
+      rule: null,
       sequenceNo: 2,
     },
     {
@@ -96,6 +100,10 @@ const form = (patch: Record<string, unknown> = {}) => ({
       maximumDate: null,
       minimumLength: null,
       maximumLength: null,
+      sourceNames: [],
+      valueAliases: null,
+      importDefault: null,
+      rule: { kind: 'SAME_ANSWER_AS', field: 'consent_recorded' },
       sequenceNo: 1,
     },
   ],
@@ -126,7 +134,7 @@ describe('form-definition export', () => {
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })
   })
 
-  it('exports CSV with the 24 blank-definition columns and neutralized formula cells', async () => {
+  it('exports CSV with the 28 blank-definition columns and neutralized formula cells', async () => {
     const result = await service.export(state.actor, projectId, formId, 'CSV')
     const text = result.bytes.toString('utf8')
     const [header, first, second] = text.replace(/^﻿/, '').trim().split('\r\n')
@@ -140,6 +148,67 @@ describe('form-definition export', () => {
       contentType: 'text/csv',
       fileName: 'attendance-register-v3.csv',
     })
+  })
+
+  describe('abuse: formula-like text from file headers and values', () => {
+    const risky = ['+639170000001', '=1+1', '@x', '-x']
+    const [status, score] = form().formField_form
+    const hostile = () =>
+      form({
+        name: risky[0],
+        formField_form: [
+          {
+            ...status,
+            label: risky[1],
+            importDefault: risky[2],
+            allowedValues: risky,
+            sourceNames: risky,
+            valueAliases: [{ from: risky[3], to: risky[0] }],
+          },
+          { ...score, label: risky[3], code: risky[2] },
+        ],
+      })
+
+    it('CSV quotes leading cells and keeps option, source name and alias text intact', async () => {
+      tx.digitalForm.findFirst.mockResolvedValue(hostile())
+      const { bytes } = await service.export(state.actor, projectId, formId, 'CSV')
+      const text = bytes.toString('utf8')
+      for (const value of risky) expect(text).toContain(`"'${value}"`)
+      expect(text).not.toContain("''")
+      expect(text).toContain(JSON.stringify(risky).replaceAll('"', '""'))
+    })
+
+    it.each(['XLSX', 'XLS'] as const)('%s quotes leading cells exactly once', async (format) => {
+      tx.digitalForm.findFirst.mockResolvedValue(hostile())
+      const { bytes } = await service.export(state.actor, projectId, formId, format)
+      const { rows } = parseWorkbook(
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      )
+      expect(rows.map((row) => row.form_name)).toEqual(["'+639170000001", "'+639170000001"])
+      expect(rows.map((row) => row.field_label).sort()).toEqual(["'-x", "'=1+1"])
+      expect(rows.map((row) => row.import_default).filter(Boolean)).toEqual(["'@x"])
+    })
+  })
+
+  it('export includes the four properties', async () => {
+    const result = await service.export(state.actor, projectId, formId, 'CSV')
+    const lines = result.bytes
+      .toString('utf8')
+      .replace(/^\uFEFF/, '')
+      .trim()
+      .split('\r\n')
+    const [header, first, second] = lines
+    expect(header.split(',').slice(-4)).toEqual([
+      '"source_names"',
+      '"value_aliases"',
+      '"import_default"',
+      '"rule"',
+    ])
+    expect(first).toContain('"[]"')
+    expect(first).toContain('""kind"":""SAME_ANSWER_AS""')
+    expect(second).toContain('""Attendance status"",""Present or absent""')
+    expect(second).toContain('""from"":""here"",""to"":""present""')
+    expect(second).toContain('"present"')
   })
 
   it.each([

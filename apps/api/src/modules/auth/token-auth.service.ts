@@ -165,7 +165,7 @@ export class TokenAuthService {
       verified = {
         identity: {
           id: claims.sub,
-          aal: claims.aal,
+          aal: claims.aal === 'aal2' ? 'aal2' : 'aal1',
           ...(claims.aal === 'aal2' && mfaVerifiedAt !== undefined ? { mfaVerifiedAt } : {}),
         },
         sessionId: claims.session_id,

@@ -242,20 +242,19 @@ RESET ROLE;
 SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='20' AND d#>>'{enrolledIndividuals,value}'='20'
   AND d#>>'{attendingIndividuals,value}'='9' AND d#>>'{participationRecords,value}'='14' FROM pg_temp.doc('pm_a1') d),
   '7 A1 releases visible reach counts and excludes the draft submission');
-SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,value}'='8' AND d#>>'{attendingIndividuals,state}'='SUPPRESSED'
-  AND d#>>'{attendingIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION' AND d#>>'{attendingIndividuals,value}' IS NULL
-  FROM pg_temp.doc('pm_a3') d),
-  '8 attending individuals are hidden when enrolled minus attending is 1-4');
-SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='7' AND d#>>'{enrolledIndividuals,state}'='SUPPRESSED'
-  AND d#>>'{enrolledIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION' FROM pg_temp.doc('pm_a4') d),
-  '9 enrolled individuals are hidden when records minus individuals is 1-4');
-SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,reason}'='SMALL_COHORT' AND d#>>'{enrolledIndividuals,reason}'='SMALL_COHORT'
-  AND d#>>'{enrolledIndividuals,state}'='SUPPRESSED' AND d#>>'{attendingIndividuals,state}'='ZERO' FROM pg_temp.doc('pm_a5') d),
-  '10 counts of 1-4 are SUPPRESSED as SMALL_COHORT and zero stays visible');
+SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,value}'='8' AND d#>>'{attendingIndividuals,value}'='6'
+  AND d#>>'{attendingIndividuals,state}'='AVAILABLE' FROM pg_temp.doc('pm_a3') d),
+  '8 attending individuals are exact when enrolled minus attending is 1-4 (0076)');
+SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='7' AND d#>>'{enrolledIndividuals,value}'='6'
+  AND d#>>'{enrolledIndividuals,state}'='AVAILABLE' FROM pg_temp.doc('pm_a4') d),
+  '9 enrolled individuals are exact when records minus individuals is 1-4 (0076)');
+SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='3' AND d#>>'{enrolledIndividuals,value}'='3'
+  AND d#>>'{enrolledIndividuals,state}'='AVAILABLE' AND d#>>'{attendingIndividuals,state}'='ZERO' FROM pg_temp.doc('pm_a5') d),
+  '10 counts of 1-4 are released exactly and zero stays visible (0076)');
 SELECT pg_temp.ok(NOT EXISTS(SELECT FROM brk_out o,
   unnest(ARRAY['participationRecords','attendingIndividuals','enrolledBeneficiaryRecords','enrolledIndividuals']) k
-  WHERE o.name LIKE 'pm\_a%' AND o.doc->k->>'value' IN ('1','2','3','4')),
-  '11 no released reach cell carries a value of 1-4');
+  WHERE o.name LIKE 'pm\_a%' AND o.doc->k->>'state'='SUPPRESSED'),
+  '11 no released reach cell is SUPPRESSED (0076)');
 SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,value}'='20' AND d#>>'{participationRecords,value}'='14'
   FROM pg_temp.doc('pm_home_a1') d),
   '12 the home dashboard releases the same counts to a monitoring.read holder');
@@ -285,9 +284,9 @@ SELECT pg_temp.ok((SELECT d->>'total'='11'
 SELECT pg_temp.ok((SELECT x#>>'{current,value}'='12' AND x#>>'{current,state}'='AVAILABLE'
   FROM jsonb_array_elements(pg_temp.doc('pm_kpi')) x WHERE x->>'code'='BRK-MANUAL'),
   '17 the manual value is read through the forced-RLS measurements table');
-SELECT pg_temp.ok((SELECT x#>>'{current,state}'='SUPPRESSED' AND x#>>'{current,reason}'='SMALL_COHORT'
+SELECT pg_temp.ok((SELECT x#>>'{current,state}'='AVAILABLE' AND x#>>'{current,value}'='3'
   FROM jsonb_array_elements(pg_temp.doc('pm_kpi')) x WHERE x->>'code'='BRK-DERIVED'),
-  '18 a derived count of 1-4 is SUPPRESSED through the forced-RLS binding');
+  '18 a derived count of 1-4 is released exactly through the forced-RLS binding (0076)');
 SELECT pg_temp.ok(jsonb_array_length(pg_temp.doc('pm_kpi'))=2 AND NOT EXISTS(SELECT FROM jsonb_array_elements(pg_temp.doc('pm_kpi')) x
   WHERE x ?| ARRAY['description','dataSource','mode','binding','measurementId','measuredAt','measurementSource']),
   '19 KPI values carry no definition, binding or measurement fields');
@@ -305,29 +304,29 @@ SELECT pg_temp.ok((SELECT d#>>'{participationRecords,reason}'='SENSITIVE_RELEASE
   AND d#>>'{enrolledIndividuals,reason}'='SENSITIVE_RELEASE_NOT_ENABLED_V1' AND jsonb_array_length(d->'activities')=5
   FROM pg_temp.doc('po_home') d),
   '24 Project Officer home dashboard keeps the withheld placeholder without raising');
--- Records versus people complements.
-SELECT pg_temp.ok((SELECT d#>>'{participationRecords,state}'='SUPPRESSED' AND d#>>'{participationRecords,reason}'='COMPLEMENTARY_SUPPRESSION'
-  AND d#>>'{attendingIndividuals,value}'='8' AND d#>>'{enrolledIndividuals,value}'='20' FROM pg_temp.doc('pm_a7') d),
-  '31 participation records are hidden when records minus attending individuals is 1-4');
-SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='7' AND d#>>'{enrolledIndividuals,reason}'='SMALL_COHORT'
+-- Records versus people: exact since 0076, no complements.
+SELECT pg_temp.ok((SELECT d#>>'{participationRecords,value}'='10' AND d#>>'{attendingIndividuals,value}'='8'
+  AND d#>>'{enrolledIndividuals,value}'='20' FROM pg_temp.doc('pm_a7') d),
+  '31 participation records are exact when records minus attending individuals is 1-4');
+SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='7' AND d#>>'{enrolledIndividuals,value}'='2'
   AND d#>>'{participationRecords,value}'='0' FROM pg_temp.doc('pm_a8') d),
-  '32 individuals of 1-4 are SMALL_COHORT while the enrolled records stay visible');
-SELECT pg_temp.ok((SELECT d#>>'{attendingIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION' AND d#>>'{participationRecords,reason}'='COMPLEMENTARY_SUPPRESSION'
+  '32 individuals of 1-4 are exact beside the enrolled records');
+SELECT pg_temp.ok((SELECT d#>>'{attendingIndividuals,value}'='7' AND d#>>'{participationRecords,value}'='7'
   AND d#>>'{enrolledIndividuals,value}'='10' FROM pg_temp.doc('pm_a9') d),
-  '33 participation records are hidden when enrolled individuals minus records is 1-4');
-SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='10' AND d#>>'{enrolledIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION'
-  AND d#>>'{attendingIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION' AND d#>>'{participationRecords,reason}'='COMPLEMENTARY_SUPPRESSION'
+  '33 participation records are exact when enrolled individuals minus records is 1-4');
+SELECT pg_temp.ok((SELECT d#>>'{enrolledBeneficiaryRecords,value}'='10' AND d#>>'{enrolledIndividuals,value}'='8'
+  AND d#>>'{attendingIndividuals,value}'='6' AND d#>>'{participationRecords,value}'='6'
   FROM pg_temp.doc('pm_a10') d),
-  '34 participation records stay hidden when the people counts they would reveal are themselves hidden');
-SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,reason}'='COMPLEMENTARY_SUPPRESSION' AND d#>>'{attendingIndividuals,value}'='5'
-  AND d#>>'{participationRecords,reason}'='COMPLEMENTARY_SUPPRESSION' FROM pg_temp.doc('pm_a11') d),
-  '35 participation records are hidden whenever enrolled individuals are complement-hidden, so a released count pins nothing');
+  '34 every nested reach count is exact');
+SELECT pg_temp.ok((SELECT d#>>'{enrolledIndividuals,value}'='10' AND d#>>'{attendingIndividuals,value}'='5'
+  AND d#>>'{participationRecords,value}'='10' FROM pg_temp.doc('pm_a11') d),
+  '35 participation records stay exact beside every people count');
 -- SADDD for ongoing projects.
 SELECT pg_temp.ok((SELECT d->>'releaseState'='RELEASED' AND d#>>'{total,value}'='20' AND d#>>'{total,state}'='AVAILABLE'
   FROM pg_temp.doc('pm_sd_312') d),
   '36 an ongoing project with every marginal of 0 or 5 and more releases its counts to date');
-SELECT pg_temp.ok((SELECT d#>>'{total,state}'='SUPPRESSED' AND d#>>'{total,value}' IS NULL FROM pg_temp.doc('pm_sd_313') d),
-  '37 an ongoing project with a cell of 1-4 is suppressed as a whole');
+SELECT pg_temp.ok((SELECT d#>>'{total,state}'='AVAILABLE' AND d#>>'{total,value}'='3' FROM pg_temp.doc('pm_sd_313') d),
+  '37 an ongoing project with a cell of 1-4 releases its exact counts (0076)');
 SELECT pg_temp.ok(NOT EXISTS(SELECT FROM pathways.sensitive_aggregate_releases WHERE project_id IN (pg_temp.u(312),pg_temp.u(313))),
   '39 ongoing SADDD is computed live and never frozen in the release registry');
 

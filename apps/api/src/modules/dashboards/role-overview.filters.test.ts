@@ -62,7 +62,10 @@ function setup() {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
     },
-    dataImportBatch: { count: vi.fn().mockResolvedValue(2) },
+    dataImportBatch: {
+      count: vi.fn().mockResolvedValue(2),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     activityExtensionRequest: {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),

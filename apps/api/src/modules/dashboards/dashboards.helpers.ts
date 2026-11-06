@@ -27,14 +27,3 @@ export function parseDashboardQuery(value: unknown): DashboardQuery {
     )
   return parsed.data
 }
-
-/** Locked SADDD RFC G4 threshold: 1-4 is suppressed; 0 and 5 or more stay visible. */
-const SMALL_CELL_THRESHOLD = 5
-
-export function suppressSmallCount(metric: MetricCell): MetricCell {
-  if (metric.state !== 'AVAILABLE' || metric.value === null) return metric
-  const value = Number(metric.value)
-  return value > 0 && value < SMALL_CELL_THRESHOLD
-    ? { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
-    : metric
-}

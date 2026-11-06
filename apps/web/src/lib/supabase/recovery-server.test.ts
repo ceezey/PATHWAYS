@@ -44,6 +44,12 @@ describe('password recovery server boundary', () => {
     ).not.toBeNull()
     expect(
       getRecoveryIdentityFromVerifiedClaims(
+        { ...claims, amr: [{ method: 'invite', timestamp: 1 }] },
+        developerAuthUserId,
+      ),
+    ).not.toBeNull()
+    expect(
+      getRecoveryIdentityFromVerifiedClaims(
         { ...claims, amr: [{ method: 'password' }] },
         developerAuthUserId,
       ),

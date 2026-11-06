@@ -1,10 +1,13 @@
+import { type FileCheckReport, workbookSheetNames } from '@pathways/imports'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
+import type { AutomaticMappingReceipt } from '@/lib/api/imports.schema'
 import type { SensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type {
   DigitalFormDefinition,
+  DigitalFormType,
   ImportBatchDefinition,
   ImportRowDefinition,
   ImportSourceColumn,
@@ -14,15 +17,27 @@ import type {
 import type { ImportProcessingState } from '../components/import-processing-panel'
 import type { ColumnRuleDraft } from '../components/import-value-map-editor'
 import type { ImportProcessingProgress } from '../import-auto-continue'
-import { mappingLockedStatuses } from '../import.utils'
+import { parseImportPreview } from '../import-preview'
+import { guessFormType, mappingLockedStatuses } from '../import.utils'
 import { useImportBatch } from './use-import-batch'
 
 export function useImportState(scope: SensitiveDraftOwner) {
   const { profile } = useCurrentRole()
-  const canUpload = principalHasAtomicPermission(profile, 'imports.upload')
+  // A System Administrator edits forms and does not import files, though the role keeps imports.upload.
+  const isSystemAdministrator = profile?.roles[0] === 'SYSTEM_ADMINISTRATOR'
+  const canUpload =
+    !isSystemAdministrator && principalHasAtomicPermission(profile, 'imports.upload')
   const canReview = principalHasAtomicPermission(profile, 'imports.review')
   const canValidate = principalHasAtomicPermission(profile, 'imports.validate')
   const canProcess = principalHasAtomicPermission(profile, 'imports.process')
+  const canManageForms = principalHasAtomicPermission(profile, 'forms.manage')
+  const canRegisterParticipants = principalHasAtomicPermission(
+    profile,
+    'beneficiaries.records.register',
+  )
+  const canMatchByClientId =
+    principalHasAtomicPermission(profile, 'beneficiaries.identities.review') &&
+    principalHasAtomicPermission(profile, 'beneficiaries.enrollments.manage')
   const canOpenForms = Boolean(
     profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
   )
@@ -32,12 +47,67 @@ export function useImportState(scope: SensitiveDraftOwner) {
   const [formsState, setFormsState] = useState<'loading' | 'ready' | 'error'>('ready')
   const [formId, setFormId] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  // The file check running on Upload privately, and what it found for the person to see before anything is sent.
+  const [checking, setChecking] = useState(false)
+  const [fileCheck, setFileCheck] = useState<FileCheckReport | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
+  // The chosen file's worksheets, null while they are read; a workbook with several needs one chosen.
+  const [sheetNames, setSheetNames] = useState<string[] | null>([])
+  const [sheetName, setSheetName] = useState('')
+  useEffect(() => {
+    setSheetName('')
+    if (!file || !/\.xlsx?$/i.test(file.name)) {
+      setSheetNames([])
+      return
+    }
+    setSheetNames(null)
+    let active = true
+    file
+      .arrayBuffer()
+      .then((buffer) => workbookSheetNames(buffer))
+      // An unreadable workbook offers no sheets; the server then says why it refused the file.
+      .catch(() => [])
+      .then((names) => {
+        if (active) setSheetNames(names)
+      })
+    return () => {
+      active = false
+    }
+  }, [file])
+  // What the chosen file looks like, read only when the project has no published form to suggest which to create.
+  const [fileFormType, setFileFormType] = useState<DigitalFormType | null>(null)
+  const noForms = formsState === 'ready' && forms.length === 0
+  useEffect(() => {
+    setFileFormType(null)
+    if (!file || !noForms) return
+    let active = true
+    parseImportPreview(file)
+      .then((preview) => guessFormType(preview.headers))
+      // An unreadable file or a PDF gets the plain hint.
+      .catch(() => null)
+      .then((type) => {
+        if (active) setFileFormType(type)
+      })
+    return () => {
+      active = false
+    }
+  }, [file, noForms])
+  // Why the server refused the last upload, shown on the upload card until the file or target changes.
+  const [uploadRefusal, setUploadRefusal] = useState('')
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new file, project or form clears the old refusal.
+  useEffect(() => setUploadRefusal(''), [file, projectId, formId])
   const [batches, setBatches] = useState<ImportBatchDefinition[]>([])
   const [batch, setBatch] = useState<ImportBatchDefinition | null>(null)
   const [rows, setRows] = useState<ImportRowDefinition[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [rules, setRules] = useState<Record<string, ColumnRuleDraft>>({})
   const [mappingNotice, setMappingNotice] = useState('')
+  // The automatic-mapping receipt of each batch uploaded or re-run in this session; batch detail carries the stored coverage.
+  const [receipts, setReceipts] = useState<Record<string, AutomaticMappingReceipt>>({})
+  // Batches uploaded anyway after the file check offered Prepare form, so the mapping card does not repeat the offer.
+  const [formOfferSeen, setFormOfferSeen] = useState<ReadonlySet<string>>(new Set())
+  // The draft form just prepared from a batch, which the workspace then opens in the editor.
+  const [draftTarget, setDraftTarget] = useState<{ projectId: string; formId: string } | null>(null)
   const mappingHeading = useRef<HTMLSpanElement>(null)
   const [pending, setPending] = useState(false)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -142,13 +212,22 @@ export function useImportState(scope: SensitiveDraftOwner) {
     batch,
     batches,
     begin,
+    canManageForms,
+    canMatchByClientId,
+    canRegisterParticipants,
     canOpenForms,
     canProcess,
     canReview,
     canUpload,
+    isSystemAdministrator,
     canValidate,
+    checking,
     columnValues,
+    draftTarget,
     file,
+    fileCheck,
+    formOfferSeen,
+    fileInput,
     formId,
     forms,
     formsState,
@@ -167,13 +246,18 @@ export function useImportState(scope: SensitiveDraftOwner) {
     processing,
     projectId,
     projects,
+    receipts,
     rows,
     rules,
     scope,
     selectedForm,
     setBatch,
     setBatches,
+    setChecking,
+    setDraftTarget,
     setFile,
+    setFileCheck,
+    setFormOfferSeen,
     setFormId,
     setForms,
     setFormsState,
@@ -184,11 +268,18 @@ export function useImportState(scope: SensitiveDraftOwner) {
     setProcessing,
     setProjectId,
     setProjects,
+    setReceipts,
     setRows,
     setRules,
+    setSheetName,
+    setUploadRefusal,
+    fileFormType,
+    sheetName,
+    sheetNames,
     sourceColumnByKey,
     sourceColumns,
     storedMappingByKey,
+    uploadRefusal,
     validationErrors,
   }
 }

@@ -4,7 +4,7 @@ vi.mock('@/lib/env', () => ({
   webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api/' },
 }))
 
-import { readPublicSnapshots } from './public'
+import { readPublicAnalytics, readPublicSnapshots } from './public'
 
 const snapshot = {
   id: '10000000-0000-4000-8000-000000000001',
@@ -15,6 +15,8 @@ const snapshot = {
   sector: 'Synthetic sector',
   startDate: null,
   endDate: null,
+  media: [],
+  views: [],
   publishedAt: '2026-09-27T00:00:00.000Z',
 }
 const reply = (body: unknown, status = 200) => {
@@ -107,8 +109,47 @@ describe('public snapshot client', () => {
     ['a sector over 300 characters', { sector: 'a'.repeat(301) }],
     ['a publication date without a zone', { publishedAt: '2026-09-27T00:00:00' }],
     ['an unknown field', { budget: 1 }],
+    ['a missing media list', { media: undefined }],
+    ['an unknown view', { views: ['budget'] }],
   ])('rejects %s', async (_label, change) => {
     reply([{ ...snapshot, ...change }])
     await expect(readPublicSnapshots()).rejects.toThrow()
+  })
+})
+
+describe('public analytics client', () => {
+  const body = { view: 'map', places: [] }
+
+  it('reads one view anonymously from the exact analytics URL', async () => {
+    const fetcher = reply(body)
+    await expect(readPublicAnalytics(snapshot.id, 'map')).resolves.toEqual(body)
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      `http://127.0.0.1:4000/api/public/projects/${snapshot.id}/analytics/map`,
+    )
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+    })
+  })
+
+  it('answers not found for a malformed id without calling the API', async () => {
+    const fetcher = reply(body)
+    await expect(readPublicAnalytics('not-a-uuid', 'map')).rejects.toThrow('PUBLIC_NOT_FOUND')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [404, 'PUBLIC_NOT_FOUND'],
+    [503, 'PUBLIC_UNAVAILABLE'],
+  ])('maps status %s to %s', async (status, message) => {
+    reply({}, status)
+    await expect(readPublicAnalytics(snapshot.id, 'kpi')).rejects.toThrow(message)
+  })
+
+  it('refuses a body that is not the requested view', async () => {
+    reply(body)
+    await expect(readPublicAnalytics(snapshot.id, 'kpi')).rejects.toThrow()
   })
 })

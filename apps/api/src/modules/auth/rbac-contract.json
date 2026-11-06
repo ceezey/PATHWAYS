@@ -509,7 +509,8 @@
       "PROJECT_OFFICER",
       "MONITORING_AND_EVALUATION_OFFICER",
       "PROJECT_MANAGER"
-    ]
+    ],
+    "beneficiaries.guardian_consent.approve": ["PROJECT_OFFICER"]
   },
   "rows": [
     {
@@ -1871,6 +1872,13 @@
         ["MONITORING_AND_EVALUATION_OFFICER", "assessments.record"],
         ["PROJECT_MANAGER", "assessments.record"]
       ],
+      "revokes": []
+    },
+    {
+      "changeRecord": "cr-pathways-participant-file-import",
+      "migration": "0080_participant_file_import",
+      "rows": [],
+      "grants": [["PROJECT_OFFICER", "beneficiaries.guardian_consent.approve"]],
       "revokes": []
     }
   ]

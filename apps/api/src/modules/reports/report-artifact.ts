@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { toWorkbookBytes } from '@pathways/imports'
+import { neutralizeCell } from '@pathways/shared'
 import PDFDocument from 'pdfkit'
 import { z } from 'zod'
 
@@ -23,10 +24,6 @@ export const reportMime = {
   XLS: 'application/vnd.ms-excel',
   PDF: 'application/pdf',
 } as const
-// Text is never interpreted as a spreadsheet formula or a PDF hyperlink.
-export function safeSpreadsheetCell(value: string) {
-  return /^[\s]*[=+@\-\t\r]/.test(value) ? `'${value}` : value
-}
 export function validatedReportRows(rows: string[][]) {
   if (
     !Array.isArray(rows) ||
@@ -56,16 +53,12 @@ export async function createReportArtifact(
   let bytes: Buffer
   if (format === 'CSV') {
     bytes = Buffer.from(
-      `\ufeff${rows.map((row) => row.map((cell) => `"${safeSpreadsheetCell(cell).replaceAll('"', '""')}"`).join(',')).join('\r\n')}\r\n`,
+      `\ufeff${rows.map((row) => row.map((cell) => `"${neutralizeCell(cell).replaceAll('"', '""')}"`).join(',')).join('\r\n')}\r\n`,
       'utf8',
     )
   } else if (format === 'XLSX' || format === 'XLS') {
-    bytes = Buffer.from(
-      toWorkbookBytes(
-        rows.map((row) => row.map(safeSpreadsheetCell)),
-        format.toLowerCase() as 'xlsx' | 'xls',
-      ),
-    )
+    // toWorkbookBytes neutralizes string cells itself.
+    bytes = Buffer.from(toWorkbookBytes(rows, format.toLowerCase() as 'xlsx' | 'xls'))
   } else {
     const font = readFileSync(reportAsset('NotoSans-Regular.ttf'))
     if (

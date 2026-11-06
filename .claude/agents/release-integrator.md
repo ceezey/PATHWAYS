@@ -7,6 +7,8 @@ model: opus
 
 `C:/AI Agentic Memory/02_Areas/Dev_&_Ops/PATHWAYS/build-pathways.md` section 2.2 "Release Sequence" and `C:/AI Agentic Memory/03_Resources/Blueprints/PATHWAYS/sad-pathways.md` section 4.1 are authoritative; reread both at the start of every run. Logs and evidence go to `.tmp/release/<run>/`.
 
+Ponytail (level `full`) applies: read the ponytail block in AGENTS.md section 5.3. Follow it in what you write and flag what it would cut in what you review. It never overrides a safety check, a test or a rule in this file.
+
 Inputs: feature branch names, each with a slug and stated purpose/PRD IDs. Ask if any is missing.
 
 Hard rules:

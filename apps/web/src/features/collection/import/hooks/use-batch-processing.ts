@@ -1,8 +1,13 @@
 import { toast } from 'sonner'
 
 import { importsClient } from '@/lib/api/imports'
+import type { ImportBatchDefinition } from '@/types/pathways'
 
-import { importProcessingProgress, runImportProcessing } from '../import-auto-continue'
+import {
+  importProcessingProgress,
+  processingFailureNote,
+  runImportProcessing,
+} from '../import-auto-continue'
 import type { BatchReview } from './use-batch-review'
 import type { ImportState } from './use-import-state'
 
@@ -10,11 +15,12 @@ export function useBatchProcessing(state: ImportState, review: BatchReview) {
   const { batch, begin, importBatch, processing, projectId, setProcessing } = state
   const { loadBatch } = review
   // Keeps calling the server until the batch is done, a call fails, or Stop is pressed.
-  const process = async () => {
-    if (!batch) return
+  const processBatch = async (
+    target: ImportBatchDefinition,
+    finished: (done: ImportBatchDefinition) => string = () => 'Import processing finished.',
+  ) => {
     const ticket = begin('imports.process')
     if (!ticket) return
-    const target = batch
     let latest = importProcessingProgress(target)
     importBatch.stopRequested.current = false
     setProcessing({ batchId: target.id, state: 'running', progress: latest })
@@ -37,9 +43,7 @@ export function useBatchProcessing(state: ImportState, review: BatchReview) {
       }
       const note =
         outcome.kind === 'failed'
-          ? outcome.error instanceof Error
-            ? outcome.error.message
-            : 'Processing could not be completed.'
+          ? processingFailureNote(outcome.error)
           : outcome.kind === 'stalled'
             ? 'The remaining rows could not be processed. Review failed rows before retrying.'
             : undefined
@@ -56,7 +60,7 @@ export function useBatchProcessing(state: ImportState, review: BatchReview) {
       })
       await loadBatch(target.id, ticket)
       if (!ticket.valid()) return
-      if (outcome.kind === 'complete') toast.success('Import processing finished.')
+      if (outcome.kind === 'complete') toast.success(finished(outcome.batch))
       else if (note) toast.error(note)
     } catch (error) {
       if (!ticket.valid()) return
@@ -64,6 +68,10 @@ export function useBatchProcessing(state: ImportState, review: BatchReview) {
     } finally {
       ticket.finish()
     }
+  }
+
+  const process = async () => {
+    if (batch) await processBatch(batch)
   }
 
   const stopProcessing = () => {
@@ -75,7 +83,7 @@ export function useBatchProcessing(state: ImportState, review: BatchReview) {
   const visibleProcessing = processing && processing.batchId === batch?.id ? processing : null
   const processingInterrupted =
     visibleProcessing?.state === 'failed' || visibleProcessing?.state === 'stopped'
-  return { process, processingInterrupted, stopProcessing, visibleProcessing }
+  return { process, processBatch, processingInterrupted, stopProcessing, visibleProcessing }
 }
 
 export type BatchProcessing = ReturnType<typeof useBatchProcessing>

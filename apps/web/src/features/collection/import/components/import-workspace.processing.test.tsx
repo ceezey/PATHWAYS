@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 import { ImportWorkspace } from './import-workspace'
 
@@ -23,6 +24,7 @@ const api = vi.hoisted(() => ({
   getImportBatch: vi.fn(),
   getImportRows: vi.fn(),
   processImport: vi.fn(),
+  uploadImport: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => state }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: api }))
@@ -97,6 +99,13 @@ describe('import workspace automatic processing', () => {
     // The panel mounts outside the disabled fieldset that held the focused button,
     // so it needs focusOnMount to keep focus from falling to the document body.
     expect(panel.contains(document.activeElement)).toBe(true)
+  })
+
+  it('shows the new status in the batch list once processing finishes', async () => {
+    fireEvent.click(await openBatch())
+
+    const listed = screen.getByRole('button', { name: /notes\.xlsx/ })
+    await waitFor(() => expect(listed.textContent).toContain('Processed'))
   })
 
   it('keeps processing until the batch is done and announces progress', async () => {
@@ -208,6 +217,77 @@ describe('import workspace automatic processing', () => {
     expect((button as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(button)
     expect(api.processImport).not.toHaveBeenCalled()
+    state.profile = {
+      ...state.profile,
+      permissions: ['imports.read', 'imports.process', 'forms.read'],
+    }
+  })
+
+  describe('rows waiting for their registration', () => {
+    const asRole = async (role: string, permissions: string[]) => {
+      state.profile = { ...state.profile, roles: [role], permissions }
+      const waiting = {
+        ...batchWith(100),
+        totals: { ...batchWith(100).totals, waiting: 2 },
+      }
+      api.getImportBatches.mockResolvedValue([waiting])
+      api.getImportBatch.mockResolvedValue(waiting)
+      render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+      fireEvent.click(await screen.findByText('notes.xlsx', {}, { timeout: 20000 }))
+      await screen.findByText(
+        '2 waiting for their registration to be resolved',
+        {},
+        { timeout: 20000 },
+      )
+    }
+    const restore = () => {
+      state.profile = {
+        ...state.profile,
+        roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+        permissions: ['imports.read', 'imports.process', 'forms.read'],
+      }
+    }
+
+    afterEach(restore)
+
+    it('a System Administrator sees no Process waiting', async () => {
+      await asRole('SYSTEM_ADMINISTRATOR', [
+        'imports.read',
+        'imports.process',
+        'imports.upload',
+        'forms.read',
+      ])
+      expect(screen.queryByRole('button', { name: 'Process waiting' })).toBeNull()
+    })
+
+    it('an officer who may upload and process sees Process waiting', async () => {
+      await asRole('MONITORING_AND_EVALUATION_OFFICER', [
+        'imports.read',
+        'imports.process',
+        'imports.upload',
+        'forms.read',
+      ])
+      expect(screen.getByRole('button', { name: 'Process waiting' })).toBeTruthy()
+    })
+  })
+
+  it('upload refusal message shown', async () => {
+    const refusal = 'You cannot register participants here, so this file was not accepted.'
+    api.uploadImport.mockRejectedValue(new PathwaysClientError(refusal, 'forbidden', [], 403))
+    state.profile = {
+      ...state.profile,
+      permissions: ['imports.read', 'imports.upload', 'forms.read'],
+    }
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('notes.xlsx')
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: { files: [new File(['note,hello'], 'notes.csv', { type: 'text/csv' })] },
+    })
+    const upload = screen.getByRole('button', { name: 'Upload privately' })
+    await waitFor(() => expect((upload as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(upload)
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(refusal)
     state.profile = {
       ...state.profile,
       permissions: ['imports.read', 'imports.process', 'forms.read'],

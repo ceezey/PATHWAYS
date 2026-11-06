@@ -7,10 +7,8 @@ import type {
   MapLayerMouseEvent,
   MapLibreMap,
   MapMouseEvent,
-  Popup,
 } from 'maplibre-gl'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { chartPalette } from '@/lib/chart-palette'
@@ -18,6 +16,7 @@ import { cn } from '@/lib/utils'
 
 import {
   EMPTY_SAFE_MAP_FEATURE_COLLECTION,
+  type SafeMapFeature,
   type SafeMapFeatureCollection,
 } from '../analytics-location.utils'
 
@@ -29,6 +28,9 @@ const defaultZoom = 4.5
 const singleFeatureZoom = 12
 
 export const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
+
+/** Copied into public by scripts/copy-maplibre-worker.mjs before dev and build. */
+export const MAPLIBRE_WORKER_URL = '/maplibre/maplibre-gl-worker.mjs'
 
 export const resolveMapStyleUrl = (configuredStyleUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL) =>
   configuredStyleUrl?.trim() || DEFAULT_MAP_STYLE_URL
@@ -48,11 +50,48 @@ type MapStatus = 'loading' | 'ready' | 'error'
 
 type MapPoint = Readonly<{
   id: string
+  key: string
   label: string
   coordinates: readonly [longitude: number, latitude: number]
 }>
 
 type OpenPoint = MapPoint & Readonly<{ pinned: boolean }>
+
+const cardGap = 14
+const cardPad = 8
+
+/** Card position above the point, else below, else beside it, always clamped inside the map frame. */
+export const cardPosition = (
+  point: Readonly<{ x: number; y: number }>,
+  card: Readonly<{ width: number; height: number }>,
+  frame: Readonly<{ width: number; height: number }>,
+) => {
+  const clamp = (value: number, max: number) => Math.max(cardPad, Math.min(value, max - cardPad))
+  const { x, y } = point
+  const { width: w, height: h } = card
+  let left = x - w / 2
+  let top = y - cardGap - h
+  if (top < cardPad && y + cardGap + h <= frame.height - cardPad) top = y + cardGap
+  else if (top < cardPad) {
+    top = y - h / 2
+    left = x + cardGap + w <= frame.width - cardPad ? x + cardGap : x - cardGap - w
+  }
+  return { left: clamp(left, frame.width - w), top: clamp(top, frame.height - h) }
+}
+
+// Centers a pinned point low in the frame so its card fits above it, even near an edge.
+const centerLow = (map: MapLibreMap, coordinates: MapPoint['coordinates']) => {
+  const offsetY = Math.min(140, map.getContainer().clientHeight / 3)
+  map.easeTo({ center: [...coordinates], offset: [0, offsetY], duration: 300 })
+}
+
+const featurePoint = (feature: SafeMapFeature): OpenPoint => ({
+  id: feature.properties.id,
+  key: feature.properties.key,
+  label: feature.properties.label ?? '',
+  coordinates: feature.geometry.coordinates,
+  pinned: true,
+})
 
 const syncMapCamera = (
   map: MapLibreMap,
@@ -114,9 +153,22 @@ export const AnalyticsCoverageMap = ({
   const centerLongitude = initialCenter[0]
   const centerLatitude = initialCenter[1]
 
-  const popupRef = useRef<{ popup: Popup; node: HTMLDivElement } | null>(null)
+  const cardRef = useRef<HTMLDialogElement>(null)
+  const openerRef = useRef<HTMLElement | null>(null)
   const [openPoint, setOpenPoint] = useState<OpenPoint | null>(null)
   const hasPopup = Boolean(renderPopup)
+
+  // Closing returns focus to the place button that opened the card, if any.
+  const close = () => {
+    setOpenPoint(null)
+    openerRef.current?.focus()
+    openerRef.current = null
+  }
+  const pinFromList = (feature: SafeMapFeature, opener: HTMLElement) => {
+    openerRef.current = opener
+    setOpenPoint(featurePoint(feature))
+    if (mapRef.current) centerLow(mapRef.current, feature.geometry.coordinates)
+  }
 
   latestFeaturesRef.current = featureCollection
 
@@ -143,6 +195,8 @@ export const AnalyticsCoverageMap = ({
       .then((maplibre) => {
         const { Map: MapLibre, NavigationControl } = maplibre
         if (cancelled) return
+        // The bundled worker URL never resolves, so tiles and points stay blank without this copy.
+        maplibre.setWorkerUrl(MAPLIBRE_WORKER_URL)
 
         map = new MapLibre({
           container,
@@ -195,11 +249,18 @@ export const AnalyticsCoverageMap = ({
           pinned: boolean,
         ): OpenPoint | null => {
           const id = feature?.properties?.id
-          if (typeof id !== 'string' || feature?.geometry.type !== 'Point') return null
+          const key = feature?.properties?.key
+          if (
+            typeof id !== 'string' ||
+            typeof key !== 'string' ||
+            feature?.geometry.type !== 'Point'
+          )
+            return null
           const [longitude, latitude] = feature.geometry.coordinates
           const label = feature.properties?.label
           return {
             id,
+            key,
             label: typeof label === 'string' ? label : '',
             coordinates: [longitude, latitude],
             pinned,
@@ -219,27 +280,10 @@ export const AnalyticsCoverageMap = ({
         const handleClick = (event: MapMouseEvent) => {
           const onPoint = map?.queryRenderedFeatures(event.point, { layers: [layerId] }) ?? []
           const point = toPoint(onPoint[0], true)
+          openerRef.current = null
           setOpenPoint(point)
-          // Center a tapped point low in the frame so its popup fits above it, even near an edge.
-          if (point && map) {
-            const offsetY = Math.min(140, map.getContainer().clientHeight / 3)
-            map.easeTo({ center: [...point.coordinates], offset: [0, offsetY], duration: 300 })
-          }
+          if (point && map) centerLow(map, point.coordinates)
         }
-        if (hasPopup) {
-          const node = document.createElement('div')
-          popupRef.current = {
-            node,
-            popup: new maplibre.Popup({
-              closeButton: false,
-              closeOnClick: false,
-              focusAfterOpen: false,
-              maxWidth: 'min(320px, calc(100vw - 4rem))',
-              offset: 14,
-            }).setDOMContent(node),
-          }
-        }
-
         map.on('style.load', handleLoad)
         map.on('load', handleLoad)
         map.on('error', handleError)
@@ -264,8 +308,6 @@ export const AnalyticsCoverageMap = ({
     return () => {
       cancelled = true
       resizeObserver?.disconnect()
-      popupRef.current?.popup.remove()
-      popupRef.current = null
       setOpenPoint(null)
       if (map && handleLoad) map.off('style.load', handleLoad)
       if (map && handleLoad) map.off('load', handleLoad)
@@ -285,19 +327,42 @@ export const AnalyticsCoverageMap = ({
     }
   }, [centerLatitude, centerLongitude, featureCollection, initialZoom])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const map = mapRef.current
-    const entry = popupRef.current
-    if (status !== 'ready' || !map || !entry) return
-    if (openPoint) entry.popup.setLngLat([...openPoint.coordinates]).addTo(map)
-    else entry.popup.remove()
+    if (status !== 'ready' || !map || !hasPopup) return
     map.setPaintProperty(layerId, 'circle-radius', [
       'case',
-      ['==', ['get', 'id'], openPoint?.id ?? ''],
+      ['==', ['get', 'key'], openPoint?.key ?? ''],
       11,
       8,
     ])
-  }, [openPoint, status])
+    const card = cardRef.current
+    if (!openPoint || !card) return
+    const place = () => {
+      const frame = map.getContainer()
+      card.style.maxHeight = `${frame.clientHeight - 2 * cardPad}px`
+      const { left, top } = cardPosition(
+        map.project([...openPoint.coordinates]),
+        { width: card.offsetWidth, height: card.offsetHeight },
+        { width: frame.clientWidth, height: frame.clientHeight },
+      )
+      card.style.left = `${left}px`
+      card.style.top = `${top}px`
+    }
+    place()
+    map.on('move', place)
+    map.on('resize', place)
+    return () => {
+      map.off('move', place)
+      map.off('resize', place)
+    }
+  }, [hasPopup, openPoint, status])
+
+  // A pinned card takes focus so keyboard and screen reader users land on it.
+  const pinnedKey = openPoint?.pinned ? openPoint.key : null
+  useEffect(() => {
+    if (pinnedKey) cardRef.current?.focus({ preventScroll: true })
+  }, [pinnedKey])
 
   const hasFeatures = featureCollection.features.length > 0
 
@@ -311,8 +376,9 @@ export const AnalyticsCoverageMap = ({
     >
       <div className="absolute inset-0" ref={containerRef} />
       <p className="sr-only">
-        Interactive project map. Use the map controls or keyboard to pan and zoom. Only authorized,
-        project-safe coordinates are eligible for display.
+        Interactive project map. Use the map controls or keyboard to pan and zoom, or tab to the
+        list of mapped places to open a place overview. Only authorized, project-safe coordinates
+        are eligible for display.
       </p>
 
       {status === 'loading' ? (
@@ -331,12 +397,42 @@ export const AnalyticsCoverageMap = ({
           title="No mapped locations available"
         />
       ) : null}
-      {openPoint && renderPopup && popupRef.current
-        ? createPortal(
-            renderPopup(openPoint, () => setOpenPoint(null)),
-            popupRef.current.node,
-          )
-        : null}
+      {hasPopup && status === 'ready' && hasFeatures ? (
+        // Shown only while a place button has focus, so the map stays clear for pointer users.
+        <nav
+          aria-label="Mapped places"
+          className="pointer-events-none absolute bottom-3 left-3 z-20 max-h-48 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-md border border-border bg-card p-2 opacity-0 shadow-md focus-within:pointer-events-auto focus-within:opacity-100"
+        >
+          <ul className="space-y-1">
+            {featureCollection.features.map((feature) => (
+              <li key={feature.properties.key}>
+                <button
+                  className="text-left text-sm text-foreground underline-offset-4 hover:underline focus-visible:underline"
+                  onClick={(event) => pinFromList(feature, event.currentTarget)}
+                  type="button"
+                >
+                  {[feature.properties.title, feature.properties.label].filter(Boolean).join(': ')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
+      {openPoint && renderPopup && status === 'ready' ? (
+        // Non-modal: the map stays usable; the browser default insets and margin are reset to place it.
+        <dialog
+          aria-label={`${openPoint.label} overview`}
+          className="absolute bottom-auto right-auto z-10 m-0 max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border bg-card p-3 text-foreground shadow-md"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') close()
+          }}
+          open
+          ref={cardRef}
+          tabIndex={-1}
+        >
+          {renderPopup(openPoint, close)}
+        </dialog>
+      ) : null}
     </section>
   )
 }

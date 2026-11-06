@@ -1,23 +1,21 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common'
 import {
+  type ConfirmDraftCheckRequest,
+  type DraftSummaryResponse,
   type FormVersionRequest,
   type UpdateFormRequest,
   activityMonitoringDefinitionErrors,
   beneficiaryRegistrationDefinitionErrors,
+  draftSummaryResponse,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
 import { findForm, requireForm, requireLinks } from './form-lookup.service'
 import { expectedDate, fieldData } from './metadata.helpers'
-import {
-  type CachedFormDefinition,
-  type FormRow,
-  fieldInput,
-  formFieldContract,
-  mapForm,
-} from './metadata.mapper'
+import { type CachedFormDefinition, type FormRow, fieldInput, mapForm } from './metadata.mapper'
 import type { PublishedDefinitionCache } from './published-definition-cache'
 
 export async function updateFormDefinition(
@@ -50,6 +48,7 @@ export async function updateFormDefinition(
       formType: input.formType,
       activityId: input.activityId?.toLowerCase() || null,
       journeyStageId: input.journeyStageId?.toLowerCase() || null,
+      lastEditedById: actor.userId,
     },
   })
   if (changed.count !== 1) throw new ConflictException('Form changed; reload before saving.')
@@ -73,6 +72,49 @@ export async function updateFormDefinition(
   return mapForm(await findForm(tx, actor, current.projectId, current.id), actor)
 }
 
+// shortcut: the answer-key gate clears on a bare confirm of the field, upgrade if the key itself must be proved
+// Confirming a needs-check field is a review step, so it leaves the last editor unchanged and the editor may still publish.
+export async function confirmDraftCheck(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  projectId: string,
+  formId: string,
+  input: ConfirmDraftCheckRequest,
+) {
+  const current = await requireForm(tx, actor, projectId, formId)
+  if (current.status !== 'DRAFT') throw new ConflictException('Only a draft can be checked.')
+  const summary = draftSummaryResponse.safeParse(current.importDraftSummary).data
+  const remaining = summary?.needsCheck.filter((item) => item.fieldCode !== input.fieldCode)
+  if (!summary || !remaining || remaining.length === summary.needsCheck.length) {
+    throw new ConflictException('This field has nothing to confirm; reload the form.')
+  }
+  const changed = await tx.digitalForm.updateMany({
+    where: {
+      id: current.id,
+      organizationId: actor.organizationId,
+      projectId: current.projectId,
+      status: 'DRAFT',
+      updatedAt: expectedDate(input.expectedUpdatedAt),
+    },
+    data: { importDraftSummary: { ...summary, needsCheck: remaining } },
+  })
+  if (changed.count !== 1) throw new ConflictException('Form changed; reload before saving.')
+  await writeAuditLog(tx, actor, {
+    projectId: current.projectId,
+    action: 'FORM_DRAFT_CHECK_CONFIRMED',
+    entityType: 'DigitalForm',
+    entityId: current.id,
+    changes: {
+      version: current.version,
+      fieldCode: input.fieldCode,
+      reasons: summary.needsCheck
+        .filter((item) => item.fieldCode === input.fieldCode)
+        .map((item) => item.reason),
+    },
+  })
+  return mapForm(await findForm(tx, actor, current.projectId, current.id), actor)
+}
+
 export async function publishFormVersion(
   tx: Tx,
   actor: ApplicationIdentity,
@@ -84,7 +126,7 @@ export async function publishFormVersion(
   const current = await requireForm(tx, actor, projectId, formId)
   cache.evictForm(current.id)
   if (current.status !== 'DRAFT') throw new ConflictException('Only a draft can be published.')
-  if (current.createdById === actor.userId) {
+  if (current.createdById === actor.userId || current.lastEditedById === actor.userId) {
     throw new ForbiddenException('A form author cannot approve and publish the same version.')
   }
   const validation = validateAndNormalizeFormData(
@@ -134,6 +176,27 @@ export async function publishFormVersion(
         })
       }
     }
+  }
+  // A stage survey of an imported file needs its answer key and a mapped activity and journey stage.
+  if (current.formField_form.some((field) => field.code === 'stage_date')) {
+    // shortcut: a summary that fails to parse passes this gate, and the start check is the backstop, upgrade if publish must be strict
+    const summary = draftSummaryResponse.safeParse(current.importDraftSummary).data
+    if (summary?.needsCheck.some((item) => item.reason === 'ANSWER_KEY_NEEDED')) {
+      throw new ConflictException('Mark the correct answers for the total score first.')
+    }
+    const mapped =
+      current.activityId && current.journeyStageId
+        ? await tx.activityJourneyStageMapping.findFirst({
+            where: {
+              organizationId: actor.organizationId,
+              projectId: current.projectId,
+              activityId: current.activityId,
+              stageId: current.journeyStageId,
+            },
+            select: { id: true },
+          })
+        : null
+    if (!mapped) throw new ConflictException('This survey needs an activity and a journey stage.')
   }
   const definitionErrors = [
     ...validation.errors,
@@ -216,11 +279,12 @@ export async function createNextFormVersion(
   return createVersion(tx, actor, current)
 }
 
-async function createVersion(
+export async function createVersion(
   tx: Tx,
   actor: ApplicationIdentity,
   sourceForm: FormRow,
   override?: UpdateFormRequest,
+  importDraftSummary?: DraftSummaryResponse,
 ) {
   await tx.$queryRaw`
       SELECT id FROM pathways.digital_forms
@@ -272,6 +336,8 @@ async function createVersion(
             ? source.journeyStageId
             : override.journeyStageId?.toLowerCase() || null,
         createdById: actor.userId,
+        lastEditedById: actor.userId,
+        importDraftSummary,
       },
       select: { id: true },
     })

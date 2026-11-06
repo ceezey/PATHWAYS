@@ -30,10 +30,10 @@ export const sampleReport: PrintReport = {
   rows: [
     ['Sex', 'Female', '128', 'AVAILABLE', ''],
     ['Sex', 'Male', '97', 'AVAILABLE', ''],
-    ['Sex', 'Intersex', 'Suppressed', 'SUPPRESSED', 'Small group'],
+    ['Sex', 'Intersex', '3', 'AVAILABLE', ''],
     ['Age group', '18 to 24', '61', 'AVAILABLE', ''],
     ['Age group', '25 to 34', '84', 'AVAILABLE', ''],
   ],
   generatedAt: '2026-10-05T03:00:00.000Z',
-  unavailableReasons: ['Groups below the small-group threshold are suppressed.'],
+  unavailableReasons: ['Some figures were not available for this period.'],
 }

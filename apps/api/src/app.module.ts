@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-import { Module } from '@nestjs/common'
+import { type INestApplication, Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { readApiEnv } from '@pathways/config'
-import { LoggerModule } from 'nestjs-pino'
+import { Logger, LoggerModule } from 'nestjs-pino'
 
 import { SentryInterceptor } from './common/interceptors/sentry.interceptor'
 import { ActivitiesModule } from './modules/activities/activities.module'
@@ -157,6 +157,12 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
             },
           },
   }
+}
+
+// Vercel's patched listen never runs Nest's flush callback, so bufferLogs output is flushed here.
+export function usePathwaysLogger(app: INestApplication) {
+  app.useLogger(app.get(Logger))
+  app.flushLogs()
 }
 
 @Module({

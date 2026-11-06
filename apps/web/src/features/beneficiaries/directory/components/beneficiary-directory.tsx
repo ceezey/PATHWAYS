@@ -6,12 +6,13 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { Plus, RotateCcw, Search } from 'lucide-react'
+import { FolderSearch, Plus, RotateCcw, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
+import { EmptyState } from '@/components/pathways'
 import { ResultsAnnouncement } from '@/components/pathways/results-announcement'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -199,6 +200,9 @@ export const BeneficiaryDirectory = ({
 
   const pageCount = table.getPageCount()
   const { pageIndex } = table.getState().pagination
+  const noProjectDescription = projects.length
+    ? 'Select a project to see its Beneficiary list.'
+    : 'Projects assigned to you will appear here.'
 
   // Clamps the page when the loaded, filtered list shrinks below the current page.
   useEffect(() => {
@@ -251,6 +255,7 @@ export const BeneficiaryDirectory = ({
           <FilterSelect
             label="Project"
             value={projectId}
+            placeholder="Select project"
             onValueChange={withPageReset(onProjectChange)}
           >
             {projects.map((project) => (
@@ -329,13 +334,15 @@ export const BeneficiaryDirectory = ({
 
         <ResultsAnnouncement
           message={
-            status === 'loading'
-              ? 'Loading Beneficiary records.'
-              : status === 'error'
-                ? 'Beneficiary records for this project could not be loaded.'
-                : filteredBeneficiaries.length === 0
-                  ? 'No Beneficiary records match the current search and filters.'
-                  : `${filteredBeneficiaries.length} Beneficiary ${filteredBeneficiaries.length === 1 ? 'record matches' : 'records match'} the current search and filters.`
+            !projectId
+              ? noProjectDescription
+              : status === 'loading'
+                ? 'Loading Beneficiary records.'
+                : status === 'error'
+                  ? 'Beneficiary records for this project could not be loaded.'
+                  : filteredBeneficiaries.length === 0
+                    ? 'No Beneficiary records match the current search and filters.'
+                    : `${filteredBeneficiaries.length} Beneficiary ${filteredBeneficiaries.length === 1 ? 'record matches' : 'records match'} the current search and filters.`
           }
           settleKey={[
             search,
@@ -349,102 +356,112 @@ export const BeneficiaryDirectory = ({
           ].join('|')}
         />
 
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
+        {!projectId ? (
+          <EmptyState
+            icon={FolderSearch}
+            title={projects.length ? 'No project selected' : 'No projects available'}
+            description={noProjectDescription}
+          />
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    ))}
+                  </TableRow>
                 ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {status !== 'success' ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-28 text-center text-muted-foreground"
-                >
-                  {status === 'loading' ? (
-                    'Loading Beneficiary records.'
-                  ) : (
-                    <span className="inline-flex items-center gap-3">
-                      Beneficiary records for this project could not be loaded.
-                      <Button onClick={onRetry} size="sm" type="button" variant="outline">
-                        Retry
-                      </Button>
-                    </span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  className="relative cursor-pointer focus-within:bg-primary-subtle"
-                  key={row.id}
-                >
-                  {row.getVisibleCells().map((cell, index) => (
-                    <TableCell key={cell.id}>
-                      {index === 0 ? (
-                        <Link
-                          aria-label={`Open ${row.original.displayName}`}
-                          className="static after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          href={beneficiaryHref(row.original.id)}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </Link>
+              </TableHeader>
+              <TableBody>
+                {status !== 'success' ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-28 text-center text-muted-foreground"
+                    >
+                      {status === 'loading' ? (
+                        'Loading Beneficiary records.'
                       ) : (
-                        flexRender(cell.column.columnDef.cell, cell.getContext())
+                        <span className="inline-flex items-center gap-3">
+                          Beneficiary records for this project could not be loaded.
+                          <Button onClick={onRetry} size="sm" type="button" variant="outline">
+                            Retry
+                          </Button>
+                        </span>
                       )}
                     </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-28 text-center text-muted-foreground"
-                >
-                  No Beneficiary records match the current search and filters.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                  </TableRow>
+                ) : table.getRowModel().rows.length > 0 ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      className="relative cursor-pointer focus-within:bg-primary-subtle"
+                      key={row.id}
+                    >
+                      {row.getVisibleCells().map((cell, index) => (
+                        <TableCell key={cell.id}>
+                          {index === 0 ? (
+                            <Link
+                              aria-label={`Open ${row.original.displayName}`}
+                              className="static after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              href={beneficiaryHref(row.original.id)}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </Link>
+                          ) : (
+                            flexRender(cell.column.columnDef.cell, cell.getContext())
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-28 text-center text-muted-foreground"
+                    >
+                      No Beneficiary records match the current search and filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
 
-        <div className="flex flex-col gap-3 border-t border-border pt-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-muted-foreground">
-            Showing {table.getRowModel().rows.length} of {filteredBeneficiaries.length} filtered
-            beneficiary records.
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-            >
-              Previous
-            </Button>
-            <span className="text-muted-foreground">
-              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+            <div className="flex flex-col gap-3 border-t border-border pt-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-muted-foreground">
+                Showing {table.getRowModel().rows.length} of {filteredBeneficiaries.length} filtered
+                beneficiary records.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!table.getCanPreviousPage()}
+                  onClick={() => table.previousPage()}
+                >
+                  Previous
+                </Button>
+                <span className="text-muted-foreground">
+                  Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!table.getCanNextPage()}
+                  onClick={() => table.nextPage()}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
       </section>
     </div>
   )

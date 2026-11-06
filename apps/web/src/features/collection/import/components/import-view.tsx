@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 
+import { IMPORT_NEEDS_OTHER_ROLE } from '../../collection.copy'
 import type {
   CollectionMode,
   CollectionView,
@@ -21,6 +22,7 @@ import type {
 } from '../../collection.utils'
 import { FormInfoPanel } from '../../forms/components/form-info-panel'
 import type { MappingReadiness, MappingRow } from '../collection-import-state'
+import { CoverageNotice } from './coverage-notice'
 import { DataPreview } from './data-preview'
 import { ImportValidationPanel } from './import-validation-panel'
 import { MappingTable } from './mapping-table'
@@ -39,6 +41,8 @@ export const ImportView = ({
   mappingRows,
   mappingReadiness,
   mode,
+  onPrepareForm,
+  operationPending,
   parsedImport,
   parseSelectedFile,
   sourceFileEnabled,
@@ -57,6 +61,7 @@ export const ImportView = ({
   setProjectId,
   setView,
   retrySelectedFile,
+  stagedReceipt,
   uploadProgress,
 }: {
   fields: FormField[]
@@ -71,6 +76,9 @@ export const ImportView = ({
   mappingRows: MappingRow[]
   mappingReadiness: MappingReadiness
   mode: CollectionMode
+  /** Present only for a form manager; drafts the form the staged file needs. */
+  onPrepareForm: (() => void) | undefined
+  operationPending: boolean
   parsedImport: ParsedImport | null
   parseSelectedFile: (file: File) => Promise<void>
   sourceFileEnabled: boolean
@@ -89,6 +97,7 @@ export const ImportView = ({
   setProjectId: (value: string) => void
   setView: (view: CollectionView) => void
   retrySelectedFile: () => void
+  stagedReceipt: { uncoveredColumns: number; unresolvedValues: number } | null
   uploadProgress: number
 }) => (
   <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -154,6 +163,7 @@ export const ImportView = ({
         <div className="mt-4 space-y-3">
           <ProgressBar
             label="File reading progress"
+            hideText={importStatus === 'error'}
             tone={
               importStatus === 'error' ? 'danger' : importStatus === 'ready' ? 'success' : 'info'
             }
@@ -172,7 +182,16 @@ export const ImportView = ({
           >
             {importMessage}
           </output>
-          {importStatus === 'error' ? (
+          {stagedReceipt ? (
+            <CoverageNotice
+              receipt={stagedReceipt}
+              canPrepare={Boolean(onPrepareForm)}
+              pending={operationPending}
+              onPrepare={() => onPrepareForm?.()}
+            />
+          ) : null}
+          {/* Re-reading a refused file refuses it again, so only a read failure offers a retry. */}
+          {importStatus === 'error' && importMessage !== IMPORT_NEEDS_OTHER_ROLE ? (
             <Button size="sm" type="button" variant="outline" onClick={retrySelectedFile}>
               Retry reading file
             </Button>

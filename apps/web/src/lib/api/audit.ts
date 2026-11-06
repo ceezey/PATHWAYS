@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { ownedJsonRead } from '@/lib/api/core/owned-json-read'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 const timestamp = z.string().datetime({ offset: true })
 const auditSchema = z
   .object({

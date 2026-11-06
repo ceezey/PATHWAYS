@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { formsClient } from '@/lib/api/forms'
+import type { AutomaticMappingReceipt } from '@/lib/api/imports.schema'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import type {
   ActivitySummary,
@@ -56,6 +57,17 @@ export function useCollectionState({
   const [creatingVersion, setCreatingVersion] = useState(false)
   const [savedNotice, setSavedNotice] = useState('')
   const [loadError, setLoadError] = useState('')
+  // The change summary of a draft made from an import comes with the draft, so its publisher sees it too.
+  const editingForm = forms.find((form) => form.id === editingFormId)
+  const draftSummary = editingForm?.status === 'DRAFT' ? editingForm.draftSummary : null
+  // The uploaded batch whose file needs the form updated first, so its upload result can offer Prepare form.
+  const [stagedCoverage, setStagedCoverage] = useState<{
+    batchId: string
+    formId: string
+    receipt: AutomaticMappingReceipt
+  } | null>(null)
+  // The draft form just prepared from that batch, which the page then opens in the editor.
+  const [draftTarget, setDraftTarget] = useState<{ projectId: string; formId: string } | null>(null)
   // Success notices show as a toast pop-up instead of an inline banner.
   useEffect(() => {
     if (!savedNotice) return
@@ -163,6 +175,8 @@ export function useCollectionState({
     createPending,
     creatingVersion,
     current,
+    draftSummary,
+    draftTarget,
     duplicateDecision,
     editingBaseUpdatedAt,
     editingFormId,
@@ -208,6 +222,9 @@ export function useCollectionState({
     setActivities,
     setCorrectionPage,
     setCreatingVersion,
+    setDraftTarget,
+    setStagedCoverage,
+    stagedCoverage,
     setDuplicateDecision,
     setEditingBaseUpdatedAt,
     setEditingFormId,

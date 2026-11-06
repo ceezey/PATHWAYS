@@ -16,6 +16,7 @@ const batch = {
   formName: 'Intake form',
   formType: 'OTHER',
   originalFileName: 'rows.csv',
+  sourceSheetName: null,
   fileType: 'CSV',
   clientImportId: uuid,
   storageStatus: 'STORED',
@@ -24,10 +25,25 @@ const batch = {
   validationRevision: 1,
   validatedMappingRevision: 1,
   processingRevision: 0,
-  totals: { rows: 3, valid: 2, invalid: 1, processed: 0, unprocessed: 0, failed: 0 },
+  totals: {
+    rows: 3,
+    valid: 2,
+    invalid: 1,
+    processed: 0,
+    unprocessed: 0,
+    failed: 0,
+    warnings: 1,
+    waiting: 0,
+  },
   failureCode: null,
+  failureMessage: null,
+  uploadedByCurrentUser: true,
   uploadedAt: '2026-10-13T00:00:00.000Z',
   updatedAt: '2026-10-13T00:00:00.000Z',
+  parentBatchId: null,
+  partCode: null,
+  fileParts: null,
+  parts: [],
 }
 const detail = {
   ...batch,
@@ -45,8 +61,11 @@ const detail = {
       matchReason: null,
       dataType: 'TEXT',
       valueMap: [{ from: 'M', to: 'Male' }],
+      dateOrder: null,
     },
   ],
+  coverage: null,
+  submissionTimeDateOrder: null,
 }
 const row = {
   id: uuid,
@@ -54,10 +73,14 @@ const row = {
   rawData: { column_0001: 'Sample', column_0002: 4, column_0003: null },
   status: 'INVALID',
   validationErrors: [{ fieldCode: 'name', code: 'required', message: 'Name is required.' }],
+  validationWarnings: [
+    { fieldCode: 'guardian_consent_recorded', code: 'GUARDIAN_CONSENT_MISSING' },
+  ],
   mappingRevision: 1,
   validationRevision: 1,
   processingAttempts: 0,
   processingErrorCode: null,
+  resolvedAt: null,
   updatedAt: '2026-10-13T00:00:00.000Z',
 }
 
@@ -73,12 +96,58 @@ describe('import response contracts', () => {
     ).toBe(true)
   })
 
+  it('carry the submission time date order of a detail, or null, and nothing else', () => {
+    const order = (value: unknown) =>
+      importBatchDetailResponse.safeParse({ ...detail, submissionTimeDateOrder: value }).success
+    expect(order('DMY')).toBe(true)
+    expect(order(null)).toBe(true)
+    expect(order('DAY_FIRST')).toBe(false)
+    const { submissionTimeDateOrder: _, ...missing } = detail
+    expect(importBatchDetailResponse.safeParse(missing).success).toBe(false)
+  })
+
   it('accept the JSON and OTHER file types and a batch with both timestamps', () => {
     for (const fileType of ['JSON', 'OTHER']) {
       expect(importBatchResponse.safeParse({ ...batch, fileType }).success).toBe(true)
     }
     const stamped = { ...batch, validatedAt: '2026-10-13', processedAt: '2026-10-14' }
     expect(importBatchResponse.parse(stamped)).toEqual(stamped)
+  })
+
+  it('accept optional registration counts and reject negative ones', () => {
+    const counts = { created: 2, updated: 1, unchanged: 0 }
+    expect(importBatchResponse.parse({ ...batch, registrationCounts: counts })).toEqual({
+      ...batch,
+      registrationCounts: counts,
+    })
+    expect(
+      importBatchResponse.safeParse({
+        ...batch,
+        registrationCounts: { ...counts, created: -1 },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accept file parts and a part summary with its own batch', () => {
+    const fileParts = [
+      { code: 'pre', name: 'Pre-test', firstColumn: 3, lastColumn: 9, rows: 4, branchOf: null },
+    ]
+    const part = {
+      code: 'pre',
+      name: 'Pre-test',
+      formId: null,
+      formName: null,
+      formStatus: 'NONE',
+      batch: null,
+    }
+    const parts = [part, { ...part, formStatus: 'DRAFT', batch }]
+    const whole = { ...batch, partCode: 'pre', parentBatchId: uuid, fileParts, parts }
+    expect(importBatchResponse.safeParse(whole).success).toBe(true)
+    expect(
+      importBatchResponse.safeParse({ ...whole, parts: [{ ...part, batch: {} }] }).success,
+    ).toBe(false)
+    const { waiting: _waiting, ...noWaiting } = batch.totals
+    expect(importBatchResponse.safeParse({ ...batch, totals: noWaiting }).success).toBe(false)
   })
 
   it('reject an object that is missing required members', () => {
@@ -88,18 +157,31 @@ describe('import response contracts', () => {
 
   it('reject a batch that differs from a valid one by a single property', () => {
     const { failed: _failed, ...fewerTotals } = batch.totals
+    const { warnings: _warnings, ...noWarningTotals } = batch.totals
     expect(importBatchResponse.safeParse({ ...batch, status: 'VALIDATING' }).success).toBe(false)
     expect(importBatchResponse.safeParse({ ...batch, totals: fewerTotals }).success).toBe(false)
+    expect(importBatchResponse.safeParse({ ...batch, totals: noWarningTotals }).success).toBe(false)
     expect(
       importBatchResponse.safeParse({ ...batch, totals: { ...batch.totals, valid: '2' } }).success,
     ).toBe(false)
   })
 
-  it('reject a detail that lacks one of the source headers, source columns or mappings', () => {
+  it('accept coverage counts on a detail and reject a malformed one', () => {
+    const covered = { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 5 }
+    expect(importBatchDetailResponse.safeParse({ ...detail, coverage: covered }).success).toBe(true)
+    for (const coverage of [
+      { ...covered, coverage: 'MAYBE' },
+      { ...covered, uncoveredColumns: -1 },
+    ])
+      expect(importBatchDetailResponse.safeParse({ ...detail, coverage }).success).toBe(false)
+  })
+
+  it('reject a detail that lacks one of the source headers, source columns, mappings or coverage', () => {
     const { sourceHeaders: _headers, ...noHeaders } = detail
     const { sourceColumns: _columns, ...noColumns } = detail
     const { mappings: _mappings, ...noMappings } = detail
-    for (const broken of [noHeaders, noColumns, noMappings]) {
+    const { coverage: _coverage, ...noCoverage } = detail
+    for (const broken of [noHeaders, noColumns, noMappings, noCoverage]) {
       expect(importBatchDetailResponse.safeParse(broken).success).toBe(false)
     }
   })

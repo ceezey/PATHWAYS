@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import {
   type ValidateImportRequest,
   automaticImportMappingRequest,
+  draftStageFormRequest,
   importMappingItemRequest,
   importRowsQuery,
   processImportRequest,
+  rerunImportRequest,
   saveImportMappingRequest,
   uploadImportRequest,
   validateImportRequest,
@@ -47,6 +49,15 @@ describe('mapping value map contract', () => {
     expect(accepts(importMappingItemRequest, item([{ from: 'M', to: 'Male' }], 'TEXT'))).toBe(true)
   })
 
+  it('accepts formula-like text on the from side only', () => {
+    expect(accepts(importMappingItemRequest, item([{ from: '-none-', to: 'NOT_SPECIFIED' }]))).toBe(
+      true,
+    )
+    expect(accepts(importMappingItemRequest, item([{ from: '-', to: 'NOT_SPECIFIED' }]))).toBe(true)
+    expect(accepts(importMappingItemRequest, item([{ from: 'x', to: '=1' }]))).toBe(false)
+    expect(accepts(importMappingItemRequest, item([{ from: 'a\u0007', to: 'b' }]))).toBe(false)
+  })
+
   it('rejects an oversized map, an unknown type, and formula-like or control text', () => {
     const many = Array.from({ length: 51 }, (_, index) => ({ from: `k${index}`, to: 'v' }))
     expect(accepts(importMappingItemRequest, item(many))).toBe(false)
@@ -54,7 +65,6 @@ describe('mapping value map contract', () => {
     expect(accepts(importMappingItemRequest, item([{ from: 'M', to: '=HYPERLINK("x")' }]))).toBe(
       false,
     )
-    expect(accepts(importMappingItemRequest, item([{ from: '@SUM(1)', to: 'v' }]))).toBe(false)
     expect(accepts(importMappingItemRequest, item([{ from: 'M', to: '-cmd' }]))).toBe(false)
     const bell = String.fromCharCode(7)
     expect(accepts(importMappingItemRequest, item([{ from: 'M', to: `a${bell}b` }]))).toBe(false)
@@ -96,6 +106,9 @@ describe('import request contracts', () => {
 
   it('reads query bounds with Number() and applies the defaults', () => {
     expect(importRowsQuery.parse({})).toEqual({ offset: 0, take: 50 })
+    expect(importRowsQuery.parse({ held: 'true' })).toEqual({ offset: 0, take: 50, held: true })
+    expect(importRowsQuery.parse({ held: 'false' }).held).toBe(false)
+    expect(accepts(importRowsQuery, { held: '1' })).toBe(false)
     expect(importRowsQuery.parse({ offset: ' 3 ', take: '0x10' })).toEqual({ offset: 3, take: 16 })
     expect(accepts(importRowsQuery, { offset: ['5'] })).toBe(false)
     expect(accepts(importRowsQuery, { take: '' })).toBe(false)
@@ -104,12 +117,48 @@ describe('import request contracts', () => {
   it.each([
     ['upload', uploadImportRequest, { formId: uuid, clientImportId: uuid }, true],
     ['upload', uploadImportRequest, { formId: uuid, clientImportId: uuid, extra: 'x' }, false],
+    ['upload', uploadImportRequest, { formId: uuid, clientImportId: uuid, sheetName: 'Two' }, true],
+    [
+      'upload',
+      uploadImportRequest,
+      { formId: uuid, clientImportId: uuid, sheetName: '   ' },
+      false,
+    ],
+    [
+      'upload',
+      uploadImportRequest,
+      { formId: uuid, clientImportId: uuid, sheetName: 'a\tb' },
+      false,
+    ],
+    [
+      'upload',
+      uploadImportRequest,
+      { formId: uuid, clientImportId: uuid, sheetName: 's'.repeat(101) },
+      false,
+    ],
     ['automatic', automaticImportMappingRequest, { expectedMappingRevision: 1 }, true],
     ['automatic', automaticImportMappingRequest, { expectedMappingRevision: 2 }, false],
+    ['rerun', rerunImportRequest, { formId: uuid }, true],
+    ['rerun', rerunImportRequest, { formId: uuid, extra: 'x' }, false],
+    ['rerun', rerunImportRequest, { formId: 'nope' }, false],
+    ['draft-form', draftStageFormRequest, {}, true],
+    ['draft-form', draftStageFormRequest, { activityId: uuid }, true],
+    ['draft-form', draftStageFormRequest, { activityId: 'nope' }, false],
+    ['draft-form', draftStageFormRequest, { activityId: uuid, extra: 'x' }, false],
     ['process', processImportRequest, { expectedValidationRevision: 1 }, true],
     ['process', processImportRequest, { expectedValidationRevision: 0 }, false],
-  ] as const)('%s body %j is accepted: %s', (_route, schema, body, expected) => {
+  ] as const)('%s body %# is accepted as expected', (_route, schema, body, expected) => {
     expect(accepts(schema, body)).toBe(expected)
+  })
+})
+
+describe('upload sheet name', () => {
+  it('keeps a sheet name exactly, trailing space included, so the parser can match it', () => {
+    const uuid = '30000000-0000-4000-8000-000000000003'
+    expect(
+      uploadImportRequest.parse({ formId: uuid, clientImportId: uuid, sheetName: 'Data ' })
+        .sheetName,
+    ).toBe('Data ')
   })
 })
 
@@ -191,7 +240,8 @@ describe('save mapping body rules', () => {
     ['blank map source', withMap([{ from: '  ', to: 'v' }]), false],
     ['map target of 101', withMap([{ from: 'M', to: 'x'.repeat(101) }]), false],
     ['map entry without target', withMap([{ from: 'M' }]), false],
-    ['plus prefix on map source', withMap([{ from: '+1', to: 'v' }]), false],
+    ['plus prefix on map source', withMap([{ from: '+1', to: 'v' }]), true],
+    ['plus prefix on map target', withMap([{ from: 'M', to: '+x' }]), false],
     ['control character in map target', withMap([{ from: 'M', to: `a${bell}b` }]), false],
     ['unknown key on the body', { ...body([column()]), extra: 1 }, false],
     ['unknown key on a mapping', body([column({ extra: 1 })]), false],
@@ -243,10 +293,16 @@ describe('other import bodies', () => {
       { expectedMappingRevision: 0, target: 'private' },
       false,
     ],
-    ['process', processImportRequest, { expectedValidationRevision: 2 ** 53 }, true],
+    [
+      'process',
+      processImportRequest,
+      { expectedValidationRevision: Number.MAX_SAFE_INTEGER },
+      true,
+    ],
+    ['process', processImportRequest, { expectedValidationRevision: 2 ** 53 }, false],
     ['process', processImportRequest, { expectedValidationRevision: '1' }, false],
     ['process', processImportRequest, { expectedValidationRevision: 1, extra: true }, false],
-  ] as const)('%s row %#: accepted %s', (_route, schema, body, expected) => {
+  ] as const)('%s row %# is accepted as expected', (_route, schema, body, expected) => {
     expect(accepts(schema, body)).toBe(expected)
   })
 })

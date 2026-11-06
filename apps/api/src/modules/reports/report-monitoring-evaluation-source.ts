@@ -22,7 +22,7 @@ const cellText = (input: unknown) => {
   return [cell.value ?? 'Not available', cell.state, cell.reason ?? '']
 }
 
-/** Flattens the trusted, already-suppressed monitoring aggregate into report rows. */
+/** Flattens the trusted monitoring aggregate into report rows. */
 export function monitoringReportTable(data: MonitoringDashboard) {
   const rows: string[][] = [['Period', `${data.periodStart} to ${data.periodEnd}`, '', '', '']]
   const add = (section: string, item: string, metric: unknown) =>

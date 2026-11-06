@@ -14,7 +14,10 @@ import {
 } from '@nestjs/common'
 
 import {
+  type ConfirmDraftCheckRequest,
   type CreateFormRequest,
+  type DraftFromImportRequest,
+  type DraftStageFormRequest,
   type FormVersionRequest,
   type GenerateFormRequest,
   type ListSubmissionsQuery,
@@ -23,7 +26,10 @@ import {
   type UpdateFormRequest,
   type UpdateSubmissionRequest,
   type ValidateFormValuesRequest,
+  confirmDraftCheckRequest,
   createFormRequest,
+  draftFromImportRequest,
+  draftStageFormRequest,
   formVersionRequest,
   generateFormRequest,
   listSubmissionsQuery,
@@ -38,6 +44,7 @@ import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import { FormDefinitionExportService } from './form-definition-export.service'
+import { FormDraftFromStageService } from './form-draft-from-stage.service'
 import { MetadataService } from './metadata.service'
 
 @Controller('metadata/projects/:projectId/forms')
@@ -45,6 +52,7 @@ export class MetadataController {
   constructor(
     @Inject(MetadataService) private readonly metadata: MetadataService,
     @Inject(FormDefinitionExportService) private readonly formExport: FormDefinitionExportService,
+    @Inject(FormDraftFromStageService) private readonly stageDrafts: FormDraftFromStageService,
   ) {}
 
   @Get()
@@ -111,6 +119,17 @@ export class MetadataController {
     return this.metadata.updateForm(requestIdentity(request), projectId, formId, body)
   }
 
+  @Post(':formId/confirm-check')
+  @RequirePermission('forms.manage')
+  confirmCheck(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('formId') formId: string,
+    @Body(new ZodPipe(confirmDraftCheckRequest)) body: ConfirmDraftCheckRequest,
+  ) {
+    return this.metadata.confirmCheck(requestIdentity(request), projectId, formId, body)
+  }
+
   @Post(':formId/publish')
   @RequirePermission('forms.publish')
   publish(
@@ -141,6 +160,29 @@ export class MetadataController {
     @Param('formId') formId: string,
   ) {
     return this.metadata.newVersion(requestIdentity(request), projectId, formId)
+  }
+
+  @Post('drafts/from-stage/:batchId/:partCode')
+  @RequirePermission('forms.manage')
+  draftFromStage(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Param('partCode') partCode: string,
+    @Body(new ZodPipe(draftStageFormRequest)) body: DraftStageFormRequest,
+  ) {
+    return this.stageDrafts.draft(requestIdentity(request), projectId, batchId, partCode, body)
+  }
+
+  @Post(':formId/drafts/from-import')
+  @RequirePermission('forms.manage')
+  draftFromImport(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('formId') formId: string,
+    @Body(new ZodPipe(draftFromImportRequest)) body: DraftFromImportRequest,
+  ) {
+    return this.metadata.draftFromImport(requestIdentity(request), projectId, formId, body)
   }
 
   @Post(':formId/validate')

@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FormDefinitionExportService } from './form-definition-export.service'
+import { FormDraftFromStageService } from './form-draft-from-stage.service'
 import { MetadataController } from './metadata.controller'
 import { MetadataService } from './metadata.service'
 
@@ -19,9 +20,11 @@ const metadata = {
   createForm: vi.fn(),
   updateForm: vi.fn(),
   archiveForm: vi.fn(),
+  confirmCheck: vi.fn(),
   updateSubmission: vi.fn(),
   submitSubmission: vi.fn(),
   generateForm: vi.fn(),
+  draftFromImport: vi.fn(),
   publishForm: vi.fn(),
   validateValues: vi.fn(),
   saveSubmission: vi.fn(),
@@ -36,6 +39,7 @@ beforeAll(async () => {
     providers: [
       { provide: MetadataService, useValue: metadata },
       { provide: FormDefinitionExportService, useValue: {} },
+      { provide: FormDraftFromStageService, useValue: {} },
     ],
   }).compile()
   app = module.createNestApplication({ logger: false })
@@ -132,6 +136,18 @@ describe('metadata form bodies', () => {
       name: 'Okay',
     })
   })
+
+  it('forwards a draft-from-import body and refuses an unknown key', async () => {
+    const batchId = '60000000-0000-4000-8000-000000000006'
+    const body = { batchId, expectedMappingRevision: 1 }
+    expect(await send('POST', `/${formId}/drafts/from-import`, JSON.stringify(body))).toBe(201)
+    expect(metadata.draftFromImport).toHaveBeenCalledWith(actor, projectId, formId, body)
+    metadata.draftFromImport.mockClear()
+    expect(
+      await send('POST', `/${formId}/drafts/from-import`, JSON.stringify({ ...body, x: 1 })),
+    ).toBe(400)
+    expect(metadata.draftFromImport).not.toHaveBeenCalled()
+  })
 })
 
 describe('metadata response values and submissions', () => {
@@ -192,6 +208,15 @@ describe('metadata update, archive, edit and submit bodies', () => {
       service: metadata.archiveForm,
       sent: { expectedUpdatedAt: stamp },
       parsed: { expectedUpdatedAt: stamp },
+      args: [formId],
+    },
+    {
+      name: 'confirm a needs-check field',
+      method: 'POST',
+      route: `/${formId}/confirm-check`,
+      service: metadata.confirmCheck,
+      sent: { expectedUpdatedAt: stamp, fieldCode: 'sex' },
+      parsed: { expectedUpdatedAt: stamp, fieldCode: 'sex' },
       args: [formId],
     },
     {

@@ -1,13 +1,12 @@
 'use client'
 
 import { UsersRound } from 'lucide-react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 import { AsyncState } from '@/components/pathways'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { projectsClient } from '@/lib/api/projects'
 import { scopeProjectsForRole } from '@/lib/rbac/data-scope'
@@ -17,6 +16,7 @@ import { BeneficiaryDirectory } from './beneficiary-directory'
 export const BeneficiaryDirectoryLoader = () => {
   const { role, assignedProjectIds } = useCurrentRole()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const projectsRead = useAuthorizedRead(
     'projects',
     null,
@@ -37,10 +37,19 @@ export const BeneficiaryDirectoryLoader = () => {
   const resolvedIds = projects.map((project) => project.id)
   if (projectsRead.data && resolvedIds.join('|') !== projectIds.join('|'))
     setProjectIds(resolvedIds)
-  const [projectId, setProjectId] = useSafeProjectSelection(
-    projectIds,
-    searchParams?.get('project') ?? undefined,
-  )
+  const [chosenId, setChosenId] = useState('')
+  // The chosen project is kept in the address, so the browser's Back from a participant returns to it.
+  const chooseProject = (id: string) => {
+    setChosenId(id)
+    const next = new URLSearchParams(searchParams?.toString())
+    next.set('project', id)
+    next.delete('page')
+    router.replace(`/beneficiaries?${next}`, { scroll: false })
+  }
+  // Starts empty so nothing loads until asked for, unless there is only one project to choose.
+  const projectId =
+    [chosenId, searchParams?.get('project')].find((id) => id && projectIds.includes(id)) ??
+    (projectIds.length === 1 ? (projectIds[0] ?? '') : '')
   // Only the selected project's records are read; the directory never shows two projects at once.
   const recordsRead = useAuthorizedRead(
     'beneficiary-directory',
@@ -52,9 +61,9 @@ export const BeneficiaryDirectoryLoader = () => {
         : Promise.resolve([]),
     Boolean(role && projectId),
   )
-  // A principal without record access, or without projects, sees an empty directory instead of a stuck load.
-  const noAccess = projectId ? !recordsRead.eligible : projects.length === 0
-  const records = recordsRead.data ?? (projectsRead.data && noAccess ? [] : undefined)
+  // With no project selected, or no record access, the directory is empty rather than a stuck load.
+  const noRead = !projectId || !recordsRead.eligible
+  const records = recordsRead.data ?? (projectsRead.data && noRead ? [] : undefined)
   const [settled, setSettled] = useState(false)
   if (!settled && records) setSettled(true)
 
@@ -77,7 +86,7 @@ export const BeneficiaryDirectoryLoader = () => {
   return (
     <BeneficiaryDirectory
       beneficiaries={records ?? []}
-      onProjectChange={setProjectId}
+      onProjectChange={chooseProject}
       onRetry={() => void recordsRead.refetch()}
       projectId={projectId}
       projects={projects}

@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException } from '@nestjs/common'
+import { sourceNameKey } from '@pathways/imports/server'
 import {
   type CreateFormRequest,
   DIRECT_ENTRY_FORM_TYPES,
+  formIntakeDefinitionErrors,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
@@ -14,6 +16,38 @@ export function assertDefinition(input: CreateFormRequest) {
   )
   if (!result.valid) {
     throw new BadRequestException({ message: 'Form definition is invalid.', errors: result.errors })
+  }
+  assertFormIntakeDefinition(input.fields)
+}
+
+// Structural intake errors plus a source name used by two fields, compared on the matcher key.
+export function assertFormIntakeDefinition(fields: CreateFormRequest['fields']) {
+  const errors: Array<{ fieldCode: string; code: string; message: string }> =
+    formIntakeDefinitionErrors(fields)
+  const owner = new Map<string, string>()
+  for (const field of fields) {
+    for (const key of new Set((field.sourceNames ?? []).map(sourceNameKey))) {
+      if (key === '') {
+        errors.push({
+          fieldCode: field.code,
+          code: 'invalid_definition',
+          message: 'A source name must contain a letter or digit.',
+        })
+        continue
+      }
+      const first = owner.get(key)
+      if (first === undefined) owner.set(key, field.code)
+      else if (first !== field.code) {
+        errors.push({
+          fieldCode: field.code,
+          code: 'DUPLICATE_SOURCE_NAME',
+          message: `A source name is already used by field ${first}.`,
+        })
+      }
+    }
+  }
+  if (errors.length > 0) {
+    throw new BadRequestException({ message: 'Form intake metadata is invalid.', errors })
   }
 }
 
@@ -40,6 +74,10 @@ export function fieldData(
     maximumDate: field.maximumDate ? new Date(`${field.maximumDate}T00:00:00.000Z`) : undefined,
     minimumLength: field.minimumLength,
     maximumLength: field.maximumLength,
+    sourceNames: field.sourceNames ?? [],
+    valueAliases: field.valueAliases ?? Prisma.DbNull,
+    importDefault: field.importDefault ?? null,
+    rule: field.rule ?? Prisma.DbNull,
     sequenceNo: index + 1,
   }))
 }

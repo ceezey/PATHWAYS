@@ -142,12 +142,12 @@ export const topAlerts = <T extends { severity: string | null }>(alerts: T[]) =>
 
 const cellText = (cell: MetricCell, suffix = '') =>
   cell.state === 'SUPPRESSED'
-    ? 'Fewer than 5'
+    ? 'Suppressed'
     : cell.value === null
       ? 'Not available'
       : `${cell.value}${suffix}`
 const figureText = (f: Figure) =>
-  f.state === 'SUPPRESSED' ? 'Fewer than 5' : (f.value ?? 'Not available')
+  f.state === 'SUPPRESSED' ? 'Suppressed' : (f.value ?? 'Not available')
 
 export const INDICATOR_CAP = 50
 export const indicatorRows = (items: IndicatorResponse[]) =>

@@ -1,5 +1,7 @@
 import Papa, { type ParseError } from 'papaparse'
 
+import { normalizeNewlines } from './newlines'
+
 export interface CsvParseResult<T = Record<string, string>> {
   data: T[]
   errors: string[]
@@ -7,7 +9,7 @@ export interface CsvParseResult<T = Record<string, string>> {
 }
 
 export const parseCsv = <T = Record<string, string>>(input: string): CsvParseResult<T> => {
-  const result = Papa.parse<T>(input, {
+  const result = Papa.parse<T>(normalizeNewlines(input), {
     header: true,
     skipEmptyLines: true,
   })

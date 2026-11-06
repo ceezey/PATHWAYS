@@ -1,6 +1,7 @@
 import {
   createPrivateInspectionReader,
   createPrivateObjectStreamer,
+  createPrivateRangeReader,
   createPrivateUploadVerifier,
 } from './private-inspection-reader'
 
@@ -12,6 +13,7 @@ export const privateStorageFactories = {
   createPrivateInspectionReader,
   createPrivateUploadVerifier,
   createPrivateObjectStreamer,
+  createPrivateRangeReader,
 }
 
 export type PrivateStorageFactories = typeof privateStorageFactories

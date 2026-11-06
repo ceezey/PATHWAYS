@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 const timestamp = z.string().datetime({ offset: true })
 const decimal = z.string().regex(/^-?\d+(?:\.\d+)?$/)
 

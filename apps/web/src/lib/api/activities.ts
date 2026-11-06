@@ -108,6 +108,7 @@ export const activitiesClient = {
       {
         title: input.title,
         description: input.description,
+        activityType: input.activityType,
         plannedStartDate: input.startDate,
         plannedEndDate: input.dueDate,
         timelineOverrideJustification: input.timelineOverrideJustification,

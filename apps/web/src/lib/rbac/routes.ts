@@ -11,6 +11,8 @@ export const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
   beneficiary: ['returnTo'],
   budget: ['expense'],
   formEntry: ['submissionId'],
+  // The import page opens a batch only if it is in the lists the server gave this person.
+  imports: ['project', 'batch'],
   indicatorLibrary: ['project'],
 }
 export function authorizationPathForUiPath(input: string): string | null {
@@ -29,10 +31,7 @@ export function authorizationPathForUiPath(input: string): string | null {
     const id = pathname.split('/')[2]
     if (!routeUuidPattern.test(id)) return null
     canonical = '/recommendations'
-  } else if (/^\/transparency\/[^/]+\/preview\/?$/.test(pathname))
-    canonical = pathname
-      .replace(/^\/transparency\//, '/projects/')
-      .replace(/\/preview\/?$/, '/transparency/preview')
+  }
 
   const route = matchRoute(canonical)?.route
   if (!route) return null

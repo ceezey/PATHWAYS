@@ -1,3 +1,4 @@
+import type { ImportHoldCode } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { projectScope } from '../../common/authz/project-scope'
 import type { Tx } from '../../common/prisma/transaction'
@@ -83,6 +84,52 @@ export async function approvalQueue(tx: Tx, actor: ApplicationIdentity) {
       amount: e.amount.toFixed(2),
       verifiedByName: e.verifiedBy?.fullName ?? null,
       verifiedAt: e.verifiedAt?.toISOString() ?? null,
+    })),
+  }
+}
+
+/** Imports with minors waiting for the viewer's guardian approval, as counts per file. */
+export async function guardianApprovals(tx: Tx, actor: ApplicationIdentity) {
+  // The same statuses a guardian approval accepts; reading batches first keeps the row read on its batch and status index.
+  const batches = await tx.dataImportBatch.findMany({
+    where: {
+      organizationId: actor.organizationId,
+      project: projectScope(actor),
+      status: { in: ['VALIDATED', 'PARTIALLY_PROCESSED', 'PROCESSING'] },
+      unprocessedRows: { gt: 0 },
+      form: { formType: 'BENEFICIARY_REGISTRATION' },
+    },
+    select: {
+      id: true,
+      projectId: true,
+      originalFileName: true,
+      project: { select: { title: true } },
+    },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    // shortcut: counts only the oldest 100 files with held rows, move the count into SQL if a project ever keeps more open.
+    take: 100,
+  })
+  if (batches.length === 0) return { count: 0, rows: [] }
+  const held = await tx.dataImportRow.groupBy({
+    by: ['importBatchId'],
+    where: {
+      organizationId: actor.organizationId,
+      importBatchId: { in: batches.map((batch) => batch.id) },
+      status: 'UNPROCESSED',
+      processingErrorCode: 'GUARDIAN_CONSENT_REQUIRED' satisfies ImportHoldCode,
+    },
+    _count: { _all: true },
+  })
+  const waiting = new Map(held.map((group) => [group.importBatchId, group._count._all]))
+  const found = batches.filter((batch) => waiting.has(batch.id))
+  return {
+    count: held.reduce((total, group) => total + group._count._all, 0),
+    rows: found.slice(0, rows).map((batch) => ({
+      batchId: batch.id,
+      projectId: batch.projectId,
+      projectTitle: batch.project.title,
+      fileName: batch.originalFileName.slice(0, 255),
+      count: waiting.get(batch.id) ?? 0,
     })),
   }
 }

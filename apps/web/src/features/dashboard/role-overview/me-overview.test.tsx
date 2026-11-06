@@ -22,6 +22,11 @@ const data = {
   ],
   myActivities: null,
   flaggedProof: null,
+  guardianApprovals: null,
+  formDrafts: null,
+  publicationQueue: null,
+  importAttention: null,
+  ruleDrafts: null,
   recentSubmissions: null,
   submittedThisMonth: null,
   proofQueue: {

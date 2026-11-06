@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common'
 
 import type {
+  ConfirmDraftCheckRequest,
   CreateFormRequest,
+  DraftFromImportRequest,
   FormValidationMode,
   FormVersionRequest,
   GenerateFormRequest,
@@ -21,6 +23,7 @@ import {
   listProjectForms,
   readFormDefinition,
 } from './form-definitions.service'
+import { createDraftFromImport } from './form-draft-from-import.service'
 import {
   listOwnSubmissions,
   readSubmission,
@@ -36,6 +39,7 @@ import {
 import { formTemplates } from './form-templates'
 import {
   archiveFormVersion,
+  confirmDraftCheck,
   createNextFormVersion,
   publishFormVersion,
   updateFormDefinition,
@@ -100,6 +104,17 @@ export class MetadataService {
     )
   }
 
+  confirmCheck(
+    identity: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    input: ConfirmDraftCheckRequest,
+  ) {
+    return withAuthorizedOperation(this.prisma, identity, 'forms.manage', (tx, actor) =>
+      confirmDraftCheck(tx, actor, projectId, formId, input),
+    )
+  }
+
   publishForm(
     identity: ApplicationIdentity,
     projectId: string,
@@ -125,6 +140,17 @@ export class MetadataService {
   newVersion(identity: ApplicationIdentity, projectId: string, formId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', (tx, actor) =>
       createNextFormVersion(tx, actor, projectId, formId),
+    )
+  }
+
+  draftFromImport(
+    identity: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    input: DraftFromImportRequest,
+  ) {
+    return withAuthorizedOperation(this.prisma, identity, 'forms.manage', (tx, actor) =>
+      createDraftFromImport(tx, actor, projectId, formId, input),
     )
   }
 

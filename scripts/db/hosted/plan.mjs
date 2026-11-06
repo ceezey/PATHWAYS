@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 50-row migration ledger (baseline plus 0027-0057 and 0058-0075) this script must produce, in order. This is
+// The exact 62-row migration ledger (baseline plus 0027-0057 and 0058-0087) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted/plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -59,6 +59,18 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0073_rules_kpi_assessment_metrics',
   '0074_indicator_measurement_lookup',
   '0075_indicator_summary_measurement_lookup',
+  '0076_saddd_exact_counts',
+  '0077_saddd_by_place',
+  '0078_form_field_intake_metadata',
+  '0079_import_date_order_and_sheet',
+  '0080_participant_file_import',
+  '0081_submission_check_once',
+  '0082_permission_check_plpgsql',
+  '0083_stage_import',
+  '0084_smart_mapping_v4',
+  '0085_public_tracker_live_revision',
+  '0086_public_tracker_media',
+  '0087_public_tracker_analytics',
 ])
 
 function range(from, to) {
@@ -217,6 +229,33 @@ export function buildPlan() {
     },
     { type: 'deploy', migrations: range(75, 75) },
     { type: 'cleanup', name: 'indicator-summary', file: 'hosted-indicator-summary-cleanup.sql' },
+    // 0076 replaces functions owned by report_projection_owner and rules_projection_owner (in the rules_store_owner
+    // schema), so it needs a temporary SET-only membership to those three roles.
+    { type: 'preprovision', name: 'saddd-exact', file: 'hosted-saddd-exact-preprovision.sql' },
+    { type: 'deploy', migrations: range(76, 76) },
+    { type: 'cleanup', name: 'saddd-exact', file: 'hosted-saddd-exact-cleanup.sql' },
+    // 0077 needs no preprovision: prisma owns the new p06_saddd_by_place.
+    { type: 'deploy', migrations: range(77, 77) },
+    // 0078 needs no preprovision: prisma owns the altered tables and the new p78_record_smart_mapping.
+    { type: 'deploy', migrations: range(78, 78) },
+    // 0079 needs no preprovision: prisma owns the altered tables and p03_guard_import_batch.
+    { type: 'deploy', migrations: range(79, 79) },
+    // 0080 needs no preprovision: prisma owns the altered tables and the replaced guards and ceiling.
+    { type: 'deploy', migrations: range(80, 80) },
+    // 0081 needs no preprovision: prisma owns p2_assert_submission.
+    { type: 'deploy', migrations: range(81, 81) },
+    // 0082 needs no preprovision: prisma owns p05_has_project_permission and the p09_role_allows chain.
+    { type: 'deploy', migrations: range(82, 82) },
+    // 0083 needs no preprovision: prisma owns the import batch guard, the survey subject guard and the assessment source guard.
+    { type: 'deploy', migrations: range(83, 83) },
+    // 0084 needs no preprovision: prisma owns p78_record_smart_mapping.
+    { type: 'deploy', migrations: range(84, 84) },
+    // 0085 needs no preprovision: prisma owns project_publications and p34_guard_publication.
+    { type: 'deploy', migrations: range(85, 85) },
+    // 0086 needs no preprovision: prisma owns evidence_media, p3_guard_public_evidence and p85_publication_media.
+    { type: 'deploy', migrations: range(86, 86) },
+    // 0087 needs no preprovision: prisma owns every replaced analytics function and every table it adds a policy to.
+    { type: 'deploy', migrations: range(87, 87) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -257,7 +296,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0075 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0087 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -266,7 +305,7 @@ export function assertResumablePrefix(ledgerRows) {
 // Maps a count of already-applied migrations (from assertResumablePrefix) to
 // the plan step index to resume at. Cleanup steps are not tracked by the
 // Prisma ledger, so when resuming right after a migration that has a
-// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073, 0075), that cleanup step is re-run;
+// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073, 0075, 0076), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
 //
@@ -298,6 +337,11 @@ export function assertResumablePrefix(ledgerRows) {
 //    when the residual chain is the 0073 one.
 //  * 0074_indicator_measurement_lookup and 0075_indicator_summary_measurement_lookup follow the same two shapes for the
 //    indicator-summary membership (temporary report_projection_owner SET chain) granted before and revoked after 0075.
+//  * 0075_indicator_summary_measurement_lookup and 0076_saddd_exact_counts follow the same two shapes for the
+//    saddd-exact membership (temporary report, rules store and rules projection owner SET chain) granted before and
+//    revoked after 0076. A 0075 ledger with a residual chain resumes at the indicator-summary cleanup, whose own
+//    precondition rejects it when prisma still holds a rules owner membership (the 0076 chain); the operator then
+//    runs hosted-saddd-exact-cleanup.sql by hand and resumes at the saddd-exact preprovision.
 // The caller therefore checks live database state (whether prisma still holds a temporary
 // rules owner membership) and passes it in as `residualOwnerMemberships`.
 // 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a
@@ -321,6 +365,7 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0073_rules_kpi_assessment_metrics',
   '0074_indicator_measurement_lookup',
   '0075_indicator_summary_measurement_lookup',
+  '0076_saddd_exact_counts',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -336,6 +381,7 @@ const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0072_severity_classification': 'rules-severity',
   '0073_rules_kpi_assessment_metrics': 'rules-metrics',
   '0075_indicator_summary_measurement_lookup': 'indicator-summary',
+  '0076_saddd_exact_counts': 'saddd-exact',
 })
 // Ledger counts at which the caller must read live owner-membership state.
 export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
@@ -356,6 +402,7 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0073_rules_kpi_assessment_metrics',
   '0074_indicator_measurement_lookup',
   '0075_indicator_summary_measurement_lookup',
+  '0076_saddd_exact_counts',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {
@@ -402,4 +449,29 @@ export function planIndexForAppliedCount(appliedCount, { residualOwnerMembership
     throw new Error(`Could not locate a deploy step for migration ${lastApplied}`)
   }
   return stepIndex + 1
+}
+
+// The ledger a build --through `through` must produce: MIGRATIONS_IN_ORDER up to and including it.
+export function migrationsThrough(through) {
+  if (!through) return MIGRATIONS_IN_ORDER
+  const index = MIGRATIONS_IN_ORDER.indexOf(through)
+  if (index === -1) throw new Error(`--through ${through} is not a known migration`)
+  return MIGRATIONS_IN_ORDER.slice(0, index + 1)
+}
+
+// The steps of `plan` kept by --through: everything up to the deploy ending at `through` and its
+// cleanups, then the runtime role and postconditions. Returns the same step objects as `plan`.
+export function planThrough(through, plan = buildPlan()) {
+  if (!through) return plan
+  migrationsThrough(through)
+  const deployIndex = plan.findIndex(
+    (step) => step.type === 'deploy' && step.migrations.at(-1) === through,
+  )
+  if (deployIndex === -1) throw new Error(`--through ${through} does not end a deploy step`)
+  let end = deployIndex + 1
+  while (plan[end]?.type === 'cleanup') end += 1
+  const finalSteps = plan.filter(
+    (step) => step.type === 'alter-runtime-role' || step.type === 'postconditions',
+  )
+  return [...plan.slice(0, end), ...finalSteps]
 }

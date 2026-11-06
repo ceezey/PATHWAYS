@@ -657,3 +657,85 @@ function buildStreamer(
 
 export const createPrivateObjectStreamer = (config: PrivateInspectionStorageConfig) =>
   buildStreamer(config, { fetch: globalThis.fetch, now: () => performance.now() })
+
+export interface PrivateRangeObject {
+  bucket: string
+  objectKey: string
+  start: number
+  end: number
+}
+
+/**
+ * Streams one inclusive byte range of an already-authorized private object; the range cannot be
+ * digest-checked, so the caller must have resolved the object from trusted state.
+ * Anything other than a 206 with exactly the requested length fails with the sanitized error.
+ */
+export function createPrivateRangeReader(configuration: PrivateInspectionStorageConfig) {
+  const { config, base } = validateConfig(configuration)
+  return async (object: PrivateRangeObject): Promise<Readable> => {
+    const { bucket, objectKey, start, end } = object
+    const length = end - start + 1
+    const parts = typeof objectKey === 'string' ? objectKey.split('/') : []
+    if (
+      bucket !== config.evidenceBucket ||
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < 0 ||
+      end < start ||
+      length > config.maxBytes ||
+      objectKey.length > 1024 ||
+      !parts.every(safeSegment)
+    )
+      return unavailable()
+    const url = `${base}/storage/v1/object/authenticated/${encodeURIComponent(bucket)}/${parts.map(encodeURIComponent).join('/')}`
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), config.storageDeadlineMs)
+    let response: Response | undefined
+    try {
+      response = await fetch(url, {
+        redirect: 'error',
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${config.serviceRoleKey}`,
+          apikey: config.serviceRoleKey,
+          Range: `bytes=${start}-${end}`,
+        },
+      })
+      const advertised = response.headers.get('content-length')
+      if (
+        response.status !== 206 ||
+        !response.body ||
+        response.redirected ||
+        (response.url && response.url !== url) ||
+        (advertised !== null && advertised !== String(length))
+      )
+        return unavailable()
+    } catch {
+      clearTimeout(timer)
+      if (response) cancelBody(response.body)
+      throw new PrivateInspectionReadError()
+    }
+    const body = response.body
+    async function* chunks() {
+      const reader = body.getReader()
+      let count = 0
+      try {
+        while (true) {
+          const item = await reader.read()
+          if (item.done) break
+          count += item.value.byteLength
+          if (count > length) return unavailable()
+          yield Buffer.from(item.value)
+        }
+        if (count !== length) return unavailable()
+      } catch {
+        throw new PrivateInspectionReadError()
+      } finally {
+        clearTimeout(timer)
+        void reader.cancel().catch(() => undefined)
+      }
+    }
+    return Readable.from(chunks(), { objectMode: false, highWaterMark: 64 * 1024 })
+  }
+}

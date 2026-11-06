@@ -10,6 +10,7 @@ import {
   indicator,
   insights,
   kpiCard,
+  loadDashboard,
   loadMapsDashboard,
   monitoring,
   project,
@@ -153,7 +154,8 @@ describe('Analytics dashboard request dependencies', () => {
   })
 
   it('does not offer the Map visualization while maps are hidden', async () => {
-    render(<AnalyticsDashboard />)
+    const Dashboard = await loadDashboard({ maps: false })
+    render(<Dashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     expect(screen.queryByRole('option', { name: 'Map' })).toBeNull()
   })
@@ -226,9 +228,7 @@ describe('Analytics dashboard request dependencies', () => {
     render(<AnalyticsDashboard />)
 
     await waitFor(() => expect(api.getSadddDashboard).toHaveBeenCalled())
-    expect(
-      await screen.findByText('Counts to date; groups of fewer than 5 are hidden.'),
-    ).toBeTruthy()
+    expect(await screen.findByText('Counts to date.')).toBeTruthy()
     expect(screen.queryByText(/SADDD opens/)).toBeNull()
   })
 

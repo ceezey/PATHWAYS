@@ -1,4 +1,5 @@
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
+import { type FieldIntakeRule, hasAtomicPermission } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
 import type {
@@ -25,6 +26,19 @@ export interface ParticipationForm {
   journeyStageId: string | null
 }
 
+export type TotalScoreRule = Extract<FieldIntakeRule, { kind: 'TOTAL_SCORE' }>
+
+// The published survey form of one file stage, with the activity and journey stage its rows record.
+export interface StageForm {
+  id: string
+  version: number
+  code: string
+  activityId: string
+  journeyStageId: string
+  name: string
+  scoreRule: TotalScoreRule | null
+}
+
 /**
  * Read-only promotion context. The per-row path passes only the freshly read batch;
  * a chunk passes the batch, form fields and form definition loaded once per claim.
@@ -34,9 +48,25 @@ export interface PromotionContext {
   fields?: FieldRow[]
   participationForm?: ParticipationForm
   registrationForm?: RegistrationImportForm
+  // True when every registration row of the batch is matched by the client's identifier.
+  matchesByIdentifier?: boolean
+  // A stage batch carries its survey form, its parent batch and the registration form's default identifier type.
+  stageForm?: StageForm
+  parentBatchId?: string
+  identifierType?: string | null
+  // True when a column of the stage batch maps to stage_consent; consent is never taken from a form default.
+  consentMapped?: boolean
 }
 
-export type PromotionKind = 'GENERIC' | 'REGISTRATION' | 'PARTICIPATION'
+export type PromotionKind = 'GENERIC' | 'REGISTRATION' | 'PARTICIPATION' | 'STAGE'
+
+export const MATCH_BY_IDENTIFIER_REFUSAL =
+  'Importing participants by client ID needs the identity review and enrollment management permissions.'
+
+// Matching by the client's identifier links or updates found participants, which only these two grants allow.
+export const mayMatchByIdentifier = (actor: ApplicationIdentity) =>
+  hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.identities.review') &&
+  hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.enrollments.manage')
 
 // The registration and participation services a row promotion calls.
 export interface PromotionHandlers {
@@ -57,6 +87,7 @@ export async function loadPromotionContext(
     mappingRevision: number
     validationRevision: number
     reviewedById: string | null
+    parentBatchId?: string | null
     form: { formType: string }
   },
 ): Promise<PromotionContext | undefined> {
@@ -70,6 +101,7 @@ export async function loadPromotionContext(
     validationRevision: batch.validationRevision,
     reviewedById: batch.reviewedById,
   }
+  if (batch.parentBatchId) return loadStageContext(tx, actor, promotionBatch, batch.parentBatchId)
   if (batch.form.formType === 'BENEFICIARY_REGISTRATION') {
     const registrationForm = await promotion.registration.readRegistrationForm(
       tx,
@@ -78,7 +110,18 @@ export async function loadPromotionContext(
       batch.formId,
       'IMPORTED_DATASET',
     )
-    return registrationForm ? { batch: promotionBatch, registrationForm } : undefined
+    return registrationForm
+      ? {
+          batch: promotionBatch,
+          registrationForm,
+          matchesByIdentifier: await registrationMatchesByIdentifier(
+            tx,
+            actor,
+            promotionBatch,
+            registrationForm,
+          ),
+        }
+      : undefined
   }
   const fields = await loadFormFields(tx, actor, promotionBatch)
   if (batch.form.formType !== 'ACTIVITY_MONITORING') return { batch: promotionBatch, fields }
@@ -86,7 +129,107 @@ export async function loadPromotionContext(
   return participationForm ? { batch: promotionBatch, fields, participationForm } : undefined
 }
 
-export function loadFormFields(tx: Tx, actor: ApplicationIdentity, batch: PromotionBatch) {
+/** The context of a stage batch, or undefined when its survey form is not published with an activity and a journey stage. */
+export async function loadStageContext(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: PromotionBatch,
+  parentBatchId: string,
+): Promise<PromotionContext | undefined> {
+  const form = await tx.digitalForm.findFirst({
+    where: {
+      id: batch.formId,
+      organizationId: actor.organizationId,
+      projectId: batch.projectId,
+      version: batch.formVersion,
+      formType: 'TRAINING_SURVEY',
+      status: 'PUBLISHED',
+    },
+    select: {
+      id: true,
+      version: true,
+      code: true,
+      name: true,
+      activityId: true,
+      journeyStageId: true,
+    },
+  })
+  if (!form?.activityId || !form.journeyStageId) return undefined
+  const fields = await loadFormFields(tx, actor, batch)
+  const rule = fields
+    .map((field) => field.rule as FieldIntakeRule | null)
+    .find((item): item is TotalScoreRule => item?.kind === 'TOTAL_SCORE')
+  // A delta file names no type, so its stage IDs are read as the registration form's default type.
+  const parent = await tx.dataImportBatch.findFirst({
+    where: { id: parentBatchId, organizationId: actor.organizationId },
+    select: { formId: true },
+  })
+  const typeField = parent
+    ? await tx.formField.findFirst({
+        where: {
+          organizationId: actor.organizationId,
+          projectId: batch.projectId,
+          formId: parent.formId,
+          code: 'external_identifier_type',
+        },
+        select: { importDefault: true },
+      })
+    : null
+  const consent = await tx.metadataMapping.findFirst({
+    where: {
+      organizationId: actor.organizationId,
+      importBatchId: batch.id,
+      revision: batch.mappingRevision,
+      status: 'MAPPED',
+      targetField: { code: 'stage_consent' },
+    },
+    select: { id: true },
+  })
+  return {
+    batch,
+    fields,
+    parentBatchId,
+    consentMapped: consent !== null,
+    identifierType: typeField?.importDefault ?? null,
+    stageForm: {
+      id: form.id,
+      version: form.version,
+      code: form.code,
+      name: form.name,
+      activityId: form.activityId,
+      journeyStageId: form.journeyStageId,
+      scoreRule: rule ?? null,
+    },
+  }
+}
+
+/** A batch matches participants by the client's identifier when its form has the field and a column maps to it. */
+export async function registrationMatchesByIdentifier(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: Pick<PromotionBatch, 'id' | 'mappingRevision'>,
+  form?: RegistrationImportForm,
+) {
+  if (!form?.formField_form.some((field) => field.code === 'external_identifier_value'))
+    return false
+  const mapping = await tx.metadataMapping.findFirst({
+    where: {
+      organizationId: actor.organizationId,
+      importBatchId: batch.id,
+      revision: batch.mappingRevision,
+      status: 'MAPPED',
+      targetField: { code: 'external_identifier_value' },
+    },
+    select: { id: true },
+  })
+  return mapping !== null
+}
+
+export function loadFormFields(
+  tx: Tx,
+  actor: ApplicationIdentity,
+  batch: Pick<PromotionBatch, 'projectId' | 'formId'>,
+) {
   return tx.formField.findMany({
     where: {
       organizationId: actor.organizationId,

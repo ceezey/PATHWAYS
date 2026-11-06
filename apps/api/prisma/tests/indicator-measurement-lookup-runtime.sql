@@ -71,10 +71,10 @@ SET LOCAL session_replication_role = origin;
 -- Catalog: the reviewed body, owner, definer mode, empty search_path and no grant beyond the owner.
 SELECT pg_temp.ok((SELECT NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname='prisma'),
   '1 prisma has neither SUPERUSER nor BYPASSRLS, as on hosted');
-SELECT pg_temp.ok((SELECT md5(p.prosrc)='3030c91e0ce34e443ac5670716d690a4' AND pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef
+SELECT pg_temp.ok((SELECT md5(p.prosrc)='3f969e2940ba31cf592e6feb75cc69b2' AND pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef
    AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']
    FROM pg_proc p WHERE p.oid='pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)'::regprocedure),
-  '2 p06_compute_indicator_value is the reviewed 0074 definition owned by prisma');
+  '2 p06_compute_indicator_value is the reviewed definition as 0087 split it into checks and p87_indicator_value_core, owned by prisma');
 SELECT pg_temp.ok(NOT has_function_privilege('pathways_runtime','pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)','EXECUTE')
   AND NOT has_function_privilege('anon','pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)','EXECUTE')
   AND NOT has_function_privilege('authenticated','pathways.p06_compute_indicator_value(uuid,uuid,uuid,text)','EXECUTE'),

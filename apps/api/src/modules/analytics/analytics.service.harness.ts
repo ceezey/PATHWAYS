@@ -63,7 +63,7 @@ export const releasedSaddd = {
   disability: [bucket('NO', cell(24)), bucket('YES', cell(6))],
   completeness: [],
 }
-// A 1-4 cell suppresses the whole SADDD table, as p06_saddd returns it.
+// A withheld SADDD table, as a lease-withheld or legacy cached release returns it.
 export const suppressedSaddd = {
   releaseState: 'RELEASED',
   total: suppressed,

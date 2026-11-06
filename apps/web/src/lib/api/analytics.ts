@@ -55,7 +55,7 @@ const analyticsExportPreviewSchema = z.object({
   totalRows: z.number().int().nonnegative(),
 })
 
-/** First rows of the aggregate table a descriptive export would contain, with suppression applied. */
+/** First rows of the aggregate table a descriptive export would contain. */
 export async function getAnalyticsExportPreview(query: DescriptiveAnalyticsQuery) {
   return analyticsExportPreviewSchema.parse(
     await requestFoundation(

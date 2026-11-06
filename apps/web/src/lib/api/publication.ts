@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { ownedJsonRead, projectPath } from '@/lib/api/core/owned-json-read'
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 const publicationSchema = z
   .object({
     revision: z.number().int().positive(),
@@ -13,6 +13,14 @@ const publicationSchema = z
     submittedById: uuid,
     approvedById: uuid.nullable(),
     publishedById: uuid.nullable(),
+    live: z
+      .object({
+        revision: z.number().int().positive(),
+        publishedAt: z.string().datetime({ offset: true }),
+        snapshot: publicProjectResponse,
+      })
+      .strict()
+      .nullable(),
     updatedAt: z.string().datetime({ offset: true }),
   })
   .strict()
@@ -24,7 +32,9 @@ export const publicationClient = {
       `${projectPath(id)}/publication`,
       z
         .object({
-          publication: publicationSchema.refine((row) => row.snapshot.id === id).nullable(),
+          publication: publicationSchema
+            .refine((row) => row.snapshot.id === id && (!row.live || row.live.snapshot.id === id))
+            .nullable(),
         })
         .strict(),
       { signal },

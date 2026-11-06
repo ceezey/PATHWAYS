@@ -1,3 +1,5 @@
+import type { FieldIntakeRule } from '@pathways/shared'
+
 import type {
   DigitalFormDefinition,
   DigitalFormFieldDefinition,
@@ -30,7 +32,19 @@ export interface BuilderFormField {
   minimumLength: string
   maximumLength: string
   mappingStatus: 'mapped' | 'unmapped' | 'ignored' | 'invalid'
+  sourceNames: string[]
+  valueAliases: Array<{ from: string; to: string }>
+  importDefault: string
+  rule: FieldIntakeRule | null
 }
+
+/** The import metadata of a field that has none yet. */
+export const emptyIntake = {
+  sourceNames: [],
+  valueAliases: [],
+  importDefault: '',
+  rule: null,
+} satisfies Pick<BuilderFormField, 'sourceNames' | 'valueAliases' | 'importDefault' | 'rule'>
 
 const apiFieldTypes: Record<BuilderFieldType, FormFieldDataType> = {
   text: 'TEXT',
@@ -71,6 +85,21 @@ export const neatFormCode = (title: string, now = Date.now()) => {
 
 const optionalNumber = (value: string) => (value.trim() === '' ? undefined : Number(value))
 const optionalString = (value: string) => (value.trim() === '' ? undefined : value.trim())
+
+const isChoice = (field: BuilderFormField) =>
+  field.type === 'single_select' || field.type === 'multi_select'
+
+/** Complete intake metadata only: blank names and half-filled aliases are dropped, aliases only on choice fields. */
+const intakeInput = (field: BuilderFormField) => {
+  const sourceNames = field.sourceNames.map((name) => name.trim()).filter(Boolean)
+  const valueAliases = field.valueAliases.filter((alias) => alias.from.trim() && alias.to)
+  return {
+    sourceNames,
+    valueAliases: isChoice(field) && valueAliases.length ? valueAliases : undefined,
+    importDefault: optionalString(field.importDefault),
+    rule: field.rule ?? undefined,
+  }
+}
 
 export function toDigitalFormInput(input: {
   code: string
@@ -116,6 +145,7 @@ export function toDigitalFormInput(input: {
       maximumLength: ['text', 'long_text', 'multi_select'].includes(field.type)
         ? optionalNumber(field.maximumLength)
         : undefined,
+      ...intakeInput(field),
     })),
   }
 }
@@ -139,5 +169,9 @@ export function fromDigitalForm(
     minimumLength: field.minimumLength == null ? '' : String(field.minimumLength),
     maximumLength: field.maximumLength == null ? '' : String(field.maximumLength),
     mappingStatus: 'mapped',
+    sourceNames: [...(field.sourceNames ?? [])],
+    valueAliases: (field.valueAliases ?? []).map((alias) => ({ ...alias })),
+    importDefault: field.importDefault ?? '',
+    rule: field.rule ?? null,
   }))
 }

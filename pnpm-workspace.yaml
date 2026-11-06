@@ -6,8 +6,26 @@ allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true
   '@prisma/engines': true
+  '@scarf/scarf': false
   '@sentry/cli': true
   esbuild: true
   msw: true
   prisma: true
   sharp: true
+# Bumps of transitive deps that parents pin to vulnerable versions (pnpm audit); drop an entry once audit stays clean without it.
+overrides:
+  ajv@8: ^8.18.0
+  browserslist: ^4.28.7
+  effect: ^3.20.0
+  js-yaml@4: ^4.3.2
+  js-yaml@5: ^5.5.0
+  lodash: ^4.17.24
+  multer@2: ^2.5.0
+  picomatch@4: ^4.0.4
+  postcss@8: ^8.5.23
+  qs@6: ^6.16.0
+  webpack@5: ^5.104.1
+  # shortcut: crosses Prisma 6's deepmerge-ts 7 range; re-check on the Prisma 7 upgrade.
+  deepmerge-ts: ^8.0.2
+  # shortcut: crosses Tailwind 3's postcss-selector-parser 6 range; re-check on the Tailwind 4 upgrade.
+  postcss-selector-parser: ^7.1.7

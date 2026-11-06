@@ -1,27 +1,41 @@
+import { answerResolver } from '../answers'
 import {
   type PreparedField,
+  SYNONYMS_V2,
+  SYNONYMS_V3,
+  groupPathLeaf,
   nameScore,
   normalizeMappingNameV1,
   prepareName,
 } from './smart-match-names'
 import {
   AUTO_SMART_V2_LIMITS,
+  PARTICIPANT_GROUP_WORDS,
+  REFUSED_TAGS,
+  SYSTEM_COLUMNS_V1,
   type SmartDecisionReason,
   type SmartMatchColumn,
   type SmartMatchDecision,
   type SmartMatchField,
   SmartMatchInputError,
   type SmartMatchReason,
+  TIER,
 } from './smart-match-rules'
 import { boundedSamples, valueGate } from './smart-match-values'
 export {
   AUTO_SMART_V2,
+  AUTO_SMART_V3,
+  AUTO_SMART_V4,
   AUTO_SMART_V2_LIMITS,
   SMART_DECISION_REASONS,
   SMART_MATCH_REASONS,
   SMART_REVIEW_SYNONYMS_V2,
+  SMART_REVIEW_SYNONYMS_V3,
   SMART_SYNONYMS_V2,
   SMART_SYNONYMS_V2_ID,
+  SMART_SYNONYMS_V3,
+  SMART_SYNONYMS_V3_ID,
+  SYSTEM_COLUMNS_V1,
   type SmartDecisionReason,
   type SmartMatchColumn,
   type SmartMatchDecision,
@@ -29,7 +43,12 @@ export {
   SmartMatchInputError,
   type SmartMatchReason,
 } from './smart-match-rules'
-export { boundedEditDistance, normalizeMappingNameV1 } from './smart-match-names'
+export {
+  boundedEditDistance,
+  groupPathLeaf,
+  normalizeMappingNameV1,
+  sourceNameKey,
+} from './smart-match-names'
 
 function compareText(left: string, right: string) {
   return left < right ? -1 : left > right ? 1 : 0
@@ -50,6 +69,46 @@ export function smartMatchColumns(
   columns: readonly SmartMatchColumn[],
   fields: readonly SmartMatchField[],
 ): SmartMatchDecision[] {
+  return matchColumns(columns, fields, 2)
+}
+
+/** AUTO_SMART_V3: V2 plus source names, blank columns, calculated-field exclusion and answer aliases. */
+export function smartMatchColumnsV3(
+  columns: readonly SmartMatchColumn[],
+  fields: readonly SmartMatchField[],
+): SmartMatchDecision[] {
+  return matchColumns(columns, fields, 3)
+}
+
+/** AUTO_SMART_V4: V3 plus Filipino synonyms, group-path leaves and system columns. */
+export function smartMatchColumnsV4(
+  columns: readonly SmartMatchColumn[],
+  fields: readonly SmartMatchField[],
+): SmartMatchDecision[] {
+  return matchColumns(columns, fields, 4)
+}
+
+/** Canonical source names that exactly one field owns; shared names are dropped. */
+function ownedSourceNames(fields: readonly SmartMatchField[]) {
+  const sets = fields.map(
+    (field) =>
+      new Set((field.sourceNames ?? []).map((name) => prepareName(name).canonical).filter(Boolean)),
+  )
+  const counts = new Map<string, number>()
+  for (const set of sets) for (const name of set) counts.set(name, (counts.get(name) ?? 0) + 1)
+  return fields.map(
+    (_, index) => new Set([...sets[index]].filter((name) => counts.get(name) === 1)),
+  )
+}
+
+function matchColumns(
+  columns: readonly SmartMatchColumn[],
+  fields: readonly SmartMatchField[],
+  version: 2 | 3 | 4,
+): SmartMatchDecision[] {
+  const v3 = version >= 3
+  const v4 = version === 4
+  const synonyms = v4 ? SYNONYMS_V3 : SYNONYMS_V2
   if (
     columns.length > AUTO_SMART_V2_LIMITS.maxColumns ||
     fields.length > AUTO_SMART_V2_LIMITS.maxFields ||
@@ -58,7 +117,12 @@ export function smartMatchColumns(
       (field) =>
         field.code.length > AUTO_SMART_V2_LIMITS.maxNameCharacters ||
         field.label.length > AUTO_SMART_V2_LIMITS.maxNameCharacters ||
-        (field.allowedValues?.length ?? 0) > 100,
+        (field.allowedValues?.length ?? 0) > 100 ||
+        (field.sourceNames?.length ?? 0) > 20 ||
+        (field.sourceNames ?? []).some(
+          (name) => name.length > AUTO_SMART_V2_LIMITS.maxNameCharacters,
+        ) ||
+        (field.valueAliases?.length ?? 0) > 100,
     )
   ) {
     throw new SmartMatchInputError()
@@ -66,25 +130,70 @@ export function smartMatchColumns(
   const orderedColumns = [...columns].sort(
     (left, right) => left.columnIndex - right.columnIndex || compareText(left.key, right.key),
   )
-  const orderedFields: PreparedField[] = [...fields]
-    .sort((left, right) => compareText(left.code, right.code) || compareText(left.id, right.id))
-    .map((field) => ({
+  const owned = v3 ? ownedSourceNames(fields) : []
+  const orderedFields: PreparedField[] = fields
+    .map((field, index) => ({ field, sourceNames: owned[index] }))
+    .sort(
+      (left, right) =>
+        compareText(left.field.code, right.field.code) ||
+        compareText(left.field.id, right.field.id),
+    )
+    .map(({ field, sourceNames }) => ({
       field,
       code: prepareName(field.code),
       label: prepareName(field.label),
       allowed: new Set((field.allowedValues ?? []).map((value) => normalizeMappingNameV1(value))),
+      sourceNames: sourceNames ?? new Set<string>(),
+      calculated: v3 && field.calculated === true,
+      resolve:
+        v3 && (field.dataType === 'SELECT' || field.dataType === 'MULTIPLE_SELECT')
+          ? answerResolver(field.allowedValues ?? [], field.valueAliases ?? [])
+          : undefined,
     }))
 
   // Candidates at or above the suggestion floor, best first; field order breaks ties.
   const candidates = orderedColumns.map((column) => {
     const source = prepareName(column.header)
-    const scored: Candidate[] = []
-    orderedFields.forEach((target, fieldIndex) => {
-      const match = nameScore(source, target)
-      if (match) scored.push({ fieldIndex, score: match.score, reason: match.reason })
-    })
+    // A source name a field owns outranks the system-column list, as the form publisher approved it.
+    const ignoredReason: SmartDecisionReason | null =
+      v3 && column.blank === true
+        ? 'BLANK_COLUMN'
+        : v4 &&
+            SYSTEM_COLUMNS_V1.has(source.v1) &&
+            !orderedFields.some((target) => target.sourceNames.has(source.canonical))
+          ? 'SYSTEM_COLUMN'
+          : null
+    const scoreOn = (name: typeof source) => {
+      const scored: Candidate[] = []
+      orderedFields.forEach((target, fieldIndex) => {
+        const match = nameScore(name, target, synonyms)
+        if (match) scored.push({ fieldIndex, score: match.score, reason: match.reason })
+      })
+      return scored
+    }
+    let scored = ignoredReason ? [] : scoreOn(source)
+    // The leaf wins only when it scores higher than the whole header, so "first-name" keeps its V3 match, and is never read when the path names someone else.
+    const leaf =
+      v4 && !ignoredReason && ![...source.tokens].some((t) => REFUSED_TAGS.has(t))
+        ? groupPathLeaf(column.header)
+        : null
+    if (leaf !== null) {
+      // A group of participant words or of the leaf's own words (consent/consent_given) maps; under any other, such as emergency_contact, a person confirms it.
+      const leafName = prepareName(leaf)
+      const prefix = prepareName(column.header.slice(0, -leaf.length))
+      const participant = [...prefix.tokens].every(
+        (token) => PARTICIPANT_GROUP_WORDS.has(token) || leafName.tokens.has(token),
+      )
+      const fromLeaf = scoreOn(leafName).map((candidate) =>
+        participant || candidate.score <= TIER.reviewSynonym
+          ? candidate
+          : { ...candidate, score: TIER.reviewSynonym, reason: 'SYNONYM_REVIEW' as const },
+      )
+      const top = (list: Candidate[]) => Math.max(0, ...list.map((candidate) => candidate.score))
+      if (top(fromLeaf) > top(scored)) scored = fromLeaf
+    }
     scored.sort((left, right) => right.score - left.score || left.fieldIndex - right.fieldIndex)
-    return { column, source, scored, samples: boundedSamples(column.samples) }
+    return { column, source, scored, ignoredReason, samples: boundedSamples(column.samples) }
   })
 
   const bestScoreForField = new Map<number, number[]>()
@@ -96,21 +205,22 @@ export function smartMatchColumns(
     }
   })
 
-  const decisions: SmartMatchDecision[] = candidates.map(({ column }) => ({
+  const decisions: SmartMatchDecision[] = candidates.map(({ column, ignoredReason }) => ({
     sourceKey: column.key,
     columnIndex: column.columnIndex,
-    status: 'PENDING',
+    status: ignoredReason ? 'IGNORED' : 'PENDING',
     targetFieldId: null,
     suggestedFieldId: null,
     score: null,
     matchReason: null,
-    reason: 'NO_MATCH',
+    reason: ignoredReason ?? 'NO_MATCH',
   }))
   const held = new Map<number, SmartDecisionReason>()
   const claimed = new Set<number>()
 
   candidates.forEach((entry, position) => {
     const decision = decisions[position]
+    if (entry.ignoredReason) return
     if (entry.source.v1 === '') {
       decision.reason = 'EMPTY_NAME'
       return
@@ -122,7 +232,7 @@ export function smartMatchColumns(
     const contested = rivals.some(
       (score, other) => other !== position && score !== undefined && score >= best.score,
     )
-    const gate = valueGate(entry.samples, orderedFields[best.fieldIndex])
+    const gate = valueGate(entry.samples, orderedFields[best.fieldIndex], v4)
     if (contested) held.set(position, 'HELD_CONTESTED')
     else if (best.score - next < AUTO_SMART_V2_LIMITS.minimumMargin)
       held.set(position, 'HELD_MARGIN')
@@ -142,7 +252,7 @@ export function smartMatchColumns(
   // never a field another column already maps.
   const offers: Array<{ position: number; candidate: Candidate }> = []
   candidates.forEach((entry, position) => {
-    if (decisions[position].status === 'MAPPED' || entry.source.v1 === '') return
+    if (decisions[position].status !== 'PENDING' || entry.source.v1 === '') return
     for (const candidate of entry.scored) offers.push({ position, candidate })
   })
   offers.sort(
@@ -160,7 +270,7 @@ export function smartMatchColumns(
     decision.matchReason = candidate.reason
   }
   decisions.forEach((decision, position) => {
-    if (decision.status === 'MAPPED' || decision.reason === 'EMPTY_NAME') return
+    if (decision.status !== 'PENDING' || decision.reason === 'EMPTY_NAME') return
     decision.reason =
       held.get(position) ?? (decision.suggestedFieldId !== null ? 'SUGGESTED' : 'NO_MATCH')
   })

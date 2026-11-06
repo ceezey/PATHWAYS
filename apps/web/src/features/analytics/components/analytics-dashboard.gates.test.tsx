@@ -126,15 +126,13 @@ describe('Analytics dashboard grants and date rules that stay in the shell', () 
     it('says the counts are to date through the last day of the project and not after it', async () => {
       dated('2026-01-01', '2026-09-27')
       const view = render(<AnalyticsDashboard />)
-      expect(
-        await screen.findByText('Counts to date; groups of fewer than 5 are hidden.'),
-      ).toBeTruthy()
+      expect(await screen.findByText('Counts to date.')).toBeTruthy()
       view.unmount()
 
       dated('2026-01-01', '2026-09-26')
       render(<AnalyticsDashboard />)
       expect(await screen.findByText('SADDD analysis loaded.')).toBeTruthy()
-      expect(screen.queryByText('Counts to date; groups of fewer than 5 are hidden.')).toBeNull()
+      expect(screen.queryByText('Counts to date.')).toBeNull()
     })
   })
 

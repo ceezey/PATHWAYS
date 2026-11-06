@@ -1,0 +1,374 @@
+import {
+  CONSENT_FIELD_CODES,
+  type FieldIntakeRule,
+  completedYearsAt,
+  formDefinitionLimits,
+  valueMapSourceText,
+  valueMapText,
+} from '@pathways/shared'
+import { comparableAnswer, hasLetterPrefix, stripLetterPrefix } from '../answers'
+import { fittingDateOrders, readDate } from '../date-order'
+import { WASHINGTON_GROUP_LEVELS_V1, washingtonGroupLevel } from '../intake-rules'
+import { sourceNameKey } from '../mappers/smart-match'
+import { type ImportValueMapEntry, mapKey } from '../value-map'
+import type { DraftColumn, DraftField, DraftSummary } from './draft-form'
+import { fieldCodeFromHeader } from './field-code'
+
+// A whole number the INTEGER type can store; longer digit runs are phone numbers or IDs, kept as text.
+export const storableInteger = (value: unknown) =>
+  typeof value === 'number' &&
+  Number.isSafeInteger(value) &&
+  value >= formDefinitionLimits.integerMinimum &&
+  value <= formDefinitionLimits.integerMaximum
+
+const OTHER_ANSWERS = new Set(['iba pa', 'other', 'others', 'iba'])
+const YES = new Set(['true', 'yes', 'oo', '1'])
+const NO = new Set(['false', 'no', 'hindi', '0'])
+const MAX_SOURCE_NAMES = 20
+const MAX_ALIASES = 100
+const MAX_NAME_LENGTH = 100
+
+/** False for a source name the API refuses: one with no letter or digit, or one another field lists. */
+export function sourceNameFree(fields: readonly DraftField[], name: string, field?: DraftField) {
+  const key = sourceNameKey(name)
+  return (
+    key !== '' &&
+    !fields.some(
+      (other) => other !== field && other.sourceNames?.some((n) => sourceNameKey(n) === key),
+    )
+  )
+}
+
+const isBlank = (value: unknown) =>
+  value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+const bare = (value: unknown) => comparableAnswer(stripLetterPrefix(String(value)))
+const flagOf = (value: unknown) => {
+  const key = comparableAnswer(String(value))
+  return YES.has(key) ? true : NO.has(key) ? false : undefined
+}
+
+/** A cell as the runtime reads it for a number or boolean field: integer text and true/false text are coerced. */
+const coerced = (value: unknown) => {
+  if (typeof value !== 'string') return value
+  const text = value.trim().toLowerCase()
+  return /^\d+$/.test(text)
+    ? Number(text)
+    : text === 'true'
+      ? true
+      : text === 'false'
+        ? false
+        : value
+}
+
+function toDay(value: unknown) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return null
+  const day = new Date(`${value.trim()}T00:00:00.000Z`)
+  return Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== value.trim() ? null : day
+}
+
+/**
+ * Proposes calculations and cross-checks (spec 3.6 rule 6) on the drafted fields, only where
+ * they hold on every row that has their inputs. `mapping` is source key to field code; it is
+ * updated when a column moves. Mutates `fields` and `summary`.
+ */
+export function proposeIntakeRules(
+  fields: DraftField[],
+  columns: readonly DraftColumn[],
+  mapping: Map<string, string>,
+  uploadDate: string,
+  summary: DraftSummary,
+): void {
+  const byCode = new Map(fields.map((field) => [field.code, field]))
+  const ordered = [...columns].sort((left, right) => left.columnIndex - right.columnIndex)
+  const rows = Math.max(0, ...columns.map((column) => column.values.length))
+  const rowIndexes = Array.from({ length: rows }, (_, row) => row)
+  const upload = toDay(uploadDate)
+  const uploadYear = Number(uploadDate.slice(0, 4))
+  // Reads ISO dates, and text dates in the one day-month-year order that fits the whole column.
+  const dayReader = (column: DraftColumn) => {
+    const orders = fittingDateOrders(column.values, uploadYear)
+    return (value: unknown) =>
+      toDay(value) ??
+      (orders.length === 1 && typeof value === 'string'
+        ? toDay(readDate(value, { order: orders[0], referenceYear: uploadYear }))
+        : null)
+  }
+
+  const columnFor = (code: string) => ordered.find((column) => mapping.get(column.key) === code)
+  const isNew = (code: string) => summary.addedFields.includes(code)
+  // A field that exists and has no rule yet; a calculated rule also needs it to have no import default.
+  const open = (code: string, calculated = false) => {
+    const field = byCode.get(code)
+    return field && !field.rule && !(calculated && field.importDefault != null) ? field : undefined
+  }
+  const propose = (field: DraftField, rule: FieldIntakeRule) => {
+    field.rule = rule
+    if (!summary.rules.includes(field.code)) summary.rules.push(field.code)
+  }
+  const addSourceName = (field: DraftField, header: string) => {
+    const names = field.sourceNames ?? []
+    if (names.some((name) => mapKey(name) === mapKey(header))) return
+    if (header.length > MAX_NAME_LENGTH || names.length >= MAX_SOURCE_NAMES) return
+    if (!sourceNameFree(fields, header, field)) return
+    field.sourceNames = [...names, header]
+    if (!summary.sourceNamesAdded.includes(field.code)) summary.sourceNamesAdded.push(field.code)
+  }
+  const dropNew = (field: DraftField) => {
+    fields.splice(fields.indexOf(field), 1)
+    summary.addedFields = summary.addedFields.filter((code) => code !== field.code)
+  }
+
+  function washingtonGroup() {
+    const status = open('disability_status', true)
+    if (!status) return
+    const questions = ordered.flatMap((column) => {
+      const field = byCode.get(mapping.get(column.key) ?? '')
+      const present = column.values.filter((value) => !isBlank(value))
+      const texts = present.map((value) => String(value).trim())
+      const valid =
+        field?.dataType === 'SELECT' &&
+        !field.rule &&
+        present.length > 0 &&
+        present.every((value) => typeof value === 'string') &&
+        texts.every((text) => hasLetterPrefix(text) && washingtonGroupLevel(text) !== null) &&
+        (field.allowedValues ?? []).every((option) => washingtonGroupLevel(option) !== null)
+      return valid ? [{ column, field, texts }] : []
+    })
+    if (questions.length !== 6 || new Set(questions.map((q) => q.field.code)).size !== 6) return
+
+    // Four options in level order: an existing one, else the file's own text, else the standard text.
+    const plans = questions.map(({ field, texts }) => {
+      const originals = [...new Set(texts)].sort()
+      const options = WASHINGTON_GROUP_LEVELS_V1.map(
+        (standard, index) =>
+          (field.allowedValues ?? []).find((o) => washingtonGroupLevel(o) === index + 1) ??
+          originals.map(stripLetterPrefix).find((t) => washingtonGroupLevel(t) === index + 1) ??
+          standard[0],
+      )
+      const optionOf = (text: string) => options[(washingtonGroupLevel(text) ?? 1) - 1]
+      const aliases: ImportValueMapEntry[] = []
+      const seen = new Set<string>()
+      const pairs = [
+        ...(field.valueAliases ?? []).filter((alias) => washingtonGroupLevel(alias.to) !== null),
+        ...originals.map((text) => ({ from: text, to: text })),
+      ]
+      for (const { from, to } of pairs) {
+        const target = optionOf(to)
+        if (from === target || seen.has(mapKey(from))) continue
+        if (
+          !valueMapSourceText(1).safeParse(from).success ||
+          !valueMapText(1).safeParse(target).success
+        )
+          continue
+        seen.add(mapKey(from))
+        aliases.push({ from, to: target })
+      }
+      return { field, options, aliases: aliases.slice(0, MAX_ALIASES) }
+    })
+    const disabilityValues: string[] = []
+    for (const { options } of plans)
+      for (const option of options.slice(2))
+        if (!disabilityValues.some((v) => comparableAnswer(v) === comparableAnswer(option)))
+          disabilityValues.push(option)
+    if (disabilityValues.length > 8) return
+
+    for (const { field, options, aliases } of plans) {
+      const before = { options: field.allowedValues ?? [], aliases: field.valueAliases ?? [] }
+      field.allowedValues = options
+      field.valueAliases = aliases
+      if (isNew(field.code)) continue
+      if (options.join('\n') !== before.options.join('\n'))
+        if (!summary.optionsAdded.includes(field.code)) summary.optionsAdded.push(field.code)
+      summary.aliasesAdded += Math.max(0, aliases.length - before.aliases.length)
+    }
+
+    // The flag column: the first yes/no column that agrees with the cut-off, else a disability-named one that does not.
+    const levels = (row: number) =>
+      questions.map(({ column }) =>
+        isBlank(column.values[row]) ? null : washingtonGroupLevel(String(column.values[row])),
+      )
+    const asked = new Set(questions.map(({ column }) => column.key))
+    const allowed = status.allowedValues ?? []
+    const flagCanAlias =
+      allowed.includes('WITH_DISABILITY') && allowed.includes('WITHOUT_DISABILITY')
+    let agreeing: { field: DraftField; column: DraftColumn } | undefined
+    let disagreeing: DraftField | undefined
+    for (const column of ordered) {
+      const field = byCode.get(mapping.get(column.key) ?? '')
+      const present = column.values.filter((value) => !isBlank(value))
+      if (asked.has(column.key) || !field || !isNew(field.code) || present.length === 0) continue
+      const plain = (value: unknown) => typeof value === 'boolean' || typeof value === 'string'
+      if (!present.every((value) => plain(value) && flagOf(value) !== undefined)) continue
+      let checked = 0
+      let differs = 0
+      for (const row of rowIndexes) {
+        if (isBlank(column.values[row])) continue
+        const answers = levels(row)
+        const expected = answers.some((level) => level !== null && level >= 3)
+          ? true
+          : answers.every((level) => level !== null)
+            ? false
+            : undefined
+        checked++
+        if (expected !== flagOf(column.values[row])) differs++
+      }
+      const named = /disab|\bpwd\b/i.test(column.header)
+      const both = new Set(present.map(flagOf)).size === 2
+      if (checked === 0) continue
+      if (differs === 0 && (named || both)) {
+        agreeing ??= { field, column }
+      } else if (differs > 0 && named) disagreeing ??= field
+    }
+    if (agreeing && flagCanAlias) {
+      const { field, column } = agreeing
+      // The column's own new field goes first, or it would still list the header.
+      dropNew(field)
+      addSourceName(status, column.header.trim())
+      const aliases = status.valueAliases ?? []
+      const texts = column.values.filter((v) => !isBlank(v)).map((v) => String(v).trim())
+      for (const text of [...new Set(texts)].sort()) {
+        if (aliases.length >= MAX_ALIASES || aliases.some((a) => mapKey(a.from) === mapKey(text)))
+          continue
+        aliases.push({ from: text, to: flagOf(text) ? 'WITH_DISABILITY' : 'WITHOUT_DISABILITY' })
+        summary.aliasesAdded++
+      }
+      status.valueAliases = aliases
+      mapping.set(column.key, status.code)
+    } else if (disagreeing)
+      summary.needsCheck.push({
+        fieldCode: disagreeing.code,
+        reason: 'WASHINGTON_GROUP_FLAG_DISAGREES',
+      })
+
+    propose(status, {
+      kind: 'WASHINGTON_GROUP_DISABILITY',
+      questionFields: questions.map(({ field }) => field.code),
+      disabilityValues,
+    })
+  }
+
+  function ages() {
+    const birth = columnFor('birth_date')
+    const enrolled = columnFor('enrollment_date')
+    if (!birth || !enrolled) return
+    const bornOn = dayReader(birth)
+    const enrolledOn = dayReader(enrolled)
+    const years = (row: number, at: Date | null = enrolledOn(enrolled.values[row])) => {
+      const born = bornOn(birth.values[row])
+      // A birth after the date gives no age to compare, as validation holds such a row.
+      return born && at && born <= at ? completedYearsAt(born, at) : null
+    }
+    for (const [code, kind] of [
+      ['age_at_registration', 'AGE_AT_DATE'],
+      ['is_minor', 'MINOR_AT_DATE'],
+    ] as const) {
+      const field = open(code, true)
+      if (!field) continue
+      const column = columnFor(code)
+      // Minor status is current, so it is measured at the upload date; age is measured at enrollment.
+      const expected = (row: number) => {
+        const age = kind === 'AGE_AT_DATE' ? years(row) : years(row, upload)
+        return age === null ? null : kind === 'AGE_AT_DATE' ? age : age < 18
+      }
+      // A column agrees only when some row could be compared; unreadable dates prove nothing.
+      const compared = rowIndexes.filter(
+        (row) => column && !isBlank(column.values[row]) && expected(row) !== null,
+      )
+      const agrees =
+        !column ||
+        (compared.length > 0 &&
+          compared.every((row) => coerced(column.values[row]) === expected(row)))
+      propose(field, { kind, birthField: 'birth_date', atField: 'enrollment_date' })
+      if (!column) continue
+      const header = column.header.trim()
+      if (agrees) {
+        addSourceName(field, header)
+        continue
+      }
+      moveOff(field, column, header, kind === 'AGE_AT_DATE')
+    }
+
+    // An unruled integer column within one year of the age at the upload date.
+    for (const field of fields) {
+      const column = columnFor(field.code)
+      if (!column || field.rule || field.dataType !== 'INTEGER' || !isNew(field.code)) continue
+      const rowsChecked = rowIndexes.filter(
+        (row) => !isBlank(column.values[row]) && years(row, upload) !== null,
+      )
+      if (
+        rowsChecked.length > 0 &&
+        rowsChecked.every((row) => {
+          const stated = coerced(column.values[row])
+          const age = years(row, upload)
+          return typeof stated === 'number' && age !== null && Math.abs(stated - age) <= 1
+        })
+      )
+        propose(field, {
+          kind: 'AGE_CHECK',
+          birthField: 'birth_date',
+          atFields: ['enrollment_date'],
+        })
+    }
+  }
+
+  // Moves a column that disagrees with the calculation onto a new field of its own.
+  function moveOff(field: DraftField, column: DraftColumn, header: string, isAge: boolean) {
+    // The column's stable code leaves with it, or the next file would map back to the calculated field.
+    const code = column.sourceCode
+    const leaving = [header, ...(code ? [code] : [])].map(sourceNameKey)
+    const names = (field.sourceNames ?? []).filter((name) => !leaving.includes(sourceNameKey(name)))
+    field.sourceNames = names.length ? names : undefined
+    const present = column.values.filter((value) => !isBlank(value))
+    const dataType = present.every(storableInteger)
+      ? 'INTEGER'
+      : present.every((v) => typeof v === 'boolean')
+        ? 'BOOLEAN'
+        : 'TEXT'
+    const sourceNames = (code ? [header, code] : [header]).filter(
+      (name) => name.length <= MAX_NAME_LENGTH && sourceNameFree(fields, name),
+    )
+    const moved: DraftField = {
+      code: fieldCodeFromHeader(
+        header,
+        new Set([...fields.map((item) => item.code), ...CONSENT_FIELD_CODES]),
+      ),
+      label: header.slice(0, 160),
+      dataType,
+      required: false,
+      metadataKey: false,
+      sadddField: false,
+      ...(sourceNames.length ? { sourceNames } : {}),
+    }
+    fields.push(moved)
+    byCode.set(moved.code, moved)
+    summary.addedFields.push(moved.code)
+    mapping.set(column.key, moved.code)
+    if (isAge && dataType === 'INTEGER')
+      propose(moved, { kind: 'AGE_CHECK', birthField: 'birth_date', atFields: ['enrollment_date'] })
+  }
+
+  function followUps() {
+    for (const [index, column] of ordered.entries()) {
+      const field = open(mapping.get(column.key) ?? '')
+      if (!field || column.values.every(isBlank)) continue
+      for (const parentColumn of ordered.slice(0, index).reverse()) {
+        const parent = byCode.get(mapping.get(parentColumn.key) ?? '')
+        const whenValues = (parent?.allowedValues ?? []).filter((o) => OTHER_ANSWERS.has(bare(o)))
+        if (!parent || parent === field || whenValues.length === 0) continue
+        const holds = rowIndexes.every(
+          (row) =>
+            isBlank(column.values[row]) ||
+            (!isBlank(parentColumn.values[row]) &&
+              OTHER_ANSWERS.has(bare(parentColumn.values[row]))),
+        )
+        if (!holds) continue
+        propose(field, { kind: 'FOLLOW_UP_OF', parentField: parent.code, whenValues })
+        break
+      }
+    }
+  }
+
+  washingtonGroup()
+  ages()
+  followUps()
+}

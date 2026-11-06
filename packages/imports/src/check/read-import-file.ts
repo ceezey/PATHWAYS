@@ -1,0 +1,119 @@
+import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
+
+import { IMPORT_ENGINEERING_LIMITS } from '../limits'
+import { type CsvEncoding, decodeCsv } from '../parser/csv-encoding'
+import { excelSerialToIsoDate } from '../parser/excel-date'
+import { detectFileParts, registrationRange, selectPartColumns } from '../parser/file-parts'
+import type { MatrixMerge } from '../parser/header-row'
+import {
+  type FilledMerge,
+  ImportParseError,
+  type ImportSourceColumn,
+  normalizeMatrix,
+} from '../parser/matrix'
+import { normalizeNewlines } from '../parser/newlines'
+import { workbookGrid } from '../parser/workbook-grid'
+import { inspectXlsxContainer } from '../parser/xlsx-container'
+import { isBlank } from '../validation/match-columns'
+
+type CellValue = string | number | boolean | null
+
+export interface ReadImportFile {
+  sourceColumns: ImportSourceColumn[]
+  // Each row keyed column_0001..., exactly the server's rawData.
+  rows: Array<Record<string, CellValue>>
+  // The server's sourceRowNumber of each row.
+  rowNumbers: number[]
+  formulaGap?: string
+  // How a CSV's bytes were decoded; unset for other file types.
+  encoding?: CsvEncoding
+  // The 1-based file row the headers were read from.
+  headerRowNumber: number
+  // A row above the header holds a value, so it was skipped as a title rather than as a blank row.
+  titleRows: boolean
+  // Merged data cells copied down their rows.
+  filledMerges: FilledMerge[]
+  // The date cell's text as the file shows it, else null.
+  shown: (rowIndex: number, key: string) => string | null
+}
+
+/** Reads an import file in the browser exactly as the server stages it. */
+export function readImportFile(
+  input: ArrayBuffer,
+  fileType: 'XLSX' | 'XLS' | 'CSV',
+  sheetName: string | null,
+): ReadImportFile {
+  let matrix: unknown[][]
+  let formulaGap: string | undefined
+  let dateText: Record<string, string> = {}
+  let encoding: CsvEncoding | undefined
+  let firstRowNumber = 1
+  let merges: MatrixMerge[] = []
+  if (fileType === 'CSV') {
+    const decoded = decodeCsv(new Uint8Array(input))
+    encoding = decoded.encoding
+    // Options match the parser worker in parser/secure.ts.
+    const text = decoded.text
+    const parsed = Papa.parse<unknown[]>(normalizeNewlines(text), {
+      header: false,
+      skipEmptyLines: false,
+      dynamicTyping: false,
+    })
+    if (parsed.errors.some((error) => error.code !== 'UndetectableDelimiter')) {
+      throw new ImportParseError('CSV_PARSE_FAILED', 'The CSV could not be read.')
+    }
+    matrix = parsed.data
+  } else {
+    // The server's container limits run before the workbook is unzipped, so a refused container is never read.
+    if (fileType === 'XLSX') inspectXlsxContainer(new Uint8Array(input))
+    const grid = workbookGrid(
+      XLSX,
+      input,
+      'array',
+      sheetName,
+      excelSerialToIsoDate,
+      true,
+      IMPORT_ENGINEERING_LIMITS.maxCells,
+    )
+    // The server refuses a workbook with macros or links, so the check leaves it to the server.
+    if (grid.links || grid.macros) {
+      throw new ImportParseError(
+        'WORKBOOK_ACTIVE_CONTENT',
+        'Workbook macros and links are forbidden.',
+      )
+    }
+    // The server's sheet rules, in its order and with its codes.
+    if (grid.sheetNames.length > IMPORT_ENGINEERING_LIMITS.maxWorkbookSheets) {
+      throw new ImportParseError('WORKBOOK_SHEET_LIMIT', 'The workbook has too many worksheets.')
+    }
+    if (sheetName === null && grid.sheetNames.length !== 1) {
+      throw new ImportParseError(
+        'WORKBOOK_SHEET_AMBIGUOUS',
+        `This workbook has ${grid.sheetNames.length} worksheets. Choose the sheet to import, then upload again.`,
+      )
+    }
+    ;({ matrix, formulaGap, dateText, firstRowNumber, merges } = grid)
+  }
+  const whole = normalizeMatrix(matrix, { firstRowNumber, merges })
+  // A file with survey stages is checked on its registration columns only, as the server stages it.
+  const parts = detectFileParts(whole)
+  const { rows, sourceColumns } = parts.length
+    ? selectPartColumns(whole, registrationRange(parts))
+    : whole
+  const rowNumbers = rows.map((row) => row.sourceRowNumber)
+  return {
+    sourceColumns,
+    rows: rows.map((row) => row.values),
+    rowNumbers,
+    formulaGap,
+    encoding,
+    headerRowNumber: whole.headerRowNumber,
+    titleRows: matrix
+      .slice(0, whole.headerRowNumber - firstRowNumber)
+      .some((row) => Array.isArray(row) && row.some((cell) => !isBlank(cell))),
+    filledMerges: whole.filledMerges,
+    shown: (rowIndex, key) =>
+      dateText[`${rowNumbers[rowIndex] - firstRowNumber}:${Number(key.slice(7)) - 1}`] ?? null,
+  }
+}

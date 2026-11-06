@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createFormRequest,
   digitalFormTypes,
+  draftFromImportRequest,
   formResponseValues,
   formVersionRequest,
   generateFormRequest,
@@ -151,7 +152,7 @@ describe('form definition rules', () => {
 
   it.each([
     ['empty allowed value', { allowedValues: [''] }, true],
-    ['allowed value of 120', { allowedValues: ['x'.repeat(120)] }, true],
+    ['allowed value of 255', { allowedValues: ['x'.repeat(255)] }, true],
     ['decimal bounds', { minimumValue: '-12.5', maximumValue: '1000.1234' }, true],
     ['impossible calendar day', { minimumDate: '2026-02-30', maximumDate: '2026-12-31' }, true],
     ['length bounds', { minimumLength: 0, maximumLength: 10000 }, true],
@@ -171,7 +172,7 @@ describe('form definition rules', () => {
       { allowedValues: Array.from({ length: 101 }, (_, i) => `v${i}`) },
       false,
     ],
-    ['allowed value of 121', { allowedValues: ['x'.repeat(121)] }, false],
+    ['allowed value of 256', { allowedValues: ['x'.repeat(256)] }, false],
     ['numeric allowed value', { allowedValues: [1] }, false],
     ['string allowed values', { allowedValues: 'Yes' }, false],
     ['five decimals', { minimumValue: '1.23456' }, false],
@@ -288,7 +289,7 @@ describe('other form bodies', () => {
     ['submit', submitSubmissionRequest, { expectedUpdatedAt: stamp }, true],
     ['submit', submitSubmissionRequest, { expectedUpdatedAt: 'x' }, false],
     ['submit', submitSubmissionRequest, { expectedUpdatedAt: stamp, extra: 1 }, false],
-  ] as const)('%s row %#: accepted %s', (_route, schema, body, expected) => {
+  ] as const)('%s row %# is accepted as expected', (_route, schema, body, expected) => {
     expect(accepts(schema, body)).toBe(expected)
   })
 
@@ -328,5 +329,18 @@ describe('other form bodies', () => {
     [{ page: '1' }, false],
   ])('submission query %j is accepted: %s', (query, expected) => {
     expect(accepts(listSubmissionsQuery, query)).toBe(expected)
+  })
+
+  it.each([
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 0 }, true],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 1_000 }, true],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 1_001 }, false],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: -1 }, false],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 1.5 }, false],
+    [{ batchId: 'not-a-uuid', expectedMappingRevision: 0 }, false],
+    [{ batchId: '10000000-0000-4000-8000-000000000001' }, false],
+    [{ batchId: '10000000-0000-4000-8000-000000000001', expectedMappingRevision: 0, x: 1 }, false],
+  ])('draft from import body %j is accepted: %s', (body, expected) => {
+    expect(accepts(draftFromImportRequest, body)).toBe(expected)
   })
 })

@@ -22,7 +22,7 @@ export const DescriptiveStatisticsPanel = ({
   retryDescriptive: () => void
 }) => (
   <ChartPanel
-    description="Counts and shares come from suppressed aggregates. A suppressed cell withholds every share in its group."
+    description="Counts and shares come from exact aggregates. A missing cell withholds every share in its group."
     title="Descriptive statistics"
   >
     {descriptiveLoading ? (

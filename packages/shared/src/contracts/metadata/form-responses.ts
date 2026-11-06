@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
 import { supportedFormFieldTypes } from '../../validation/form-data'
+import { CONSENT_FIELD_CODES, fieldIntakeProperties } from './form-intake'
 import { digitalFormTypes } from './form-requests'
 
-// Response shapes of the form and direct entry routes, used as types and never parsed at runtime.
+// Response shapes of the form and direct entry routes, used as types; only draftSummaryResponse is parsed at runtime.
 
 // One field of a form as every form route returns it; bounds arrive as text, absent bounds are left out.
 export const formFieldResponse = z.object({
@@ -21,9 +22,62 @@ export const formFieldResponse = z.object({
   maximumDate: z.string().optional(),
   minimumLength: z.number().int().nullable(),
   maximumLength: z.number().int().nullable(),
+  ...fieldIntakeProperties,
   sequence: z.number().int(),
 })
 export type FormFieldResponse = z.infer<typeof formFieldResponse>
+
+// Why a draft change needs a person's check before publishing; mirrors the import drafter's reasons.
+export const draftNeedsCheckReasons = [
+  'ENUM_ANSWER_UNRESOLVED',
+  'PARTICIPATION_CONSENT_NO_SOURCE',
+  'CONSENT_SOURCE_PROPOSED',
+  'WASHINGTON_GROUP_FLAG_DISAGREES',
+  'ANSWER_KEY_NEEDED',
+  'SADDD_NO_COLUMN',
+] as const
+// Reasons open older drafts stored for what the drafter now accepts itself; dropped on read.
+const acceptedDraftReasons = [
+  'SUGGESTED_SOURCE_NAME',
+  'IMPORT_DEFAULT',
+  'RULE_PROPOSED',
+  'IDENTIFIER_PROPOSED',
+  'COLUMN_MOVED_OFF_CALCULATED',
+] as const
+type DraftNeedsCheckReason = (typeof draftNeedsCheckReasons)[number]
+const stillNeedsCheck = (item: {
+  fieldCode: string
+  reason: string
+}): item is { fieldCode: string; reason: DraftNeedsCheckReason } =>
+  (draftNeedsCheckReasons as readonly string[]).includes(item.reason)
+
+// What a draft from an import changed, as field codes and counts only.
+export const draftSummaryResponse = z.object({
+  addedFields: z.array(z.string()),
+  sourceNamesAdded: z.array(z.string()),
+  optionsAdded: z.array(z.string()),
+  aliasesAdded: z.number().int(),
+  defaults: z.array(z.string()),
+  rules: z.array(z.string()),
+  needsCheck: z
+    .array(
+      z.object({
+        fieldCode: z.string(),
+        reason: z.enum([...draftNeedsCheckReasons, ...acceptedDraftReasons]),
+      }),
+    )
+    // A consent field stays listed under any older reason, because a wrong match records consent nobody gave.
+    .transform((items) =>
+      items.flatMap((item) =>
+        stillNeedsCheck(item)
+          ? [item]
+          : (CONSENT_FIELD_CODES as readonly string[]).includes(item.fieldCode)
+            ? [{ fieldCode: item.fieldCode, reason: 'CONSENT_SOURCE_PROPOSED' as const }]
+            : [],
+      ),
+    ),
+})
+export type DraftSummaryResponse = z.infer<typeof draftSummaryResponse>
 
 // One form version as the list, read, create, update, publish, archive, version and generate routes return it.
 export const formResponse = z.object({
@@ -41,6 +95,8 @@ export const formResponse = z.object({
   archivedAt: z.string().optional(),
   updatedAt: z.string(),
   createdByCurrentUser: z.boolean(),
+  // What the import drafter changed, kept on the draft until it is published; null on any other form.
+  draftSummary: draftSummaryResponse.nullable(),
   fields: z.array(formFieldResponse),
 })
 export type FormResponse = z.infer<typeof formResponse>
@@ -55,7 +111,10 @@ export const formSubmissionResponse = z.object({
   formVersion: z.number().int(),
   submittedAt: z.string().optional(),
   updatedAt: z.string(),
-  values: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()])),
+  values: z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
+  ),
 })
 export type FormSubmissionResponse = z.infer<typeof formSubmissionResponse>
 
@@ -77,3 +136,10 @@ export const formSubmissionPageResponse = z.object({
   items: z.array(formSubmissionSummaryResponse),
 })
 export type FormSubmissionPageResponse = z.infer<typeof formSubmissionPageResponse>
+
+// Body of POST metadata/projects/:projectId/forms/:formId/drafts/from-import.
+export const draftFromImportResponse = z.object({
+  form: formResponse,
+  summary: draftSummaryResponse,
+})
+export type DraftFromImportResponse = z.infer<typeof draftFromImportResponse>

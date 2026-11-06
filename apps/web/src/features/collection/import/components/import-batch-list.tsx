@@ -1,6 +1,8 @@
 'use client'
 
-import { EmptyState, StatusBadge } from '@/components/pathways'
+import { CircleAlert, FileUp, FolderSearch } from 'lucide-react'
+
+import { EmptyState, LoadingSkeleton, StatusBadge } from '@/components/pathways'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
@@ -12,8 +14,11 @@ import { batchTone } from '../import.utils'
 export function ImportBatchList({
   state,
   review,
-}: { state: Pick<ImportState, 'batch' | 'batches'>; review: Pick<BatchReview, 'loadBatch'> }) {
-  const { batch, batches } = state
+}: {
+  state: Pick<ImportState, 'batch' | 'batches' | 'canUpload' | 'formsState' | 'projectId'>
+  review: Pick<BatchReview, 'loadBatch'>
+}) {
+  const { batch, batches, canUpload, formsState, projectId } = state
   const { loadBatch } = review
   return (
     <Card>
@@ -22,8 +27,31 @@ export function ImportBatchList({
         <CardDescription>Reload-safe progress and truthful processing totals.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {batches.length === 0 ? (
-          <EmptyState title="None yet" description="No imports found." />
+        {!projectId ? (
+          <EmptyState
+            icon={FolderSearch}
+            title="No project selected"
+            description="Select a project to see its imports."
+          />
+        ) : formsState === 'loading' ? (
+          <LoadingSkeleton lines={3} />
+        ) : formsState === 'error' ? (
+          <EmptyState
+            icon={CircleAlert}
+            tone="danger"
+            title="Imports could not be loaded"
+            description="Check your connection and access, then reload the page."
+          />
+        ) : batches.length === 0 ? (
+          <EmptyState
+            icon={FileUp}
+            title="No imports yet"
+            description={
+              canUpload
+                ? 'Upload a source file to start the first import.'
+                : 'Imports uploaded to this project will appear here.'
+            }
+          />
         ) : null}
         {batches.map((item) => (
           <button

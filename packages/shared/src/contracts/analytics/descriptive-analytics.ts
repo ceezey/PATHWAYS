@@ -73,8 +73,8 @@ export const descriptiveAnalyticsSchema = z
     sadddReleaseState: z.enum(['RELEASED', 'STALE', 'UNAVAILABLE']),
     privacy: z
       .object({
-        threshold: z.literal(5),
-        complementarySuppression: z.literal(true),
+        threshold: z.literal(0),
+        complementarySuppression: z.literal(false),
         source: z.literal('P06_SADDD_RELEASE'),
         beneficiaryRows: z.literal(false),
       })

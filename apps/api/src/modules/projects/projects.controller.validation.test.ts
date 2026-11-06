@@ -109,7 +109,7 @@ describe('projects body validation', () => {
     const body = { title: 'Synthetic project', status: 'PLANNED', targetGoal: 75, ...update }
     const result = await send('PATCH', `${base}/${projectId}`, JSON.stringify(body))
     expect(result.status).toBe(400)
-    expect(result.body.message).toContain("Unrecognized key(s) in object: 'targetGoal'")
+    expect(result.body.message).toContain('Unrecognized key: "targetGoal"')
     expect(projects.update).not.toHaveBeenCalled()
   })
 })

@@ -5,6 +5,7 @@ import type { ApplicationIdentity } from '../../common/authz/application-identit
 import type { Tx } from '../../common/prisma/transaction'
 import type { BeneficiaryRegistrationService } from '../beneficiaries/beneficiary-registration.service'
 import type { StorageService } from '../storage/storage.service'
+import { isRowCountsQuery } from './batch-row-counts.harness'
 import { ImportsService, type UploadedImportFile } from './imports.service'
 
 const state = vi.hoisted(() => ({
@@ -29,6 +30,7 @@ export const rowId = '60000000-0000-4000-8000-000000000006'
 export const secondRowId = '60000000-0000-4000-8000-000000000007'
 export const clientImportId = '70000000-0000-4000-8000-000000000007'
 export const claimId = '80000000-0000-4000-8000-000000000008'
+export const publisherId = '20000000-0000-4000-8000-0000000000aa'
 export const now = new Date('2026-09-13T00:00:00.000Z')
 export const testUploadsBucket = 'uploads'
 
@@ -83,11 +85,18 @@ export const batch = (patch: Record<string, unknown> = {}) => ({
   failureCode: null,
   uploadedById: actorId,
   reviewedById: null,
+  createdAt: now,
   uploadedAt: now,
   validatedAt: null,
   processedAt: null,
   updatedAt: now,
-  form: { code: 'scores', name: 'Scores', formType: 'OTHER', status: 'PUBLISHED' },
+  form: {
+    code: 'scores',
+    name: 'Scores',
+    formType: 'OTHER',
+    status: 'PUBLISHED',
+    publishedById: publisherId,
+  },
   ...patch,
 })
 export const tx = {
@@ -97,9 +106,11 @@ export const tx = {
   digitalForm: { findFirst: vi.fn() },
   dataImportBatch: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    count: vi.fn(),
   },
   dataImportRow: {
     createMany: vi.fn(),
@@ -107,21 +118,21 @@ export const tx = {
     findFirst: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
-    groupBy: vi.fn(),
+    count: vi.fn(),
   },
-  metadataMapping: { findMany: vi.fn(), createMany: vi.fn() },
-  formField: { findMany: vi.fn() },
+  metadataMapping: { findMany: vi.fn(), findFirst: vi.fn(), createMany: vi.fn() },
+  formField: { findMany: vi.fn(), findFirst: vi.fn() },
   formSubmission: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   formResponseValue: { createMany: vi.fn() },
   beneficiaryActivityParticipation: { findUnique: vi.fn() },
-  auditLog: { create: vi.fn() },
+  auditLog: { create: vi.fn(), findFirst: vi.fn() },
 }
 export const storage = {
   isConfigured: vi.fn(() => true),
   uploadPrivateFile: vi.fn(),
   downloadPrivateFile: vi.fn(),
 }
-export const beneficiaries = { promoteRegistration: vi.fn() }
+export const beneficiaries = { promoteRegistration: vi.fn(), readRegistrationForm: vi.fn() }
 export let service: ImportsService
 export { state }
 
@@ -139,7 +150,8 @@ export function useImportsHarness() {
       { promoteParticipation: vi.fn() } as never,
     )
     tx.project.findFirst.mockResolvedValue({ id: projectId })
-    tx.$queryRaw.mockResolvedValue([{ id: batchId }])
+    tx.formField.findFirst.mockResolvedValue(null)
+    tx.$queryRaw.mockImplementation(async (sql) => (isRowCountsQuery(sql) ? [] : [{ id: batchId }]))
     tx.$executeRaw.mockResolvedValue(2)
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })
     tx.dataImportBatch.update.mockResolvedValue(batch())

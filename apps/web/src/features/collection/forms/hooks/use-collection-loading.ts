@@ -16,6 +16,7 @@ export function useCollectionLoading(state: CollectionState, guard: CollectionGu
     isCurrentOwner,
     profile,
     projectId,
+    projects,
     reloadKey,
     role,
     setActivities,
@@ -70,6 +71,9 @@ export function useCollectionLoading(state: CollectionState, guard: CollectionGu
     }
   }, [hasProfile, profileUserId, profileOrganizationId, role, eligible, isCurrentOwner, reloadKey])
 
+  // The forms list shows every readable project; the builder and import views need only the selected one.
+  const listedProjectIds =
+    view === 'forms' || view === 'home' ? projects.map((project) => project.id).join('\n') : ''
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey re-runs the load when Retry is pressed
   useEffect(() => {
     if (!projectId) {
@@ -109,9 +113,19 @@ export function useCollectionLoading(state: CollectionState, guard: CollectionGu
         }
       }
     }
-    if (canReadForms && eligible('forms.read', projectId)) {
+    const formProjectIds = (listedProjectIds ? listedProjectIds.split('\n') : [projectId]).filter(
+      (id) => eligible('forms.read', id),
+    )
+    if (canReadForms && formProjectIds.length > 0) {
       requests.push(
-        load(formsClient.getDigitalForms(projectId), setForms, 'Forms', 'forms.read').then(() => {
+        load(
+          Promise.all(formProjectIds.map((id) => formsClient.getDigitalForms(id))).then((lists) =>
+            lists.flat(),
+          ),
+          setForms,
+          'Forms',
+          'forms.read',
+        ).then(() => {
           if (active) setFormsLoaded(true)
         }),
       )
@@ -147,5 +161,14 @@ export function useCollectionLoading(state: CollectionState, guard: CollectionGu
     return () => {
       active = false
     }
-  }, [canReadActivities, canReadForms, canReadIndicators, projectId, view, eligible, reloadKey])
+  }, [
+    canReadActivities,
+    canReadForms,
+    canReadIndicators,
+    projectId,
+    listedProjectIds,
+    view,
+    eligible,
+    reloadKey,
+  ])
 }

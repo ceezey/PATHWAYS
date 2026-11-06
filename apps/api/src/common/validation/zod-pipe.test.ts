@@ -27,14 +27,17 @@ describe('ZodPipe', () => {
     )
     expect(badRequest(() => pipe.transform({ a: { b: 'x' } }))).toEqual({
       statusCode: 400,
-      message: ['a.b Expected number, received string', 'c Required'],
+      message: [
+        'a.b Invalid input: expected number, received string',
+        'c Invalid input: expected string, received undefined',
+      ],
       error: 'Bad Request',
     })
   })
 
   it.each([
-    [{ a: 1, extra: true }, "Unrecognized key(s) in object: 'extra'"],
-    [[], 'Expected object, received array'],
+    [{ a: 1, extra: true }, 'Unrecognized key: "extra"'],
+    [[], 'Invalid input: expected object, received array'],
   ])('answers the bare message for the root issue of %j', (body, message) => {
     const pipe = new ZodPipe(z.object({ a: z.number() }).strict())
     expect(badRequest(() => pipe.transform(body))).toEqual({

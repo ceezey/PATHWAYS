@@ -17,6 +17,7 @@ const projectId = '80200000-0000-4000-8000-000000000001'
 const batchId = '80200000-0000-4000-8000-000000000002'
 const formId = '80200000-0000-4000-8000-000000000003'
 const clientImportId = '80200000-0000-4000-8000-000000000004'
+const activityId = '80200000-0000-4000-8000-000000000005'
 const batchesPath = `/imports/projects/${projectId}/batches`
 const batchPath = `${batchesPath}/${batchId}`
 
@@ -43,6 +44,31 @@ describe('importsClient import requests', () => {
         message: 'Invalid import batch response.',
       })
     }
+  })
+
+  it('pages through every held row until the filtered total is read', async () => {
+    const page = (from: number, count: number) => ({
+      total: 230,
+      rows: Array.from({ length: count }, (_, index) => ({ id: `row-${from + index}` })),
+    })
+    request.requestFoundation
+      .mockResolvedValueOnce(page(0, 100))
+      .mockResolvedValueOnce(page(100, 100))
+      .mockResolvedValueOnce(page(200, 30))
+    const rows = await importsClient.getHeldRows(projectId, batchId)
+    expect(rows).toHaveLength(230)
+    expect(request.requestFoundation.mock.calls.map((call) => call[0])).toEqual(
+      [0, 100, 200].map((offset) => `${batchPath}/rows?held=true&offset=${offset}&take=100`),
+    )
+  })
+
+  it('stops after a page that reaches the total', async () => {
+    request.requestFoundation.mockResolvedValue({
+      total: 100,
+      rows: Array.from({ length: 100 }, (_, index) => ({ id: `row-${index}` })),
+    })
+    await expect(importsClient.getHeldRows(projectId, batchId)).resolves.toHaveLength(100)
+    expect(request.requestFoundation).toHaveBeenCalledTimes(1)
   })
 
   it('lets a request failure through as the same error before any parse', async () => {
@@ -92,6 +118,10 @@ describe('importsClient import requests', () => {
       mapped: 2,
       pending: 1,
       requiredUnmapped: 0,
+      ignored: 0,
+      coverage: 'NOT_COVERED',
+      uncoveredColumns: 1,
+      unresolvedValues: 0,
       complete: false,
     }
     request.requestFoundation.mockResolvedValue(receipt)
@@ -117,6 +147,17 @@ describe('importsClient import requests', () => {
         message: 'Invalid automatic mapping receipt.',
       })
     }
+  })
+
+  it('re-runs a batch against a newer form version with only the form id', async () => {
+    request.requestFoundation.mockResolvedValue({ id: clientImportId })
+    await expect(importsClient.rerunImport(projectId, batchId, formId)).resolves.toEqual({
+      id: clientImportId,
+    })
+    expect(request.requestFoundation).toHaveBeenCalledWith(`${batchPath}/rerun`, {
+      method: 'POST',
+      body: JSON.stringify({ formId }),
+    })
   })
 
   it('saves a mapping revision with every decision as sent', async () => {
@@ -233,5 +274,21 @@ describe('importsClient import requests', () => {
     for (const { name, run, list } of calls) {
       if (!list) await expect(run(), name).resolves.toBe(sentinel)
     }
+  })
+
+  it('starts a part of a stored file and drafts its stage form', async () => {
+    request.requestFoundation.mockResolvedValue({ id: 'child' })
+    await importsClient.startFilePart(projectId, batchId, 'survey a')
+    expect(request.requestFoundation).toHaveBeenLastCalledWith(
+      `${batchPath}/parts/survey%20a/start`,
+      { method: 'POST' },
+    )
+    await importsClient.draftStageForm(projectId, batchId, 'survey_a')
+    await importsClient.draftStageForm(projectId, batchId, 'survey_a', activityId)
+    const [first, second] = request.requestFoundation.mock.calls.slice(-2)
+    const path = `/metadata/projects/${projectId}/forms/drafts/from-stage/${batchId}/survey_a`
+    expect(first[0]).toBe(path)
+    expect(JSON.parse(first[1].body)).toEqual({})
+    expect(JSON.parse(second[1].body)).toEqual({ activityId })
   })
 })

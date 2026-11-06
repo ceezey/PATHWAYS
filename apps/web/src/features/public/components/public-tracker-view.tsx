@@ -1,9 +1,15 @@
 import { ArrowLeft, ArrowRight, CalendarDays, MapPin, ShieldCheck, Wrench } from 'lucide-react'
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
-import type { PublicProjectResponse } from '@pathways/shared'
+import { approvedApiBaseUrl } from '@/lib/api-base-url'
+import { webEnv } from '@/lib/env'
+import type { PublicAnalyticsResponse, PublicProjectResponse, PublicView } from '@pathways/shared'
+
+import { PublicGallery } from './public-gallery'
+import { PublicProgress } from './public-progress'
 
 // Renders only the PRD-F13 allowlisted snapshot fields; nothing else crosses into the public view.
 type Snapshot = Omit<PublicProjectResponse, 'publishedAt'> & { publishedAt?: string }
@@ -15,7 +21,11 @@ const period = (project: Snapshot) => {
   const end = day(project.endDate)
   return start && end ? `${start} to ${end}` : start ? `From ${start}` : notSpecified
 }
-const PublicNotice = ({ preview }: { preview?: boolean }) => (
+// The anonymous stream URL of one live media item; the staff preview passes blob URLs instead.
+const publicMediaUrl = (projectId: string, mediaId: string) =>
+  `${approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL).toString().replace(/\/$/, '')}/public/projects/${projectId}/media/${mediaId}`
+
+const PublicNotice = ({ preview, draft }: { preview?: boolean; draft?: boolean }) => (
   <section className="border-b border-info/25 bg-info-subtle">
     <div className="mx-auto flex w-full max-w-6xl items-start gap-3 px-4 py-3 text-sm text-info sm:items-center sm:px-6">
       <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 sm:mt-0" aria-hidden="true" />
@@ -23,9 +33,11 @@ const PublicNotice = ({ preview }: { preview?: boolean }) => (
         <span className="font-semibold">
           {preview ? 'Staff preview.' : 'Approved public view.'}
         </span>{' '}
-        {preview
-          ? 'This is the exact approved snapshot the public page shows once published.'
-          : 'Approved, non-sensitive project information only.'}
+        {draft
+          ? 'These are your current edits. They are not saved until you submit the summary.'
+          : preview
+            ? 'This is the exact approved snapshot the public page shows once published.'
+            : 'Approved, non-sensitive project information only.'}
       </p>
     </div>
   </section>
@@ -121,15 +133,24 @@ export const PublicTrackerList = ({
 export const PublicTrackerDetail = ({
   project,
   state,
+  mediaSrc = (id) => publicMediaUrl(project.id, id),
+  mediaPlaceholder,
+  analytics,
+  draft,
 }: {
   project: Snapshot
   state?: string
+  mediaSrc?: (id: string) => string
+  mediaPlaceholder?: (id: string) => ReactNode
+  analytics?: Partial<Record<PublicView, PublicAnalyticsResponse | null>>
+  // Unsubmitted editor content: the notice says so and there is no link away from the editor.
+  draft?: boolean
 }) => (
   <div className="bg-surface-subtle" data-public-mode={state ? 'staff-preview' : 'public'}>
-    <PublicNotice preview={Boolean(state)} />
+    <PublicNotice preview={Boolean(state)} draft={draft} />
     <section className="border-b border-navy bg-navy text-navy-foreground">
       <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-        {state ? (
+        {draft ? null : state ? (
           <Link
             className="mb-8 inline-flex items-center gap-2 text-sm text-navy-muted hover:text-white"
             href="/transparency"
@@ -205,5 +226,15 @@ export const PublicTrackerDetail = ({
         )}
       </Card>
     </div>
+    <PublicGallery
+      items={project.media.map(({ id, type, caption }) => ({
+        id,
+        type,
+        caption,
+        src: mediaSrc(id),
+        placeholder: mediaPlaceholder?.(id),
+      }))}
+    />
+    <PublicProgress views={project.views} data={analytics} placeholder={Boolean(state)} />
   </div>
 )

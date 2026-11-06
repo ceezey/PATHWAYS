@@ -45,7 +45,7 @@ describe('analytics dashboard helpers', () => {
     expect(analyticsCellValue(numericMetric('1200'))).toBe('1,200')
     expect(analyticsCellValue(missingMetric('NO_PAIRED_ASSESSMENTS'), 'percent')).not.toMatch(/%$/)
     expect(analyticsCellValue({ state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' })).toBe(
-      'Suppressed (fewer than 5)',
+      'Suppressed',
     )
   })
 

@@ -3,6 +3,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   CheckCircle2,
   GripVertical,
   Pencil,
@@ -10,28 +11,55 @@ import {
   Save,
   Trash2,
 } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
+import { flushSync } from 'react-dom'
+
+import type { DraftSummaryResponse } from '@pathways/shared'
 
 import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary, ProjectSummary } from '@/types/pathways'
 
+import { answerKeyCopy } from '../../collection.copy'
 import {
   type CollectionMode,
   type FormField,
   dataTypeLabels,
   statusTone,
 } from '../../collection.utils'
+import { AnswerKeyEditor } from './answer-key-editor'
+import { DraftSummaryPanel, fieldImportBadges } from './draft-summary-panel'
 import { FieldEditor } from './field-editor'
 import { FormInfoPanel } from './form-info-panel'
 import { FormPreviewPanel } from './form-preview-panel'
 import { MetadataMapPanel } from './metadata-map-panel'
+import { revealIntakeSection, settledInIntake } from './reveal-intake-section'
+
+/** The answer key dropdown; it opens when a key is needed and then stays as the person left it. */
+function KeyPanel({ id, needed, children }: { id: string; needed: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(needed)
+  return (
+    <details
+      className="mt-4 border-t pt-2"
+      id={id}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
+        {answerKeyCopy.heading}
+      </summary>
+      {children}
+    </details>
+  )
+}
 
 export const BuilderView = ({
   addField,
   canManage,
   canPublish,
   deleteField,
+  draftSummary,
   fields,
   formTitle,
   formType,
@@ -42,11 +70,13 @@ export const BuilderView = ({
   mappedCount,
   mode,
   moveField,
+  onConfirmCheck,
   onPublish,
   projectActivities,
   projects,
   projectsLoaded,
   projectId,
+  readOnly,
   sadddCount,
   selectedField,
   selectedFieldId,
@@ -64,6 +94,7 @@ export const BuilderView = ({
   canManage: boolean
   canPublish: boolean
   deleteField: (fieldId: string) => void
+  draftSummary: DraftSummaryResponse | null
   fields: FormField[]
   formTitle: string
   formType: string
@@ -74,11 +105,13 @@ export const BuilderView = ({
   mappedCount: number
   mode: CollectionMode
   moveField: (fieldId: string, direction: 'up' | 'down') => void
+  onConfirmCheck: (fieldCode: string) => void
   onPublish: () => void
   projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
   projectsLoaded: boolean
   projectId: string
+  readOnly: boolean
   sadddCount: number
   selectedField?: FormField
   selectedFieldId: string
@@ -110,6 +143,21 @@ export const BuilderView = ({
         setLinkedActivityId={setLinkedActivityId}
         setProjectId={setProjectId}
       />
+
+      {draftSummary ? (
+        <DraftSummaryPanel
+          summary={draftSummary}
+          fields={fields}
+          onSelectField={(code, reason) => {
+            const target = fields.find((field) => field.code === code)
+            if (!target) return
+            // The field's editor must be on the page before it can be scrolled to.
+            flushSync(() => setSelectedFieldId(target.id))
+            document.getElementById(`collection-field-choice-${target.id}`)?.focus()
+            if (reason) revealIntakeSection(target.id, reason)
+          }}
+        />
+      ) : null}
 
       <SectionCard
         title={mode === 'extend' ? 'Imported fields and extensions' : 'Form field list'}
@@ -162,6 +210,13 @@ export const BuilderView = ({
                       <StatusBadge tone={statusTone(field.mappingStatus)}>
                         {field.mappingStatus}
                       </StatusBadge>
+                      {draftSummary
+                        ? fieldImportBadges(draftSummary, field.code).map((badge) => (
+                            <StatusBadge key={badge.label} tone={badge.tone}>
+                              {badge.label}
+                            </StatusBadge>
+                          ))
+                        : null}
                     </div>
                   </div>
                 </button>
@@ -184,6 +239,19 @@ export const BuilderView = ({
                   >
                     <ArrowDown className="h-4 w-4" aria-hidden="true" />
                   </Button>
+                  {canManage &&
+                  !readOnly &&
+                  draftSummary?.needsCheck.some((item) => item.fieldCode === field.code) ? (
+                    <Button
+                      aria-label={`Confirm ${field.label}`}
+                      size="icon"
+                      title="Confirm the field"
+                      variant="ghost"
+                      onClick={() => onConfirmCheck(field.code)}
+                    >
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  ) : null}
                   <Button
                     aria-label={`Edit ${field.label}`}
                     size="icon"
@@ -204,7 +272,35 @@ export const BuilderView = ({
               </div>
 
               {selectedFieldId === field.id ? (
-                <FieldEditor field={field} updateField={updateField} />
+                <FieldEditor
+                  field={field}
+                  fieldCodes={fields.map((item) => item.code).filter(Boolean)}
+                  readOnly={readOnly}
+                  attention={draftSummary?.needsCheck.some(
+                    (item) => item.fieldCode === field.code && settledInIntake(item.reason),
+                  )}
+                  updateField={updateField}
+                />
+              ) : null}
+              {selectedFieldId === field.id && field.code === 'total_score' ? (
+                <KeyPanel
+                  id={`${field.id}-key`}
+                  needed={
+                    !!draftSummary?.needsCheck.some(
+                      (item) =>
+                        item.fieldCode === field.code && item.reason === 'ANSWER_KEY_NEEDED',
+                    )
+                  }
+                >
+                  <div className="mt-2 rounded-md transition-colors" data-intake-section="key">
+                    <AnswerKeyEditor
+                      fields={fields}
+                      rule={field.rule?.kind === 'TOTAL_SCORE' ? field.rule : null}
+                      disabled={readOnly}
+                      onChange={(rule) => updateField(field.id, { rule })}
+                    />
+                  </div>
+                </KeyPanel>
               ) : null}
             </div>
           ))}

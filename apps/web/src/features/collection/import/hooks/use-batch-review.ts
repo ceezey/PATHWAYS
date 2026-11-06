@@ -2,19 +2,62 @@ import { toast } from 'sonner'
 
 import type { OperationTicket } from '../../collection.utils'
 
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { formsClient } from '@/lib/api/forms'
 import { importsClient } from '@/lib/api/imports'
 import { plural } from '@/lib/format/plural'
-import type { ImportMappingInput } from '@/types/pathways'
+import type { ImportBatchDefinition, ImportMappingInput } from '@/types/pathways'
 
-import { ruleToMappingInput } from '../components/import-value-map-editor'
+import { type ColumnRuleDraft, ruleToMappingInput } from '../components/import-value-map-editor'
+import { runFileCheck } from '../file-check'
+import { uploadFailure } from '../import.utils'
+import { draftFormFromImport } from '../prepare-draft'
 import type { ImportState } from './use-import-state'
+
+// A batch's stored mapping in the form of the reviewer's draft.
+const storedDraft = (
+  detail: ImportBatchDefinition,
+): { rules: Record<string, ColumnRuleDraft>; mapping: Record<string, string> } => ({
+  rules: Object.fromEntries(
+    (detail.mappings ?? []).map((stored) => [
+      stored.sourceFieldName,
+      {
+        dataType: stored.dataType ?? '',
+        pairs: stored.valueMap ?? [],
+        dateOrder: stored.dateOrder ?? '',
+      },
+    ]),
+  ),
+  mapping: Object.fromEntries(
+    (
+      detail.sourceColumns ??
+      (detail.sourceHeaders ?? []).map((header, index) => ({
+        key: header,
+        header,
+        columnIndex: index + 1,
+      }))
+    ).map((column) => {
+      const reviewed = detail.mappings?.find((item) => item.sourceFieldName === column.key)
+      return [
+        column.key,
+        reviewed?.status === 'IGNORED'
+          ? '__ignore__'
+          : reviewed?.status === 'MAPPED' && reviewed.targetField
+            ? reviewed.targetField.code
+            : '__pending__',
+      ]
+    }),
+  ),
+})
 
 export function useBatchReview(state: ImportState) {
   const {
     batch,
     begin,
+    canManageForms,
     file,
+    fileCheck,
+    fileInput,
     formId,
     forms,
     importBatch,
@@ -31,12 +74,20 @@ export function useBatchReview(state: ImportState) {
     selectedForm,
     setBatch,
     setBatches,
+    setChecking,
+    setDraftTarget,
     setFile,
+    setFileCheck,
+    setFormOfferSeen,
     setForms,
     setMapping,
     setMappingNotice,
+    setReceipts,
     setRows,
     setRules,
+    setUploadRefusal,
+    sheetName,
+    sheetNames,
     sourceColumns,
   } = state
   const loadBatch = async (batchId: string, parentTicket?: OperationTicket) => {
@@ -57,37 +108,14 @@ export function useBatchReview(state: ImportState) {
       )
       if (latest.current.batch?.id !== detail.id) setMappingNotice('')
       setBatch(detail)
+      // The list keeps its own copy of each status, so every reload here keeps the two in step.
+      setBatches((current) =>
+        current.map((item) => (item.id === detail.id ? { ...item, status: detail.status } : item)),
+      )
       setRows(page.rows)
-      setRules(
-        Object.fromEntries(
-          (detail.mappings ?? []).map((stored) => [
-            stored.sourceFieldName,
-            { dataType: stored.dataType ?? '', pairs: stored.valueMap ?? [] },
-          ]),
-        ),
-      )
-      setMapping(
-        Object.fromEntries(
-          (
-            detail.sourceColumns ??
-            (detail.sourceHeaders ?? []).map((header, index) => ({
-              key: header,
-              header,
-              columnIndex: index + 1,
-            }))
-          ).map((column) => {
-            const reviewed = detail.mappings?.find((item) => item.sourceFieldName === column.key)
-            return [
-              column.key,
-              reviewed?.status === 'IGNORED'
-                ? '__ignore__'
-                : reviewed?.status === 'MAPPED' && reviewed.targetField
-                  ? reviewed.targetField.code
-                  : '__pending__',
-            ]
-          }),
-        ),
-      )
+      const stored = storedDraft(detail)
+      setRules(stored.rules)
+      setMapping(stored.mapping)
     } catch (error) {
       if (parentTicket && ticket.valid('imports.read')) throw error
       if (ticket.valid('imports.read'))
@@ -119,73 +147,141 @@ export function useBatchReview(state: ImportState) {
     }
   }
 
-  const upload = async () => {
-    if (
-      !file ||
-      !formId ||
-      !projectId ||
-      !forms.some(
-        (definition) =>
-          definition.id === formId &&
-          definition.projectId === projectId &&
-          definition.status === 'PUBLISHED',
-      )
-    ) {
+  // The input is cleared too, because picking the same file again fires no change event otherwise.
+  const clearFile = () => {
+    setFile(null)
+    if (fileInput.current) fileInput.current.value = ''
+  }
+
+  const upload = async ({
+    skipCheck = false,
+    prepareForm = false,
+    formOfferShown = false,
+  } = {}) => {
+    const form = forms.find(
+      (definition) =>
+        definition.id === formId &&
+        definition.projectId === projectId &&
+        definition.status === 'PUBLISHED',
+    )
+    if (!file || !formId || !projectId || !form) {
       toast.error('Choose a project, a published form, and one source file.')
+      return
+    }
+    // Only a workbook with several sheets names one; a single sheet is read as it is.
+    const chosenSheet = sheetNames && sheetNames.length > 1 ? sheetName : ''
+    if (sheetNames === null || (sheetNames.length > 1 && !chosenSheet)) {
+      toast.error('Choose the sheet to import.')
       return
     }
     const ticket = begin('imports.upload')
     if (!ticket) return
+    setUploadRefusal('')
     try {
+      if (!skipCheck) {
+        // The check reads the file in this browser only; a file it cannot read goes to the server as before.
+        setChecking(true)
+        const report = await runFileCheck(file, form, chosenSheet)
+        if (!ticket.valid('imports.upload')) return
+        if (report) {
+          setFileCheck(report)
+          return
+        }
+      }
       const created = await importsClient.uploadImport(
         projectId,
         formId,
-        importBatch.uploadId([file, projectId, formId]),
+        importBatch.uploadId([file, projectId, formId, chosenSheet]),
         file,
+        chosenSheet || undefined,
       )
       if (!ticket.valid('imports.upload')) return
-      if ((await importBatch.mapAutomatically(projectId, created)) && !ticket.valid('imports.read'))
-        return
+      if (formOfferShown) setFormOfferSeen((seen) => new Set(seen).add(created.id))
+      const receipt = await importBatch.mapAutomatically(projectId, created)
+      if (receipt) {
+        if (!ticket.valid('imports.read')) return
+        setReceipts((current) => ({ ...current, [created.id]: receipt }))
+      }
       await refreshBatches(ticket)
       if (!ticket.valid('imports.read')) return
       await loadBatch(created.id, ticket)
       if (!ticket.valid()) return
-      setFile(null)
-      importBatch.forgetUpload()
-      toast.success(
-        'The private upload was staged. Unresolved mappings require an authorized reviewer.',
-      )
-    } catch (error) {
-      if (ticket.valid())
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : 'The source file could not be uploaded. The same selected file can be retried.',
+      const failure = uploadFailure(created)
+      if (failure) toast.error(failure)
+      else if (prepareForm) {
+        try {
+          const target = await draftFormFromImport(
+            projectId,
+            formId,
+            created.id,
+            receipt?.mappingRevision ?? created.mappingRevision,
+          )
+          if (!ticket.valid('forms.manage')) return
+          setDraftTarget(target)
+        } catch (error) {
+          if (!ticket.valid()) return
+          toast.error(error instanceof Error ? error.message : 'The form could not be prepared.')
+        }
+      } else
+        toast.success(
+          'The private upload was staged. Unresolved mappings require an authorized reviewer.',
         )
+      clearFile()
+      importBatch.forgetUpload()
+    } catch (error) {
+      if (ticket.valid()) {
+        // A refusal for a missing permission stays on the upload card, where the reviewer picked the file.
+        if (error instanceof PathwaysClientError && error.code === 'forbidden')
+          setUploadRefusal(error.message)
+        else
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : 'The source file could not be uploaded. The same selected file can be retried.',
+          )
+      }
     } finally {
+      setChecking(false)
       ticket.finish()
     }
   }
 
-  const saveMapping = async (draft = mapping) => {
-    if (
-      !batch ||
-      sourceColumns.some((column) => !draft[column.key] || draft[column.key] === '__pending__')
-    ) {
-      toast.error('Resolve every pending source column before saving.')
-      return
-    }
-    const mappings: ImportMappingInput[] = sourceColumns.map((column) => ({
+  const uploadAnyway = () => {
+    const formOfferShown = canManageForms && fileCheck?.canPrepareForm === true
+    setFileCheck(null)
+    return upload({ skipCheck: true, formOfferShown })
+  }
+
+  const prepareFromFile = () => {
+    setFileCheck(null)
+    return upload({ skipCheck: true, prepareForm: true })
+  }
+
+  // Fixing the file is the only way out of the dialog that clears the chosen file.
+  const fixFile = () => {
+    setFileCheck(null)
+    clearFile()
+  }
+
+  const mappingInputs = (
+    draft: Record<string, string>,
+    draftRules: Record<string, ColumnRuleDraft>,
+  ): ImportMappingInput[] =>
+    sourceColumns.map((column) => ({
       sourceFieldName: column.key,
       ignored: draft[column.key] === '__ignore__',
       targetFieldCode: draft[column.key] === '__ignore__' ? undefined : draft[column.key],
       ...(draft[column.key] === '__ignore__'
         ? {}
         : ruleToMappingInput(
-            rules[column.key],
+            draftRules[column.key],
             selectedForm?.fields.find((field) => field.code === draft[column.key])?.dataType,
           )),
     }))
+
+  const saveMapping = async (draft: Record<string, string>) => {
+    if (!batch) return
+    const mappings = mappingInputs(draft, rules)
     const ticket = begin('imports.review')
     if (!ticket) return
     try {
@@ -237,7 +333,7 @@ export function useBatchReview(state: ImportState) {
       setMappingNotice(
         `${plural(applied, 'suggestion')} confirmed.${skippedNote}${
           remaining
-            ? ` ${plural(remaining, 'column')} ${remaining === 1 ? 'needs' : 'need'} a target or an explicit ignore before the revision can be saved.`
+            ? ` ${plural(remaining, 'column')} ${remaining === 1 ? 'needs' : 'need'} a target or an explicit ignore before the rows can be validated.`
             : ''
         }`,
       )
@@ -251,19 +347,46 @@ export function useBatchReview(state: ImportState) {
     }, 0)
   }
 
+  // A changed mapping is saved as a new revision first; an unchanged one keeps its revision.
   const validate = async () => {
     if (!batch) return
+    if (
+      mappingEditable &&
+      sourceColumns.some((column) => !mapping[column.key] || mapping[column.key] === '__pending__')
+    ) {
+      toast.error('Resolve every pending source column before validating.')
+      return
+    }
     const ticket = begin('imports.validate')
     if (!ticket) return
+    const stored = storedDraft(batch)
+    const mappings = mappingInputs(mapping, rules)
+    const changed =
+      JSON.stringify(mappings) !== JSON.stringify(mappingInputs(stored.mapping, stored.rules))
+    let saved = false
     try {
-      await importsClient.validateImport(projectId, batch.id, batch.mappingRevision)
+      let revision = batch.mappingRevision
+      if (changed) {
+        if (!ticket.valid('imports.review')) return
+        const next = await importsClient.saveImportMapping(projectId, batch.id, revision, mappings)
+        saved = true
+        revision = next.mappingRevision
+        if (!ticket.valid('imports.validate')) return
+      }
+      await importsClient.validateImport(projectId, batch.id, revision)
       if (!ticket.valid('imports.read')) return
       await loadBatch(batch.id, ticket)
       if (!ticket.valid()) return
+      setMappingNotice(saved ? 'Mapping revision saved and rows validated.' : '')
       toast.success('Validation revision completed.')
     } catch (error) {
       if (!ticket.valid()) return
       toast.error(error instanceof Error ? error.message : 'Validation could not be completed.')
+      // A saved revision must reach the card even when validation refused it, or a retry would be stale.
+      if (saved) {
+        setMappingNotice('Mapping revision saved, but the rows were not validated.')
+        await loadBatch(batch.id, ticket).catch(() => undefined)
+      }
     } finally {
       ticket.finish()
     }
@@ -277,8 +400,8 @@ export function useBatchReview(state: ImportState) {
       if (!ticket.valid('imports.upload')) return
       const stored = await importsClient.getImportBatch(projectId, batch.id)
       if (!ticket.valid('imports.upload')) return
-      if ((await importBatch.mapAutomatically(projectId, stored)) && !ticket.valid('imports.read'))
-        return
+      const receipt = await importBatch.mapAutomatically(projectId, stored)
+      if (receipt) setReceipts((current) => ({ ...current, [stored.id]: receipt }))
       if (!ticket.valid('imports.read')) return
       await loadBatch(batch.id, ticket)
       if (!ticket.valid()) return
@@ -290,7 +413,18 @@ export function useBatchReview(state: ImportState) {
       ticket.finish()
     }
   }
-  return { confirmSuggestions, loadBatch, resume, saveMapping, upload, validate }
+  return {
+    closeFileCheck: () => setFileCheck(null),
+    confirmSuggestions,
+    fixFile,
+    loadBatch,
+    refreshBatches,
+    resume,
+    upload,
+    prepareFromFile,
+    uploadAnyway,
+    validate,
+  }
 }
 
 export type BatchReview = ReturnType<typeof useBatchReview>

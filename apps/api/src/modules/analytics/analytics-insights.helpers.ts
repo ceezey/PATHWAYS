@@ -1,34 +1,15 @@
 import type { Prisma } from '@prisma/client'
 
-const SMALL_CELL_MAX = 4
+type ReleasedCell = { count: number | null; suppressed: boolean }
 
-type SuppressedCell = { count: number | null; suppressed: boolean }
-
-const isSmall = (n: number) => n >= 1 && n <= SMALL_CELL_MAX
-
-/**
- * Small-cell suppression for one breakdown: counts 1-4 are hidden, a lone hidden cell also hides
- * the smallest other non-zero cell, and a 1-4 total hides everything.
- */
-export function suppressBreakdown<T extends { count: number }>(total: number, items: T[]) {
-  const totalSuppressed = isSmall(total)
-  const hidden = items.map((item) => totalSuppressed || isSmall(item.count))
-  if (!totalSuppressed && hidden.filter(Boolean).length === 1) {
-    let pick = -1
-    items.forEach((item, i) => {
-      if (!hidden[i] && item.count > 0 && (pick < 0 || item.count < (items[pick]?.count ?? 0)))
-        pick = i
-    })
-    if (pick >= 0) hidden[pick] = true
-  }
+/** One breakdown released exactly; the suppression flags stay in the contract and are always false. */
+export function releaseBreakdown<T extends { count: number }>(total: number, items: T[]) {
   return {
-    total: totalSuppressed ? null : total,
-    totalSuppressed,
-    items: items.map((item, i) => ({
-      ...item,
-      count: hidden[i] ? null : item.count,
-      suppressed: hidden[i] ?? false,
-    })) as Array<Omit<T, 'count'> & SuppressedCell>,
+    total,
+    totalSuppressed: false,
+    items: items.map((item) => ({ ...item, suppressed: false })) as Array<
+      Omit<T, 'count'> & ReleasedCell
+    >,
   }
 }
 

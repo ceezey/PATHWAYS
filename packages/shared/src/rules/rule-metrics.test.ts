@@ -453,27 +453,25 @@ describe('aggregate-only project observations', () => {
     ).toBe('PROGRESS_OUT_OF_RANGE')
     expect(() => budget({ plannedTotal: '-1' })).toThrow()
   })
-  it('suppresses beneficiary follow-up at the cohort boundaries', () => {
-    expect(follow(10, 4).cell.state).toBe('SUPPRESSED')
+  it('computes beneficiary follow-up exactly for any non-empty cohort', () => {
     expect(follow(10, 5).cell).toEqual({ state: 'AVAILABLE', value: '50', reason: null })
     expect(follow(10, 0).cell.state).toBe('ZERO')
     expect(follow(10, 10).cell.value).toBe('100')
     expect(follow(5, 5).cell.value).toBe('100')
     expect(follow(5, 0).cell.state).toBe('ZERO')
     expect(follow(0, 0).cell.reason).toBe('EMPTY_POPULATION')
-    for (const [population, count] of [
-      [4, 0],
-      [4, 4],
-      [10, 1],
-      [10, 4],
-      [10, 6],
-      [10, 9],
-    ])
-      expect(follow(population, count).cell).toEqual({
-        state: 'SUPPRESSED',
-        value: null,
-        reason: 'SUPPRESSED',
-      })
+    // Small cohorts and small follow-up counts are released exactly.
+    for (const [population, count, value] of [
+      [1, 1, '100'],
+      [4, 4, '100'],
+      [4, 1, '25'],
+      [10, 1, '10'],
+      [10, 4, '40'],
+      [10, 6, '60'],
+      [10, 9, '90'],
+    ] as const)
+      expect(follow(population, count).cell).toEqual({ state: 'AVAILABLE', value, reason: null })
+    expect(follow(4, 0).cell).toEqual({ state: 'ZERO', value: '0', reason: null })
     expect(follow(10, 5).calculation).toEqual({
       kind: 'BENEFICIARY_AGGREGATE',
       population: 10,
@@ -481,18 +479,15 @@ describe('aggregate-only project observations', () => {
     })
     expect(() => follow(3, 4)).toThrow()
   })
-  it('averages signed survey improvement and suppresses fewer than five pairs', () => {
+  it('averages signed survey improvement exactly for any number of pairs', () => {
     expect(survey(5, '10').cell.value).toBe('2')
     expect(survey(6, '-15').cell.value).toBe('-2.5')
     expect(survey(7, '1').cell.value).toBe('0.1429')
     expect(survey(5, '0').cell.state).toBe('ZERO')
     expect(survey(5, '500').cell.value).toBe('100')
     expect(survey(5, '-500').cell.value).toBe('-100')
-    expect(survey(4, '10').cell).toEqual({
-      state: 'SUPPRESSED',
-      value: null,
-      reason: 'SUPPRESSED',
-    })
+    expect(survey(4, '10').cell).toEqual({ state: 'AVAILABLE', value: '2.5', reason: null })
+    expect(survey(1, '-3').cell).toEqual({ state: 'AVAILABLE', value: '-3', reason: null })
     expect(survey(0, '0').cell.reason).toBe('EMPTY_POPULATION')
   })
   it('is not applicable for archived or non-active projects and never leaks sources', () => {
@@ -507,7 +502,12 @@ describe('aggregate-only project observations', () => {
         expect(result.calculation).toBeNull()
       }
     }
-    expect(follow(4, 2).source).toBeNull()
+    // A small open cohort is released with project-level evidence.
+    expect(follow(4, 2).source).toEqual({
+      kind: 'BENEFICIARY_AGGREGATE',
+      recordId: project,
+      revision: '1',
+    })
   })
 })
 
@@ -547,7 +547,7 @@ describe('KPI and test score aggregates', () => {
     expect(kpi(1, ['50'], { projectArchived: true }).cell.state).toBe('NOT_APPLICABLE')
     expect(() => kpi(1, ['50', '60'])).toThrow()
   })
-  it('averages test scores and suppresses fewer than five people', () => {
+  it('averages test scores exactly for any number of people', () => {
     const result = pre(5, '312.5')
     expect(result.cell).toEqual({ state: 'AVAILABLE', value: '62.5', reason: null })
     expect(result.calculation).toEqual({
@@ -555,8 +555,13 @@ describe('KPI and test score aggregates', () => {
       enrollmentCount: 5,
       percentSum: '312.5',
     })
-    expect(pre(4, '200').cell.state).toBe('SUPPRESSED')
-    expect(pre(4, '200').source).toBeNull()
+    expect(pre(4, '200').cell).toEqual({ state: 'AVAILABLE', value: '50', reason: null })
+    expect(pre(1, '75').cell).toEqual({ state: 'AVAILABLE', value: '75', reason: null })
+    expect(pre(4, '200').source).toEqual({
+      kind: 'PRE_TEST_AGGREGATE',
+      recordId: project,
+      revision: '1',
+    })
     expect(pre(0, '0').cell.reason).toBe('EMPTY_POPULATION')
     expect(pre(5, '600').cell.reason).toBe('INVALID_METRIC')
     expect(pre(5, '0').cell.state).toBe('ZERO')

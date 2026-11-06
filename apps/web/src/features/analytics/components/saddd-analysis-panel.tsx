@@ -1,9 +1,11 @@
 'use client'
 
-import { AlertTriangle, CalendarClock, UsersRound } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Globe, UsersRound } from 'lucide-react'
+import Link from 'next/link'
 
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
+import { Button } from '@/components/ui/button'
 import { type SadddDashboard, formatMetricCell } from '@pathways/shared'
 
 import { SadddChart } from './analytics-charts'
@@ -17,6 +19,7 @@ export const SadddAnalysisPanel = ({
   sadddLoading,
   sadddNotice,
   sadddOngoing,
+  publicHref,
 }: {
   retrySaddd: () => void
   saddd: SadddDashboard | null
@@ -25,8 +28,17 @@ export const SadddAnalysisPanel = ({
   sadddLoading: boolean
   sadddNotice: { title: string; description: string } | null
   sadddOngoing: boolean
+  publicHref?: string
 }) => (
   <ChartPanel title="SADDD Analysis">
+    {publicHref ? (
+      <Button asChild className="mb-3" size="sm" variant="outline">
+        <Link href={publicHref}>
+          <Globe className="mr-2 h-4 w-4" aria-hidden="true" />
+          Add to public page
+        </Link>
+      </Button>
+    ) : null}
     {sadddLoading ? (
       <AsyncState
         status="loading"
@@ -52,9 +64,7 @@ export const SadddAnalysisPanel = ({
       <>
         <StatusMessage>SADDD analysis loaded.</StatusMessage>
         {sadddOngoing ? (
-          <p className="mb-2 text-sm text-muted-foreground">
-            Counts to date; groups of fewer than 5 are hidden.
-          </p>
+          <p className="mb-2 text-sm text-muted-foreground">Counts to date.</p>
         ) : null}
         <div data-testid="saddd-chart">
           <SadddChart dashboard={saddd} />

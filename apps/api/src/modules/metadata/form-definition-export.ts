@@ -26,6 +26,10 @@ export const FORM_DEFINITION_EXPORT_COLUMNS = [
   'maximum_date',
   'minimum_length',
   'maximum_length',
+  'source_names',
+  'value_aliases',
+  'import_default',
+  'rule',
 ] as const
 
 const FORM_DEFINITION_EXPORT_FORMATS = ['CSV', 'XLSX', 'XLS', 'PDF'] as const
@@ -55,6 +59,10 @@ export interface ExportableFormDefinition {
     maximumDate?: string
     minimumLength: number | null
     maximumLength: number | null
+    sourceNames: string[]
+    valueAliases?: unknown[]
+    importDefault?: string
+    rule?: object
     sequence: number
   }>
 }
@@ -101,6 +109,10 @@ export function formDefinitionExportRows(form: ExportableFormDefinition): string
         field.maximumDate,
         field.minimumLength,
         field.maximumLength,
+        JSON.stringify(field.sourceNames),
+        JSON.stringify(field.valueAliases ?? []),
+        field.importDefault,
+        field.rule && JSON.stringify(field.rule),
       ].map(text),
     ),
   ]

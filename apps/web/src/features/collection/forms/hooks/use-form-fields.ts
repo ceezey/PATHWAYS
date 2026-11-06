@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 
 import type { FormField } from '../../collection.utils'
+import { emptyIntake } from '../digital-form-contract'
 
 // The refs the collection screen shares with the hooks that edit its form.
 export interface OperationGuard {
@@ -48,6 +49,7 @@ export function useFormFields(
       minimumLength: '',
       maximumLength: '',
       mappingStatus: 'unmapped',
+      ...emptyIntake,
     }
 
     setFields((currentFields) => [...currentFields, field])

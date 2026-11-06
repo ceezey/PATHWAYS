@@ -4,8 +4,8 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-// Exactly one allowed hosted target: PATHWAYS-devV2.
-const ALLOWED_TARGET_REFS = Object.freeze(['klbtoqdalmcsfjqophty'])
+// Allowed hosted targets: PATHWAYS (production) and PATHWAYS-devV2 (development).
+const ALLOWED_TARGET_REFS = Object.freeze(['mvzxitlbtkkyvubgbcmx', 'klbtoqdalmcsfjqophty'])
 
 const MIN_PASSWORD_LENGTH = 24
 

@@ -4,19 +4,12 @@
  */
 
 /**
- * The beneficiary step-up PIN fallback UI is hidden (2026-09-29): the fallback is buggy,
- * so only the authenticator (TOTP) step-up path is shown until it is fixed. The API
- * endpoints, migration 0037 and the PIN components stay in place; only the UI entry
- * points are gated by this flag. See vault note deferred-features and
- * vault note cr-pathways-beneficiary-step-up-pin.
+ * The beneficiary step-up PIN fallback UI was hidden on 2026-09-29 and is shown again
+ * (2026-11-01, developer request) after a full run on the local stack found it working. Set to
+ * `false` to show only the authenticator path; the API and migration 0037 stay in place. See
+ * vault note deferred-features and vault note cr-pathways-beneficiary-step-up-pin.
  */
-export const STEP_UP_PIN_UI_ENABLED = false
-
-/**
- * The beneficiary step-up dialog's Reset button is hidden (2026-10-07, developer request); the code
- * fields can still be cleared by hand. See vault note deferred-features.
- */
-export const STEP_UP_RESET_UI_ENABLED = false
+export const STEP_UP_PIN_UI_ENABLED = true
 
 /**
  * The analytics aggregate export (CSV) button was hidden on 2026-09-29 and is shown again
@@ -28,11 +21,11 @@ export const STEP_UP_RESET_UI_ENABLED = false
 export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = true
 
 /**
- * The Analytics "Map" visualization (project coverage map) is hidden for every role (2026-10-07,
- * developer request) because it does not work yet. The map components and the project-map API stay
- * in place; see vault note deferred-features.
+ * The Analytics "Map" visualization (project coverage map) was hidden on 2026-10-07 because it drew
+ * no tiles or points, and is shown again for every role (2026-10-22) now that the maplibre worker is
+ * served from public. See vault note deferred-features.
  */
-export const MAPS_UI_ENABLED = false
+export const MAPS_UI_ENABLED = true
 
 /**
  * Backup & Recovery is hidden for every role, System Administrator included (2026-10-07, developer
@@ -49,13 +42,6 @@ export const BACKUP_RECOVERY_UI_ENABLED = false
 export const INDICATOR_LIBRARY_UI_ENABLED = false
 
 /**
- * The System Administrator dashboard hides its Active budget alerts and Overdue activities cards
- * and the Project monitoring card (2026-10-07, developer request). Other roles' dashboards are
- * unchanged; see vault note deferred-features.
- */
-export const ADMIN_DASHBOARD_MONITORING_UI_ENABLED = false
-
-/**
  * Controls with no backend yet (disabled "Not available yet" buttons, disabled form options,
  * the beneficiary Media proof tab and similar) are shown (true, the shipped value). Set to
  * `false` to hide them so the product shows no unfinished state; nothing server-side changes.
@@ -64,12 +50,11 @@ export const ADMIN_DASHBOARD_MONITORING_UI_ENABLED = false
 export const UNFINISHED_CONTROLS_UI_ENABLED = true
 
 /**
- * The analytics "Add to Dashboard" button and the role dashboard's pinned "Monitoring charts"
- * section are hidden (2026-10-06, developer request). Browser-stored pins, the pin library and
- * the components stay in place; only these two UI entry points are gated by this flag. See
- * vault note deferred-features.
+ * The analytics "Add to Dashboard" button and the pinned "Monitoring charts" section, which sits
+ * at the bottom of every role's dashboard, were hidden on 2026-10-06 and are shown again
+ * (2026-10-22, developer request). Pins stay browser-stored; see vault note deferred-features.
  */
-export const DASHBOARD_PINS_UI_ENABLED = false
+export const DASHBOARD_PINS_UI_ENABLED = true
 
 /**
  * The page-heading pencil is hidden for every role, System Administrator included (2026-10-07,

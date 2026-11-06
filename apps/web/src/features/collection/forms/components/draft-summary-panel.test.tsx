@@ -1,0 +1,258 @@
+/* @vitest-environment jsdom */
+import { draftNeedsCheckReasons } from '@pathways/shared'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { FormField } from '../../collection.utils'
+import { emptyIntake } from '../digital-form-contract'
+import { DraftSummaryPanel } from './draft-summary-panel'
+
+afterEach(cleanup)
+
+const summary = {
+  addedFields: ['household_size'],
+  sourceNamesAdded: ['sex'],
+  optionsAdded: ['civil_status'],
+  aliasesAdded: 4,
+  defaults: ['registration_operation'],
+  rules: ['age_at_registration'],
+  needsCheck: [
+    { fieldCode: 'sex', reason: 'ENUM_ANSWER_UNRESOLVED' as const },
+    { fieldCode: 'consent_recorded', reason: 'PARTICIPATION_CONSENT_NO_SOURCE' as const },
+  ],
+}
+
+describe('DraftSummaryPanel', () => {
+  it('needs check items are listed first', () => {
+    render(<DraftSummaryPanel summary={summary} fields={[]} onSelectField={vi.fn()} />)
+    const headings = screen.getAllByRole('heading').map((heading) => heading.textContent)
+    expect(headings).toEqual(['Draft from import', 'Needs check (2)', 'Changes in this draft'])
+    expect(screen.getAllByRole('listitem')[0].textContent).toContain('sex')
+  })
+
+  it('says who publishes, in words true of a draft that added no field', () => {
+    render(
+      <DraftSummaryPanel
+        summary={{ ...summary, addedFields: [] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText(
+        'These changes were made from the file. Someone other than the person who drafted or last edited it publishes the draft.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('links each needs check item to its field in plain words', () => {
+    const onSelectField = vi.fn()
+    render(<DraftSummaryPanel summary={summary} fields={[]} onSelectField={onSelectField} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Go to consent_recorded' }))
+    expect(onSelectField).toHaveBeenCalledWith(
+      'consent_recorded',
+      'PARTICIPATION_CONSENT_NO_SOURCE',
+    )
+    expect(screen.getByText(/no column feeds participation consent/i)).toBeTruthy()
+    expect(screen.getByText(/no row can be imported/)).toBeTruthy()
+  })
+
+  it('never shows a raw reason code', () => {
+    render(
+      <DraftSummaryPanel
+        summary={{
+          ...summary,
+          needsCheck: draftNeedsCheckReasons.map((reason) => ({ fieldCode: 'x', reason })),
+        }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(document.body.textContent).not.toMatch(/[A-Z]{3,}_[A-Z]{3,}/)
+  })
+
+  it('lists each changed field once by its label with a tag per change', () => {
+    const field = (code: string, label: string): FormField => ({
+      id: code,
+      label,
+      code,
+      type: 'text',
+      required: false,
+      metadataKey: false,
+      sadddField: false,
+      allowedValues: [],
+      minimumValue: '',
+      maximumValue: '',
+      minimumLength: '',
+      maximumLength: '',
+      mappingStatus: 'mapped',
+      ...emptyIntake,
+    })
+    const onSelectField = vi.fn()
+    render(
+      <DraftSummaryPanel
+        summary={{ ...summary, sourceNamesAdded: ['sex', 'household_size'] }}
+        fields={[field('household_size', 'Household size'), field('sex', 'Sex')]}
+        onSelectField={onSelectField}
+      />,
+    )
+    expect(screen.getByText('Show changed fields (5)')).toBeTruthy()
+    const row = screen.getByRole('button', { name: 'Household size' }).closest('tr') as HTMLElement
+    expect(within(row).getByText('household_size')).toBeTruthy()
+    expect(within(row).getByText('New')).toBeTruthy()
+    expect(within(row).getByText('Source names')).toBeTruthy()
+    fireEvent.click(within(row).getByRole('button', { name: 'Household size' }))
+    expect(onSelectField).toHaveBeenCalledWith('household_size')
+  })
+
+  it('shows which column fed each changed field', () => {
+    const field = (code: string, label: string, sourceNames: string[]): FormField => ({
+      id: code,
+      label,
+      code,
+      type: 'text',
+      required: false,
+      metadataKey: false,
+      sadddField: false,
+      allowedValues: [],
+      minimumValue: '',
+      maximumValue: '',
+      minimumLength: '',
+      maximumLength: '',
+      mappingStatus: 'mapped',
+      ...emptyIntake,
+      sourceNames,
+    })
+    render(
+      <DraftSummaryPanel
+        summary={{ ...summary, sourceNamesAdded: ['sex'], defaults: ['registration_operation'] }}
+        fields={[
+          field('sex', 'Sex', ['Gender', 'Guardian Gender']),
+          field('registration_operation', 'Registration operation', []),
+        ]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('columnheader', { name: 'From column' })).toBeTruthy()
+    const row = screen.getByRole('button', { name: 'Sex' }).closest('tr') as HTMLElement
+    expect(within(row).getByText('Gender')).toBeTruthy()
+    expect(within(row).getByText('Guardian Gender')).toBeTruthy()
+    const noColumn = screen
+      .getByRole('button', { name: 'Registration operation' })
+      .closest('tr') as HTMLElement
+    expect(within(noColumn).getByText('No source name')).toBeTruthy()
+  })
+
+  it('counts what the draft added and says so when nothing needs a check', () => {
+    render(
+      <DraftSummaryPanel
+        summary={{ ...summary, needsCheck: [] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText('No items are waiting. Review the changes below before publishing.'),
+    ).toBeTruthy()
+    expect(screen.getByText(/household_size/)).toBeTruthy()
+    expect(screen.getByText(/4 value aliases/)).toBeTruthy()
+  })
+
+  it('only claims what is true when a draft changed no field', () => {
+    const empty = {
+      addedFields: [],
+      sourceNamesAdded: [],
+      optionsAdded: [],
+      aliasesAdded: 0,
+      defaults: [],
+      rules: [],
+    }
+    render(
+      <DraftSummaryPanel
+        summary={{ ...empty, needsCheck: [summary.needsCheck[0]] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('No fields changed.')).toBeTruthy()
+    expect(screen.queryByText(/These changes were made from the file/)).toBeNull()
+    expect(
+      screen.getByText(
+        'Someone other than the person who drafted or last edited it publishes the draft.',
+      ),
+    ).toBeTruthy()
+    cleanup()
+    render(
+      <DraftSummaryPanel
+        summary={{ ...empty, needsCheck: [] }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('No items are waiting.')).toBeTruthy()
+    expect(screen.getByText('No fields changed.')).toBeTruthy()
+  })
+
+  it('names no other consent on a consent item', () => {
+    render(
+      <DraftSummaryPanel
+        summary={{
+          ...summary,
+          needsCheck: [
+            { fieldCode: 'guardian_consent_recorded', reason: 'CONSENT_SOURCE_PROPOSED' },
+          ],
+        }}
+        fields={[]}
+        onSelectField={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText('A column was proposed as this consent answer. Confirm it.'),
+    ).toBeTruthy()
+    expect(screen.queryByText(/takes the same answer/)).toBeNull()
+  })
+
+  it('says plainly when participation consent copies the data consent column', () => {
+    const field = (code: string, label: string, rule: FormField['rule']): FormField => ({
+      id: code,
+      label,
+      code,
+      type: 'text',
+      required: false,
+      metadataKey: false,
+      sadddField: false,
+      allowedValues: [],
+      minimumValue: '',
+      maximumValue: '',
+      minimumLength: '',
+      maximumLength: '',
+      mappingStatus: 'mapped',
+      ...emptyIntake,
+      rule,
+    })
+    const dataConsent = field('data_processing_consent_recorded', 'Data processing consent', null)
+    const copied = { kind: 'SAME_ANSWER_AS', field: dataConsent.code } as const
+    const panel = (rule: FormField['rule']) => (
+      <DraftSummaryPanel
+        summary={{
+          ...summary,
+          rules: ['consent_recorded'],
+          needsCheck: [{ fieldCode: dataConsent.code, reason: 'CONSENT_SOURCE_PROPOSED' }],
+        }}
+        fields={[dataConsent, field('consent_recorded', 'Participation consent', rule)]}
+        onSelectField={vi.fn()}
+      />
+    )
+    const { rerender } = render(panel(copied))
+    expect(
+      screen.getByText('Participation consent takes the same answer from this column.'),
+    ).toBeTruthy()
+    const row = screen
+      .getByRole('button', { name: 'Participation consent' })
+      .closest('tr') as HTMLElement
+    expect(within(row).getByText('Same answer as the data processing consent')).toBeTruthy()
+    expect(row.closest('details')?.open).toBe(false)
+    rerender(panel(null))
+    expect(screen.queryByText(/takes the same answer/)).toBeNull()
+  })
+})

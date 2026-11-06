@@ -86,6 +86,18 @@ describe('Deferred legacy-table retirement contract', () => {
       '0073_rules_kpi_assessment_metrics',
       '0074_indicator_measurement_lookup',
       '0075_indicator_summary_measurement_lookup',
+      '0076_saddd_exact_counts',
+      '0077_saddd_by_place',
+      '0078_form_field_intake_metadata',
+      '0079_import_date_order_and_sheet',
+      '0080_participant_file_import',
+      '0081_submission_check_once',
+      '0082_permission_check_plpgsql',
+      '0083_stage_import',
+      '0084_smart_mapping_v4',
+      '0085_public_tracker_live_revision',
+      '0086_public_tracker_media',
+      '0087_public_tracker_analytics',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
@@ -112,7 +124,7 @@ describe('Deferred legacy-table retirement contract', () => {
 
   it('keeps the datamodel and verifier aligned with the reviewed migration', () => {
     expect(schema).not.toMatch(/^model Legacy/m)
-    expect(schema.match(/^model /gm)).toHaveLength(59)
+    expect(schema.match(/^model /gm)).toHaveLength(60)
     expect(schema).toMatch(/^model UserStepUpPin\s*\{/m)
     expect(schema).toMatch(/^model BeneficiaryStepUpGrant\s*\{/m)
     expect(schema).toMatch(/^model ExpenseSignoff\s*\{/m)

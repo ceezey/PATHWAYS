@@ -3,18 +3,24 @@ import {
   type FormValueError,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import { answerResolver } from './answers'
+import { type ImportDateRule, readDate } from './date-order'
+import {
+  type ImportRowWarning,
+  type ImportValueError,
+  type IntakeField,
+  type NormalizedImportValue,
+  applyIntakeRules,
+} from './intake-rules'
+import { choiceAnswers } from './mappers/smart-match-values'
 import { type ImportColumnRule, mapKey } from './value-map'
+import { automaticValue } from './value-map-suggest'
 
-interface ImportValueError {
-  fieldCode: string
-  code: string
-  message: string
-}
-
-interface ImportRowNormalizationResult {
+export interface ImportRowNormalizationResult {
   valid: boolean
-  values: Record<string, string | number | boolean | string[] | null>
+  values: Record<string, NormalizedImportValue>
   errors: ImportValueError[]
+  warnings: ImportRowWarning[]
 }
 
 function conversionError(field: FormFieldValidationContract, code: string, message: string) {
@@ -24,9 +30,13 @@ function conversionError(field: FormFieldValidationContract, code: string, messa
 function convert(
   field: FormFieldValidationContract,
   raw: unknown,
-): { value: string | number | boolean | string[] | null; error?: ImportValueError } {
+  date?: ImportDateRule,
+  resolve?: (raw: string) => string | null,
+): { value: NormalizedImportValue; error?: ImportValueError } {
   if (raw === null || raw === undefined || raw === '') return { value: null }
   if (field.dataType === 'TEXT' || field.dataType === 'LONG_TEXT' || field.dataType === 'SELECT') {
+    // A whole-number cell, such as a phone number stored as a number, reads as its exact digits.
+    if (typeof raw === 'number' && Number.isSafeInteger(raw)) return { value: String(raw) }
     if (typeof raw !== 'string') {
       return { value: null, error: conversionError(field, 'AMBIGUOUS_TEXT', 'Expected text.') }
     }
@@ -58,9 +68,14 @@ function convert(
     }
   }
   if (field.dataType === 'DATE') {
-    if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
-      return { value: raw.trim() }
-    }
+    const text = typeof raw === 'string' ? raw.trim() : ''
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return { value: text }
+    // An ISO date with a time part is year-first whatever order the column uses.
+    const rule = /^\d{4}-\d{2}-\d{2}[T ]/i.test(text)
+      ? { order: 'YMD' as const, referenceYear: 0 }
+      : date
+    const read = rule ? readDate(text, rule) : null
+    if (read) return { value: read }
     return {
       value: null,
       error: conversionError(field, 'AMBIGUOUS_DATE', 'Expected a YYYY-MM-DD calendar date.'),
@@ -71,31 +86,24 @@ function convert(
     if (typeof raw === 'string' && /^(true|false)$/i.test(raw.trim())) {
       return { value: raw.trim().toLowerCase() === 'true' }
     }
+    // The yes and no words Suggest proposes apply without a click (cr-pathways-yes-no-boolean-import).
+    const read =
+      typeof raw === 'string' || typeof raw === 'number' ? automaticValue(String(raw), field) : null
+    if (read) return { value: read === 'true' }
     return {
       value: null,
       error: conversionError(field, 'AMBIGUOUS_BOOLEAN', 'Expected true or false.'),
     }
   }
   if (field.dataType === 'MULTIPLE_SELECT') {
-    if (Array.isArray(raw) && raw.every((value) => typeof value === 'string')) {
-      return { value: raw }
-    }
-    if (typeof raw === 'string') {
-      try {
-        const parsed: unknown = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.every((value) => typeof value === 'string')) {
-          return { value: parsed }
-        }
-      } catch {
-        // The bounded error below deliberately avoids reflecting source values.
-      }
-    }
+    const answers = choiceAnswers(raw, resolve ?? (() => null))
+    if (answers) return { value: answers }
     return {
       value: null,
       error: conversionError(
         field,
         'AMBIGUOUS_MULTI_SELECT',
-        'Expected a JSON array of choice strings.',
+        'Expected a JSON array or a delimited list of choices.',
       ),
     }
   }
@@ -119,30 +127,84 @@ function translate(raw: unknown, rule: ImportColumnRule | undefined): unknown {
   return mapped === undefined ? raw : mapped
 }
 
-/** Applies the reviewed value map, then the declared type check, then the field's own coercion. */
+const resolverCache = new WeakMap<object, (raw: string) => string | null>()
+
+/** One resolver per field object, so a validation run builds its lookups once, not per row. */
+function resolverFor(field: IntakeField) {
+  let resolver = resolverCache.get(field)
+  if (!resolver) {
+    resolver = answerResolver(field.allowedValues ?? [], field.valueAliases ?? [])
+    resolverCache.set(field, resolver)
+  }
+  return resolver
+}
+
+const isBlankRaw = (raw: unknown) =>
+  raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')
+
+/**
+ * Applies the reviewed value map, answer aliases, the declared type, the field's own coercion and
+ * its default, then (with options) the intake rules, then the shared validator.
+ */
 export function normalizeImportedRow(
-  fields: readonly FormFieldValidationContract[],
+  fields: readonly IntakeField[],
   rawValuesByFieldCode: Readonly<Record<string, unknown>>,
   rules: Readonly<Record<string, ImportColumnRule>> = {},
+  options?: { uploadDate: string },
 ): ImportRowNormalizationResult {
-  const values: Record<string, string | number | boolean | string[] | null> = Object.create(null)
+  const values: Record<string, NormalizedImportValue> = Object.create(null)
   const errors: ImportValueError[] = []
+  const sourceProvided = new Set<string>()
   for (const field of fields) {
     const rule = Object.hasOwn(rules, field.code) ? rules[field.code] : undefined
-    const raw = translate(rawValuesByFieldCode[field.code], rule)
+    let raw = translate(rawValuesByFieldCode[field.code], rule)
+    if (!isBlankRaw(rawValuesByFieldCode[field.code])) sourceProvided.add(field.code)
+    // A true/false or whole-number cell is read as its text, as the mapping step shows it.
+    if (
+      field.dataType === 'SELECT' &&
+      (typeof raw === 'boolean' || (typeof raw === 'number' && Number.isSafeInteger(raw)))
+    ) {
+      raw = String(raw)
+    }
+    if (field.dataType === 'SELECT' && typeof raw === 'string' && raw !== '') {
+      raw = resolverFor(field)(raw) ?? automaticValue(raw, field) ?? raw
+    }
     const declared =
       rule?.dataType && rule.dataType !== field.dataType
-        ? convert({ ...field, dataType: rule.dataType }, raw)
+        ? convert({ ...field, dataType: rule.dataType }, raw, rule.date, resolverFor(field))
         : null
-    const converted = declared?.error ? declared : convert(field, raw)
+    let converted = declared?.error ? declared : convert(field, raw, rule?.date, resolverFor(field))
+    if (field.dataType === 'MULTIPLE_SELECT' && Array.isArray(converted.value)) {
+      const resolveElement = resolverFor(field)
+      converted = { value: converted.value.map((item) => resolveElement(item) ?? item) }
+    }
+    // The default applies only when no column maps to the field; a mapped blank stays blank.
+    const mapped = Object.hasOwn(rawValuesByFieldCode, field.code)
+    if (converted.value === null && !converted.error && !mapped && field.importDefault) {
+      const fallback =
+        field.dataType === 'MULTIPLE_SELECT' ? [field.importDefault] : field.importDefault
+      converted = convert(field, fallback)
+    }
     values[field.code] = converted.value
     if (converted.error) errors.push(converted.error)
   }
-  if (errors.length > 0) return { valid: false, values, errors }
+  // A defaulted identifier type only names the namespace of a value, so with no value it is dropped.
+  if (
+    values.external_identifier_type != null &&
+    values.external_identifier_value == null &&
+    !Object.hasOwn(rawValuesByFieldCode, 'external_identifier_type')
+  ) {
+    values.external_identifier_type = null
+  }
+  if (errors.length > 0) return { valid: false, values, errors, warnings: [] }
+  const intake = options
+    ? applyIntakeRules(fields, values, sourceProvided, options.uploadDate)
+    : { errors: [], warnings: [] }
   const validated = validateAndNormalizeFormData(fields, values, 'final')
   return {
-    valid: validated.valid,
+    valid: validated.valid && intake.errors.length === 0,
     values: validated.values,
-    errors: validated.errors.map(mappedError),
+    errors: [...intake.errors, ...validated.errors.map(mappedError)],
+    warnings: intake.warnings,
   }
 }

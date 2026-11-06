@@ -1,11 +1,12 @@
 /** Browser-only dashboard pins: references to a view, never data; data is re-fetched under live permissions. */
 
-export const PIN_VIEWS = ['kpi', 'participation', 'timeline'] as const
+export const PIN_VIEWS = ['kpi', 'participation', 'timeline', 'map'] as const
 export type PinView = (typeof PIN_VIEWS)[number]
 
 export interface DashboardPin {
   id: string
   view: PinView
+  /** Empty for a map pin, which covers every project in the viewer's scope. */
   projectId: string
   periodStart?: string
   periodEnd?: string

@@ -1,18 +1,31 @@
 import { randomUUID } from 'node:crypto'
-import { ConflictException } from '@nestjs/common'
+import { ConflictException, ForbiddenException } from '@nestjs/common'
 import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
 import type { ProcessImportRequest } from '@pathways/shared'
+import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { Tx } from '../../common/prisma/transaction'
-import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
 import {
+  countRows,
+  lockBatch,
+  mapStoredBatch,
+  readBatchRowCounts,
+  requireBatchWithHeaders,
+  waitsForParent,
+} from './import-batches.service'
+import {
+  requireAllPartsStarted,
+  requireSiblingPartsStarted,
+  requireSurveyImportPermissions,
+} from './import-parts.service'
+import {
+  MATCH_BY_IDENTIFIER_REFUSAL,
   type PromotionContext,
   type PromotionHandlers,
   loadPromotionContext,
+  mayMatchByIdentifier,
 } from './import-promotion-context.service'
-
-const PROCESSING_CLAIM_ROWS = 100
 
 export interface ProcessingClaim {
   complete: boolean
@@ -20,6 +33,7 @@ export interface ProcessingClaim {
   claimId: string
   registrationHandler: boolean
   participationHandler: boolean
+  stageHandler: boolean
   context?: PromotionContext
 }
 
@@ -33,6 +47,11 @@ export async function claimBatchRows(
 ): Promise<ProcessingClaim> {
   await lockBatch(tx, actor, projectId, batchId)
   const batch = await requireBatchWithHeaders(tx, actor, projectId, batchId)
+  // A survey writes participation and assessments, and a file's registration waits for its surveys to be started.
+  if (batch.partCode) {
+    requireSurveyImportPermissions(actor)
+    await requireSiblingPartsStarted(tx, actor, batch)
+  } else await requireAllPartsStarted(tx, actor, batch)
   if (
     batch.validationRevision !== input.expectedValidationRevision ||
     batch.validatedMappingRevision !== batch.mappingRevision
@@ -46,6 +65,7 @@ export async function claimBatchRows(
       claimId: '',
       registrationHandler: false,
       participationHandler: false,
+      stageHandler: false,
     }
   }
   if (!['VALIDATED', 'PARTIALLY_PROCESSED', 'PROCESSING'].includes(batch.status)) {
@@ -54,6 +74,15 @@ export async function claimBatchRows(
   const expiry = new Date(Date.now() - IMPORT_ENGINEERING_LIMITS.processingClaimMilliseconds)
   if (batch.processingClaimId && batch.processingClaimedAt && batch.processingClaimedAt > expiry) {
     throw new ConflictException('Another worker currently owns this import claim.')
+  }
+  // Matching by the client's identifier needs identity review and enrollment grants, so a processor without them is refused before any row is claimed.
+  const isStage = Boolean(batch.parentBatchId)
+  const context =
+    !isStage && batch.form.formType === 'BENEFICIARY_REGISTRATION'
+      ? await loadPromotionContext(tx, actor, promotion, batch)
+      : undefined
+  if (context?.matchesByIdentifier && !mayMatchByIdentifier(actor)) {
+    throw new ForbiddenException(MATCH_BY_IDENTIFIER_REFUSAL)
   }
   await tx.dataImportRow.updateMany({
     where: {
@@ -78,19 +107,31 @@ export async function claimBatchRows(
       processingErrorCode: 'RETRY_LIMIT_EXCEEDED',
     },
   })
-  const candidates = await tx.dataImportRow.findMany({
-    where: {
-      organizationId: actor.organizationId,
-      importBatchId: batch.id,
-      status: 'VALID',
-      mappingRevision: batch.mappingRevision,
-      validationRevision: batch.validationRevision,
-      processingAttempts: { lt: IMPORT_ENGINEERING_LIMITS.maxProcessingAttempts },
-    },
-    select: { id: true },
-    orderBy: { rowNumber: 'asc' },
-    take: PROCESSING_CLAIM_ROWS,
-  })
+  // A stage row waits while its registration row is not processed, so the person it names may not exist yet.
+  const candidates = batch.parentBatchId
+    ? await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT r.id::text AS id FROM pathways.data_import_rows r
+        WHERE r.organization_id=${actor.organizationId}::uuid AND r.import_batch_id=${batch.id}::uuid
+          AND r.status='VALID' AND r.mapping_revision=${batch.mappingRevision}
+          AND r.validation_revision=${batch.validationRevision}
+          AND r.processing_attempts < ${IMPORT_ENGINEERING_LIMITS.maxProcessingAttempts}
+          AND NOT ${waitsForParent(batch.parentBatchId)}
+        ORDER BY r.row_number
+        LIMIT ${IMPORT_ENGINEERING_LIMITS.processingClaimRows}
+      `)
+    : await tx.dataImportRow.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          importBatchId: batch.id,
+          status: 'VALID',
+          mappingRevision: batch.mappingRevision,
+          validationRevision: batch.validationRevision,
+          processingAttempts: { lt: IMPORT_ENGINEERING_LIMITS.maxProcessingAttempts },
+        },
+        select: { id: true },
+        orderBy: { rowNumber: 'asc' },
+        take: IMPORT_ENGINEERING_LIMITS.processingClaimRows,
+      })
   if (candidates.length === 0) {
     await reconcileBatch(tx, batch.id)
     return {
@@ -99,6 +140,7 @@ export async function claimBatchRows(
       claimId: '',
       registrationHandler: false,
       participationHandler: false,
+      stageHandler: false,
     }
   }
   const claimId = randomUUID()
@@ -121,6 +163,7 @@ export async function claimBatchRows(
     where: { id: batch.id },
     data: {
       status: 'PROCESSING',
+      processedAt: null,
       processingRevision: { increment: 1 },
       processingClaimId: claimId,
       processingClaimedAt: claimedAt,
@@ -131,9 +174,10 @@ export async function claimBatchRows(
     complete: false,
     rowIds,
     claimId,
-    registrationHandler: batch.form.formType === 'BENEFICIARY_REGISTRATION',
-    participationHandler: batch.form.formType === 'ACTIVITY_MONITORING',
-    context: await loadPromotionContext(tx, actor, promotion, batch),
+    registrationHandler: !isStage && batch.form.formType === 'BENEFICIARY_REGISTRATION',
+    participationHandler: !isStage && batch.form.formType === 'ACTIVITY_MONITORING',
+    stageHandler: isStage,
+    context: context ?? (await loadPromotionContext(tx, actor, promotion, batch)),
   }
 }
 
@@ -190,7 +234,7 @@ export async function finishBatchClaim(
   // is PROCESSING, the database state contract requires its claim fields to
   // remain populated; clearing them in a separate UPDATE creates a transient
   // invalid row and fails the checkpoint before reconciliation can run.
-  await reconcileBatch(tx, batch.id)
+  const counts = await reconcileBatch(tx, batch.id)
   await writeAuditLog(tx, actor, {
     projectId: batch.projectId,
     action: 'IMPORT_PROCESSING_CHECKPOINT',
@@ -198,17 +242,12 @@ export async function finishBatchClaim(
     entityId: batch.id,
     changes: { processingRevision: batch.processingRevision },
   })
-  return mapStoredBatch(tx, actor, batch.projectId, batch.id)
+  return mapStoredBatch(tx, actor, batch.projectId, batch.id, counts)
 }
 
 export async function reconcileBatch(tx: Tx, batchId: string) {
-  const counts = await tx.dataImportRow.groupBy({
-    by: ['status'],
-    where: { importBatchId: batchId },
-    _count: { _all: true },
-  })
-  const count = (status: string) =>
-    counts.find((entry) => entry.status === status)?._count._all ?? 0
+  const counts = await readBatchRowCounts(tx, batchId)
+  const count = (status: string) => countRows(counts, (row) => row.status === status)
   const processed = count('PROCESSED')
   const unprocessed = count('UNPROCESSED')
   const failed = count('FAILED')
@@ -233,4 +272,5 @@ export async function reconcileBatch(tx: Tx, batchId: string) {
       processedAt: outstanding === 0 ? new Date() : null,
     },
   })
+  return counts
 }

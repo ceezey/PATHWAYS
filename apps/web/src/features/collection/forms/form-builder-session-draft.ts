@@ -1,4 +1,4 @@
-import { digitalFormTypes } from '@pathways/shared'
+import { INTAKE_RULE_KINDS, digitalFormTypes } from '@pathways/shared'
 
 import { type DraftScope, sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
 import type { DigitalFormType } from '@/types/pathways'
@@ -39,6 +39,18 @@ const mappingStatuses = new Set(['mapped', 'unmapped', 'ignored', 'invalid'])
 
 const isString = (value: unknown) => typeof value === 'string' && value.length <= 10_000
 
+const isAlias = (value: unknown) =>
+  typeof value === 'object' &&
+  value !== null &&
+  isString((value as Record<string, unknown>).from) &&
+  isString((value as Record<string, unknown>).to)
+
+// A rule may still be half filled while editing, so only its kind is checked here.
+const isRule = (value: unknown) =>
+  value === null ||
+  (typeof value === 'object' &&
+    (INTAKE_RULE_KINDS as readonly unknown[]).includes((value as Record<string, unknown>).kind))
+
 const isField = (value: unknown): value is BuilderFormField => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const field = value as Record<string, unknown>
@@ -58,6 +70,14 @@ const isField = (value: unknown): value is BuilderFormField => {
     isString(field.maximumValue) &&
     isString(field.minimumLength) &&
     isString(field.maximumLength) &&
+    Array.isArray(field.sourceNames) &&
+    field.sourceNames.length <= 20 &&
+    field.sourceNames.every(isString) &&
+    Array.isArray(field.valueAliases) &&
+    field.valueAliases.length <= 100 &&
+    field.valueAliases.every(isAlias) &&
+    isString(field.importDefault) &&
+    isRule(field.rule) &&
     typeof field.mappingStatus === 'string' &&
     mappingStatuses.has(field.mappingStatus)
   )

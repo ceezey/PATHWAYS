@@ -1,35 +1,45 @@
 'use client'
 
+import { columnTranslations, deferredRequired, unsuppliedRequired } from '@pathways/imports'
+import { useState } from 'react'
+
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
+import { ToggleRow } from '../../forms/components/toggle-row'
+import type { BatchIntake } from '../hooks/use-batch-intake'
 import type { BatchProcessing } from '../hooks/use-batch-processing'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
 import { importProcessingComplete } from '../import-auto-continue'
-import { automaticMatchReason, mappingLockedStatuses } from '../import.utils'
+import { automaticMatchReason, batchCoverage, mappingLockedStatuses } from '../import.utils'
+import { CoverageNotice } from './coverage-notice'
+import { ImportDateOrder, columnDateOrders } from './import-date-order'
+import { ImportTargetSelect } from './import-target-select'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
+
+// At most five values in a line, so a column of many distinct answers stays readable.
+const listed = (values: readonly string[]) =>
+  values.length > 5
+    ? `${values.slice(0, 5).join(', ')} and ${values.length - 5} more`
+    : values.join(', ')
 
 export function ImportMappingCard({
   state,
   review,
   run,
+  intake,
   batch,
 }: {
   state: Pick<
     ImportState,
+    | 'canManageForms'
     | 'canProcess'
     | 'canReview'
     | 'canValidate'
     | 'columnValues'
+    | 'formOfferSeen'
     | 'mapping'
     | 'mappingEditable'
     | 'mappingHeading'
@@ -37,6 +47,7 @@ export function ImportMappingCard({
     | 'mutation'
     | 'openSuggestions'
     | 'pending'
+    | 'receipts'
     | 'rules'
     | 'scope'
     | 'selectedForm'
@@ -45,15 +56,18 @@ export function ImportMappingCard({
     | 'sourceColumns'
     | 'storedMappingByKey'
   >
-  review: Pick<BatchReview, 'confirmSuggestions' | 'saveMapping' | 'validate'>
+  review: Pick<BatchReview, 'confirmSuggestions' | 'validate'>
   run: Pick<BatchProcessing, 'process' | 'processingInterrupted'>
+  intake: Pick<BatchIntake, 'prepareForm'>
   batch: NonNullable<ImportState['batch']>
 }) {
   const {
+    canManageForms,
     canProcess,
     canReview,
     canValidate,
     columnValues,
+    formOfferSeen,
     mapping,
     mappingEditable,
     mappingHeading,
@@ -61,6 +75,7 @@ export function ImportMappingCard({
     mutation,
     openSuggestions,
     pending,
+    receipts,
     rules,
     scope,
     selectedForm,
@@ -69,8 +84,52 @@ export function ImportMappingCard({
     sourceColumns,
     storedMappingByKey,
   } = state
-  const { confirmSuggestions, saveMapping, validate } = review
+  const { confirmSuggestions, validate } = review
   const { process, processingInterrupted } = run
+  const receipt = receipts[batch.id]
+  // The server computes coverage for any reader; the uploader's session receipt covers a batch not yet reloaded.
+  // The counts describe the automatic revision only; a reviewer's later revision replaces them.
+  const coverage = batchCoverage(batch, receipt)
+  const needsFormUpdate = coverage?.coverage === 'NOT_COVERED' && !formOfferSeen.has(batch.id)
+  const referenceYear = new Date(batch.uploadedAt ?? Date.now()).getUTCFullYear()
+  // The column's date type: the reviewer's declared type, else the target field's.
+  const dateColumn = (key: string) =>
+    (rules[key]?.dataType ||
+      selectedForm?.fields.find((field) => field.code === mapping[key])?.dataType) === 'DATE'
+  // What import reads on its own in a true/false or choice column, by the field's own type as normalization does.
+  const translations = (key: string) => {
+    const field = selectedForm?.fields.find((item) => item.code === mapping[key])
+    return field
+      ? columnTranslations(columnValues.get(key) ?? [], field, rules[key]?.pairs ?? [])
+      : { automatic: [], unmatched: [] }
+  }
+  // Listed above the filter, because a column read entirely on its own needs no decision and is hidden.
+  const translatedColumns = sourceColumns.flatMap((column) => {
+    const { automatic } = translations(column.key)
+    return automatic.length
+      ? [`${column.header} (${listed(automatic.map(({ from, to }) => `${from} → ${to}`))})`]
+      : []
+  })
+  const undecided = (key: string) =>
+    !mapping[key] ||
+    mapping[key] === '__pending__' ||
+    openSuggestions.some((item) => item.column.key === key) ||
+    (dateColumn(key) &&
+      !rules[key]?.dateOrder &&
+      columnDateOrders(columnValues.get(key), referenceYear).needsChoice) ||
+    translations(key).unmatched.length > 0
+  const undecidedKeys = () =>
+    new Set(sourceColumns.filter((column) => undecided(column.key)).map((column) => column.key))
+  // The columns undecided when the filter was switched on, so deciding one keeps it in view.
+  const [undecidedShown, setUndecidedShown] = useState<ReadonlySet<string> | null>(undecidedKeys)
+  const shownColumns = undecidedShown
+    ? sourceColumns.filter((column) => undecidedShown.has(column.key) || undecided(column.key))
+    : sourceColumns
+  // The server's validation refusal: a required field needs a column, a default or a calculation.
+  const unsupplied = unsuppliedRequired(
+    deferredRequired(batch.formType, selectedForm?.fields ?? []),
+    new Set(Object.values(mapping)),
+  )
   return (
     <Card>
       <CardHeader>
@@ -97,16 +156,36 @@ export function ImportMappingCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {needsFormUpdate ? (
+          <CoverageNotice
+            receipt={coverage}
+            canPrepare={canManageForms}
+            pending={pending}
+            onPrepare={() => void intake.prepareForm()}
+          />
+        ) : null}
         <output aria-live="polite" className="block text-sm text-muted-foreground">
           {mappingNotice}
         </output>
-        {sourceColumns.map((column) => {
+        {translatedColumns.length ? (
+          <p className="text-sm text-muted-foreground">
+            Translated automatically: {translatedColumns.join('; ')}. Add a translation on the
+            column to change one.
+          </p>
+        ) : null}
+        <ToggleRow
+          checked={undecidedShown !== null}
+          label={`Show only columns that need a decision (${undecidedKeys().size} of ${sourceColumns.length})`}
+          onChange={(on) => setUndecidedShown(on ? undecidedKeys() : null)}
+        />
+        {shownColumns.map((column) => {
           const stored = storedMappingByKey.get(column.key)
           const automatic = automaticMatchReason(stored)
           const targetField = selectedForm?.fields.find(
             (field) => field.code === mapping[column.key],
           )
           const suggestion = openSuggestions.find((item) => item.column.key === column.key)
+          const { automatic: readOnItsOwn, unmatched } = translations(column.key)
           return (
             <div
               key={column.key}
@@ -141,35 +220,56 @@ export function ImportMappingCard({
                   </div>
                 ) : null}
               </div>
-              <Select
-                disabled={!mappingEditable}
+              <ImportTargetSelect
+                id={`import-mapping-target-${column.key}`}
+                label={`Target for column ${column.columnIndex}: ${column.header}`}
+                fields={selectedForm?.fields ?? []}
                 value={mapping[column.key] ?? '__pending__'}
-                onValueChange={(value) =>
+                disabled={!mappingEditable}
+                onChange={(value) =>
                   !mutation.current &&
                   scope.isCurrent() &&
                   setMapping((current) => ({ ...current, [column.key]: value }))
                 }
-              >
-                <SelectTrigger
-                  aria-label={`Target for column ${column.columnIndex}: ${column.header}`}
-                  id={`import-mapping-target-${column.key}`}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__pending__">
-                    Pending: select a target or explicit ignore
-                  </SelectItem>
-                  <SelectItem value="__ignore__">Ignore this source column</SelectItem>
-                  {selectedForm?.fields.map((field) => (
-                    <SelectItem key={field.code} value={field.code}>
-                      {field.label} ({field.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
+              {targetField && dateColumn(column.key) ? (
+                <ImportDateOrder
+                  columnLabel={`column ${column.columnIndex}`}
+                  disabled={!mappingEditable}
+                  idPrefix={`import-rule-${column.key}`}
+                  referenceYear={referenceYear}
+                  value={rules[column.key]?.dateOrder ?? ''}
+                  values={columnValues.get(column.key)}
+                  onChange={(dateOrder) =>
+                    !mutation.current &&
+                    scope.isCurrent() &&
+                    setRules((current) => ({
+                      ...current,
+                      [column.key]: { ...(current[column.key] ?? emptyColumnRule), dateOrder },
+                    }))
+                  }
+                />
+              ) : null}
+              {readOnItsOwn.length ? (
+                <p className="text-sm text-muted-foreground sm:col-span-2">
+                  Translated automatically:{' '}
+                  {listed(readOnItsOwn.map(({ from, to }) => `${from} → ${to}`))}. Add a translation
+                  to change one.
+                </p>
+              ) : null}
+              {unmatched.length ? (
+                <p className="text-sm text-warning sm:col-span-2">
+                  {unmatched.length === 1 ? '1 value matches' : `${unmatched.length} values match`}{' '}
+                  no answer: {listed(unmatched)}. Add a translation for each, or rows with these
+                  values will be invalid.
+                </p>
+              ) : null}
               {targetField ? (
-                <div className="sm:col-span-2">
+                <details className="sm:col-span-2">
+                  <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
+                    Data type and value translations
+                    {rules[column.key]?.pairs.length ? ` (${rules[column.key]?.pairs.length})` : ''}
+                  </summary>
                   <ImportValueMapEditor
                     allowedValues={targetField.allowedValues}
                     sourceValues={columnValues.get(column.key)}
@@ -184,26 +284,30 @@ export function ImportMappingCard({
                       setRules((current) => ({ ...current, [column.key]: next }))
                     }
                   />
-                </div>
+                </details>
               ) : null}
             </div>
           )
         })}
+        {unsupplied.length ? (
+          <p className="rounded-md border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
+            Validation will be refused: these required fields have no source column, default or
+            calculation: {unsupplied.map((field) => `${field.label} (${field.code})`).join(', ')}.
+            Map a column to each, or set a default or calculation in a new form version.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
-          <Button disabled={!mappingEditable} onClick={() => void saveMapping()}>
-            Save new mapping revision
-          </Button>
+          {/* No role holds imports.review without imports.validate; a reviewer's save makes the first revision. */}
           <Button
             disabled={
               !canValidate ||
               pending ||
-              batch.mappingRevision < 1 ||
+              (batch.mappingRevision < 1 && !canReview) ||
               mappingLockedStatuses.has(batch.status)
             }
-            variant="outline"
             onClick={() => void validate()}
           >
-            Validate all rows
+            Validate rows
           </Button>
           <Button
             disabled={

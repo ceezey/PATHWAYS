@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createPrivateInspectionReader,
   createPrivateObjectStreamer,
+  createPrivateRangeReader,
   createPrivateUploadVerifier,
 } from './private-inspection-reader'
 import { PRIVATE_STORAGE_FACTORIES } from './private-storage-factories'
@@ -18,6 +19,7 @@ describe('StorageModule', () => {
         createPrivateInspectionReader,
         createPrivateUploadVerifier,
         createPrivateObjectStreamer,
+        createPrivateRangeReader,
       },
     })
     expect(Reflect.getMetadata('exports', StorageModule)).toContain(PRIVATE_STORAGE_FACTORIES)

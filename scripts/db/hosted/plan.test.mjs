@@ -9,8 +9,10 @@ import {
   MIGRATIONS_IN_ORDER,
   assertResumablePrefix,
   buildPlan,
+  migrationsThrough,
   planIndexForAppliedCount,
   planMigrationOrder,
+  planThrough,
 } from './plan.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -24,8 +26,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 50 rows (baseline plus 0027-0057 and 0058-0075) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 50)
+  // ledger has 62 rows (baseline plus 0027-0057 and 0058-0087) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 62)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -108,6 +110,20 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'preprovision:indicator-summary',
     'deploy:0075_indicator_summary_measurement_lookup',
     'cleanup:indicator-summary',
+    'preprovision:saddd-exact',
+    'deploy:0076_saddd_exact_counts',
+    'cleanup:saddd-exact',
+    'deploy:0077_saddd_by_place',
+    'deploy:0078_form_field_intake_metadata',
+    'deploy:0079_import_date_order_and_sheet',
+    'deploy:0080_participant_file_import',
+    'deploy:0081_submission_check_once',
+    'deploy:0082_permission_check_plpgsql',
+    'deploy:0083_stage_import',
+    'deploy:0084_smart_mapping_v4',
+    'deploy:0085_public_tracker_live_revision',
+    'deploy:0086_public_tracker_media',
+    'deploy:0087_public_tracker_analytics',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -123,6 +139,41 @@ test('the rules cleanup step is flagged as needing the captured original_prisma_
   assert.ok(rulesCleanup.needsOriginalPrismaDatabaseCreate)
   const coreCleanup = plan.find((step) => step.type === 'cleanup' && step.name === 'core')
   assert.ok(!coreCleanup.needsOriginalPrismaDatabaseCreate)
+})
+
+test('planThrough without a migration keeps the whole plan', () => {
+  const plan = buildPlan()
+  assert.equal(planThrough(null, plan), plan)
+  assert.equal(migrationsThrough(null), MIGRATIONS_IN_ORDER)
+})
+
+test('planThrough 0075 stops after its cleanup, then sets the runtime role and checks', () => {
+  const through = '0075_indicator_summary_measurement_lookup'
+  const steps = planThrough(through)
+  const tail = steps.slice(-4).map((step) => `${step.type}:${step.name ?? step.migrations ?? ''}`)
+  assert.deepEqual(tail, [
+    `deploy:${through}`,
+    'cleanup:indicator-summary',
+    'alter-runtime-role:',
+    'postconditions:',
+  ])
+  const deployed = steps.filter((step) => step.type === 'deploy').flatMap((step) => step.migrations)
+  assert.deepEqual([BASELINE, ...deployed], migrationsThrough(through))
+  assert.equal(migrationsThrough(through).at(-1), through)
+})
+
+test('planThrough keeps the same step objects so resume indexes still apply', () => {
+  const plan = buildPlan()
+  const kept = planThrough('0041_activity_media_evidence', plan)
+  assert.ok(kept.every((step) => plan.includes(step)))
+})
+
+test('planThrough refuses an unknown migration or one inside a grouped deploy', () => {
+  assert.throws(() => planThrough('0999_missing'), /not a known migration/)
+  assert.throws(
+    () => planThrough('0028_revised_aggregate_permission_guards'),
+    /does not end a deploy step/,
+  )
 })
 
 test('assertResumablePrefix accepts an empty ledger', () => {
@@ -270,7 +321,7 @@ test('planIndexForAppliedCount on a 0000-0048 ledger resumes at the 0049 deploy'
   assert.deepEqual(plan[index].migrations, ['0049_journey_event_note'])
 })
 
-test('planIndexForAppliedCount on a complete 0000-0075 ledger resumes at alter-runtime-role', () => {
+test('planIndexForAppliedCount on a complete 0000-0087 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
   assert.equal(plan[index].type, 'alter-runtime-role')
@@ -497,11 +548,98 @@ test('planIndexForAppliedCount on a 0000-0074 ledger resumes at the indicator-su
   assert.deepEqual(plan[granted].migrations, ['0075_indicator_summary_measurement_lookup'])
 })
 
-test('planIndexForAppliedCount on a 0000-0075 ledger resumes at alter-runtime-role, or at the indicator-summary cleanup with residual owner memberships', () => {
+test('planIndexForAppliedCount on a 0000-0075 ledger resumes at the saddd-exact preprovision, or at the indicator-summary cleanup with residual owner memberships', () => {
   const plan = buildPlan()
   const applied = MIGRATIONS_IN_ORDER.indexOf('0075_indicator_summary_measurement_lookup') + 1
-  assert.equal(plan[planIndexForAppliedCount(applied)].type, 'alter-runtime-role')
+  const fresh = planIndexForAppliedCount(applied)
+  assert.equal(plan[fresh].type, 'preprovision')
+  assert.equal(plan[fresh].name, 'saddd-exact')
   const index = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
   assert.equal(plan[index].type, 'cleanup')
   assert.equal(plan[index].name, 'indicator-summary')
+})
+
+test('planIndexForAppliedCount on a 0000-0076 ledger resumes at the 0077 deploy, or at the saddd-exact cleanup with residual owner memberships', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0076_saddd_exact_counts') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0077_saddd_by_place'])
+  const index = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'saddd-exact')
+})
+
+test('planIndexForAppliedCount on a 0000-0077 ledger resumes at the 0078 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0077_saddd_by_place') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0078_form_field_intake_metadata',
+  ])
+})
+
+test('planIndexForAppliedCount on a 0000-0078 ledger resumes at the 0079 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0078_form_field_intake_metadata') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0079_import_date_order_and_sheet',
+  ])
+})
+
+test('planIndexForAppliedCount on a 0000-0079 ledger resumes at the 0080 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0079_import_date_order_and_sheet') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0080_participant_file_import',
+  ])
+})
+
+test('planIndexForAppliedCount on a 0000-0080 ledger resumes at the 0081 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0080_participant_file_import') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0081_submission_check_once',
+  ])
+})
+
+test('planIndexForAppliedCount on a 0000-0081 ledger resumes at the 0082 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0081_submission_check_once') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0082_permission_check_plpgsql',
+  ])
+})
+
+test('planIndexForAppliedCount on a 0000-0082 ledger resumes at the 0083 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0082_permission_check_plpgsql') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0083_stage_import'])
+})
+
+test('planIndexForAppliedCount on a 0000-0083 ledger resumes at the 0084 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0083_stage_import') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0084_smart_mapping_v4'])
+})
+
+test('planIndexForAppliedCount on a 0000-0084 ledger resumes at the 0085 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0084_smart_mapping_v4') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0085_public_tracker_live_revision',
+  ])
+})
+
+test('planIndexForAppliedCount on a 0000-0085 ledger resumes at the 0086 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0085_public_tracker_live_revision') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0086_public_tracker_media',
+  ])
+})
+
+test('planIndexForAppliedCount on a 0000-0086 ledger resumes at the 0087 deploy', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0086_public_tracker_media') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
+    '0087_public_tracker_analytics',
+  ])
 })

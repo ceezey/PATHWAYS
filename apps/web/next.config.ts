@@ -3,6 +3,8 @@ import path from 'node:path'
 import type { NextConfig } from 'next'
 import { PHASE_DEVELOPMENT_SERVER } from 'next/constants'
 
+import { splitSites } from './src/lib/site-split'
+
 export const getWebBuildDirectory = (phase: string) =>
   phase === PHASE_DEVELOPMENT_SERVER ? '.next-dev' : '.next'
 
@@ -27,7 +29,18 @@ export const privateAuthSurfacePaths = [
   '/auth/recovery/:path*',
 ]
 
+// The public hostname when the address split is on, else ''.
+export const publicSiteHostname = (env: Record<string, string | undefined>) =>
+  splitSites(env.NEXT_PUBLIC_PUBLIC_SITE_BASE_URL, env.NEXT_PUBLIC_STAFF_PORTAL_BASE_URL)?.public
+    .hostname ?? ''
+
 export default function createNextConfig(phase: string): NextConfig {
+  const publicHost = publicSiteHostname(process.env)
+  // Staff redirects and headers run before middleware, so they must skip the public address.
+  // Next drops the port and case of the Host but not a trailing dot, so the pattern allows one.
+  const missing = [{ type: 'host' as const, value: `${publicHost.replaceAll('.', '\\.')}\\.?` }]
+  const staffOnly = <T extends object>(rules: T[]) =>
+    publicHost ? rules.map((rule) => ({ ...rule, missing })) : rules
   return {
     // Next 15 does not yet provide isolatedDevBuild. Keep development output
     // separate so a validation build cannot invalidate the running UI assets.
@@ -62,13 +75,15 @@ export default function createNextConfig(phase: string): NextConfig {
     },
     transpilePackages: ['@pathways/config', '@pathways/imports', '@pathways/shared'],
     async headers() {
-      return privateAuthSurfacePaths.map((source) => ({
-        source,
-        headers: passwordRecoveryResponseHeaders,
-      }))
+      return staffOnly(
+        privateAuthSurfacePaths.map((source) => ({
+          source,
+          headers: passwordRecoveryResponseHeaders,
+        })),
+      )
     },
     async redirects() {
-      return [
+      return staffOnly([
         {
           source: '/login',
           destination: '/staff/login',
@@ -90,7 +105,7 @@ export default function createNextConfig(phase: string): NextConfig {
           destination: '/collection',
           permanent: true,
         },
-      ]
+      ])
     },
   }
 }

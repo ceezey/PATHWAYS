@@ -1,6 +1,12 @@
-import type { CreateFormRequest, FormFieldValidationContract, FormResponse } from '@pathways/shared'
+import {
+  type CreateFormRequest,
+  type FieldIntakeRule,
+  type FormResponse,
+  draftSummaryResponse,
+} from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { jsonStringArray } from '../../common/forms/form-field-contract'
 
 export const fieldSelection = {
   id: true,
@@ -17,6 +23,10 @@ export const fieldSelection = {
   maximumDate: true,
   minimumLength: true,
   maximumLength: true,
+  sourceNames: true,
+  valueAliases: true,
+  importDefault: true,
+  rule: true,
   sequenceNo: true,
 } satisfies Prisma.FormFieldSelect
 
@@ -32,6 +42,8 @@ export const formSelection = {
   activityId: true,
   journeyStageId: true,
   createdById: true,
+  lastEditedById: true,
+  importDraftSummary: true,
   publishedAt: true,
   archivedAt: true,
   updatedAt: true,
@@ -40,25 +52,14 @@ export const formSelection = {
 
 export type FormRow = Prisma.DigitalFormGetPayload<{ select: typeof formSelection }>
 
-export function jsonStringArray(value: Prisma.JsonValue | null) {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
-    ? (value as string[])
-    : null
-}
-
-export function formFieldContract(field: FormFieldContractRow): FormFieldValidationContract {
+// The stored intake columns in request shape; the database checks guarantee their structure.
+function intakeProperties(field: FormRow['formField_form'][number]) {
   return {
-    code: field.code,
-    label: field.label,
-    dataType: field.dataType,
-    required: field.isRequired,
-    allowedValues: jsonStringArray(field.allowedValues),
-    minimumValue: field.minimumValue?.toString(),
-    maximumValue: field.maximumValue?.toString(),
-    minimumDate: field.minimumDate?.toISOString().slice(0, 10),
-    maximumDate: field.maximumDate?.toISOString().slice(0, 10),
-    minimumLength: field.minimumLength,
-    maximumLength: field.maximumLength,
+    sourceNames: field.sourceNames,
+    valueAliases: (field.valueAliases ??
+      undefined) as CreateFormRequest['fields'][number]['valueAliases'],
+    importDefault: field.importDefault ?? undefined,
+    rule: (field.rule ?? undefined) as FieldIntakeRule | undefined,
   }
 }
 
@@ -77,7 +78,11 @@ export function mapForm(form: FormRow, actor: ApplicationIdentity): FormResponse
     publishedAt: form.publishedAt?.toISOString(),
     archivedAt: form.archivedAt?.toISOString(),
     updatedAt: form.updatedAt.toISOString(),
-    createdByCurrentUser: form.createdById === actor.userId,
+    createdByCurrentUser: form.createdById === actor.userId || form.lastEditedById === actor.userId,
+    draftSummary:
+      form.status === 'DRAFT'
+        ? (draftSummaryResponse.safeParse(form.importDraftSummary).data ?? null)
+        : null,
     fields: form.formField_form.map((field) => ({
       id: field.id,
       code: field.code,
@@ -93,6 +98,7 @@ export function mapForm(form: FormRow, actor: ApplicationIdentity): FormResponse
       maximumDate: field.maximumDate?.toISOString().slice(0, 10),
       minimumLength: field.minimumLength,
       maximumLength: field.maximumLength,
+      ...intakeProperties(field),
       sequence: field.sequenceNo,
     })),
   }
@@ -115,24 +121,9 @@ export function fieldInput(
     maximumDate: field.maximumDate?.toISOString().slice(0, 10),
     minimumLength: field.minimumLength ?? undefined,
     maximumLength: field.maximumLength ?? undefined,
+    ...intakeProperties(field),
   }
 }
-
-// The form field columns a validation contract reads.
-export type FormFieldContractRow = Pick<
-  FormRow['formField_form'][number],
-  | 'code'
-  | 'label'
-  | 'dataType'
-  | 'isRequired'
-  | 'allowedValues'
-  | 'minimumValue'
-  | 'maximumValue'
-  | 'minimumDate'
-  | 'maximumDate'
-  | 'minimumLength'
-  | 'maximumLength'
->
 
 // A published form payload cached under the fingerprint of its source rows.
 export type CachedFormDefinition = { fingerprint: string; value: ReturnType<typeof mapForm> }

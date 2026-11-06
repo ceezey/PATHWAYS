@@ -1,5 +1,7 @@
 import type { FormFieldValidationContract } from '@pathways/shared'
 
+import type { ImportDateRule } from './date-order'
+
 export type ImportDataType = FormFieldValidationContract['dataType']
 
 export const IMPORT_VALUE_MAP_LIMITS = Object.freeze({ maxEntries: 50, maxTextLength: 100 })
@@ -28,6 +30,7 @@ export interface ImportValueMapEntry {
 export interface ImportColumnRule {
   dataType?: ImportDataType
   valueMap?: ReadonlyMap<string, string>
+  date?: ImportDateRule
 }
 
 export const mapKey = (value: string) => value.normalize('NFKC').trim().toLowerCase()

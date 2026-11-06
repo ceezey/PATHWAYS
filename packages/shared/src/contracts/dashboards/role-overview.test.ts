@@ -7,6 +7,11 @@ const base = {
   projects: [],
   myActivities: null,
   flaggedProof: null,
+  guardianApprovals: null,
+  formDrafts: null,
+  publicationQueue: null,
+  importAttention: null,
+  ruleDrafts: null,
   recentSubmissions: null,
   submittedThisMonth: null,
   proofQueue: null,
@@ -17,6 +22,85 @@ const base = {
   datasetsImportedThisMonth: null,
   alerts: null,
 }
+
+describe('guardian approvals section', () => {
+  it('reads as null from an API that does not send it yet', () => {
+    const { guardianApprovals: _absent, ...older } = base
+    expect(roleOverviewSchema.parse(older).guardianApprovals).toBeNull()
+  })
+})
+
+describe('admin work queues', () => {
+  const id = '10000000-0000-4000-8000-000000000001'
+  const at = '2026-11-01T00:00:00.000Z'
+
+  it('read as null from an API that does not send them yet', () => {
+    const { formDrafts, publicationQueue, importAttention, ruleDrafts, ...older } = base
+    const parsed = roleOverviewSchema.parse(older)
+    expect([
+      parsed.formDrafts,
+      parsed.publicationQueue,
+      parsed.importAttention,
+      parsed.ruleDrafts,
+    ]).toEqual([formDrafts, publicationQueue, importAttention, ruleDrafts])
+  })
+
+  it('round-trips populated rows and rejects an unknown import status', () => {
+    const queues = {
+      ...base,
+      formDrafts: {
+        count: 1,
+        rows: [
+          {
+            formId: id,
+            projectId: id,
+            projectTitle: 'P',
+            code: 'intake',
+            name: 'Intake',
+            version: 1,
+            updatedAt: at,
+            ownEdit: false,
+          },
+        ],
+      },
+      publicationQueue: {
+        count: 1,
+        rows: [
+          {
+            projectId: id,
+            projectTitle: 'P',
+            state: 'FOR_REVIEW',
+            submittedByName: 'Pat',
+            submittedAt: at,
+            ownSubmission: true,
+          },
+        ],
+      },
+      importAttention: {
+        count: 1,
+        rows: [
+          {
+            batchId: id,
+            projectId: id,
+            projectTitle: 'P',
+            fileName: 'a.csv',
+            partCode: 'S1',
+            status: 'VALIDATED',
+            uploadedAt: at,
+          },
+        ],
+      },
+      ruleDrafts: {
+        count: 1,
+        rows: [{ ruleId: id, code: 'R_1', name: 'Rule', version: 1, updatedAt: at }],
+      },
+    }
+    expect(roleOverviewSchema.parse(queues)).toEqual(queues)
+    const bad = structuredClone(queues)
+    bad.importAttention.rows[0].status = 'PROCESSED'
+    expect(() => roleOverviewSchema.parse(bad)).toThrow()
+  })
+})
 
 describe('roleOverviewSchema', () => {
   it('accepts an all-null payload for a viewer without section permissions', () => {

@@ -1,19 +1,35 @@
 import { BadRequestException, ConflictException } from '@nestjs/common'
 import {
   IMPORT_ENGINEERING_LIMITS,
-  type ImportColumnRule,
-  buildImportValueMap,
-  normalizeImportedRow,
+  type IntakeField,
+  deferredRequired,
+  isSupplied,
+  unsuppliedRequired,
+  validateRows,
 } from '@pathways/imports/server'
-import type { ValidateImportRequest } from '@pathways/shared'
+import type { FieldIntakeRule, ValidateImportRequest } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { formFieldContract } from '../../common/forms/form-field-contract'
 import type { Tx } from '../../common/prisma/transaction'
-import { formFieldContract } from '../metadata/metadata.mapper'
+import { currentBusinessDate } from '../../common/time/business-date'
 import { lockBatch, mapStoredBatch, requireBatchWithHeaders } from './import-batches.service'
-import { safeRawData, safeSourceColumns, stableJson, storedValueMap } from './imports.helpers'
-import { fieldSelection } from './imports.mapper'
+import { safeRawData, safeSourceColumns } from './imports.helpers'
+import { type FieldRow, fieldSelection } from './imports.mapper'
+
+export { columnRules, valuesByFieldCode } from '@pathways/imports/server'
+
+export function intakeField(row: FieldRow): IntakeField {
+  return {
+    ...formFieldContract(row),
+    sadddField: row.isSadddField,
+    sourceNames: row.sourceNames,
+    valueAliases: row.valueAliases as IntakeField['valueAliases'],
+    importDefault: row.importDefault,
+    rule: row.rule as FieldIntakeRule | null,
+  }
+}
 
 export async function validateBatchRows(
   tx: Tx,
@@ -37,6 +53,7 @@ export async function validateBatchRows(
       status: true,
       dataType: true,
       valueMap: true,
+      dateOrder: true,
       targetField: { select: fieldSelection },
     },
     take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
@@ -63,30 +80,31 @@ export async function validateBatchRows(
   const mappedFields = mappings.flatMap((mapping) =>
     mapping.status === 'MAPPED' && mapping.targetField ? [mapping.targetField] : [],
   )
-  const fields = mappedFields.map(formFieldContract)
-  const requiredCodes = await tx.formField.findMany({
+  const formFields = await tx.formField.findMany({
     where: {
       organizationId: actor.organizationId,
       projectId: batch.projectId,
       formId: batch.formId,
-      isRequired: true,
     },
-    select: { code: true },
+    select: fieldSelection,
+    orderBy: { sequenceNo: 'asc' },
+    take: IMPORT_ENGINEERING_LIMITS.maxMappedFields,
   })
-  const mappedCodes = new Set(fields.map((field) => field.code))
-  if (requiredCodes.some((field) => !mappedCodes.has(field.code))) {
-    throw new BadRequestException('Every required form field must have a source mapping.')
+  const mappedCodes = new Set(mappedFields.map((field) => field.code))
+  const formIntake = formFields.map(intakeField)
+  const unsupplied = unsuppliedRequired(
+    deferredRequired(batch.form.formType, formIntake),
+    mappedCodes,
+  )
+  if (unsupplied.length) {
+    throw new BadRequestException(
+      `Every required form field must have a source mapping. No source for: ${unsupplied.map((field) => field.code).join(', ')}.`,
+    )
   }
-  const rules = Object.create(null) as Record<string, ImportColumnRule>
-  for (const mapping of mappings) {
-    if (mapping.status !== 'MAPPED' || !mapping.targetField) continue
-    rules[mapping.targetField.code] = {
-      ...(mapping.dataType ? { dataType: mapping.dataType } : {}),
-      ...(mapping.valueMap
-        ? { valueMap: buildImportValueMap(storedValueMap(mapping.valueMap)) }
-        : {}),
-    }
-  }
+  const fields = [
+    ...mappedFields.map(intakeField),
+    ...formIntake.filter((field) => !mappedCodes.has(field.code) && isSupplied(field, mappedCodes)),
+  ]
   const rows = await tx.dataImportRow.findMany({
     where: { organizationId: actor.organizationId, importBatchId: batch.id },
     select: { id: true, rowNumber: true, rawData: true },
@@ -94,51 +112,33 @@ export async function validateBatchRows(
     take: IMPORT_ENGINEERING_LIMITS.maxRows,
   })
   const validationRevision = batch.validationRevision + 1
-  const results = rows.map((row) => {
-    const raw = safeRawData(row.rawData)
-    const byFieldCode = Object.create(null) as Record<string, unknown>
-    for (const mapping of mappings) {
-      if (mapping.status === 'MAPPED' && mapping.targetField) {
-        byFieldCode[mapping.targetField.code] = raw[mapping.sourceFieldName]
-      }
-    }
-    return { row, result: normalizeImportedRow(fields, byFieldCode, rules) }
+  const uploadDate = currentBusinessDate(batch.createdAt)
+  const raws = rows.map((row) => safeRawData(row.rawData))
+  const results = validateRows({
+    formType: batch.form.formType,
+    fields,
+    mappedFields: mappedFields.map((field) => ({
+      ...intakeField(field),
+      metadataKey: field.isMetadataKey,
+    })),
+    mappings,
+    raws,
+    uploadDate,
   })
-  const metadataKeys = mappedFields
-    .filter((field) => field.isMetadataKey)
-    .map((field) => field.code)
-  if (metadataKeys.length > 0) {
-    const seen = new Map<string, number[]>()
-    results.forEach(({ result }, index) => {
-      if (!result.valid) return
-      const key = stableJson(metadataKeys.map((code) => result.values[code]))
-      const entries = seen.get(key) ?? []
-      entries.push(index)
-      seen.set(key, entries)
-    })
-    for (const duplicates of seen.values()) {
-      if (duplicates.length < 2) continue
-      for (const index of duplicates) {
-        results[index].result.valid = false
-        results[index].result.errors.push({
-          fieldCode: metadataKeys.join(','),
-          code: 'DUPLICATE_BUSINESS_KEY',
-          message: 'The metadata key is duplicated within this import.',
-        })
-      }
-    }
-  }
   let valid = 0
   let invalid = 0
+  let warned = 0
   const validatedAt = new Date()
-  const rowUpdates = results.map(({ row, result }) => {
+  const rowUpdates = results.map((result, index) => {
     if (result.valid) valid += 1
     else invalid += 1
+    if (result.warnings.length > 0) warned += 1
     return {
-      id: row.id,
+      id: rows[index].id,
       status: result.valid ? 'VALID' : 'INVALID',
       normalized_data: result.valid ? result.values : null,
       validation_errors: result.errors,
+      validation_warnings: result.warnings,
     }
   })
   const updatedRows = await tx.$executeRaw(Prisma.sql`
@@ -146,6 +146,7 @@ export async function validateBatchRows(
         SET status=v.status::pathways.import_row_status,
           normalized_data=v.normalized_data,
           validation_errors=v.validation_errors,
+          validation_warnings=v.validation_warnings,
           mapping_revision=${batch.mappingRevision},
           validation_revision=${validationRevision},
           validated_by_id=${actor.userId}::uuid,
@@ -155,7 +156,8 @@ export async function validateBatchRows(
           processing_claimed_at=NULL,
           processing_error_code=NULL
         FROM jsonb_to_recordset(${JSON.stringify(rowUpdates)}::jsonb)
-          AS v(id uuid,status text,normalized_data jsonb,validation_errors jsonb)
+          AS v(id uuid,status text,normalized_data jsonb,validation_errors jsonb,
+            validation_warnings jsonb)
         WHERE r.id=v.id AND r.organization_id=${actor.organizationId}::uuid
           AND r.import_batch_id=${batch.id}::uuid
           AND r.status IN ('PENDING','VALID','INVALID')
@@ -191,6 +193,9 @@ export async function validateBatchRows(
       total: rows.length,
       valid,
       invalid,
+      warnings: warned,
+      formVersionId: batch.formId,
+      formPublishedById: batch.form.publishedById,
     },
   })
   return mapStoredBatch(tx, actor, batch.projectId, batch.id)

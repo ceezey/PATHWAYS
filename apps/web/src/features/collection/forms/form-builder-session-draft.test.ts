@@ -1,7 +1,7 @@
 import { digitalFormTypes } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { BuilderFormField } from './digital-form-contract'
+import { type BuilderFormField, emptyIntake } from './digital-form-contract'
 import {
   type FormBuilderSessionDraft,
   clearFormBuilderSessionDraft,
@@ -24,6 +24,7 @@ const field: BuilderFormField = {
   minimumLength: '',
   maximumLength: '',
   mappingStatus: 'mapped',
+  ...emptyIntake,
 }
 
 const draft: FormBuilderSessionDraft = {
@@ -88,6 +89,31 @@ describe('form builder session draft', () => {
     expect(
       readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId),
     ).toBeNull()
+  })
+
+  it('keeps a half-filled rule and refuses malformed intake metadata', () => {
+    const target = storage()
+    const key = formBuilderSessionDraftKey(scope)
+    const intake = {
+      ...field,
+      sourceNames: ['Enrolled on'],
+      rule: { kind: 'AGE_AT_DATE' as const, birthField: '', atField: '' },
+    }
+    writeFormBuilderSessionDraft(target, key, { ...draft, fields: [intake] })
+    expect(
+      readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId)?.fields[0],
+    ).toEqual(intake)
+    for (const bad of [
+      { sourceNames: 'x' },
+      { valueAliases: [{ from: 'a' }] },
+      { importDefault: 3 },
+      { rule: { kind: 'RUN_CODE' } },
+    ]) {
+      target.setItem(key, JSON.stringify({ ...draft, fields: [{ ...field, ...bad }] }))
+      expect(
+        readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId),
+      ).toBeNull()
+    }
   })
 
   it('does not throw when browser storage is unavailable', () => {

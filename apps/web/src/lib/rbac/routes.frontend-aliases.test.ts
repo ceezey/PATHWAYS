@@ -46,9 +46,8 @@ describe('frontend route aliases', () => {
     expect(matchRoute(authorizationPathForUiPath(`/projects/${projectId}/edit`) ?? '')?.route).toBe(
       'projectEdit',
     )
-    expect(
-      matchRoute(authorizationPathForUiPath(`/transparency/${projectId}/preview`) ?? '')?.route,
-    ).toBe('transparencyPreview')
+    // The frozen staff preview page was removed; its old address authorizes nothing.
+    expect(authorizationPathForUiPath(`/transparency/${projectId}/preview`)).toBeNull()
     expect(matchRoute(authorizationPathForUiPath('/settings/backups') ?? '')?.route).toBe('backups')
     expect(matchRoute(authorizationPathForUiPath('/settings/audit') ?? '')?.route).toBe('audit')
     expect(matchRoute(authorizationPathForUiPath('/settings/profile') ?? '')?.route).toBe('profile')
@@ -84,6 +83,7 @@ describe('frontend route aliases', () => {
       [`${activity}?action=extension`, activity],
       [`${form}?submissionId=${beneficiaryId}`, form],
       [`/indicators/library?project=${projectId}`, '/indicators/library'],
+      [`/collection/import?project=${projectId}&batch=${beneficiaryId}`, '/collection/import'],
     ]) {
       expect(authorizationPathForUiPath(ui)).toBe(checked)
     }

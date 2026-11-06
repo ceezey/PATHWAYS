@@ -101,6 +101,12 @@ describe('formsClient form and direct entry requests', () => {
     expect(request.requestFoundation).toHaveBeenLastCalledWith(`${formPath}/versions`, {
       method: 'POST',
     })
+    const batchId = '80100000-0000-4000-8000-000000000006'
+    await formsClient.draftFromImport(projectId, formId, batchId, 3)
+    expect(request.requestFoundation).toHaveBeenLastCalledWith(`${formPath}/drafts/from-import`, {
+      method: 'POST',
+      body: JSON.stringify({ batchId, expectedMappingRevision: 3 }),
+    })
     const copy = { sourceFormId: formId, code: 'post_test_copy', name: 'Post test (copy)' }
     await formsClient.generateDigitalForm(projectId, copy)
     expect(request.requestFoundation).toHaveBeenLastCalledWith(`${formsPath}/generate`, {
@@ -211,6 +217,12 @@ describe('formsClient form and direct entry requests', () => {
       name: 'createDigitalFormVersion',
       run: () => formsClient.createDigitalFormVersion(odd, odd),
       path: `${formsBase}/a%20b/versions`,
+      init: true,
+    },
+    {
+      name: 'draftFromImport',
+      run: () => formsClient.draftFromImport(odd, odd, odd, 0),
+      path: `${formsBase}/a%20b/drafts/from-import`,
       init: true,
     },
     {

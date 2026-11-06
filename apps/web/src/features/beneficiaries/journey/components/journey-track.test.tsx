@@ -31,6 +31,17 @@ describe('JourneyTrack', () => {
     expect(screen.queryByText('Upcoming')).toBeNull()
   })
 
+  it('cuts a long code to the node width and shows code and name on hover', () => {
+    const long = { ...stage('a', 1), code: 'TECHNICAL_SKILLS_SURVEY' }
+    render(<JourneyTrack stages={[long]} />)
+    const code = screen.getByText('TECHNICAL_SKILLS_SURVEY')
+    expect(code.getAttribute('title')).toBe('TECHNICAL_SKILLS_SURVEY · Stage 1')
+    expect(code.className).toContain('truncate')
+    expect(code.className).toContain('w-full')
+    // The name repeats the code, so it is shown only on hover.
+    expect(screen.queryByText('Stage 1')).toBeNull()
+  })
+
   it('shows done, current and locked states with stageState', () => {
     const order = ['done', 'current', 'upcoming'] as const
     render(

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -99,7 +99,7 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
     expect(screen.queryByText('Verify beneficiary module access')).toBeNull()
   })
 
-  it('does not offer the Reset button while it is hidden', async () => {
+  it('offers no Reset button', async () => {
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
     expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
@@ -191,10 +191,23 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
   })
 })
 
+// The flag stays as a switch to fall back to the authenticator alone.
 describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
+  let DisabledGate: typeof import('./beneficiary-access-gate').BeneficiaryAccessGate
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ STEP_UP_PIN_UI_ENABLED: false }))
+    ;({ BeneficiaryAccessGate: DisabledGate } = await import('./beneficiary-access-gate'))
+  })
+
+  afterEach(() => {
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
   it('never offers "Use PIN" or "Set a PIN", and TOTP still works', async () => {
     mocks.getStatus.mockResolvedValue(stale('SET'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    render(<DisabledGate preflight>{content}</DisabledGate>)
     expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Use PIN' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Use authenticator' })).toBeNull()
@@ -209,7 +222,7 @@ describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
   it('never offers "Set a PIN" after a TOTP step-up even when no PIN exists', async () => {
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    render(<DisabledGate preflight>{content}</DisabledGate>)
     fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
@@ -220,19 +233,27 @@ describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
   })
 })
 
-// The PIN fallback UI is hidden behind STEP_UP_PIN_UI_ENABLED (see
-// apps/web/src/constants/feature-flags.ts and vault note deferred-features). These tests
-// exercise the same gate with the flag forced on, so the underlying PIN behaviour the
-// API still enforces stays covered while the flag is off in the running app.
+// The PIN fallback UI is behind STEP_UP_PIN_UI_ENABLED (see
+// apps/web/src/constants/feature-flags.ts and vault note deferred-features).
 describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pin, flag on)', () => {
+  const pinBox = (group: string) =>
+    within(screen.getByRole('group', { name: group })).getByLabelText(
+      'Digit 1 of 6',
+    ) as HTMLInputElement
+  const findPinBox = async (group: string) => {
+    await screen.findByRole('group', { name: group })
+    return pinBox(group)
+  }
+  const pinValue = (group: string) =>
+    Array.from(screen.getByRole('group', { name: group }).querySelectorAll('input'))
+      .map((box) => box.value)
+      .join('')
+
   let EnabledGate: typeof import('./beneficiary-access-gate').BeneficiaryAccessGate
 
   beforeEach(async () => {
     vi.resetModules()
-    vi.doMock('@/constants/feature-flags', () => ({
-      STEP_UP_PIN_UI_ENABLED: true,
-      STEP_UP_RESET_UI_ENABLED: false,
-    }))
+    vi.doMock('@/constants/feature-flags', () => ({ STEP_UP_PIN_UI_ENABLED: true }))
     ;({ BeneficiaryAccessGate: EnabledGate } = await import('./beneficiary-access-gate'))
   })
 
@@ -240,10 +261,27 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     vi.doUnmock('@/constants/feature-flags')
   })
 
+  it('says the PIN is locked once after the attempt that locks it', async () => {
+    mocks.verifyPin.mockRejectedValue(new BeneficiaryStepUpError('locked', 'locked'))
+    render(<EnabledGate preflight>{content}</EnabledGate>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
+    fireEvent.change(pinBox('Beneficiary access PIN'), { target: { value: '739182' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
+    const shown = await screen.findAllByText('PIN locked. Use your authenticator to unlock it.')
+    expect(shown).toHaveLength(1)
+  })
+
+  it('names the lock beside the prompt when the dialog opens on a locked PIN', async () => {
+    mocks.getStatus.mockResolvedValue(stale('LOCKED'))
+    render(<EnabledGate preflight>{content}</EnabledGate>)
+    expect(await screen.findByText('PIN locked. Use your authenticator to unlock it.')).toBeTruthy()
+    expect(screen.getByText('Enter the six-digit code from your authenticator app.')).toBeTruthy()
+  })
+
   const renderGate = (props: { preflight: boolean }) =>
     render(<EnabledGate preflight={props.preflight}>{content}</EnabledGate>)
 
-  const pinInput = () => screen.getByLabelText('Beneficiary access PIN') as HTMLInputElement
+  const pinInput = () => pinBox('Beneficiary access PIN')
   const usePin = () => screen.queryByRole('button', { name: 'Use PIN' })
 
   it.each([
@@ -273,10 +311,10 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     await waitFor(() => expect(document.activeElement).toBe(input))
 
     fireEvent.change(input, { target: { value: '73a6150' } })
-    expect(pinInput().value).toBe('736150')
+    expect(pinValue('Beneficiary access PIN')).toBe('736150')
     fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
     expect(await screen.findByText('Incorrect PIN. Personal details remain hidden.')).toBeTruthy()
-    expect(pinInput().value).toBe('')
+    expect(pinValue('Beneficiary access PIN')).toBe('')
     await waitFor(() => expect(document.activeElement).toBe(pinInput()))
     expect(screen.queryByText('Scoped beneficiary content')).toBeNull()
 
@@ -339,8 +377,8 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())
-    const newPin = (await screen.findByLabelText('New PIN')) as HTMLInputElement
-    const confirm = screen.getByLabelText('Confirm new PIN') as HTMLInputElement
+    const newPin = await findPinBox('New PIN')
+    const confirm = pinBox('Confirm new PIN')
     expect(newPin.type).toBe('password')
     expect(confirm.getAttribute('autocomplete')).toBe('off')
 
@@ -350,16 +388,16 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toMatch(/simple ascending or descending/),
     )
-    expect((screen.getByLabelText('New PIN') as HTMLInputElement).value).toBe('')
+    expect(pinValue('New PIN')).toBe('')
     expect(mocks.setPin).not.toHaveBeenCalled()
 
-    fireEvent.change(screen.getByLabelText('New PIN'), { target: { value: '482915' } })
-    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '482916' } })
+    fireEvent.change(pinBox('New PIN'), { target: { value: '482915' } })
+    fireEvent.change(pinBox('Confirm new PIN'), { target: { value: '482916' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))
     expect(await screen.findByText('The PINs do not match. Enter them again.')).toBeTruthy()
 
-    fireEvent.change(screen.getByLabelText('New PIN'), { target: { value: '482915' } })
-    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '482915' } })
+    fireEvent.change(pinBox('New PIN'), { target: { value: '482915' } })
+    fireEvent.change(pinBox('Confirm new PIN'), { target: { value: '482915' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))
     expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
     expect(mocks.setPin).toHaveBeenCalledExactlyOnceWith('482915')
@@ -397,16 +435,14 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())
-    const newPin = (await screen.findByLabelText('New PIN')) as HTMLInputElement
+    const newPin = await findPinBox('New PIN')
     fireEvent.change(newPin, { target: { value: '482915' } })
     fireEvent.keyDown(newPin, { key: 'Enter' })
-    await waitFor(() =>
-      expect(document.activeElement).toBe(screen.getByLabelText('Confirm new PIN')),
-    )
-    expect((screen.getByLabelText('New PIN') as HTMLInputElement).value).toBe('482915')
+    await waitFor(() => expect(document.activeElement).toBe(pinBox('Confirm new PIN')))
+    expect(pinValue('New PIN')).toBe('482915')
     expect(screen.queryByText('The PINs do not match. Enter them again.')).toBeNull()
-    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '482915' } })
-    fireEvent.keyDown(screen.getByLabelText('Confirm new PIN'), { key: 'Enter' })
+    fireEvent.change(pinBox('Confirm new PIN'), { target: { value: '482915' } })
+    fireEvent.keyDown(pinBox('Confirm new PIN'), { key: 'Enter' })
     expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
     expect(mocks.setPin).toHaveBeenCalledExactlyOnceWith('482915')
   })
@@ -427,10 +463,10 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
       window.dispatchEvent(new Event(STEP_UP_REQUIRED_EVENT))
     })
     fireEvent.click(screen.getByRole('button', { name: 'Use PIN' }))
-    expect(screen.getByLabelText('Beneficiary access PIN')).toBeTruthy()
+    expect(pinBox('Beneficiary access PIN')).toBeTruthy()
     await act(async () => fail(new Error('outage')))
     expect(screen.queryByRole('button', { name: 'Use PIN' })).toBeNull()
     expect(codeInput()).toBeTruthy()
-    expect(screen.queryByLabelText('Beneficiary access PIN')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Beneficiary access PIN' })).toBeNull()
   })
 })

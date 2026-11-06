@@ -16,11 +16,15 @@ export const importRequestLimits = {
   maxValueMapTextLength: 100,
 } as const
 
+// Where the year, month and day sit in a text date column, chosen when more than one order reads it.
+export const importDateOrders = ['YMD', 'DMY', 'MDY'] as const
+export type ImportDateOrder = (typeof importDateOrders)[number]
+
 // No control characters, and no leading formula trigger (= + @ or a minus that is not a number).
 const safeMapText = /^(?![=+@\t\r]|-(?!\d))\P{Cc}*$/u
 
-// One side of a value map entry, trimmed first.
-const valueMapText = (min: number) =>
+// The target side of a value map entry, trimmed first.
+export const valueMapText = (min: number) =>
   trimmedInput(
     lengthString(min, importRequestLimits.maxValueMapTextLength).refine(
       (value) => safeMapText.test(value),
@@ -28,9 +32,26 @@ const valueMapText = (min: number) =>
     ),
   )
 
+// The source side of a value map entry: formula-like text such as -none- is a real file value, so only control characters are refused.
+export const valueMapSourceText = (min: number) =>
+  trimmedInput(
+    lengthString(min, importRequestLimits.maxValueMapTextLength).refine(
+      (value) => !/\p{Cc}/u.test(value),
+      'Control characters are not allowed.',
+    ),
+  )
+
 // Multipart fields of POST imports/projects/:projectId/batches/upload.
 export const uploadImportRequest = z
-  .object({ formId: uuidString, clientImportId: uuidString })
+  .object({
+    formId: uuidString,
+    clientImportId: uuidString,
+    // The worksheet to read when a workbook has several; without it such a workbook is refused.
+    // Kept exactly as written, since the parser matches the worksheet name character for character.
+    sheetName: lengthString(1, 100)
+      .refine((value) => /\S/.test(value) && !/\p{Cc}/u.test(value), 'must be a visible sheet name')
+      .optional(),
+  })
   .strict()
 export type UploadImportRequest = z.infer<typeof uploadImportRequest>
 
@@ -44,10 +65,11 @@ export const importMappingItemRequest = z
     ignored: z.boolean(),
     dataType: z.enum(supportedFormFieldTypes).nullish(),
     valueMap: z
-      .array(z.object({ from: valueMapText(1), to: valueMapText(0) }).strict())
+      .array(z.object({ from: valueMapSourceText(1), to: valueMapText(0) }).strict())
       .min(1)
       .max(importRequestLimits.maxValueMapEntries)
       .nullish(),
+    dateOrder: z.enum(importDateOrders).nullish(),
   })
   .strict()
 export type ImportMappingItemRequest = z.infer<typeof importMappingItemRequest>
@@ -67,6 +89,14 @@ export const automaticImportMappingRequest = z
   .strict()
 export type AutomaticImportMappingRequest = z.infer<typeof automaticImportMappingRequest>
 
+// Body of POST imports/projects/:projectId/batches/:batchId/rerun.
+export const rerunImportRequest = z.object({ formId: uuidString }).strict()
+export type RerunImportRequest = z.infer<typeof rerunImportRequest>
+
+// Body of POST metadata/projects/:projectId/forms/drafts/from-stage/:batchId/:partCode.
+export const draftStageFormRequest = z.object({ activityId: uuidString.optional() }).strict()
+export type DraftStageFormRequest = z.infer<typeof draftStageFormRequest>
+
 // Body of POST imports/projects/:projectId/batches/:batchId/validate.
 export const validateImportRequest = z
   .object({ expectedMappingRevision: z.number().int().min(1) })
@@ -84,6 +114,11 @@ export const importRowsQuery = z
   .object({
     offset: queryInteger(0, 50_000).default(0),
     take: queryInteger(1, 100).default(50),
+    // Only the rows a person must decide, with the total counting just those.
+    held: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
   })
   .strict()
 export type ImportRowsQuery = z.infer<typeof importRowsQuery>

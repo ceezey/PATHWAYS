@@ -1,6 +1,7 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OwnProfileWorkspace } from './own-profile-workspace'
 
@@ -63,20 +64,21 @@ beforeEach(() => {
 })
 
 describe('own profile editing', () => {
-  it('has no Beneficiary access PIN section while STEP_UP_PIN_UI_ENABLED is false', async () => {
-    state.permissions = ['profile.manage', 'beneficiaries.records.read']
-    render(<OwnProfileWorkspace />)
-    await screen.findByLabelText('Name')
-    expect(screen.queryByText('Beneficiary PIN form')).toBeNull()
-    expect(screen.queryByText('Beneficiary access PIN')).toBeNull()
+  it('loads under Strict Mode when access is already ready at mount, as on client navigation', async () => {
+    render(
+      <StrictMode>
+        <OwnProfileWorkspace />
+      </StrictMode>,
+    )
+    expect(await screen.findByLabelText('Name')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Reload profile' })).toBeNull()
   })
 
-  it('places Save profile and Reload profile on one row', async () => {
+  it('replaces the loading text with the failure when the read fails', async () => {
+    state.read.mockRejectedValue(new Error('offline'))
     render(<OwnProfileWorkspace />)
-    await screen.findByLabelText('Name')
-    const row = screen.getByRole('button', { name: 'Save profile' }).parentElement
-    expect(row?.className).toContain('justify-between')
-    expect(row?.contains(screen.getByRole('button', { name: 'Reload profile' }))).toBe(true)
+    expect(await screen.findByText(/Profile could not be loaded/)).toBeTruthy()
+    expect(screen.queryByText('Loading profile...')).toBeNull()
   })
 
   it('updates only approved editable fields with the loaded revision', async () => {
@@ -169,9 +171,25 @@ describe('own profile editing', () => {
   })
 })
 
-// The PIN section is hidden behind STEP_UP_PIN_UI_ENABLED (see
-// apps/web/src/constants/feature-flags.ts and vault note deferred-features). This covers
-// the underlying role gating with the flag forced on.
+describe('own profile editing (STEP_UP_PIN_UI_ENABLED false)', () => {
+  afterEach(() => {
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
+  it('has no Beneficiary access PIN section', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ STEP_UP_PIN_UI_ENABLED: false }))
+    const { OwnProfileWorkspace: DisabledWorkspace } = await import('./own-profile-workspace')
+    state.permissions = ['profile.manage', 'beneficiaries.records.read']
+    render(<DisabledWorkspace />)
+    await screen.findByLabelText('Name')
+    expect(screen.queryByText('Beneficiary PIN form')).toBeNull()
+    expect(screen.queryByText('Beneficiary access PIN')).toBeNull()
+  })
+})
+
+// The PIN section is behind STEP_UP_PIN_UI_ENABLED (see
+// apps/web/src/constants/feature-flags.ts and vault note deferred-features).
 describe('own profile editing (STEP_UP_PIN_UI_ENABLED true)', () => {
   let EnabledWorkspace: typeof OwnProfileWorkspace
 

@@ -8,6 +8,8 @@ import {
   minimumBeneficiaryAge,
 } from '@pathways/shared'
 
+export { normalizeIdentifier } from '@pathways/imports/server'
+
 const registrationCodePattern = /^[A-Z0-9][A-Z0-9_-]{1,39}$/
 
 const externalIdentifierTypePattern = /^[A-Z][A-Z0-9_]{1,31}$/
@@ -34,7 +36,7 @@ export function canonicalIdentifierValue(value: unknown) {
 
 export type NormalizedValue = string | number | boolean | string[] | null
 
-const writableProfileFields = new Set([
+export const writableProfileFields = new Set([
   'display_name',
   'first_name',
   'middle_name',
@@ -84,6 +86,15 @@ export function businessToday() {
   )
 }
 
+export const guardianConsentRequiredMessage =
+  'Guardian consent is required while the participant is under 18.'
+
+/** Minor means under 18 on the given date by birth date, else by the supplied age; a future birth is no age. */
+export function isMinorOn(birthDate: Date | null, age: number | null, on: Date) {
+  const years = birthDate ? yearsAt(birthDate, on) : age
+  return years !== null && years >= 0 && years < 18
+}
+
 /**
  * Minimum-age and future-birth-date rule shared by registration (direct and imported) and
  * profile edits. Existing under-age records stay valid; the caller decides when it applies.
@@ -101,10 +112,6 @@ export function stableValues(value: Record<string, NormalizedValue>) {
   return JSON.stringify(
     Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))),
   )
-}
-
-export function normalizeIdentifier(value: string) {
-  return value.normalize('NFKC').trim()
 }
 
 export type RegistrationProfile = {
@@ -134,6 +141,7 @@ export type RegistrationProfile = {
 export function parseRegistration(
   values: Record<string, NormalizedValue>,
   today: Date = businessToday(),
+  options: { guardianFromProfile?: boolean } = {},
 ): RegistrationProfile {
   const operation = enumValue(
     values.registration_operation,
@@ -158,7 +166,6 @@ export function parseRegistration(
       'Participation and data-processing consent must be explicitly recorded.',
     )
   }
-  const isMinor = values.is_minor === true
   const guardianConsent = values.guardian_consent_recorded === true
   const birthDate = exactDate(values.birth_date, 'birth_date')
   const age = values.age_at_registration
@@ -171,6 +178,7 @@ export function parseRegistration(
   }
   const ageAtRegistration = typeof age === 'number' ? age : null
 
+  let isMinor = false
   const firstName = text(values.first_name)
   const middleName = text(values.middle_name)
   const lastName = text(values.last_name)
@@ -199,13 +207,12 @@ export function parseRegistration(
     }
     const derivedAge = birthDate ? yearsAt(birthDate, enrollmentDate) : ageAtRegistration
     assertRegistrationAge(birthDate, derivedAge, today)
-    if ((derivedAge !== null && derivedAge < 18) !== isMinor) {
-      throw new BadRequestException('is_minor must agree with the supplied birth date or age.')
-    }
-    if (isMinor !== guardianConsent) {
-      throw new BadRequestException(
-        'Guardian consent is required only for an explicitly identified minor.',
-      )
+    // Minor status is current, so the supplied is_minor is ignored; only a minor needs guardian consent.
+    isMinor = isMinorOn(birthDate, ageAtRegistration, today)
+    // An import that links or updates a profile is judged by the stored guardian flag, not the row's.
+    const profileJudges = options.guardianFromProfile && operation !== 'CREATE'
+    if (isMinor && !guardianConsent && !profileJudges) {
+      throw new BadRequestException(guardianConsentRequiredMessage)
     }
   } else {
     if (!explicitDisplayName)
@@ -216,7 +223,7 @@ export function parseRegistration(
       lastName ||
       birthDate ||
       ageAtRegistration !== null ||
-      isMinor ||
+      values.is_minor === true ||
       guardianConsent ||
       (values.sex != null && values.sex !== 'NOT_SPECIFIED')
     ) {

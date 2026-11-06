@@ -15,6 +15,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { cn } from '@/lib/utils'
 
+import { ImportOpenDraft } from '../../import/components/import-open-draft'
 import { ImportView } from '../../import/components/import-view'
 import { type CollectionWorkspaceProps, modeDetails } from '../forms.utils'
 import { useCollectionEdits } from '../hooks/use-collection-edits'
@@ -78,6 +79,8 @@ const OwnedCollectionWorkspace = (
     activities,
     addField,
     creatingVersion,
+    draftSummary,
+    draftTarget,
     editingFormId,
     fields,
     formTitle,
@@ -102,6 +105,7 @@ const OwnedCollectionWorkspace = (
     projectsLoaded,
     requestDeleteField,
     selectedFieldId,
+    stagedCoverage,
     setFormTitle,
     setFormType,
     setJourneyStage,
@@ -129,17 +133,28 @@ const OwnedCollectionWorkspace = (
     eligible,
   } = guard
   const { changeInput, changeProject, openBuilder, openSavedForm, savedForms, startNewForm } = edits
-  const { createNewVersion, downloadSavedForm, generateCopy, publishFormToApi } = formActions
+  const {
+    confirmCheck,
+    createNewVersion,
+    downloadSavedForm,
+    generateCopy,
+    publishFormToApi,
+    publishForms,
+  } = formActions
   const {
     importCanProceed,
     importSummary,
     mappingReadiness,
     parseSelectedFile,
+    prepareStagedForm,
     retrySelectedFile,
   } = importActions
   const selectedProject = projects.find((project) => project.id === projectId)
+  // The forms list is not a mode, so no tile is selected there.
+  const activeMode = view === 'builder' || view === 'import' ? mode : null
   const projectActivities = activities.filter((activity) => activity.projectId === projectId)
   const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
+  const editingStatus = forms.find((form) => form.id === editingFormId)?.status
 
   const mappedCount = fields.filter((field) => field.mappingStatus === 'mapped').length
   const sadddCount = fields.filter((field) => field.sadddField).length
@@ -178,13 +193,15 @@ const OwnedCollectionWorkspace = (
         }
       />
 
+      {draftTarget ? <ImportOpenDraft target={draftTarget} /> : null}
+
       <div className="grid gap-3 lg:grid-cols-3">
         {visibleModes.map((item) => (
           <Link
             key={item.id}
             className={cn(
               'rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              mode === item.id && 'border-primary bg-primary-subtle',
+              activeMode === item.id && 'border-primary bg-primary-subtle',
             )}
             href={item.href}
             onClick={() => openBuilder(item.id)}
@@ -194,7 +211,7 @@ const OwnedCollectionWorkspace = (
                 <p className="text-sm font-semibold text-foreground">{item.title}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p>
               </div>
-              {mode === item.id ? <StatusBadge tone="info">Selected</StatusBadge> : null}
+              {activeMode === item.id ? <StatusBadge tone="info">Selected</StatusBadge> : null}
             </div>
           </Link>
         ))}
@@ -206,34 +223,43 @@ const OwnedCollectionWorkspace = (
         <FormsGeneratorView
           canCreate={canManageForms}
           canImport={canOpenImport}
+          canPublish={canPublishForms}
+          initialProjectId={projectId}
           onOpen={openSavedForm}
           onCreate={startNewForm}
           onDownload={downloadSavedForm}
+          onPublish={publishForms}
           savedForms={savedForms}
           status={formsLoading ? 'loading' : loadError ? 'error' : 'ready'}
           errorState={loadErrorState}
         />
       ) : null}
 
-      {view === 'builder' &&
-        canManageForms &&
-        forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={creatingVersion}
-            onClick={createNewVersion}
-          >
-            Create new version
-          </Button>
-        )}
-      {view === 'builder' &&
-        canGenerateForms &&
-        forms.some((form) => form.id === editingFormId) && (
-          <Button type="button" variant="outline" disabled={creatingVersion} onClick={generateCopy}>
-            Generate copy
-          </Button>
-        )}
+      {view === 'builder' ? (
+        <div className="flex flex-wrap gap-2 empty:hidden">
+          {canManageForms &&
+            forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creatingVersion}
+                onClick={createNewVersion}
+              >
+                Create new version
+              </Button>
+            )}
+          {canGenerateForms && forms.some((form) => form.id === editingFormId) && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={creatingVersion}
+              onClick={generateCopy}
+            >
+              Generate copy
+            </Button>
+          )}
+        </div>
+      ) : null}
       {view === 'builder' ? (
         <>
           {!editingReady && (
@@ -259,6 +285,7 @@ const OwnedCollectionWorkspace = (
                 !forms.find((form) => form.id === editingFormId)?.createdByCurrentUser
               }
               deleteField={requestDeleteField}
+              draftSummary={draftSummary}
               fields={fields}
               formTitle={formTitle}
               formType={formType}
@@ -269,11 +296,15 @@ const OwnedCollectionWorkspace = (
               mappedCount={mappedCount}
               mode={mode}
               moveField={moveField}
+              onConfirmCheck={(code) => void confirmCheck(code)}
               onPublish={() => void publishFormToApi()}
               projectActivities={projectActivities}
               projects={projects}
               projectsLoaded={projectsLoaded}
               projectId={projectId}
+              readOnly={
+                !canManageForms || (editingStatus !== undefined && editingStatus !== 'DRAFT')
+              }
               sadddCount={sadddCount}
               selectedField={selectedField}
               selectedFieldId={selectedFieldId}
@@ -312,6 +343,8 @@ const OwnedCollectionWorkspace = (
             mappingRows={mappingRows}
             mappingReadiness={mappingReadiness}
             mode={mode}
+            onPrepareForm={canManageForms ? () => void prepareStagedForm() : undefined}
+            operationPending={operationPending}
             parsedImport={parsedImport}
             parseSelectedFile={parseSelectedFile}
             sourceFileEnabled={Boolean(
@@ -339,6 +372,7 @@ const OwnedCollectionWorkspace = (
             setProjectId={changeProject}
             setView={changeInput(setView)}
             retrySelectedFile={retrySelectedFile}
+            stagedReceipt={stagedCoverage?.receipt ?? null}
             uploadProgress={uploadProgress}
           />
         </div>

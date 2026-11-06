@@ -20,6 +20,10 @@ vi.mock('@/constants/feature-flags', () => ({
 }))
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@/lib/dashboard-pins', () => ({ addPin }))
+vi.mock('@/lib/rbac/policy', () => ({
+  principalHasAtomicPermission: (profile: { permissions?: string[] } | null, permission: string) =>
+    Boolean(profile?.permissions?.includes(permission)),
+}))
 // Plain buttons stand in for the Radix menu, matching the other workspace tests.
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -52,6 +56,7 @@ const base = {
   selectedPeriod: period,
   selectedProject: { id: 'project-a' },
   surveyUnavailable: false,
+  visualizationType: 'bar',
 }
 const show = (overrides: Record<string, unknown> = {}) =>
   render(<AnalyticsActionBar {...({ ...base, ...overrides } as unknown as Props)} />)
@@ -78,11 +83,43 @@ describe('AnalyticsActionBar', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps the two actions in one wrapping row', () => {
-    const { container } = show()
+  it('keeps the actions in one wrapping row', () => {
+    const { container } = show({ profile: { userId: 'user-1', permissions: ['public.preview'] } })
 
     expect(container.firstElementChild?.className).toBe('flex flex-wrap items-center gap-2')
-    expect(container.firstElementChild?.children).toHaveLength(2)
+    expect(container.firstElementChild?.children).toHaveLength(3)
+  })
+
+  describe('Add to public page', () => {
+    const previewer = { userId: 'user-1', permissions: ['public.preview'] }
+    const publicLink = () =>
+      screen.queryByRole('link', { name: 'Add to public page' }) as HTMLAnchorElement | null
+
+    it('opens the publication queue with the analysis view pre-added', () => {
+      show({ profile: previewer })
+
+      expect(publicLink()?.getAttribute('href')).toBe(
+        '/transparency?projectId=project-a&addView=kpi',
+      )
+    })
+
+    it('adds the map when the map is selected', () => {
+      show({ profile: previewer, analysisView: 'survey', visualizationType: 'map' })
+
+      expect(publicLink()?.getAttribute('href')).toBe(
+        '/transparency?projectId=project-a&addView=map',
+      )
+    })
+
+    it.each([
+      ['the survey view', { profile: previewer, analysisView: 'survey' }],
+      ['no public.preview', {}],
+      ['no project', { profile: previewer, selectedProject: undefined }],
+    ])('is hidden for %s', (_name, overrides) => {
+      show(overrides)
+
+      expect(publicLink()).toBeNull()
+    })
   })
 
   describe('Add to Dashboard', () => {
@@ -174,6 +211,26 @@ describe('AnalyticsActionBar', () => {
         projectId: 'project-a',
         ...range,
       })
+    })
+
+    it('pins the scope-wide map from any view for a role with projects.read', () => {
+      show({
+        analysisView: 'survey',
+        profile: { userId: 'user-1', permissions: ['projects.read'] },
+        selectedPeriod: undefined,
+        visualizationType: 'map',
+      })
+
+      expect(pin()?.disabled).toBe(false)
+      fireEvent.click(pin() as HTMLButtonElement)
+
+      expect(addPin).toHaveBeenCalledWith('user-1', { view: 'map', projectId: '' })
+    })
+
+    it('hides the map pin for a role without projects.read', () => {
+      show({ visualizationType: 'map' })
+
+      expect(pin()).toBeNull()
     })
 
     it('stores a timeline pin without a period even when none is selected', () => {

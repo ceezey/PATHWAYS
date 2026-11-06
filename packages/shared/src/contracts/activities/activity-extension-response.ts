@@ -10,7 +10,7 @@ export const activityExtensionStatuses = [
 ] as const
 export type ActivityExtensionStatus = (typeof activityExtensionStatuses)[number]
 
-const id = z.string().uuid()
+const id = z.guid()
 const day = z.string().refine(isCalendarDate)
 const instant = z.string().datetime()
 const note = z.string().max(2000)

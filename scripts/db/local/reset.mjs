@@ -12,6 +12,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
 const phase6Dir = path.join(root, 'infra', 'supabase', 'replay')
 const stageDir = path.join(root, '.tmp', 'local-db', 'migrations')
+const seedDir = path.join(root, '.tmp', 'local-seed')
+const isCredentialsFile = (name) => /^credentials-\d+\.json$/.test(name)
+// Auth accounts outlive a reset, as hosted ones do, so the same passwords and authenticators keep working.
+const authTables = ['auth.users', 'auth.identities', 'auth.mfa_factors']
 
 const baseline = '0000_pathways_baseline_through_0026'
 // Migrations that require DBA role preprovisioning before they run, mapped to
@@ -35,6 +39,8 @@ const preprovision = {
   '0073_rules_kpi_assessment_metrics': 'hosted-rules-metrics-preprovision.sql',
   // 0075 replaces a report_projection_owner function through a SET-only membership, like 0053.
   '0075_indicator_summary_measurement_lookup': 'hosted-indicator-summary-preprovision.sql',
+  // 0076 replaces report and rules owner functions through a SET-only chain to three owner roles.
+  '0076_saddd_exact_counts': 'hosted-saddd-exact-preprovision.sql',
 }
 // Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034 (and the later pairs).
 // Local runs the same reviewed cleanups at the same points, so later migrations (0037's
@@ -66,6 +72,8 @@ const cleanup = {
   '0073_rules_kpi_assessment_metrics': ['hosted-rules-metrics-cleanup.sql', []],
   // 0075's temporary SET membership to report_projection_owner is revoked right after it.
   '0075_indicator_summary_measurement_lookup': ['hosted-indicator-summary-cleanup.sql', []],
+  // 0076's temporary SET chain to the report and rules owner roles is revoked right after it.
+  '0076_saddd_exact_counts': ['hosted-saddd-exact-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {
@@ -122,7 +130,7 @@ function assertLocalContainer() {
 // so the body is reused unchanged except for that pin.
 function runPreprovision(file, vars = []) {
   const sql = readFileSync(path.join(phase6Dir, file), 'utf8')
-  const pin = ":'target_project_ref' IN ('pdqwsknbzkdtiwjjibqt','klbtoqdalmcsfjqophty')"
+  const pin = ":'target_project_ref' IN ('mvzxitlbtkkyvubgbcmx','klbtoqdalmcsfjqophty')"
   if (!sql.includes(pin))
     throw new Error(`${file} target pin changed; review before reusing it locally`)
   psql(sql.replace(pin, ":'target_project_ref'='local'"), file, [
@@ -162,8 +170,37 @@ function deployStaged(names) {
   )
 }
 
+// The Auth accounts as SQL data, or null when there are none; held in memory only because it carries password hashes.
+function saveAccounts() {
+  const docker = (args) =>
+    execFileSync('docker', ['exec', localDatabase.container, ...args], {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
+  const count = docker([
+    'psql',
+    '-U',
+    'postgres',
+    '-d',
+    'postgres',
+    '-tAc',
+    'SELECT count(*) FROM auth.users',
+  ])
+  if (Number(count.trim()) === 0) return null
+  return docker([
+    'pg_dump',
+    '-U',
+    'postgres',
+    '-d',
+    'postgres',
+    '--data-only',
+    ...authTables.flatMap((table) => ['--table', table]),
+  ])
+}
+
 function main() {
   assertLocalContainer()
+  const accounts = saveAccounts()
   run('npx', ['supabase', 'db', 'reset', '--local', '--no-seed'], { label: 'supabase db reset' })
 
   // Local stand-ins for the hosted DBA prerequisites the baseline expects.
@@ -238,6 +275,24 @@ REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
     `ALTER ROLE pathways_runtime WITH LOGIN PASSWORD '${localDatabase.runtimePassword}';`,
     'runtime login',
   )
+
+  // Restored in one transaction; if that fails the seed makes new accounts with new passwords instead.
+  let kept = false
+  if (accounts) {
+    try {
+      psql(accounts, 'restore accounts', ['--single-transaction'])
+      kept = true
+    } catch (error) {
+      console.warn(`Accounts were not kept (${error.message}); the seed writes new passwords.`)
+    }
+  }
+  // New accounts make every earlier passwords file stale.
+  if (!kept) {
+    mkdirSync(seedDir, { recursive: true })
+    for (const name of readdirSync(seedDir).filter(isCredentialsFile)) {
+      rmSync(path.join(seedDir, name))
+    }
+  }
 
   run('node', [path.join(root, 'scripts', 'db', 'local/seed.mjs')], {
     label: 'local synthetic seed',

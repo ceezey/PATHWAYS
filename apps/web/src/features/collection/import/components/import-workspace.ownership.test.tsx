@@ -85,6 +85,10 @@ describe('import uploader automation and ownership', () => {
       mapped: 0,
       pending: 1,
       requiredUnmapped: 0,
+      ignored: 0,
+      coverage: 'NOT_COVERED',
+      uncoveredColumns: 0,
+      unresolvedValues: 0,
       complete: false,
     })
   })
@@ -99,7 +103,7 @@ describe('import uploader automation and ownership', () => {
     await screen.findByText('Pending: select a target or explicit ignore')
     expect(api.saveImportMapping).not.toHaveBeenCalled()
   })
-  it('shows the fetched project selection even when the list arrives after the initial render', async () => {
+  it('leaves the choice to the person when several projects arrive after the initial render', async () => {
     let resolveProjects: ((value: Array<{ id: string; title: string }>) => void) | undefined
     api.getProjects.mockReturnValue(
       new Promise((resolve) => {
@@ -119,8 +123,53 @@ describe('import uploader automation and ownership', () => {
         within(
           screen.getByText('Project', { selector: 'label' }).closest('div') as HTMLElement,
         ).getByRole('combobox').textContent,
-      ).toContain('Project'),
+      ).toContain('Select project'),
     )
+    expect(screen.getByText('No project selected')).toBeTruthy()
+    expect(screen.getByText('Select a project to see its imports.')).toBeTruthy()
+    expect(api.getDigitalForms).not.toHaveBeenCalled()
+    expect(api.getImportBatches).not.toHaveBeenCalled()
+  })
+
+  it('leaves the form to the person when the project has several published forms', async () => {
+    api.getDigitalForms.mockResolvedValue([form, { ...form, id: 'form-2', name: 'Second form' }])
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await waitFor(() =>
+      expect(
+        within(
+          screen
+            .getByText('Published form(s)', { selector: 'label' })
+            .closest('div') as HTMLElement,
+        ).getByRole('combobox').textContent,
+      ).toContain('Select form version'),
+    )
+  })
+
+  it('names the next step on both empty cards', async () => {
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('No imports yet')
+    expect(screen.getByText('Upload a source file to start the first import.')).toBeTruthy()
+    expect(screen.getByText('No import selected')).toBeTruthy()
+  })
+
+  it('does not tell someone who cannot upload to upload a file', async () => {
+    state.profile.permissions = ['imports.read', 'forms.read']
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('Imports uploaded to this project will appear here.')
+  })
+
+  it('shows a skeleton while imports load, not an empty state', async () => {
+    api.getImportBatches.mockReturnValue(new Promise(() => {}))
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByLabelText('Loading content')
+    expect(screen.queryByText('No imports yet')).toBeNull()
+  })
+
+  it('says imports could not load rather than that there are none', async () => {
+    api.getImportBatches.mockRejectedValue(new Error('offline'))
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('Imports could not be loaded')
+    expect(screen.queryByText('No imports yet')).toBeNull()
   })
 
   it('shows the fetched projects again on a second mount (a cached list on remount)', async () => {
@@ -142,10 +191,6 @@ describe('import uploader automation and ownership', () => {
   })
 
   it('does not remount (and so does not lose the selection) when a permission grant is rebuilt in a different order', async () => {
-    api.getProjects.mockResolvedValue([
-      { id: 'project-1', title: 'Project' },
-      { id: 'project-2', title: 'Second Project' },
-    ])
     const view = render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
     await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
     expect(api.getProjects).toHaveBeenCalledTimes(1)

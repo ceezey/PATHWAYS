@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { supportedFormFieldTypes } from '../../validation/form-data'
 import { digitalFormTypes } from '../metadata/form-requests'
+import { importDateOrders } from './import-requests'
 
 // Response shapes of the import routes, used as types and never parsed at runtime.
 
@@ -12,11 +13,24 @@ export const importSourceColumnResponse = z.object({
   key: z.string(),
   header: z.string(),
   columnIndex: z.number().int(),
+  // The field code printed in a coded header row, when the file has one.
+  sourceCode: z.string().min(1).max(40).optional(),
 })
 export type ImportSourceColumnResponse = z.infer<typeof importSourceColumnResponse>
 
+// One part of a multi-part client file: a column span that fills one form, with its row count.
+export const filePart = z.object({
+  code: z.string(),
+  name: z.string(),
+  firstColumn: z.number().int(),
+  lastColumn: z.number().int(),
+  rows: z.number().int(),
+  branchOf: z.string().nullable(),
+})
+export type FilePart = z.infer<typeof filePart>
+
 // One import batch as the list, upload, mapping, validate and process routes return it.
-export const importBatchResponse = z.object({
+const importBatchBase = z.object({
   id: z.string(),
   projectId: z.string(),
   formId: z.string(),
@@ -25,6 +39,7 @@ export const importBatchResponse = z.object({
   formName: z.string(),
   formType: z.enum(digitalFormTypes),
   originalFileName: z.string(),
+  sourceSheetName: z.string().nullable(),
   fileType: z.enum(['CSV', 'XLSX', 'XLS', 'JSON', 'OTHER', 'PDF']),
   clientImportId: z.string(),
   storageStatus: z.enum(['RESERVED', 'STORED', 'RECOVERY_REQUIRED', 'FAILED']),
@@ -50,13 +65,46 @@ export const importBatchResponse = z.object({
     processed: z.number().int(),
     unprocessed: z.number().int(),
     failed: z.number().int(),
+    // Rows with at least one validation warning.
+    warnings: z.number().int(),
+    // Rows held back until the row they depend on is processed.
+    waiting: z.number().int(),
   }),
+  // Processed rows by outcome; present only on registration batches and survey parts, counts only.
+  registrationCounts: z
+    .object({
+      created: z.number().int().nonnegative(),
+      updated: z.number().int().nonnegative(),
+      unchanged: z.number().int().nonnegative(),
+    })
+    .optional(),
   failureCode: z.string().nullable(),
+  // Why a FAILED upload was refused, in the parser's fixed words; it never quotes cell values.
+  failureMessage: z.string().nullable(),
+  // True when the caller uploaded the batch, the only person who may re-run it.
+  uploadedByCurrentUser: z.boolean(),
   uploadedAt: z.string(),
   validatedAt: z.string().optional(),
   processedAt: z.string().optional(),
   updatedAt: z.string(),
+  // The file's batch this one is a part of, and the part's code; both null on a whole-file batch.
+  parentBatchId: z.string().nullable(),
+  partCode: z.string().nullable(),
+  fileParts: z.array(filePart).nullable(),
 })
+
+// One part of a multi-part file with its form and the part's own batch, which carries no parts of its own.
+export const importPartSummary = z.object({
+  code: z.string(),
+  name: z.string(),
+  formId: z.string().nullable(),
+  formName: z.string().nullable(),
+  formStatus: z.enum(['NONE', 'DRAFT', 'PUBLISHED']),
+  batch: importBatchBase.nullable(),
+})
+export type ImportPartSummary = z.infer<typeof importPartSummary>
+
+export const importBatchResponse = importBatchBase.extend({ parts: z.array(importPartSummary) })
 export type ImportBatchResponse = z.infer<typeof importBatchResponse>
 
 // One stored mapping decision of the current mapping revision.
@@ -71,22 +119,35 @@ export const importMappingResponse = z.object({
   matchReason: z.string().nullable(),
   dataType: z.enum(supportedFormFieldTypes).nullable(),
   valueMap: z.array(z.object({ from: z.string(), to: z.string() })).nullable(),
+  dateOrder: z.enum(importDateOrders).nullable(),
 })
 export type ImportMappingResponse = z.infer<typeof importMappingResponse>
 
-// GET imports/projects/:projectId/batches/:batchId adds the source columns and the stored mappings.
+// Whether a staged file fits the pinned form after automatic mapping; counts only, never values.
+export const importCoverageResponse = z.object({
+  coverage: z.enum(['COVERED', 'NOT_COVERED']),
+  uncoveredColumns: z.number().int().nonnegative(),
+  unresolvedValues: z.number().int().nonnegative(),
+})
+export type ImportCoverageResponse = z.infer<typeof importCoverageResponse>
+
+// GET imports/projects/:projectId/batches/:batchId adds the source columns, the stored mappings and,
+// for a batch still on its automatic revision, the coverage (null otherwise).
 export const importBatchDetailResponse = importBatchResponse.extend({
   sourceHeaders: z.array(z.string()),
   sourceColumns: z.array(importSourceColumnResponse),
   mappings: z.array(importMappingResponse),
+  coverage: importCoverageResponse.nullable(),
+  // The submission time column's date order the server proposes enrollment dates with; null unless registration rows wait for one.
+  submissionTimeDateOrder: z.enum(importDateOrders).nullable(),
 })
 export type ImportBatchDetailResponse = z.infer<typeof importBatchDetailResponse>
 
-// One staged row; the raw values and the validation errors are stored as JSON.
+// One staged row; the raw values, validation errors and warnings (codes only) are stored as JSON.
 export const importRowResponse = z.object({
   id: z.string(),
   rowNumber: z.number().int(),
-  rawData: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  rawData: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
   status: z.enum([
     'PENDING',
     'VALID',
@@ -99,10 +160,13 @@ export const importRowResponse = z.object({
   validationErrors: z.array(
     z.object({ fieldCode: z.string(), code: z.string(), message: z.string() }),
   ),
+  validationWarnings: z.array(z.object({ fieldCode: z.string(), code: z.string() })),
   mappingRevision: z.number().int(),
   validationRevision: z.number().int(),
   processingAttempts: z.number().int(),
   processingErrorCode: z.string().nullable(),
+  // Set once a reviewer has resolved the row; a resolved row waiting for guardian approval is not reviewed again.
+  resolvedAt: z.string().nullable(),
   updatedAt: z.string(),
 })
 export type ImportRowResponse = z.infer<typeof importRowResponse>
@@ -115,3 +179,11 @@ export const importRowsPageResponse = z.object({
   rows: z.array(importRowResponse),
 })
 export type ImportRowsPageResponse = z.infer<typeof importRowsPageResponse>
+
+// Body of POST metadata/projects/:projectId/forms/drafts/from-stage/:batchId/:partCode.
+export const draftStageFormResponse = z.object({
+  formId: z.string().nullable(),
+  stageId: z.string(),
+  waitingForActivity: z.boolean(),
+})
+export type DraftStageFormResponse = z.infer<typeof draftStageFormResponse>

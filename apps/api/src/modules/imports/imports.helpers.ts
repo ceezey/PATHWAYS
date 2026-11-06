@@ -8,6 +8,8 @@ import {
 } from '@pathways/imports/server'
 import type { Prisma } from '@prisma/client'
 
+export { stableJson } from '@pathways/imports/server'
+
 export interface UploadedImportFile {
   buffer: Buffer
   originalname: string
@@ -28,32 +30,24 @@ const fileTypes: Record<
   '.pdf': { type: 'PDF', contentTypes: ['application/pdf'] },
 }
 
-export function storedValueMap(value: Prisma.JsonValue): { from: string; to: string }[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((entry) =>
-    entry &&
-    typeof entry === 'object' &&
-    !Array.isArray(entry) &&
-    typeof entry.from === 'string' &&
-    typeof entry.to === 'string'
-      ? [{ from: entry.from, to: entry.to }]
-      : [],
-  )
-}
-
 export function checksum(input: Buffer | string) {
   return createHash('sha256').update(input).digest('hex')
 }
 
-export function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
-      .join(',')}}`
-  }
-  return JSON.stringify(value)
+/** A v4-shaped UUID from the first 16 bytes of sha256(text), so a retry of the same input reuses its key. */
+export function uuidFromHash(text: string) {
+  const bytes = createHash('sha256').update(text).digest().subarray(0, 16)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = bytes.toString('hex')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+// The canonical content type for a stored file type, used when a stored source is staged again.
+export function fileContentType(type: SupportedImportFileType) {
+  const definition = Object.values(fileTypes).find((entry) => entry.type === type)
+  if (!definition) throw new ConflictException('The stored source file type is unsupported.')
+  return definition.contentTypes[0]
 }
 
 export function fileMetadata(file?: UploadedImportFile) {
@@ -86,6 +80,9 @@ function sourceColumnKey(columnIndex: number) {
   return `column_${String(columnIndex).padStart(4, '0')}`
 }
 
+// Same pattern as the parser's code row: a letter then letters, digits or underscores, 2 to 40 characters.
+const sourceCodePattern = /^[A-Za-z][A-Za-z0-9_]{1,39}$/
+
 export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[] {
   if (!Array.isArray(value) || value.length > IMPORT_ENGINEERING_LIMITS.maxSourceColumns) {
     throw new ConflictException('Stored import source columns are invalid.')
@@ -104,7 +101,9 @@ export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[]
       typeof record.header !== 'string' ||
       record.header.length < 1 ||
       record.header.length > IMPORT_ENGINEERING_LIMITS.maxHeaderCharacters ||
-      record.columnIndex !== columnIndex
+      record.columnIndex !== columnIndex ||
+      (record.sourceCode !== undefined &&
+        (typeof record.sourceCode !== 'string' || !sourceCodePattern.test(record.sourceCode)))
     ) {
       throw new ConflictException('Stored import source columns are invalid.')
     }
@@ -112,6 +111,7 @@ export function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[]
       key: record.key,
       header: record.header,
       columnIndex: record.columnIndex,
+      ...(typeof record.sourceCode === 'string' ? { sourceCode: record.sourceCode } : {}),
     }
   })
   if (new Set(columns.map((column) => column.key)).size !== columns.length) {

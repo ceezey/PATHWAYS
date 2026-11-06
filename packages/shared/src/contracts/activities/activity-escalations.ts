@@ -25,7 +25,7 @@ export const decideActivityEscalation = z
   .strict()
 export type DecideActivityEscalation = z.infer<typeof decideActivityEscalation>
 
-const id = z.string().uuid()
+const id = z.guid()
 const instant = z.string().datetime()
 const note = z.string().max(2000)
 const person = z.object({ id, name: z.string().max(200) }).strict()

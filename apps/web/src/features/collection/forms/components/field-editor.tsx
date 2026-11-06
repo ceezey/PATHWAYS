@@ -14,13 +14,20 @@ import {
 import { type FieldType, type FormField, dataTypeLabels } from '../../collection.utils'
 import type { MappingStatus } from '../../import/collection-import-state'
 import { fieldCodeFromText, fieldCodeWhileTyping } from '../digital-form-contract'
+import { FieldIntakeEditor } from './field-intake-editor'
 import { ToggleRow } from './toggle-row'
 
 export const FieldEditor = ({
   field,
+  fieldCodes,
+  readOnly,
+  attention,
   updateField,
 }: {
   field: FormField
+  fieldCodes: string[]
+  readOnly: boolean
+  attention?: boolean
   updateField: (fieldId: string, patch: Partial<FormField>) => void
 }) => (
   <div className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-2">
@@ -191,5 +198,12 @@ export const FieldEditor = ({
         onChange={(checked) => updateField(field.id, { sadddField: checked })}
       />
     </div>
+    <FieldIntakeEditor
+      field={field}
+      fieldCodes={fieldCodes}
+      readOnly={readOnly}
+      attention={attention}
+      onChange={(patch) => updateField(field.id, patch)}
+    />
   </div>
 )

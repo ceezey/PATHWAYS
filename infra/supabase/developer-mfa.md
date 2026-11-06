@@ -109,17 +109,16 @@ After that approval:
 1. Close `.env` tabs and stop screen sharing/recording. Use a strong, unique Auth
    account password. Do not paste passwords, JWTs, MFA codes, QR images or recovery
    material into chat, command arguments, Git, screenshots or issue reports.
-2. Confirm the protected runtime credential from Phase 4 is already present.
+2. Confirm the dedicated runtime `DATABASE_URL` is already in your ignored env file.
    Do not rerun credential provisioning or rotate any database password.
-3. Build the app using `pnpm build`. In one PowerShell terminal at the repository
-   root, start the already-built API using the existing protected launcher:
+3. In one terminal at the repository root, start the API:
 
    ```powershell
-   .\infra\supabase\security-adapter\Start-DevRuntime.ps1 -Action Start
+   pnpm dev:api
    ```
 
-   This launcher supplies the dedicated runtime database credential securely.
-   Never start the API with a migration-owner `DATABASE_URL`. The API listener is
+   It runs through `dev-local.mjs`, which blanks the migration credentials for the
+   API process. Never start the API with a migration-owner `DATABASE_URL`. The API listener is
    fixed to `127.0.0.1`; ambient `NODE_ENV`, `HOST`, or `HOSTNAME` values must not
    widen it. If startup fails, stop and share only the sanitized error; do not
    weaken its role checks.
@@ -163,9 +162,6 @@ After that approval:
    the code, session, QR or authenticator secret. Phase 5 still requires its exact
    authorization and all acceptance checks, including database-authoritative
    business permissions, scope rules, seeding and explicit administrator linkage.
-
-If the protected launcher cannot read the current Windows user's DPAPI file,
-stop rather than exporting the credential to plaintext.
 
 ## Security limits and references
 

@@ -1,9 +1,13 @@
+import { headers } from 'next/headers'
 import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { siteOfHost } from '@/lib/site-hosts'
 
-export default function NotFound() {
+export default async function NotFound() {
+  // The public address never links to the staff side.
+  const publicSite = siteOfHost((await headers()).get('host')) === 'public'
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface-subtle p-6">
       <Card className="w-full max-w-lg">
@@ -16,9 +20,11 @@ export default function NotFound() {
             <Button asChild>
               <Link href="/">Go to public dashboard</Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link href="/dashboard">Go to staff workspace</Link>
-            </Button>
+            {publicSite ? null : (
+              <Button asChild variant="outline">
+                <Link href="/dashboard">Go to staff workspace</Link>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

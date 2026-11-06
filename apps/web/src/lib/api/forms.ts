@@ -1,5 +1,8 @@
 import type {
+  ConfirmDraftCheckRequest,
   CreateFormRequest,
+  DraftFromImportRequest,
+  DraftFromImportResponse,
   FormResponse,
   FormSubmissionResponse,
   FormValidationResult,
@@ -57,11 +60,44 @@ export const formsClient = {
     ) as Promise<FormResponse>
   },
 
+  async confirmDraftCheck(
+    projectId: string,
+    formId: string,
+    fieldCode: string,
+    expectedUpdatedAt: string,
+  ) {
+    return requestFoundation(
+      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/confirm-check`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ expectedUpdatedAt, fieldCode } satisfies ConfirmDraftCheckRequest),
+      },
+    ) as Promise<FormResponse>
+  },
+
   async createDigitalFormVersion(projectId: string, formId: string) {
     return requestFoundation(
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/versions`,
       { method: 'POST' },
     ) as Promise<FormResponse>
+  },
+
+  async draftFromImport(
+    projectId: string,
+    formId: string,
+    batchId: string,
+    expectedMappingRevision: number,
+  ) {
+    return requestFoundation(
+      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/drafts/from-import`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          batchId,
+          expectedMappingRevision,
+        } satisfies DraftFromImportRequest),
+      },
+    ) as Promise<DraftFromImportResponse>
   },
 
   async generateDigitalForm(

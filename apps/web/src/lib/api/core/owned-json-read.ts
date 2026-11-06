@@ -46,7 +46,7 @@ export async function ownedJsonRead<S extends z.ZodTypeAny>(
   return parsed.data
 }
 
-const uuid = z.string().uuid()
+const uuid = z.guid()
 // The project path of a request, refusing an id that is not a UUID before any request is made.
 export const projectPath = (id: string) => `/projects/${uuid.parse(id)}`
 // Posts a JSON body through the owned read.

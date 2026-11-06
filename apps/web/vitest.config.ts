@@ -18,6 +18,7 @@ export default defineConfig({
     // Heavy workspace tests take ~0.3-1s in isolation, but a loaded developer machine (dev
     // servers, concurrent workspace suites) can still stretch them past the 5s default. There
     // are no timers or delays to fake; this only bounds genuine hangs, not assertion strictness.
-    testTimeout: 15_000,
+    // A file's first dynamic import of a feature barrel transforms it cold (~17s under vitest 4).
+    testTimeout: 30_000,
   },
 })

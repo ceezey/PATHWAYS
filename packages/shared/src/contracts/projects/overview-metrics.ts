@@ -13,10 +13,7 @@ const moneyString = z.string().regex(/^\d{1,18}\.\d{2}$/)
 export const PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION = 'project.overview-metrics.v1' as const
 
 const date = z.string().refine(isCalendarDate, 'Use a real YYYY-MM-DD date from 1900 through 2100.')
-const uuid = z
-  .string()
-  .uuid()
-  .transform((value) => value.toLowerCase())
+const uuid = z.guid().transform((value) => value.toLowerCase())
 
 /**
  * Project Overview tiles. A `null` section means the viewer lacks the source permission;

@@ -59,9 +59,12 @@ const Node = ({
       >
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <span className="text-sm font-semibold text-foreground">{stage.code}</span>
-      <span className="w-full truncate text-xs text-muted-foreground" title={stage.name}>
-        {stage.name}
+      {/* The name repeats the code, so it shows on hover only. */}
+      <span
+        className="w-full truncate text-sm font-semibold text-foreground"
+        title={`${stage.code} · ${stage.name}`}
+      >
+        {stage.code}
       </span>
       {status ? <span className="text-xs text-muted-foreground">{status.label}</span> : null}
     </button>

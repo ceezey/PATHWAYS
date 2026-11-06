@@ -45,7 +45,7 @@ const dump = [
 
 test('parseWipeTables reads the real wipe list in file order', () => {
   const tables = parseWipeTables(realWipe)
-  assert.equal(tables.length, 78)
+  assert.equal(tables.length, 79)
   assert.equal(tables[0], 'pathways.activity_escalations')
   assert.equal(tables.at(-1), 'pathways_rules_internal.work_items')
   assert.ok(!tables.includes('pathways.system_users'))

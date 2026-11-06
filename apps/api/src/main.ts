@@ -4,11 +4,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import compression from 'compression'
 import cookieParser from 'cookie-parser'
 import helmet from 'helmet'
-import { Logger } from 'nestjs-pino'
 
 import { readApiEnv } from '@pathways/config'
 
-import { AppModule } from './app.module'
+import { AppModule, usePathwaysLogger } from './app.module'
 import { corsOptions } from './common/network/cors-origins'
 import { inspectionBudgetMiddleware } from './common/network/inspection-request-budget'
 import { listenOnIpv4Loopback } from './common/network/local-listener'
@@ -28,7 +27,7 @@ async function bootstrap() {
   app.use(serverTimingMiddleware())
   app.use(machineBudgetMiddleware(env.API_PREFIX))
   app.use(inspectionBudgetMiddleware(env.API_PREFIX))
-  app.useLogger(app.get(Logger))
+  usePathwaysLogger(app)
   app.use(helmet())
   app.use(compression())
   app.use(cookieParser())

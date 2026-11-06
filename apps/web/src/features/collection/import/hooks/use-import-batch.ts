@@ -24,9 +24,14 @@ export function useImportBatch() {
     forgetUpload() {
       upload.current = null
     },
-    // Runs conservative automatic mapping once for a stored batch that has no mapping revision, else returns null.
+    // Runs conservative automatic mapping once for a stored batch with no mapping revision that did not fail, else returns null.
     async mapAutomatically(projectId: string, batch: ImportBatchDefinition) {
-      if (batch.mappingRevision !== 0 || batch.storageStatus !== 'STORED') return null
+      if (
+        batch.status === 'FAILED' ||
+        batch.mappingRevision !== 0 ||
+        batch.storageStatus !== 'STORED'
+      )
+        return null
       return importsClient.automaticImportMapping(projectId, batch.id, 0)
     },
   }

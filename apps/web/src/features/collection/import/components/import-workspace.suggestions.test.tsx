@@ -103,8 +103,12 @@ const automatic = [
 const openBatch = async () => {
   render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
   fireEvent.click(await screen.findByText('people.csv'))
-  await screen.findByText('Column 1: Given name')
+  await screen.findByText('Column 2: The Last Name')
 }
+const filterNamed = (undecided: number) =>
+  screen.getByRole('checkbox', {
+    name: `Show only columns that need a decision (${undecided} of 3)`,
+  })
 
 describe('import workspace AUTO_SMART_V2 suggestions', () => {
   beforeEach(() => {
@@ -126,11 +130,108 @@ describe('import workspace AUTO_SMART_V2 suggestions', () => {
 
   it('shows the auto-matched badge with its reason and each suggestion', async () => {
     await openBatch()
+    fireEvent.click(filterNamed(2))
     expect(screen.getByText('Auto-matched: known synonym')).toBeTruthy()
     expect(screen.getByText('Suggested: Last name')).toBeTruthy()
     expect(screen.getByText('Suggested: Sex')).toBeTruthy()
     expect(screen.getAllByRole('button', { name: /^Confirm suggestion/ })).toHaveLength(2)
     expect(screen.getByRole('status').textContent).toBe('')
+  })
+
+  it('starts narrowed to columns that still need a decision and shows all once unchecked', async () => {
+    await openBatch()
+    expect((filterNamed(2) as HTMLInputElement).checked).toBe(true)
+    expect(screen.queryByText('Column 1: Given name')).toBeNull()
+    expect(screen.getByText('Column 2: The Last Name')).toBeTruthy()
+    expect(screen.getByText('Column 3: Gender')).toBeTruthy()
+    fireEvent.click(filterNamed(2))
+    expect(screen.getByText('Column 1: Given name')).toBeTruthy()
+  })
+
+  it('keeps a decided column and its focus in view while the decision filter is on', async () => {
+    await openBatch()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm suggestion Last name for column 2' }),
+    )
+    await screen.findByText(/1 suggestion confirmed/)
+    expect(screen.getByText('Column 2: The Last Name')).toBeTruthy()
+    expect(filterNamed(1)).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement?.id).toBe('import-mapping-target-column_0002'),
+    )
+  })
+
+  it('starts the decision filter fresh when another batch is opened', async () => {
+    const mapped = (key: string, code: string, label: string) => ({
+      sourceFieldName: key,
+      status: 'MAPPED',
+      revision: 1,
+      targetField: { code, label },
+      validationMessage: null,
+      suggestedField: null,
+      matchScore: null,
+      matchReason: null,
+    })
+    const second = {
+      ...smartBatch([
+        {
+          ...automatic[1],
+          sourceFieldName: 'column_0001',
+          suggestedField: null,
+          matchScore: null,
+          matchReason: null,
+          validationMessage: null,
+        },
+        mapped('column_0002', 'last_name', 'Last name'),
+        mapped('column_0003', 'sex', 'Sex'),
+      ]),
+      id: 'batch-2',
+      originalFileName: 'other.csv',
+    }
+    api.getImportBatches.mockResolvedValue([smartBatch(automatic), second])
+    api.getImportBatch.mockImplementation(async (_project: string, id: string) =>
+      id === 'batch-2' ? second : smartBatch(automatic),
+    )
+    await openBatch()
+    fireEvent.click(filterNamed(2))
+    expect(screen.getByText('Column 1: Given name')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('other.csv'))
+    const filter = await screen.findByRole('checkbox', {
+      name: 'Show only columns that need a decision (1 of 3)',
+    })
+    expect((filter as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByText('Column 1: Given name')).toBeTruthy()
+    expect(screen.queryByText('Column 2: The Last Name')).toBeNull()
+  })
+
+  it('names the required fields validation would refuse, skipping mapped, defaulted and calculated ones', async () => {
+    const required = (code: string, extra = {}) => ({
+      code,
+      label: code,
+      dataType: 'TEXT',
+      required: true,
+      ...extra,
+    })
+    api.getDigitalForms.mockResolvedValue([
+      {
+        ...form,
+        fields: [
+          { ...form.fields[0], required: true },
+          ...form.fields.slice(1),
+          required('consent_recorded'),
+          required('subject_type', { importDefault: 'INDIVIDUAL' }),
+          required('age', { rule: { kind: 'AGE_AT_DATE', birthField: 'b', atField: 'a' } }),
+        ],
+      },
+    ])
+    await openBatch()
+    expect(screen.getByText(/these required fields have no source column/).textContent).toContain(
+      'consent_recorded (consent_recorded). Map a column',
+    )
+    expect(screen.getByText(/these required fields have no source column/).textContent).not.toMatch(
+      /first_name|subject_type|age \(/,
+    )
   })
 
   it('confirms one suggestion into the draft, announces what remains and keeps focus useful', async () => {
@@ -140,7 +241,7 @@ describe('import workspace AUTO_SMART_V2 suggestions', () => {
     )
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toBe(
-        '1 suggestion confirmed. 1 column needs a target or an explicit ignore before the revision can be saved.',
+        '1 suggestion confirmed. 1 column needs a target or an explicit ignore before the rows can be validated.',
       ),
     )
     expect(screen.queryByText('Suggested: Last name')).toBeNull()
@@ -203,9 +304,9 @@ describe('import workspace AUTO_SMART_V2 suggestions', () => {
     expect(screen.queryByRole('button', { name: /^Confirm suggestion/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Confirm all suggestions' })).toBeNull()
     expect(
-      (screen.getByRole('button', { name: 'Save new mapping revision' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('button', { name: 'Validate rows' }) as HTMLButtonElement).disabled,
     ).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Save new mapping revision' })).toBeNull()
     expect(api.saveImportMapping).not.toHaveBeenCalled()
   })
 

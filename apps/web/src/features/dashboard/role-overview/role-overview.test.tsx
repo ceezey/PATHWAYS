@@ -23,6 +23,15 @@ vi.mock('@/lib/api/dashboards', () => ({
   dashboardsClient: { getDashboardActionCounts: reads.counts },
 }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('../components/pinned-charts', () => ({
+  PinnedCharts: () => <div data-testid="pinned-charts" />,
+}))
+vi.mock('./officer-overview', () => ({ OfficerOverview: () => <div data-testid="overview" /> }))
+vi.mock('./me-overview', () => ({ MeOverview: () => <div data-testid="overview" /> }))
+vi.mock('./manager-overview', () => ({ ManagerOverview: () => <div data-testid="overview" /> }))
+vi.mock('./portfolio-overview', () => ({
+  PortfolioOverview: () => <div data-testid="overview" />,
+}))
 
 import { RoleOverviewDashboard } from './role-overview'
 
@@ -68,5 +77,21 @@ describe('RoleOverviewDashboard', () => {
     const call = reads.calls.find((args) => args[0] === 'dashboard-action-counts')
     await expect((call?.[3] as () => Promise<unknown>)()).resolves.toEqual({ forReview: 1 })
     expect(reads.counts).toHaveBeenCalledWith()
+  })
+  it.each([
+    'Project Officer',
+    'Monitoring and Evaluation Officer',
+    'Project Manager',
+    'Program Manager',
+    'Grant Manager',
+  ] as const)('shows the pinned charts below the %s overview', (role) => {
+    read.value = { eligible: true, data: { projects: [] }, isError: false, refetch: vi.fn() }
+    render(<RoleOverviewDashboard fullName="Ron" role={role} />)
+
+    const pinned = screen.getByTestId('pinned-charts')
+    expect(
+      screen.getByTestId('overview').compareDocumentPosition(pinned) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 })

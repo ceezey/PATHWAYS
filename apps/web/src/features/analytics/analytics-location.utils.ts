@@ -8,7 +8,10 @@ export type SafeMapFeature = Readonly<{
   id: string
   properties: Readonly<{
     id: string
+    /** Unique per point, so one place of a project is told apart from its others. */
+    key: string
     label?: string
+    title?: string
   }>
   geometry: Readonly<{
     type: 'Point'

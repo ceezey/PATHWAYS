@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 
-import { toProjectMapFeatures, useProjectMap } from '../hooks/use-project-map'
+import { placeKey, toProjectMapFeatures, useProjectMap } from '../hooks/use-project-map'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
 import { ProjectMapCard } from './project-map-card'
 
@@ -10,7 +10,16 @@ import { ProjectMapCard } from './project-map-card'
 export const ProjectCoverageMapPanel = () => {
   const read = useProjectMap()
   const features = useMemo(() => toProjectMapFeatures(read.data), [read.data])
-  const projects = read.data?.projects
+  // Each point's key names one place of one project, so same-name towns never share a card.
+  const places = useMemo(
+    () =>
+      new Map(
+        (read.data?.projects ?? []).flatMap((project) =>
+          project.places.map((place, index) => [placeKey(project.id, index), { project, place }]),
+        ),
+      ),
+    [read.data],
+  )
 
   return (
     <AnalyticsCoverageMap
@@ -23,9 +32,9 @@ export const ProjectCoverageMapPanel = () => {
       }
       featureCollection={features}
       renderPopup={(point, close) => {
-        const project = projects?.find((row) => row.id === point.id)
-        return project ? (
-          <ProjectMapCard onClose={close} place={point.label} project={project} />
+        const match = places.get(point.key)
+        return match ? (
+          <ProjectMapCard onClose={close} place={match.place} project={match.project} />
         ) : null
       }}
     />

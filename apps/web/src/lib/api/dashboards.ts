@@ -7,7 +7,6 @@ import {
   type SadddQuery,
   dashboardActionCountsSchema,
   dashboardQuerySchema,
-  formatMetricCell,
   monitoringDashboardSchema,
   roleOverviewSchema,
   sadddDashboardSchema,
@@ -15,8 +14,6 @@ import {
 } from '@pathways/shared'
 
 import { requestFoundation } from '@/lib/api/core/request'
-import type { RoleDashboardViewModel } from '@/types/pathways'
-import type { PathwaysRole } from '@/types/pathways-role'
 
 /** Fixed filter allowlist; no role, organization, demographic, formula or field selectors. */
 function monitoringQuery(input: DashboardQuery): string {
@@ -56,64 +53,5 @@ export const dashboardsClient = {
     return sadddDashboardSchema.parse(
       await requestFoundation(`/dashboards/saddd?projectId=${encodeURIComponent(projectId)}`),
     )
-  },
-
-  async getDashboard(role: PathwaysRole): Promise<RoleDashboardViewModel> {
-    // Role changes labels only. Authority and all values come from the current authenticated API request.
-    const result: MonitoringDashboard = monitoringDashboardSchema.parse(
-      await requestFoundation('/dashboards/home'),
-    )
-
-    return {
-      role,
-      greetingName: role,
-      heading: 'Project monitoring overview',
-      summary: `${result.periodStart} to ${result.periodEnd}; ${result.businessTimeZone}. Current operational states; no automated success rating.`,
-      primaryAction: {
-        id: 'monitoring',
-        label: 'Open monitoring',
-        kind: 'navigate',
-        href: '/analytics',
-      },
-      metrics: [
-        {
-          id: 'projects',
-          label: 'Authorized projects',
-          value: String(result.scopeProjectCount),
-          helperText: 'Server-derived current project scope.',
-        },
-        {
-          id: 'participation',
-          label: 'Participation records',
-          value: formatMetricCell(result.participationRecords),
-          helperText: 'Committed records, not a count of people.',
-        },
-        {
-          id: 'attending',
-          label: 'Distinct attending individuals',
-          value: formatMetricCell(result.attendingIndividuals),
-          helperText: 'Present/completed attendance; deduplicated across projects.',
-        },
-        {
-          id: 'enrolled',
-          label: 'Enrolled individuals',
-          value: formatMetricCell(result.enrolledIndividuals),
-          helperText: 'Enrollment overlaps this period; privacy suppression applies.',
-        },
-      ],
-      sections: [
-        {
-          id: 'projects',
-          title: 'Authorized project workspaces',
-          emptyText: 'No projects are currently in your authorized scope.',
-          items: result.projects.map((project) => ({
-            id: project.id,
-            title: project.title,
-            description: project.code,
-            href: `/projects/${project.id}`,
-          })),
-        },
-      ],
-    }
   },
 }

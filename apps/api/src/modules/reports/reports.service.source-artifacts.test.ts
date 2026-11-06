@@ -214,7 +214,7 @@ describe('report source authority, privacy and artifact recovery', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
   it('returns a correctable artifact input problem as 422 before any upload', async () => {
-    const { ReportArtifactInputError } = await import('./report-artifact')
+    const { ReportArtifactInputError } = await import('./report-artifact.js')
     state.artifact.mockRejectedValue(
       new ReportArtifactInputError('PDF contains a character unsupported by the bundled font.'),
     )

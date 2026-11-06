@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
+import { isCodeHeaderRow } from './code-header'
 import { type ImportParseError, parseSecureImport } from './secure'
 
 function workbookBuffer(
@@ -18,11 +19,73 @@ function workbookBuffer(
   return Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType }))
 }
 
+// A one-sheet workbook whose second row is the given raw cell XML, as Excel or another tool may save it.
+function sheetXmlWorkbook(cellXml: string) {
+  const base = workbookBuffer([
+    ['total', 'other'],
+    [0, 2],
+  ])
+  const files = XLSX.CFB.read(base, { type: 'buffer' })
+  const entry = files.FileIndex[files.FullPaths.indexOf('Root Entry/xl/worksheets/sheet1.xml')]
+  const xml = String(entry.content).replace(
+    /<sheetData>[\s\S]*<\/sheetData>/,
+    `<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>total</t></is></c><c r="B1" t="inlineStr"><is><t>other</t></is></c></row><row r="2">${cellXml}<c r="B2"><v>2</v></c></row></sheetData>`,
+  )
+  entry.content = Buffer.from(xml)
+  entry.size = entry.content.length
+  return Buffer.from(XLSX.CFB.write(files, { type: 'buffer', fileType: 'zip' }))
+}
+
 async function expectCode(work: Promise<unknown>, code: string) {
   await expect(work).rejects.toMatchObject({ code } satisfies Partial<ImportParseError>)
 }
 
 describe('secure import parser', () => {
+  it('reads every row of a CSV with a CRLF header and LF rows', async () => {
+    const parsed = await parseSecureImport(Buffer.from('Name,Age\r\nAna,31\nBen,40\nCai,25'), 'CSV')
+    expect(parsed.rows.map((row) => row.values)).toEqual([
+      { column_0001: 'Ana', column_0002: '31' },
+      { column_0001: 'Ben', column_0002: '40' },
+      { column_0001: 'Cai', column_0002: '25' },
+    ])
+  })
+
+  it('reads a Windows-1252 CSV and reports its encoding', async () => {
+    const bytes = Buffer.from([
+      ...Buffer.from('Name,Town\nJose,Pe'),
+      0xf1,
+      ...Buffer.from('aranda\n'),
+    ])
+    const parsed = await parseSecureImport(bytes, 'CSV')
+    expect(parsed.rows[0]?.values.column_0002).toBe('Peñaranda')
+    expect(parsed.csvEncoding).toBe('WINDOWS-1252')
+  })
+
+  it('reads a UTF-8 CSV with a BOM without the mark in the first header', async () => {
+    const bytes = Buffer.concat([
+      Buffer.from([0xef, 0xbb, 0xbf]),
+      Buffer.from('Name,Age\nAna,31\n'),
+    ])
+    const parsed = await parseSecureImport(bytes, 'CSV')
+    expect(parsed.sourceColumns[0]?.header).toBe('Name')
+    expect(parsed.csvEncoding).toBe('UTF-8')
+  })
+
+  it('reads a UTF-16LE CSV', async () => {
+    const bytes = Buffer.concat([
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from('Name,Age\nAna,31\n', 'utf16le'),
+    ])
+    const parsed = await parseSecureImport(bytes, 'CSV')
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['Name', 'Age'])
+    expect(parsed.csvEncoding).toBe('UTF-16LE')
+  })
+
+  it('leaves the encoding unset for a workbook', async () => {
+    const parsed = await parseSecureImport(workbookBuffer([['Name'], ['Ana']]), 'XLSX')
+    expect(parsed.csvEncoding).toBeUndefined()
+  })
+
   it('preserves original CSV headers, values, and source row numbers', async () => {
     const parsed = await parseSecureImport(
       Buffer.from('Name,Confirmed,Count,Blank\r\nAlice,false,0,\r\n', 'utf8'),
@@ -48,6 +111,9 @@ describe('secure import parser', () => {
         },
       ],
       sheetNames: [],
+      csvEncoding: 'UTF-8',
+      headerRowNumber: 1,
+      filledMerges: [],
     })
   })
 
@@ -63,6 +129,68 @@ describe('secure import parser', () => {
       sourceRowNumber: 2,
       values: { column_0001: false },
     })
+  })
+
+  it('emits date-formatted numeric cells as ISO dates and leaves other numbers alone', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer(
+        [
+          ['Date of Birth', 'Age', 'Plain', 'Far'],
+          [39677, 18, 39677, 900000],
+        ],
+        'xlsx',
+        (sheet) => {
+          sheet.A2.z = 'yy/mm/dd'
+          sheet.C2.z = 'General'
+          sheet.D2.z = 'yy/mm/dd'
+        },
+      ),
+      'XLSX',
+    )
+
+    expect(parsed.rows[0]?.values).toEqual({
+      column_0001: '2008-08-17',
+      column_0002: 18,
+      column_0003: 39677,
+      column_0004: 900000,
+    })
+  })
+
+  it('keeps date-formatted text cells as text, header included', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer(
+        [
+          ['orgUnit', 'Date of Birth'],
+          ['VidTtlaSlAD', 39677],
+        ],
+        'xlsx',
+        (sheet) => {
+          sheet.A1.z = 'yyyy-mm-dd'
+          sheet.A2.z = 'yyyy-mm-dd'
+          sheet.B2.z = 'yy/mm/dd'
+        },
+      ),
+      'XLSX',
+    )
+
+    expect(parsed.sourceColumns[0]?.header).toBe('orgUnit')
+    expect(parsed.rows[0]?.values).toEqual({
+      column_0001: 'VidTtlaSlAD',
+      column_0002: '2008-08-17',
+    })
+  })
+
+  it('reads date-formatted cells of a 1904-system workbook from the 1904 epoch', async () => {
+    const sheet = XLSX.utils.aoa_to_sheet([['Date of Birth'], [38215]])
+    sheet.A2.z = 'yy/mm/dd'
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Data')
+    workbook.Workbook = { WBProps: { date1904: true } }
+    const buffer = Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }))
+
+    const parsed = await parseSecureImport(buffer, 'XLSX')
+
+    expect(parsed.rows[0]?.values).toEqual({ column_0001: '2008-08-17' })
   })
 
   it('keeps repeated headers distinct by immutable ordinal identity', async () => {
@@ -84,20 +212,205 @@ describe('secure import parser', () => {
     await expectCode(parseSecureImport(Buffer.from('__proto__,name\na,b'), 'CSV'), 'HEADER_UNSAFE')
   })
 
-  it('rejects formula-like CSV values and workbook formulas or links', async () => {
-    await expectCode(
-      parseSecureImport(Buffer.from('name,total\nAlice,=1+1'), 'CSV'),
-      'CELL_FORMULA_UNSAFE',
+  it('imports the saved value of a workbook formula without evaluating it', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer([['total'], [0]], 'xlsx', (sheet) => {
+        // The saved value deliberately differs from what the formula would compute.
+        sheet.A2 = { t: 'n', v: 7, f: '1+1' }
+      }),
+      'XLSX',
     )
-    await expectCode(
-      parseSecureImport(
-        workbookBuffer([['total'], [2]], 'xlsx', (sheet) => {
-          sheet.A2 = { t: 'n', v: 2, f: '1+1' }
-        }),
-        'XLSX',
+    expect(parsed.rows[0]?.values.column_0001).toBe(7)
+  })
+
+  it.each([
+    ['no saved value', '<c r="A2"><f>1+1</f></c>'],
+    ['an empty saved number', '<c r="A2"><f>1+1</f><v></v></c>'],
+    ['an error result', '<c r="A2" t="e"><f>1/0</f><v>#DIV/0!</v></c>'],
+  ])('refuses a formula with %s, naming the cell', async (_name, cell) => {
+    const work = parseSecureImport(sheetXmlWorkbook(cell), 'XLSX')
+    await expect(work).rejects.toMatchObject({
+      code: 'WORKBOOK_FORMULA_NO_VALUE',
+      message: expect.stringContaining('Cell A2'),
+    })
+  })
+
+  it('keeps a formula whose saved result is empty text as a blank', async () => {
+    const parsed = await parseSecureImport(
+      sheetXmlWorkbook('<c r="A2" t="str"><f>IF(1,"","x")</f><v></v></c>'),
+      'XLSX',
+    )
+    expect(parsed.rows[0]?.values.column_0001).toBe('')
+  })
+
+  it('drops trailing blank columns and names a blank header by its position', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer(
+        [
+          ['Name', null, 'Track'],
+          ['Ana', 'x', 'A'],
+        ],
+        'xlsx',
+        (sheet) => {
+          // Formatting past the data widens the sheet range with empty cells.
+          sheet['!ref'] = 'A1:F4'
+        },
       ),
-      'WORKBOOK_FORMULA_REQUIRES_VALUES_ONLY',
+      'XLSX',
     )
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual([
+      'Name',
+      'Column 2',
+      'Track',
+    ])
+    expect(parsed.rows).toHaveLength(1)
+    expect(parsed.rows[0]?.values).toEqual({
+      column_0001: 'Ana',
+      column_0002: 'x',
+      column_0003: 'A',
+    })
+  })
+
+  it('reads a CSV header below a title and a blank row, numbering rows as in the file', async () => {
+    const parsed = await parseSecureImport(
+      Buffer.from('Beneficiary Masterlist 2026\n\nName,Sex,Age\nAna,F,30\n\nBen,M,41\n'),
+      'CSV',
+    )
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['Name', 'Sex', 'Age'])
+    expect(parsed.headerRowNumber).toBe(3)
+    expect(parsed.rows.map((row) => row.sourceRowNumber)).toEqual([4, 6])
+    expect(parsed.filledMerges).toEqual([])
+  })
+
+  it('fills a merged workbook data cell down its rows and never copies a merged title', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer(
+        [
+          ['Masterlist', null, null],
+          ['Name', 'Brgy', 'Age'],
+          ['Ana', 'San Jose', 30],
+          ['Ben', null, 41],
+        ],
+        'xlsx',
+        (sheet) => {
+          sheet['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+            { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
+          ]
+        },
+      ),
+      'XLSX',
+    )
+    expect(parsed.headerRowNumber).toBe(2)
+    expect(parsed.rows.map((row) => [row.sourceRowNumber, row.values.column_0002])).toEqual([
+      [3, 'San Jose'],
+      [4, 'San Jose'],
+    ])
+    expect(parsed.filledMerges).toEqual([{ columnIndex: 2, firstRowNumber: 3, lastRowNumber: 4 }])
+  })
+
+  it('refuses a workbook of overlapping data merges with CELL_LIMIT', async () => {
+    const rows = [
+      ['Name', 'Brgy'],
+      ...Array.from({ length: 2_000 }, (_, index) => [`P${index}`, 'X']),
+    ]
+    const buffer = workbookBuffer(rows, 'xlsx', (sheet) => {
+      sheet['!merges'] = Array.from({ length: 2_000 }, () => ({
+        s: { r: 1, c: 1 },
+        e: { r: 2_000, c: 1 },
+      }))
+    })
+    await expectCode(parseSecureImport(buffer, 'XLSX'), 'CELL_LIMIT')
+  })
+
+  it('reads a code row above a label row', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer([
+        ['orgUnit', 'enrollmentDate', 'VFXAUuYgXtm', 'L2doMQ7OtUB'],
+        [null, null, 'Consent to the collection', 'Participant ID'],
+        ['OU1', 46170, true, 'AB08172008'],
+      ]),
+      'XLSX',
+    )
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual([
+      'orgUnit',
+      'enrollmentDate',
+      'Consent to the collection',
+      'Participant ID',
+    ])
+    expect(parsed.sourceColumns.map((column) => column.sourceCode)).toEqual([
+      'orgUnit',
+      'enrollmentDate',
+      'VFXAUuYgXtm',
+      'L2doMQ7OtUB',
+    ])
+    expect(parsed.rows).toHaveLength(1)
+    expect(parsed.rows[0]?.sourceRowNumber).toBe(3)
+    expect(parsed.rows[0]?.values.column_0003).toBe(true)
+  })
+
+  it('keeps plain code-like headers as one header row', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer([
+        ['first_name', 'last_name'],
+        ['Juan Dela', 'Cruz'],
+      ]),
+      'XLSX',
+    )
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['first_name', 'last_name'])
+    expect(parsed.sourceColumns.every((column) => !('sourceCode' in column))).toBe(true)
+    expect(parsed.rows).toHaveLength(1)
+    expect(parsed.rows[0]?.sourceRowNumber).toBe(2)
+  })
+
+  it('applies the code row rule to CSV and tells apart look-alike rows', async () => {
+    const csv = await parseSecureImport(
+      Buffer.from('orgUnit,VFXAUuYgXtm\n,Consent given\nOU1,yes\n'),
+      'CSV',
+    )
+    expect(csv.sourceColumns.map((column) => column.header)).toEqual(['orgUnit', 'Consent given'])
+    expect(csv.rows[0]?.sourceRowNumber).toBe(3)
+    const ids = ['VFXAUuYgXtm', 'L2doMQ7OtUB']
+    const labels = ['Consent given', 'Participant ID']
+    expect(isCodeHeaderRow(ids, labels)).toBe(true)
+    expect(isCodeHeaderRow(['orgUnit', 'enrollmentDate'], labels)).toBe(false)
+    expect(isCodeHeaderRow(['orgUnit', 'VFXAUuYgXtm', 'L2doMQ7OtUB'], labels)).toBe(true)
+    expect(isCodeHeaderRow(['orgUnit', 'enrollmentDate', 'VFXAUuYgXtm'], labels)).toBe(false)
+    expect(isCodeHeaderRow(['VFXAUuYgXtm', 'Not a code'], labels)).toBe(false)
+    expect(isCodeHeaderRow(['VFXAUuYgXtm', 5], labels)).toBe(false)
+    expect(isCodeHeaderRow(['vfxauuygxtm', 'l2domq7otub'], labels)).toBe(false)
+    expect(isCodeHeaderRow(ids, ['Consent', 'ParticipantID'])).toBe(false)
+    expect(isCodeHeaderRow([null, ''], labels)).toBe(false)
+  })
+
+  it('keeps CSV values past the last header under a positional header', async () => {
+    const parsed = await parseSecureImport(Buffer.from('Name\nAna,extra\n'), 'CSV')
+    expect(parsed.sourceColumns.map((column) => column.header)).toEqual(['Name', 'Column 2'])
+    expect(parsed.rows[0]?.values.column_0002).toBe('extra')
+  })
+
+  it('imports formula-like text as text', async () => {
+    const parsed = await parseSecureImport(
+      Buffer.from('Name,Mobile,Remarks,Total,Handle\nAna,+639170000001,-none-,=1+1,@ana\n'),
+      'CSV',
+    )
+    expect(Object.values(parsed.rows[0].values)).toEqual([
+      'Ana',
+      '+639170000001',
+      '-none-',
+      '=1+1',
+      '@ana',
+    ])
+  })
+
+  it('imports a formula-like saved value as text and still rejects workbook links', async () => {
+    const parsed = await parseSecureImport(
+      workbookBuffer([['total'], ['x']], 'xlsx', (sheet) => {
+        sheet.A2 = { t: 's', v: '=HYPERLINK("x")', f: 'A3' }
+      }),
+      'XLSX',
+    )
+    expect(Object.values(parsed.rows[0].values)).toEqual(['=HYPERLINK("x")'])
     await expectCode(
       parseSecureImport(
         workbookBuffer([['url'], ['safe']], 'xlsx', (sheet) => {
@@ -160,6 +473,17 @@ describe('secure import parser', () => {
       ),
       'WORKBOOK_SHEET_AMBIGUOUS',
     )
+  })
+
+  it('reads only the chosen sheet of a multi-sheet workbook and refuses a missing one', async () => {
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['score'], [1]]), 'One')
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['score'], [2]]), 'Two')
+    const buffer = Buffer.from(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }))
+
+    const parsed = await parseSecureImport(buffer, 'XLSX', {}, 'Two')
+    expect(parsed.rows.map((row) => row.values.column_0001)).toEqual([2])
+    await expectCode(parseSecureImport(buffer, 'XLSX', {}, 'Three'), 'WORKBOOK_SHEET_MISSING')
   })
 
   it('rejects malformed or over-expanded containers, binary CSV, and finite byte/row limits', async () => {

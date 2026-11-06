@@ -1,3 +1,5 @@
+import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports'
+
 import type { ImportBatchDefinition } from '@/types/pathways'
 
 /**
@@ -7,7 +9,7 @@ import type { ImportBatchDefinition } from '@/types/pathways'
  */
 
 export interface ImportProcessingProgress {
-  /** Rows the server has finished with: processed, held for review, or failed. */
+  /** Rows the server has finished with: processed, held for review, failed, or waiting for their registration. */
   handled: number
   /** Rows that passed validation and are eligible for processing. */
   total: number
@@ -25,8 +27,9 @@ export type ImportProcessingOutcome =
 // A released row is retried at most three times before the server marks it failed,
 // so a few calls without progress are expected; more than that means no progress.
 const MAX_CALLS_WITHOUT_PROGRESS = 3
-// 5,000 rows at 100 rows per claim is 50 calls; the ceiling leaves room for retries.
-const MAX_PROCESS_CALLS = 250
+// One call per claim for the largest file, doubled to leave room for retries.
+const MAX_PROCESS_CALLS =
+  (2 * IMPORT_ENGINEERING_LIMITS.maxRows) / IMPORT_ENGINEERING_LIMITS.processingClaimRows
 
 export function importProcessingProgress(batch: ImportBatchDefinition): ImportProcessingProgress {
   const count = (value: number | undefined) =>
@@ -34,7 +37,7 @@ export function importProcessingProgress(batch: ImportBatchDefinition): ImportPr
   const processed = count(batch.totals?.processed)
   const unprocessed = count(batch.totals?.unprocessed)
   const failed = count(batch.totals?.failed)
-  const handled = processed + unprocessed + failed
+  const handled = processed + unprocessed + failed + count(batch.totals?.waiting)
   return {
     handled,
     total: Math.max(count(batch.totals?.valid), handled),
@@ -54,6 +57,14 @@ export function importProcessingComplete(batch: ImportBatchDefinition) {
 export function importProcessingPercent(progress: ImportProcessingProgress) {
   return progress.total === 0 ? 100 : Math.floor((progress.handled / progress.total) * 100)
 }
+
+// Why a process call failed; a dropped connection, which fetch reports as a TypeError, in plain words.
+export const processingFailureNote = (error: unknown) =>
+  error instanceof TypeError
+    ? 'The server stopped answering before this step finished. Rows already handled are kept.'
+    : error instanceof Error
+      ? error.message
+      : 'Processing could not be completed.'
 
 export async function runImportProcessing({
   process,

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { supportedFormFieldTypes } from '../../validation/form-data'
+import { formDefinitionLimits, supportedFormFieldTypes } from '../../validation/form-data'
 import {
   isoDateString,
   lengthString,
@@ -9,6 +9,7 @@ import {
   trimmedLowercaseInput,
   uuidString,
 } from '../common/field-schemas'
+import { fieldIntakeProperties, formFieldCode } from './form-intake'
 
 // Form types a digital form may declare.
 export const digitalFormTypes = [
@@ -54,28 +55,31 @@ export const formResponseValues = z.preprocess(
       ? Object.fromEntries(Object.entries(value).filter(([key]) => !skippedValueKeys.has(key)))
       : value,
   z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .refine((values) => !hasConstructorKey(values), 'must not contain a constructor key'),
 )
 
 // One field of a form definition.
 export const formFieldRequest = z
   .object({
-    code: trimmedLowercaseInput(
-      z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, 'must be a lowercase field code'),
-    ),
+    code: formFieldCode,
     label: trimmedInput(lengthString(1, 160)),
     dataType: z.enum(supportedFormFieldTypes),
     required: z.boolean(),
     metadataKey: z.boolean(),
     sadddField: z.boolean(),
-    allowedValues: z.array(lengthString(0, 120)).min(1).max(100).nullish(),
+    allowedValues: z
+      .array(lengthString(0, formDefinitionLimits.allowedValueLength))
+      .min(1)
+      .max(formDefinitionLimits.allowedValues)
+      .nullish(),
     minimumValue: z.string().regex(decimalBound, 'must be a decimal number').nullish(),
     maximumValue: z.string().regex(decimalBound, 'must be a decimal number').nullish(),
     minimumDate: z.string().regex(calendarDay, 'must be a YYYY-MM-DD date').nullish(),
     maximumDate: z.string().regex(calendarDay, 'must be a YYYY-MM-DD date').nullish(),
     minimumLength: z.number().int().min(0).max(10_000).nullish(),
     maximumLength: z.number().int().min(1).max(10_000).nullish(),
+    ...fieldIntakeProperties,
   })
   .strict()
 export type FormFieldRequest = z.infer<typeof formFieldRequest>
@@ -119,6 +123,12 @@ export type GenerateFormRequest = z.infer<typeof generateFormRequest>
 export const formVersionRequest = z.object({ expectedUpdatedAt: isoDateString }).strict()
 export type FormVersionRequest = z.infer<typeof formVersionRequest>
 
+// Body of POST metadata/projects/:projectId/forms/:formId/confirm-check.
+export const confirmDraftCheckRequest = z
+  .object({ expectedUpdatedAt: isoDateString, fieldCode: formFieldCode })
+  .strict()
+export type ConfirmDraftCheckRequest = z.infer<typeof confirmDraftCheckRequest>
+
 // Body of POST metadata/projects/:projectId/forms/:formId/validate.
 export const validateFormValuesRequest = z.object({ values: formResponseValues }).strict()
 export type ValidateFormValuesRequest = z.infer<typeof validateFormValuesRequest>
@@ -151,3 +161,9 @@ export const listSubmissionsQuery = z
   })
   .strict()
 export type ListSubmissionsQuery = z.infer<typeof listSubmissionsQuery>
+
+// Body of POST metadata/projects/:projectId/forms/:formId/drafts/from-import.
+export const draftFromImportRequest = z
+  .object({ batchId: uuidString, expectedMappingRevision: z.number().int().min(0).max(1_000) })
+  .strict()
+export type DraftFromImportRequest = z.infer<typeof draftFromImportRequest>

@@ -102,6 +102,24 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       setFormCode(saved.code)
       setSaveDialogOpen(false)
       setSavedNotice('Draft saved to the server.')
+      // The first saved answer key settles its needs-check item; the update route leaves the summary alone.
+      const keyMarked = saved.fields.some(
+        (field) => field.code === 'total_score' && field.rule?.kind === 'TOTAL_SCORE',
+      )
+      if (
+        keyMarked &&
+        saved.draftSummary?.needsCheck.some((item) => item.reason === 'ANSWER_KEY_NEEDED')
+      ) {
+        const cleared = await formsClient.confirmDraftCheck(
+          projectId,
+          saved.id,
+          'total_score',
+          saved.updatedAt,
+        )
+        if (!ticket.valid()) return
+        setForms((current) => [...current.filter((form) => form.id !== cleared.id), cleared])
+        setEditingBaseUpdatedAt(cleared.updatedAt)
+      }
     } catch (error) {
       if (ticket.valid())
         toast.error(error instanceof Error ? error.message : 'Form draft could not be saved.')
@@ -135,6 +153,39 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
     } catch (error) {
       if (ticket.valid())
         toast.error(error instanceof Error ? error.message : 'Form could not be published.')
+    } finally {
+      ticket.finish()
+    }
+  }
+  // Publishes each chosen draft in turn; the server's refusal of one is named and never stops the others.
+  const publishForms = async (ids: string[]) => {
+    if (!canPublishForms) {
+      toast.error('Form publishing is not available for this role.')
+      return
+    }
+    const ticket = beginOperation('forms.publish')
+    if (!ticket) return
+    const drafts = forms.filter((form) => ids.includes(form.id) && form.status === 'DRAFT')
+    let published = 0
+    try {
+      for (const draft of drafts) {
+        try {
+          const done = await formsClient.publishDigitalForm(
+            draft.projectId,
+            draft.id,
+            draft.updatedAt,
+          )
+          if (!ticket.valid()) return
+          setForms((current) => [...current.filter((form) => form.id !== done.id), done])
+          published += 1
+        } catch (error) {
+          if (!ticket.valid()) return
+          const reason = error instanceof Error ? error.message : 'Form could not be published.'
+          toast.error(`${draft.name} - v${draft.version}: ${reason}`)
+        }
+      }
+      if (published)
+        toast.success(published === 1 ? 'Published 1 form.' : `Published ${published} forms.`)
     } finally {
       ticket.finish()
     }
@@ -194,6 +245,36 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       ticket.finish()
     }
   }
+  // Clears a field's needs-check items on the server; unsaved field edits in the editor stay as they are.
+  const confirmCheck = async (fieldCode: string) => {
+    if (!editingFormId || !editingBaseUpdatedAt) return
+    const ticket = beginOperation('forms.manage')
+    if (!ticket) return
+    try {
+      const updated = await formsClient.confirmDraftCheck(
+        projectId,
+        editingFormId,
+        fieldCode,
+        editingBaseUpdatedAt,
+      )
+      if (!ticket.valid()) return
+      setForms((current) => current.map((form) => (form.id === updated.id ? updated : form)))
+      setEditingBaseUpdatedAt(updated.updatedAt)
+      const field = fields.find((item) => item.code === fieldCode)
+      toast.success(`${field?.label ?? fieldCode} confirmed.`)
+      // The Confirm button is gone once the check clears, so focus moves to the field it confirmed.
+      if (field)
+        window.setTimeout(
+          () => document.getElementById(`collection-field-choice-${field.id}`)?.focus(),
+          0,
+        )
+    } catch (error) {
+      if (ticket.valid())
+        toast.error(error instanceof Error ? error.message : 'The field could not be confirmed.')
+    } finally {
+      ticket.finish()
+    }
+  }
   const generateCopy = async () => {
     const source = forms.find((form) => form.id === editingFormId)
     if (!source || creatingVersion) return
@@ -218,7 +299,15 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       ticket.finish()
     }
   }
-  return { createNewVersion, downloadSavedForm, generateCopy, publishFormToApi, saveDraftToApi }
+  return {
+    confirmCheck,
+    createNewVersion,
+    downloadSavedForm,
+    generateCopy,
+    publishFormToApi,
+    publishForms,
+    saveDraftToApi,
+  }
 }
 
 export type FormActions = ReturnType<typeof useFormActions>

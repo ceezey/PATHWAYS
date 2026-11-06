@@ -1,5 +1,6 @@
 import type { SupportedFormFieldType } from '@pathways/shared'
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
+import type { ImportValueMapEntry } from '../value-map'
 
 /**
  * AUTO_SMART_V2 (cr-pathways-smart-import-mapping): deterministic header-to-field
@@ -13,7 +14,15 @@ import { IMPORT_ENGINEERING_LIMITS } from '../limits'
  */
 export const AUTO_SMART_V2 = 'AUTO_SMART_V2' as const
 
+/** AUTO_SMART_V3: V2 plus the metadata source-name tier, blank columns and calculated-field exclusion. */
+export const AUTO_SMART_V3 = 'AUTO_SMART_V3' as const
+
+/** AUTO_SMART_V4: V3 plus Filipino synonyms, Kobo/ODK group-path leaves and submission system columns. */
+export const AUTO_SMART_V4 = 'AUTO_SMART_V4' as const
+
 export const SMART_SYNONYMS_V2_ID = 'SMART_SYNONYMS_V2' as const
+
+export const SMART_SYNONYMS_V3_ID = 'SMART_SYNONYMS_V3' as const
 
 export const AUTO_SMART_V2_LIMITS = Object.freeze({
   autoMapScore: 90,
@@ -33,6 +42,7 @@ export const AUTO_SMART_V2_LIMITS = Object.freeze({
 })
 
 export const TIER = Object.freeze({
+  sourceName: 100,
   exact: 100,
   synonym: 90,
   tokenSet: 85,
@@ -43,6 +53,7 @@ export const TIER = Object.freeze({
 
 /** How the name matched. Stored as `match_reason`. */
 export const SMART_MATCH_REASONS = [
+  'METADATA_SOURCE_NAME',
   'EXACT',
   'SYNONYM',
   'SYNONYM_REVIEW',
@@ -63,6 +74,8 @@ export const SMART_DECISION_REASONS = [
   'HELD_NO_SAMPLES',
   'NO_MATCH',
   'EMPTY_NAME',
+  'BLANK_COLUMN',
+  'SYSTEM_COLUMN',
 ] as const
 
 export type SmartDecisionReason = (typeof SMART_DECISION_REASONS)[number]
@@ -112,6 +125,60 @@ export const SMART_REVIEW_SYNONYMS_V2: Readonly<Record<string, readonly string[]
   gender: ['sex'],
 })
 
+/** V2 plus the Filipino names (cr-pathways-any-source-import); a synonym change needs a new algorithm ID. */
+export const SMART_SYNONYMS_V3: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  ...SMART_SYNONYMS_V2,
+  first_name: [...SMART_SYNONYMS_V2.first_name, 'unang pangalan'],
+  middle_name: [...SMART_SYNONYMS_V2.middle_name, 'gitnang pangalan'],
+  last_name: [...SMART_SYNONYMS_V2.last_name, 'apelyido', 'apelido'],
+  display_name: [...SMART_SYNONYMS_V2.display_name, 'pangalan', 'buong pangalan'],
+  birth_date: [
+    ...SMART_SYNONYMS_V2.birth_date,
+    'petsa ng kapanganakan',
+    'kaarawan',
+    'araw ng kapanganakan',
+  ],
+  age_at_registration: [...SMART_SYNONYMS_V2.age_at_registration, 'edad', 'gulang'],
+  location_city_municipality: [
+    ...SMART_SYNONYMS_V2.location_city_municipality,
+    'bayan',
+    'munisipyo',
+    'lungsod',
+  ],
+  location_province: [...SMART_SYNONYMS_V2.location_province, 'lalawigan', 'probinsya'],
+  disability_status: [...SMART_SYNONYMS_V2.disability_status, 'may kapansanan', 'kapansanan'],
+})
+
+/** V2 plus Kasarian, which means both sex and gender, so it is only ever suggested. */
+export const SMART_REVIEW_SYNONYMS_V3: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  sex: [...SMART_REVIEW_SYNONYMS_V2.sex, 'kasarian'],
+  gender: [...SMART_REVIEW_SYNONYMS_V2.gender, 'kasarian'],
+})
+
+/** Submission bookkeeping columns of Kobo and ODK Central exports, compared after the V1 normalizer; time columns are real data. */
+export const SYSTEM_COLUMNS_V1: ReadonlySet<string> = new Set([
+  '_id',
+  '_uuid',
+  '_index',
+  '_validation_status',
+  '_status',
+  '_submitted_by',
+  '_tags',
+  '_notes',
+  '__version__',
+  'meta_instanceid',
+  'key',
+  'instanceid',
+  'submitterid',
+  'submittername',
+  'attachmentspresent',
+  'attachmentsexpected',
+  'reviewstate',
+  'deviceid',
+  'edits',
+  'formversion',
+])
+
 /** Fixed stop words removed before the token-set comparison. */
 export const STOP_WORDS: ReadonlySet<string> = new Set([
   'a',
@@ -132,12 +199,64 @@ export const STOP_WORDS: ReadonlySet<string> = new Set([
   'respondent',
 ])
 
+// Words naming someone else or a refusal: a dash tag with one is refused by name, and a group path holding one is never read by its leaf.
+export const REFUSED_TAGS = new Set([
+  'parent',
+  'parents',
+  'guardian',
+  'guardians',
+  'mother',
+  'father',
+  'spouse',
+  'caregiver',
+  'staff',
+  'enumerator',
+  'no',
+  'not',
+  'none',
+  'withdrawn',
+  'revoked',
+  'declined',
+  'refused',
+  'denied',
+  'rejected',
+  'hindi',
+  'ayaw',
+  'magulang',
+  'nanay',
+  'tatay',
+])
+
+// Group words that name the participant or only a section, so a group path made of them alone is read by its leaf automatically.
+export const PARTICIPANT_GROUP_WORDS: ReadonlySet<string> = new Set([
+  'participant',
+  'participants',
+  'beneficiary',
+  'respondent',
+  'personal',
+  'info',
+  'information',
+  'details',
+  'basic',
+  'demographic',
+  'demographics',
+  'identity',
+  'profile',
+  'registration',
+  'location',
+  'address',
+  'group',
+  'section',
+])
+
 export interface SmartMatchColumn {
   key: string
   columnIndex: number
   header: string
   /** Bounded raw sample; at most samplesPerColumn non-blank values are read. */
   samples: readonly unknown[]
+  /** V3 only: every value in the column is blank. */
+  blank?: boolean
 }
 
 export interface SmartMatchField {
@@ -148,12 +267,18 @@ export interface SmartMatchField {
   allowedValues?: readonly string[] | null
   minimumLength?: number | null
   maximumLength?: number | null
+  /** V3 only: names the form publisher approved for this field. */
+  sourceNames?: readonly string[] | null
+  /** V3 only: answer aliases that the SELECT value gate accepts. */
+  valueAliases?: readonly ImportValueMapEntry[] | null
+  /** V3 only: a calculated field is only a target by exact name or source name. */
+  calculated?: boolean
 }
 
 export interface SmartMatchDecision {
   sourceKey: string
   columnIndex: number
-  status: 'MAPPED' | 'PENDING'
+  status: 'MAPPED' | 'PENDING' | 'IGNORED'
   targetFieldId: string | null
   suggestedFieldId: string | null
   score: number | null

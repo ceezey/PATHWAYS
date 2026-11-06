@@ -252,7 +252,7 @@ export class BeneficiariesService {
         const project = await requireScopedProjectRow(tx, actor, projectId, projectDateFields)
         const current = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         await this.assertAllEnrollmentScope(tx, actor, current.id)
-        assertSubjectProfile(input, current)
+        const isMinor = assertSubjectProfile(input, current)
         const changed = await tx.beneficiary.updateMany({
           where: {
             id: current.id,
@@ -269,6 +269,7 @@ export class BeneficiariesService {
             sex: input.sex,
             birthDate: input.birthDate ? exactDate(input.birthDate, 'birthDate') : null,
             ageAtRegistration: input.ageAtRegistration,
+            isMinor,
             disabilityStatus: input.disabilityStatus,
             locationBarangay: input.locationBarangay?.trim() || null,
             locationCityMunicipality: input.locationCityMunicipality?.trim() || null,
