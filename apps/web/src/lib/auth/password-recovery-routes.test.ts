@@ -74,7 +74,7 @@ beforeEach(() => {
     },
   )
   mock.exchangeCodeForSession.mockResolvedValue({
-    data: { redirectType: 'PASSWORD_RECOVERY', session, user: session.user },
+    data: { redirectType: 'recovery', session, user: session.user },
     error: null,
   })
   mock.verifyOtp.mockResolvedValue({ data: { session, user: session.user }, error: null })
@@ -188,7 +188,7 @@ describe('password recovery callback', () => {
   it('fails closed and clears recovery authority for another Auth identity', async () => {
     mock.exchangeCodeForSession.mockResolvedValue({
       data: {
-        redirectType: 'PASSWORD_RECOVERY',
+        redirectType: 'recovery',
         session,
         user: { id: 'another-test-user' },
       },
