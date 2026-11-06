@@ -129,6 +129,18 @@ describe('password recovery callback', () => {
     expect(mock.getClaims).toHaveBeenCalledWith(session.access_token)
   })
 
+  it('sends an accepted staff invite to the set password page', async () => {
+    const response = await completeCallback(
+      callbackRequest('token_hash=test-only-hash&type=invite'),
+    )
+
+    expect(response.headers.get('location')).toBe(
+      `${localPasswordRecoveryOrigin}/auth/update-password`,
+    )
+    expect(mock.verifyOtp).toHaveBeenCalledWith({ token_hash: 'test-only-hash', type: 'invite' })
+    expect(response.cookies.get(passwordRecoveryIntentCookie)?.value).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  })
+
   it('rejects an ordinary PKCE exchange and any session without a signed recovery method', async () => {
     mock.exchangeCodeForSession.mockResolvedValueOnce({
       data: { redirectType: null, session, user: session.user },
