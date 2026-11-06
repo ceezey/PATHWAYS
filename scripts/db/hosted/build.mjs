@@ -514,13 +514,22 @@ export async function runHostedBuild({ io, config, resume = false, log = console
         case 'create-role': {
           io.psqlSql(
             config.adminUrl,
-            `CREATE ROLE prisma LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${config.prismaPassword}';
+            // One transaction so a failed grant never leaves a half-made prisma role that blocks the rerun preflight.
+            `BEGIN;
+CREATE ROLE prisma LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${config.prismaPassword}';
 GRANT prisma TO postgres WITH INHERIT TRUE, SET TRUE;
 GRANT CREATE ON DATABASE postgres TO prisma;
 GRANT USAGE, CREATE ON SCHEMA public TO prisma;
 GRANT TEMPORARY ON DATABASE postgres TO prisma, authenticator, supabase_auth_admin, supabase_storage_admin,
-  supabase_etl_admin, supabase_read_only_user, supabase_realtime_admin, supabase_replication_admin, supabase_privileged_role;
-REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
+  supabase_etl_admin, supabase_read_only_user, supabase_realtime_admin, supabase_replication_admin;
+-- Newer Supabase projects do not have supabase_privileged_role.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'supabase_privileged_role') THEN
+    GRANT TEMPORARY ON DATABASE postgres TO supabase_privileged_role;
+  END IF;
+END $$;
+REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;
+COMMIT;`,
             { label: 'create prisma role' },
           )
           break
