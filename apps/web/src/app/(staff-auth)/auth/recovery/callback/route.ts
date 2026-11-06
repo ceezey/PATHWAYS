@@ -11,6 +11,7 @@ import {
   issuePasswordRecoveryGrant,
   passwordRecoveryIntentCookie,
   passwordRecoveryIntentCookieOptions,
+  recoveryRedirectType,
   secureRecoveryResponse,
 } from '@/lib/supabase/recovery-server'
 
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       !session ||
       !user ||
       session.user.id !== user.id ||
-      (isCodeFlow && redirectType !== 'PASSWORD_RECOVERY') ||
+      (isCodeFlow && redirectType !== recoveryRedirectType) ||
       !recoveryIdentity
     ) {
       if (session) {
