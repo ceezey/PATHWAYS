@@ -108,6 +108,7 @@ Run reviews through `sad-orchestrator` as the main-thread agent (`claude --agent
 - `dev` is the development branch.
 - Prepare and verify changes on `dev`, then bring the approved release into `master` and push normally.
 - The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `dev` for development previews.
+- Production uses the Supabase project `PATHWAYS` (`mvzxitlbtkkyvubgbcmx`); Preview and development use devV2 (`klbtoqdalmcsfjqophty`). Migrations reach production only at R6, through `scripts/db/hosted/build.mjs --resume --through <last migration on master>` before the production redeploy ([runbook-production-build.md](<C:/AI Agentic Memory/02_Areas/Dev_&_Ops/PATHWAYS/runbook-production-build.md>)).
 - Verify both development previews when shared web route policy affects API imports. If Vercel skips the API build, redeploy the reviewed development source explicitly and confirm both previews before database application.
 - Preserve branch history. Do not force-push a deployment branch or run database migrations as a deployment shortcut.
 
@@ -118,7 +119,7 @@ Use `release-integrator` as the main-thread agent (`claude --agent release-integ
 3. **R3 Merged review:** run the SAD pipeline on the merged digest. Passing branches can still conflict semantically.
 4. **R4 Requirements QA:** `requirements-qa-gate` verifies each feature against its PRD gate criteria (`G-F<n>-<m>`) and QAD happy/sad/abuse rows. Every feature needs PASS.
 5. **R5 Development release:** merge into `dev`, push, and verify that both Vercel development previews build and respond.
-6. **R6 Deployment:** merge `dev` into `master` and push normally.
+6. **R6 Deployment:** apply any new migrations to production, then merge `dev` into `master` and push normally.
 
 The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, the vault doc check (`python .vault/scripts/pathways_docs/check.py`, run in the vault), `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
 
