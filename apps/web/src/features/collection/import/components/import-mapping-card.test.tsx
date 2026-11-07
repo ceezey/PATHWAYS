@@ -389,10 +389,13 @@ describe('ImportMappingCard ignored and pending columns', () => {
       mapping: { column_0002: '__pending__' },
       stored: [['column_0002', storedColumn({ status: 'PENDING', targetField: null })]],
       columnValues: new Map([['column_0002', ['Alpha', 'Beta', 'x'.repeat(60), 'Delta']]]),
+      canReview: true,
     })
     expect(screen.getByText(`Sample values: Alpha, Beta, ${'x'.repeat(37)}...`)).toBeTruthy()
     expect(screen.queryByText(/Delta/)).toBeNull()
-    expect(screen.getByText('Not in the form. If ignored, this column is not saved.')).toBeTruthy()
+    expect(
+      screen.getByText('No form field matched this column. If ignored, this column is not saved.'),
+    ).toBeTruthy()
     expect(
       screen.getByText(
         'Not sure? Ignore it. The file stays stored, and after a form manager adds the field, the uploader can re-run this import.',
@@ -412,7 +415,7 @@ describe('ImportMappingCard ignored and pending columns', () => {
     expect(bar().className).toContain('border-warning')
     choose('Ignore this source column')
     expect(bar().textContent).toContain(
-      '1 ignored column is not in the form and will not be saved. Prepare form to keep it.',
+      '1 ignored column will not be saved. Prepare form to keep it.',
     )
     expect(bar().className).not.toContain('warning')
     expect(screen.queryByText(/Not sure\?/)).toBeNull()
@@ -435,13 +438,56 @@ describe('ImportMappingCard ignored and pending columns', () => {
     fireEvent.click(screen.getByRole('checkbox'))
     expect(screen.getByText('Ignored: the time the form was submitted.')).toBeTruthy()
     const bar = screen.getByRole('region', { name: 'Mapping decisions' }).textContent
-    expect(bar).toContain('1 ignored column is not in the form and will not be saved.')
+    expect(bar).toContain('1 ignored column will not be saved.')
     expect(bar).not.toContain('Prepare form to keep')
     expect(bar).toContain('Someone who manages forms can prepare the form from this file.')
     expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
   })
 
-  it('gives a pending column with a suggestion no not-in-the-form line, yet still counts it', () => {
+  it('hides the Not sure line when every pending column has a suggestion', () => {
+    renderCard({
+      canReview: true,
+      columns: columns.slice(1),
+      mapping: { column_0002: '__pending__' },
+      stored: [['column_0002', storedColumn({ status: 'PENDING', targetField: null })]],
+      suggestions: [{ column: columns[1], label: 'First name (first_name)' }],
+    })
+    expect(screen.queryByText(/Not sure\?/)).toBeNull()
+  })
+
+  it('hides the Not sure line from a Project Officer who cannot review', () => {
+    renderCard({
+      canReview: false,
+      columns: columns.slice(1),
+      mapping: { column_0002: '__pending__' },
+      stored: [['column_0002', storedColumn({ status: 'PENDING', targetField: null })]],
+    })
+    expect(screen.getByText(pendingBar)).toBeTruthy()
+    expect(screen.queryByText(/Not sure\?/)).toBeNull()
+  })
+
+  it('styles the bar as a warning when only unmatched answers remain', () => {
+    renderCard({
+      mapping: { column_0001: 'data_processing_consent_recorded' },
+      columnValues: new Map([['column_0001', ['Yes', 'Maybe']]]),
+      selectedForm: {
+        fields: [
+          {
+            code: 'data_processing_consent_recorded',
+            label: 'Data processing consent',
+            dataType: 'BOOLEAN',
+            allowedValues: null,
+            valueAliases: null,
+          },
+        ],
+      },
+    })
+    const bar = screen.getByRole('region', { name: 'Mapping decisions' })
+    expect(bar.textContent).toContain('1 column has answers that match no option.')
+    expect(bar.className).toContain('border-warning')
+  })
+
+  it('gives a pending column with a suggestion no pending help line, yet still counts it', () => {
     renderCard({
       columns: columns.slice(1),
       mapping: { column_0002: '__pending__' },
@@ -450,7 +496,7 @@ describe('ImportMappingCard ignored and pending columns', () => {
       columnValues: new Map([['column_0002', ['Alpha']]]),
     })
     expect(screen.getByText('Suggested: First name (first_name)')).toBeTruthy()
-    expect(screen.queryByText(/Not in the form/)).toBeNull()
+    expect(screen.queryByText(/No form field matched/)).toBeNull()
     expect(screen.queryByText(/Sample values/)).toBeNull()
     expect(screen.getByText(pendingBar)).toBeTruthy()
   })
@@ -487,7 +533,9 @@ describe('ImportMappingCard ignored and pending columns', () => {
       return id ? document.getElementById(id)?.textContent : null
     }
     expect(describedText(/column 1/)).toBe('Ignored: the column is empty.')
-    expect(describedText(/column 2/)).toBe('Not in the form. If ignored, this column is not saved.')
+    expect(describedText(/column 2/)).toBe(
+      'No form field matched this column. If ignored, this column is not saved.',
+    )
   })
 
   it('counts columns with answers that match no option, live', () => {

@@ -149,6 +149,13 @@ export function ImportMappingCard({
     unmatchedColumns: sourceColumns.filter((column) => translations(column.key).unmatched.length)
       .length,
   }
+  // The advice is for a reviewer facing a column that shows the pending help, not one with a suggestion.
+  const showPendingAdvice =
+    canReview &&
+    sourceColumns.some(
+      (column) =>
+        isPending(column.key) && !openSuggestions.some((item) => item.column.key === column.key),
+    )
   const undecidedKeys = () =>
     new Set(sourceColumns.filter((column) => undecided(column.key)).map((column) => column.key))
   // The columns whose translations the person opened, by the button or the summary.
@@ -215,7 +222,7 @@ export function ImportMappingCard({
         <output aria-live="polite" className="block text-sm text-muted-foreground">
           {mappingNotice}
         </output>
-        {barCounts.pending > 0 ? (
+        {showPendingAdvice ? (
           <p className="text-sm text-muted-foreground">{PENDING_ADVICE}</p>
         ) : null}
         {translatedColumns.length ? (
@@ -238,7 +245,7 @@ export function ImportMappingCard({
           const suggestion = openSuggestions.find((item) => item.column.key === column.key)
           const { automatic: readOnItsOwn, unmatched } = translations(column.key)
           const ignoredWhy = mapping[column.key] === '__ignore__' ? ignoredReason(column.key) : null
-          // A pending column with a server suggestion is not "not in the form", so it gets no help line.
+          // A pending column with a server suggestion is not left without a matching field, so it gets no help line.
           const showPendingHelp = isPending(column.key) && !suggestion
           const samples = showPendingHelp ? sampled(columnValues.get(column.key)) : ''
           const noteId = `import-mapping-note-${column.key}`

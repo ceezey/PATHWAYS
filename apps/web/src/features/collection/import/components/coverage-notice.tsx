@@ -45,7 +45,7 @@ export function StagedCoverageNotice({
   )
 }
 
-// The mapping step's bar: it follows the person's decisions, warns while a column is pending and is hidden when nothing is open.
+// The mapping step's bar: it follows the person's decisions, warns while a column is pending or has unmatched answers and is hidden when nothing is open.
 export function CoverageNotice({
   pending,
   personIgnored,
@@ -64,7 +64,7 @@ export function CoverageNotice({
 }) {
   const lines = mappingBarLines({ pending, personIgnored, unmatchedColumns }, canPrepare)
   if (!lines.length) return null
-  const warn = pending > 0
+  const warn = pending > 0 || unmatchedColumns > 0
   return (
     <section
       aria-label="Mapping decisions"

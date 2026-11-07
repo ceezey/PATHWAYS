@@ -102,10 +102,10 @@ describe('mapping bar copy', () => {
       '2 columns have answers that match no option.',
     ])
     expect(mappingBarLines({ pending: 0, personIgnored: 2, unmatchedColumns: 0 }, true)).toEqual([
-      '2 ignored columns are not in the form and will not be saved. Prepare form to keep them.',
+      '2 ignored columns will not be saved. Prepare form to keep them.',
     ])
     expect(mappingBarLines({ pending: 0, personIgnored: 1, unmatchedColumns: 0 }, false)).toEqual([
-      '1 ignored column is not in the form and will not be saved.',
+      '1 ignored column will not be saved.',
     ])
     expect(mappingBarLines({ pending: 0, personIgnored: 0, unmatchedColumns: 0 }, true)).toEqual([])
   })

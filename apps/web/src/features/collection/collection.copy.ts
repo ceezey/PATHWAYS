@@ -114,7 +114,8 @@ export const ignoredReasonCopy = (reason: string, formType: string) => {
   }
 }
 
-export const PENDING_COLUMN_HELP = 'Not in the form. If ignored, this column is not saved.'
+export const PENDING_COLUMN_HELP =
+  'No form field matched this column. If ignored, this column is not saved.'
 
 export const PENDING_ADVICE =
   'Not sure? Ignore it. The file stays stored, and after a form manager adds the field, the uploader can re-run this import.'
@@ -135,7 +136,7 @@ export const mappingBarLines = (
   } else if (personIgnored > 0) {
     const keep = personIgnored === 1 ? 'it' : 'them'
     lines.push(
-      `${personIgnored === 1 ? '1 ignored column is' : `${personIgnored} ignored columns are`} not in the form and will not be saved.${canPrepare ? ` Prepare form to keep ${keep}.` : ''}`,
+      `${personIgnored === 1 ? '1 ignored column' : `${personIgnored} ignored columns`} will not be saved.${canPrepare ? ` Prepare form to keep ${keep}.` : ''}`,
     )
   }
   if (unmatchedColumns > 0) {
