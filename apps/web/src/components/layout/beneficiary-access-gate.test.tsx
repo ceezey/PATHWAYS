@@ -16,9 +16,18 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.routerPush }) }))
 vi.mock('@/components/pathways/dialog-shell', () => ({
-  DialogShell: ({ children, title }: { children: ReactNode; title: string }) => (
+  DialogShell: ({
+    children,
+    title,
+    description,
+  }: {
+    children: ReactNode
+    title: string
+    description: string
+  }) => (
     <section>
       <h1>{title}</h1>
+      <p>{description}</p>
       {children}
     </section>
   ),
@@ -286,7 +295,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   const pinInput = () => pinBox('Beneficiary access PIN')
   const usePin = () => screen.queryByRole('button', { name: 'Use PIN instead' })
   const useAuthenticator = () => screen.queryByRole('button', { name: 'Use authenticator instead' })
-  const profileHint = 'You can change your PIN in My Profile.'
+  const profileHint = /You can change your PIN in My Profile\.$/
 
   it.each([
     ['NONE', false],
