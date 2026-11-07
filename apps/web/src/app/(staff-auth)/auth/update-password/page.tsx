@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
 
 import { SkipLink } from '@/components/layout/skip-link'
@@ -7,12 +6,7 @@ import { Button } from '@/components/ui/button'
 import { PasswordUpdateForm, StaffAuthFrame } from '@/features/auth'
 import { webSupabasePublishableKey } from '@/lib/env'
 import { createClient } from '@/lib/server'
-import {
-  getRecoveryIdentityFromVerifiedClaims,
-  inspectPasswordRecoveryGrant,
-  passwordRecoveryIntentCookie,
-  recoveryDiagnosticInstance,
-} from '@/lib/supabase/recovery-server'
+import { getRecoveryIdentityFromVerifiedClaims } from '@/lib/supabase/recovery-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,41 +15,27 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-// TEMPORARY diagnostic: names the failing check without logging any token or identifier.
-const diag = (step: string) => {
-  console.warn('[recovery-diag] page', { instance: recoveryDiagnosticInstance, step })
-  return step === 'ok'
-}
-
 async function hasApprovedRecoverySession() {
-  const cookieStore = await cookies()
-  const intent = cookieStore.get(passwordRecoveryIntentCookie)?.value
-  if (!intent) return diag('no-intent-cookie')
-  if (!webSupabasePublishableKey) return diag('no-publishable-key')
+  if (!webSupabasePublishableKey) return false
 
   try {
     const supabase = await createClient()
     const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData.user) return diag('no-user')
+    if (userError || !userData.user) return false
 
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError || !sessionData.session) return diag('no-session')
+    if (sessionError || !sessionData.session) return false
 
     const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
       sessionData.session.access_token,
     )
-    if (claimsError) return diag('claims-error')
     const recoveryIdentity = getRecoveryIdentityFromVerifiedClaims(
       claimsData?.claims,
       userData.user.id,
     )
-    if (!recoveryIdentity) return diag('claims-not-recovery')
-    if (!inspectPasswordRecoveryGrant(intent, userData.user.id, recoveryIdentity.sessionId)) {
-      return diag('grant-not-found')
-    }
-    return diag('ok')
+    return Boolean(!claimsError && recoveryIdentity)
   } catch {
-    return diag('threw')
+    return false
   }
 }
 

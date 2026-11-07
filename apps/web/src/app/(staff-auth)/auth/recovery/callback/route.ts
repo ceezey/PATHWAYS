@@ -3,15 +3,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { localPasswordRecoveryOrigin, passwordUpdatePath } from '@/lib/auth/password-recovery'
 import {
   applyPendingAuthCookies,
-  clearPasswordRecoveryIntent,
   createPendingAuthResponse,
   createRecoveryRouteClient,
   getRecoveryIdentityFromVerifiedClaims,
   isApprovedRecoveryRequest,
-  issuePasswordRecoveryGrant,
-  passwordRecoveryIntentCookie,
-  passwordRecoveryIntentCookieOptions,
-  recoveryDiagnosticInstance,
   recoveryRedirectType,
   secureRecoveryResponse,
 } from '@/lib/supabase/recovery-server'
@@ -55,9 +50,7 @@ export async function GET(request: NextRequest) {
     typeValues[0] === tokenType
 
   if (request.nextUrl.search.length > 4096 || (!isCodeFlow && !isTokenHashFlow)) {
-    const response = redirect(recoveryErrorPath, pending)
-    clearPasswordRecoveryIntent(response)
-    return response
+    return redirect(recoveryErrorPath, pending)
   }
 
   try {
@@ -92,25 +85,14 @@ export async function GET(request: NextRequest) {
         try {
           await supabase.auth.signOut({ scope: 'local' })
         } catch {
-          // The failed callback still receives no local recovery grant.
+          // The failed callback still sends the person to the error page.
         }
       }
-      const response = redirect(recoveryErrorPath, pending)
-      clearPasswordRecoveryIntent(response)
-      return response
+      return redirect(recoveryErrorPath, pending)
     }
 
-    const response = redirect(passwordUpdatePath, pending)
-    console.warn('[recovery-diag] grant issued', { instance: recoveryDiagnosticInstance })
-    response.cookies.set(
-      passwordRecoveryIntentCookie,
-      issuePasswordRecoveryGrant(user.id, recoveryIdentity.sessionId),
-      passwordRecoveryIntentCookieOptions,
-    )
-    return response
+    return redirect(passwordUpdatePath, pending)
   } catch {
-    const response = redirect(recoveryErrorPath, pending)
-    clearPasswordRecoveryIntent(response)
-    return response
+    return redirect(recoveryErrorPath, pending)
   }
 }
