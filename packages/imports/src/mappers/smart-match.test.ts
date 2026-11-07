@@ -886,7 +886,7 @@ describe('AUTO_SMART_V5', () => {
     })
   })
 
-  it('leaves only training/training_interests pending on the Kobo corpus file', () => {
+  it('matcher output before the fed guard leaves only training/training_interests pending on the Kobo corpus file', () => {
     const { bytes, fileType } = buildAnySourceFixture('kobo-xlsx')
     const file = readImportFile(
       bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,

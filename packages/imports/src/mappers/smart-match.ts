@@ -93,7 +93,7 @@ export function smartMatchColumnsV4(
   return matchColumns(columns, fields, 4)
 }
 
-/** AUTO_SMART_V5: V4 plus calculated-field, submission time and Kobo timing ignores; a calculated ignore carries its field in suggestedFieldId for the fed check. */
+/** AUTO_SMART_V5: V4 plus calculated-field, submission time and Kobo timing ignores; a calculated ignore carries its field in suggestedFieldId for the fed check. Callers go through `matchColumns`, which applies the fed guard and clears ignored suggestions before anything is stored. */
 export function smartMatchColumnsV5(
   columns: readonly SmartMatchColumn[],
   fields: readonly SmartMatchField[],
