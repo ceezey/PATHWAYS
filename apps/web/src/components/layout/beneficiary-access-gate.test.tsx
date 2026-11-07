@@ -92,6 +92,10 @@ afterEach(() => {
 })
 
 describe('BeneficiaryAccessGate (server-verified step-up)', () => {
+  // These cases cover the authenticator, which is the default while no PIN is set.
+  beforeEach(() => {
+    mocks.getStatus.mockResolvedValue(stale('NONE'))
+  })
   it('renders Beneficiary content directly when the server reports a fresh step-up', async () => {
     mocks.getStatus.mockResolvedValue(totpFresh())
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
@@ -150,7 +154,6 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
   })
 
   it('auto-verifies once all six digits are entered, without a button click', async () => {
-    mocks.getStatus.mockResolvedValue(stale('SET'))
     mocks.verify.mockResolvedValue(totpFresh('SET'))
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
     fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
@@ -209,8 +212,8 @@ describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
     mocks.getStatus.mockResolvedValue(stale('SET'))
     render(<DisabledGate preflight>{content}</DisabledGate>)
     expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Use PIN' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Use authenticator' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Use PIN instead' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Beneficiary access PIN' })).toBeNull()
     expect(screen.queryByText('PIN locked. Use your authenticator to unlock it.')).toBeNull()
 
     fireEvent.change(codeInput(), { target: { value: '123456' } })
@@ -264,8 +267,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   it('says the PIN is locked once after the attempt that locks it', async () => {
     mocks.verifyPin.mockRejectedValue(new BeneficiaryStepUpError('locked', 'locked'))
     render(<EnabledGate preflight>{content}</EnabledGate>)
-    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
-    fireEvent.change(pinBox('Beneficiary access PIN'), { target: { value: '739182' } })
+    fireEvent.change(await findPinBox('Beneficiary access PIN'), { target: { value: '739182' } })
     fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
     const shown = await screen.findAllByText('PIN locked. Use your authenticator to unlock it.')
     expect(shown).toHaveLength(1)
@@ -282,29 +284,48 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     render(<EnabledGate preflight={props.preflight}>{content}</EnabledGate>)
 
   const pinInput = () => pinBox('Beneficiary access PIN')
-  const usePin = () => screen.queryByRole('button', { name: 'Use PIN' })
+  const usePin = () => screen.queryByRole('button', { name: 'Use PIN instead' })
+  const useAuthenticator = () => screen.queryByRole('button', { name: 'Use authenticator instead' })
+  const profileHint = 'You can change your PIN in My Profile.'
 
   it.each([
     ['NONE', false],
     ['LOCKED', false],
     ['SET', true],
-  ] as const)('offers "Use PIN" for pinState %s: %s', async (pinState, offered) => {
+  ] as const)('opens on the PIN only for pinState %s: %s', async (pinState, onPin) => {
     mocks.getStatus.mockResolvedValue(stale(pinState))
     renderGate({ preflight: true })
     expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
-    expect(usePin() !== null).toBe(offered)
+    expect(screen.queryByRole('group', { name: 'Beneficiary access PIN' }) !== null).toBe(onPin)
+    expect(useAuthenticator() !== null).toBe(onPin)
+    expect(screen.queryByText(profileHint) !== null).toBe(onPin)
+    expect(usePin()).toBeNull()
+    if (!onPin) expect(codeInput()).toBeTruthy()
     if (pinState === 'LOCKED')
       expect(screen.getByText('PIN locked. Use your authenticator to unlock it.')).toBeTruthy()
+  })
+
+  it('switches to the authenticator and back with one link, and the code still verifies', async () => {
+    renderGate({ preflight: true })
+    await findPinBox('Beneficiary access PIN')
+    expect(screen.getByText('Enter your beneficiary access PIN.')).toBeTruthy()
+    fireEvent.click(useAuthenticator() as HTMLElement)
+    expect(screen.queryByRole('group', { name: 'Beneficiary access PIN' })).toBeNull()
+    expect(screen.getByText('Enter the six-digit code from your authenticator app.')).toBeTruthy()
+    expect(screen.getByText(profileHint)).toBeTruthy()
+    fireEvent.click(usePin() as HTMLElement)
+    expect(pinInput()).toBeTruthy()
+    fireEvent.click(useAuthenticator() as HTMLElement)
+    fireEvent.change(codeInput(), { target: { value: '123456' } })
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(mocks.verify).toHaveBeenCalledExactlyOnceWith('123456')
+    expect(mocks.verifyPin).not.toHaveBeenCalled()
   })
 
   it('verifies a PIN, clears it after each attempt and never stores it', async () => {
     mocks.verifyPin.mockRejectedValueOnce(new BeneficiaryStepUpError('Incorrect PIN', 'rejected'))
     renderGate({ preflight: true })
-    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
-    expect(screen.getByRole('button', { name: 'Use PIN' }).getAttribute('aria-pressed')).toBe(
-      'true',
-    )
-    const input = pinInput()
+    const input = await findPinBox('Beneficiary access PIN')
     expect(input.type).toBe('password')
     expect(input.getAttribute('inputmode')).toBe('numeric')
     expect(input.getAttribute('autocomplete')).toBe('off')
@@ -331,14 +352,14 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
       new BeneficiaryStepUpError('PIN locked. Use your authenticator to unlock it.', 'locked'),
     )
     renderGate({ preflight: true })
-    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
-    fireEvent.change(pinInput(), { target: { value: '736150' } })
+    fireEvent.change(await findPinBox('Beneficiary access PIN'), { target: { value: '736150' } })
     fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
     await waitFor(() => expect(codeInput()).toBeTruthy())
     expect(
       screen.getAllByText('PIN locked. Use your authenticator to unlock it.').length,
     ).toBeGreaterThan(0)
     expect(usePin()).toBeNull()
+    expect(useAuthenticator()).toBeNull()
     await waitFor(() => expect(document.activeElement).toBe(codeInput()))
   })
 
@@ -452,7 +473,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     act(() => {
       window.dispatchEvent(new Event(STEP_UP_REQUIRED_EVENT))
     })
-    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
+    await findPinBox('Beneficiary access PIN')
     let fail!: (error: Error) => void
     mocks.getStatus.mockReturnValueOnce(
       new Promise((_resolve, reject) => {
@@ -462,10 +483,11 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     act(() => {
       window.dispatchEvent(new Event(STEP_UP_REQUIRED_EVENT))
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Use PIN' }))
+    // The last known PIN state opens the prompt on the PIN at once, with no authenticator flash.
     expect(pinBox('Beneficiary access PIN')).toBeTruthy()
     await act(async () => fail(new Error('outage')))
-    expect(screen.queryByRole('button', { name: 'Use PIN' })).toBeNull()
+    expect(usePin()).toBeNull()
+    expect(useAuthenticator()).toBeNull()
     expect(codeInput()).toBeTruthy()
     expect(screen.queryByRole('group', { name: 'Beneficiary access PIN' })).toBeNull()
   })
