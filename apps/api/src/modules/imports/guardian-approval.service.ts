@@ -130,12 +130,12 @@ export class GuardianApprovalService {
           })
         }
         const claim = await claimBatchForResolution(tx, batch.id)
-        for (const { row, parked, unchangedOf, values } of promotable) {
+        for (const { row, parked, reviewed, unchangedOf, values } of promotable) {
           const claimInput = { batch, rowId: row.id, rowNumber: row.rowNumber, claim }
           if (unchangedOf) {
             await completeUnchangedRow(tx, actor, {
               ...claimInput,
-              resolution: { guardianApproval: true },
+              resolution: parked ? null : { guardianApproval: true },
               beneficiaryId: unchangedOf,
             })
           } else {
@@ -143,7 +143,7 @@ export class GuardianApprovalService {
               ...claimInput,
               form,
               // A reviewer's resolution was made on the client's identifier.
-              matchByIdentifier: parked || byIdentifier,
+              matchByIdentifier: reviewed || byIdentifier,
               // A parked row keeps the resolution a reviewer gave it.
               resolution: parked ? null : { guardianApproval: true },
               values,
@@ -165,7 +165,7 @@ export class GuardianApprovalService {
     )
   }
 
-  // The values a held row is promoted with: a parked row keeps its resolution, else the participant is found again by the client's identifier.
+  // The values a held row is promoted with: a reviewer's resolution stands, any other row has its participant checked again by code or identifier.
   private async approvalValues(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -177,18 +177,36 @@ export class GuardianApprovalService {
       normalizedData: Prisma.JsonValue
     },
     byIdentifier: boolean,
-  ): Promise<{ parked: boolean; unchangedOf?: string; values: Record<string, unknown> }> {
+  ): Promise<{
+    parked: boolean
+    reviewed: boolean
+    unchangedOf?: string
+    values: Record<string, unknown>
+  }> {
     if (row.resolvedAt) {
-      const resolved = (row.resolutionData as { values?: Record<string, unknown> } | null)?.values
+      const resolution = row.resolutionData as {
+        kind?: string
+        values?: Record<string, unknown>
+      } | null
+      const resolved = resolution?.values
       if (!resolved) throw new ConflictException(noLongerApprovable(row.rowNumber))
-      return { parked: true, values: resolved }
+      if (resolution?.kind !== 'ENROLLMENT_DATE') {
+        return { parked: true, reviewed: true, values: resolved }
+      }
+      // A confirmed enrollment date settles no identity, so the participant is checked again as for an unresolved row.
+      const found = await unresolvedRowValues(tx, actor, form, {
+        rowNumber: row.rowNumber,
+        stored: resolved,
+        byIdentifier,
+      })
+      return { parked: true, reviewed: false, ...found }
     }
     const found = await unresolvedRowValues(tx, actor, form, {
       rowNumber: row.rowNumber,
       stored: safeRawData(row.normalizedData),
       byIdentifier,
     })
-    return { parked: false, ...found }
+    return { parked: false, reviewed: false, ...found }
   }
 }
 
