@@ -648,7 +648,5 @@ test('planIndexForAppliedCount on a 0000-0086 ledger resumes at the 0087 deploy'
 test('planIndexForAppliedCount on a 0000-0087 ledger resumes at the 0088 deploy', () => {
   const plan = buildPlan()
   const applied = MIGRATIONS_IN_ORDER.indexOf('0087_public_tracker_analytics') + 1
-  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, [
-    '0088_smart_mapping_v5',
-  ])
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0088_smart_mapping_v5'])
 })
