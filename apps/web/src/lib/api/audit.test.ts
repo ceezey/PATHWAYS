@@ -24,6 +24,7 @@ const row = {
   projectId,
   actorUserId: userId,
   actorName: 'Synthetic Staff',
+  details: {},
 }
 const page = { rows: [row], nextCursor: null }
 const json = (value: unknown) =>

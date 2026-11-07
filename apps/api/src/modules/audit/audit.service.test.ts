@@ -91,10 +91,31 @@ describe('audit projection and cursor boundary', () => {
         'entityId',
         'projectId',
         'actorUserId',
+        'changes',
         'actor',
       ].sort(),
     )
     expect(query.select.actor).toEqual({ select: { fullName: true } })
+  })
+  it('returns only allowlisted non-personal change keys and never the stored changes', async () => {
+    tx.auditLog.findMany.mockResolvedValue([
+      {
+        ...row('1'),
+        action: 'IMPORT_ENROLLMENT_DATE_CONFIRMED',
+        changes: { source: 'TYPED', rowNumber: 5, enrollmentDate: '2026-01-12', name: { a: 1 } },
+      },
+      { ...row('2'), changes: { fullName: 'Fictional participant' } },
+      { ...row('3'), action: 'constructor', changes: { source: 'x' } },
+      { ...row('4'), action: 'IMPORT_ENROLLMENT_DATE_CONFIRMED', changes: null },
+    ])
+    const result = await service.list(identity, {})
+    expect(result.rows.map((item) => item.details)).toEqual([
+      { source: 'TYPED', rowNumber: 5 },
+      {},
+      {},
+      {},
+    ])
+    expect(result.rows[0]).not.toHaveProperty('changes')
   })
   it('resolves the actor name from the same organization-scoped relation', async () => {
     tx.auditLog.findMany.mockResolvedValue([row('1')])
