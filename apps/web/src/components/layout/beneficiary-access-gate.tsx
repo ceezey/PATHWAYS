@@ -260,7 +260,7 @@ export const BeneficiaryAccessGate = ({
 
   const methodSwitch =
     STEP_UP_PIN_UI_ENABLED && method !== 'offer' && pinState === 'SET' ? (
-      <div className="space-y-1 text-center">
+      <div className="text-center">
         <Button
           onClick={() => choose(method === 'pin' ? 'totp' : 'pin')}
           size="sm"
@@ -269,7 +269,6 @@ export const BeneficiaryAccessGate = ({
         >
           {method === 'pin' ? 'Use authenticator instead' : 'Use PIN instead'}
         </Button>
-        <p className="text-sm text-muted-foreground">You can change your PIN in My Profile.</p>
       </div>
     ) : null
 
@@ -309,8 +308,8 @@ export const BeneficiaryAccessGate = ({
           method === 'offer'
             ? 'Your authenticator stays the primary check. The PIN works only in this signed-in session window.'
             : STEP_UP_PIN_UI_ENABLED
-              ? 'Beneficiary personal details require a recent authenticator or PIN verification. The server checks it on every request.'
-              : 'Beneficiary personal details require a recent authenticator verification. The server checks it on every request.'
+              ? `Beneficiary personal details require a recent authenticator or PIN verification. The server checks it on every request.${pinState === 'SET' ? ' You can change your PIN in My Profile.' : ''}`
+              :'Beneficiary personal details require a recent authenticator verification. The server checks it on every request.'
         }
       >
         <div className="space-y-5">
