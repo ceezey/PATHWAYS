@@ -625,5 +625,28 @@ describe('enrollment date confirmation', () => {
         resolutionData: { kind: 'ENROLLMENT_DATE', source: 'SUBMISSION_TIME' },
       })
     })
+
+    it('on a code-matched batch, is refused by guardian approval naming the row when its code was taken meanwhile', async () => {
+      store.identifierMapped = false
+      await confirm({ rowIds: [rowIds[0]] })
+      vi.clearAllMocks()
+      fakeTx.beneficiary.findUnique.mockImplementation((async (args: {
+        where: { organizationId_code: { code: string } }
+      }) => (args.where.organizationId_code.code === 'PART-1' ? { id: 'taken' } : null)) as never)
+      const guardians = new GuardianApprovalService(
+        {} as PrismaService,
+        new BeneficiaryRegistrationService(),
+      )
+      try {
+        await expect(
+          guardians.approve(projectOfficer, projectId, batchId, { rowIds: [rowIds[0]] }),
+        ).rejects.toThrow(
+          'Row 1 looks like a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.',
+        )
+        expectNoWrites()
+      } finally {
+        fakeTx.beneficiary.findUnique.mockImplementation((async () => null) as never)
+      }
+    })
   })
 })
