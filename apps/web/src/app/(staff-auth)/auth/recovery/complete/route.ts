@@ -3,13 +3,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { passwordUpdateRequestSchema } from '@/lib/auth/password-recovery'
 import {
   applyPendingAuthCookies,
-  clearPasswordRecoveryIntent,
-  consumePasswordRecoveryGrant,
   createPendingAuthResponse,
   createRecoveryRouteClient,
   getRecoveryIdentityFromVerifiedClaims,
   isApprovedRecoveryRequest,
-  passwordRecoveryIntentCookie,
   secureRecoveryResponse,
 } from '@/lib/supabase/recovery-server'
 
@@ -31,11 +28,9 @@ const jsonResponse = (
   status: number,
   body: PasswordCompletionBody,
   pending = createPendingAuthResponse(),
-  clearIntent = false,
 ) => {
   const response = NextResponse.json(body, { status })
   applyPendingAuthCookies(response, pending)
-  if (clearIntent) clearPasswordRecoveryIntent(response)
   return secureRecoveryResponse(response)
 }
 
@@ -45,7 +40,7 @@ export async function POST(request: NextRequest) {
     request.nextUrl.search ||
     !request.headers.get('content-type')?.toLowerCase().startsWith('application/json')
   ) {
-    return jsonResponse(403, { ok: false, outcome: 'unauthorized' }, undefined, true)
+    return jsonResponse(403, { ok: false, outcome: 'unauthorized' })
   }
 
   let bodyText: string
@@ -74,7 +69,6 @@ export async function POST(request: NextRequest) {
     const { data: userData, error: userError } = await supabase.auth.getUser()
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
     const session = sessionData.session
-    const intent = request.cookies.get(passwordRecoveryIntentCookie)?.value
     const claimsResult = session
       ? await supabase.auth.getClaims(session.access_token)
       : { data: null, error: null }
@@ -90,10 +84,9 @@ export async function POST(request: NextRequest) {
       !userData.user ||
       session?.user.id !== userData.user.id ||
       !session ||
-      !recoveryIdentity ||
-      !consumePasswordRecoveryGrant(intent, userData.user.id, recoveryIdentity.sessionId)
+      !recoveryIdentity
     ) {
-      return jsonResponse(401, { ok: false, outcome: 'unauthorized' }, pending, true)
+      return jsonResponse(401, { ok: false, outcome: 'unauthorized' }, pending)
     }
   } catch {
     return jsonResponse(503, { ok: false, outcome: 'not_changed' }, pending)
@@ -105,13 +98,12 @@ export async function POST(request: NextRequest) {
     })
     if (updateError) {
       return isDefinitiveProviderRejection(updateError)
-        ? jsonResponse(400, { ok: false, outcome: 'not_changed' }, pending, true)
-        : jsonResponse(503, { ok: false, outcome: 'unknown' }, pending, true)
+        ? jsonResponse(400, { ok: false, outcome: 'not_changed' }, pending)
+        : jsonResponse(503, { ok: false, outcome: 'unknown' }, pending)
     }
   } catch {
-    // The provider may have received the password before the network failed. Consume the
-    // one-time grant and require the person to verify the outcome rather than retry blindly.
-    return jsonResponse(503, { ok: false, outcome: 'unknown' }, pending, true)
+    // The provider may have received the password before the network failed, so do not retry.
+    return jsonResponse(503, { ok: false, outcome: 'unknown' }, pending)
   }
 
   let sessionClosed = false
@@ -122,5 +114,5 @@ export async function POST(request: NextRequest) {
     // The password change is committed even when closing this browser session is unconfirmed.
   }
 
-  return jsonResponse(200, { ok: true, sessionClosed }, pending, true)
+  return jsonResponse(200, { ok: true, sessionClosed }, pending)
 }
