@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { useSession } from '@/hooks/use-session'
 import {
   type PasswordUpdate,
   classifyPasswordCompletionResult,
@@ -26,6 +27,7 @@ import {
 import { StaffAuthFrame } from './staff-auth-frame'
 
 export const PasswordUpdateForm = () => {
+  const { signOut } = useSession()
   const [completed, setCompleted] = useState(false)
   const [safeError, setSafeError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -56,6 +58,8 @@ export const PasswordUpdateForm = () => {
       const result = await response.json().catch(() => null)
       const outcome = classifyPasswordCompletionResult(response.ok, result)
       if (outcome.kind === 'success') {
+        // The server cleared the cookies; drop the cached recovery session so sign-in does not bounce to MFA.
+        await signOut().catch(() => undefined)
         setCompleted(true)
         return
       }
