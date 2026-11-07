@@ -121,7 +121,7 @@ for (const path of paths) {
   console.log(
     `header row ${file.headerRowNumber}, ${file.rows.length} rows, ${file.sourceColumns.length} columns`,
   )
-  const decisions = matchColumns(file.sourceColumns, file.rows, FIELDS)
+  const decisions = matchColumns(file.sourceColumns, file.rows, FIELDS, 'BENEFICIARY_REGISTRATION')
   // V3, the matcher before this branch, on the columns no source code mapped.
   const smart = file.sourceColumns.filter(
     (column) =>

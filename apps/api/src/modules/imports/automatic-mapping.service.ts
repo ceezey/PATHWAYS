@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common'
 import {
   AUTO_SMART_V2_LIMITS,
-  AUTO_SMART_V4,
+  AUTO_SMART_V5,
   type CoverageField,
   type SmartMatchDecision,
   importCoverage,
@@ -41,7 +41,7 @@ export async function recordAutomaticMapping(
           SELECT pathways.p78_record_smart_mapping(
             ${batch.id}::uuid,
             ${input.expectedMappingRevision}::integer,
-            ${AUTO_SMART_V4}::text,
+            ${AUTO_SMART_V5}::text,
             ${JSON.stringify(decisions)}::jsonb
           ) AS receipt
         `)
@@ -80,7 +80,7 @@ export async function recordAutomaticMapping(
 }
 
 /**
- * AUTO_SMART_V4 inputs, all scoped to the locked batch: stored headers, the pinned form's
+ * AUTO_SMART_V5 inputs, all scoped to the locked batch: stored headers, the pinned form's
  * fields and the staged raw values. Cell values stay in this function; only the matcher's
  * fixed-shape decisions and the coverage inputs leave it, and the distinct values go no further
  * than the in-process coverage count.
@@ -104,7 +104,7 @@ async function smartMappingInputs(
   }
   const { sourceColumns, fields, raw, distinctValues } = await stagedMatchInputs(tx, actor, batch)
   try {
-    const decisions = matchColumns(sourceColumns, raw, fields)
+    const decisions = matchColumns(sourceColumns, raw, fields, batch.form.formType)
     return { decisions, fields, distinctValues }
   } catch {
     throw new BadRequestException('Invalid automatic mapping request.')

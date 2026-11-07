@@ -144,6 +144,7 @@ export function checkImportFile(input: {
     file.sourceColumns,
     file.rows,
     fields.map((field): CoverageField => ({ ...field, calculated: isCalculatedRule(field.rule) })),
+    formType,
   )
 
   // A column the server leaves pending with a suggestion counts as mapped to it; other pending columns are left out.

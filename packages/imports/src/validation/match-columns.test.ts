@@ -70,8 +70,10 @@ const columns = (spec: Array<[string, unknown[]?]>): SmartMatchColumn[] =>
     samples,
   }))
 
-const guarded = (cols: SmartMatchColumn[], fields = FORM) =>
-  keepFedCalculatedIgnores(smartMatchColumnsV5(cols, fields), fields)
+const REGISTRATION_TYPE = 'BENEFICIARY_REGISTRATION'
+
+const guarded = (cols: SmartMatchColumn[], fields = FORM, formType = REGISTRATION_TYPE) =>
+  keepFedCalculatedIgnores(smartMatchColumnsV5(cols, fields), fields, formType)
 
 const ignoredCalculated = {
   status: 'IGNORED',
@@ -122,6 +124,16 @@ describe('keepFedCalculatedIgnores', () => {
     const cols = columns([['Age at the event'], ['Birth date', ['2000-01-01']]])
     expect(guarded(cols, atDefault('2026-01-01'))[0]).toMatchObject(ignoredCalculated)
     expect(guarded(cols, atDefault(null))).toEqual(smartMatchColumnsV4(cols, atDefault(null)))
+  })
+
+  it('counts the deferred enrollment date as supplied on a registration form only', () => {
+    const cols = columns([['Age'], ['Birth date', ['2000-01-01']]])
+    expect(guarded(cols)[0]).toMatchObject(ignoredCalculated)
+    expect(guarded(cols, FORM, 'ACTIVITY_PARTICIPATION')).toEqual(smartMatchColumnsV4(cols, FORM))
+    expect(guarded(cols, FORM, 'ACTIVITY_PARTICIPATION')[0]).toMatchObject({
+      status: 'PENDING',
+      reason: 'NO_MATCH',
+    })
   })
 
   it('only clears the suggestion of a kept ignore and leaves every other decision alone', () => {

@@ -4,7 +4,7 @@ import {
   AUTO_SMART_V2_LIMITS,
   type SmartMatchColumn,
   type SmartMatchDecision,
-  smartMatchColumnsV4,
+  smartMatchColumnsV5,
 } from '../mappers/smart-match'
 import { matchBySourceCode } from '../mappers/source-code-match'
 import type { ImportSourceColumn } from '../parser/matrix'
@@ -30,12 +30,14 @@ function smartMatchColumns(
 
 /**
  * One decision per column: a unique row-1 source code maps its column first, and the smart matcher
- * sees only the other columns and fields, so it can never override a code.
+ * sees only the other columns and fields, so it can never override a code. The form type tells
+ * whether the deferred enrollment date counts as supplied when a calculated-field ignore is checked.
  */
 export function matchColumns(
   sourceColumns: ImportSourceColumn[],
   raw: Array<Record<string, unknown>>,
   fields: CoverageField[],
+  formType: string,
 ): SmartMatchDecision[] {
   const columns = smartMatchColumns(sourceColumns, raw)
   const blank = new Set(columns.filter((column) => column.blank).map((column) => column.key))
@@ -44,7 +46,7 @@ export function matchColumns(
     fields,
   )
   const coded = new Set(byCode.values())
-  const rest = smartMatchColumnsV4(
+  const rest = smartMatchColumnsV5(
     columns.filter((column) => !byCode.has(column.key)),
     fields.filter((field) => !coded.has(field.code)),
   )
@@ -59,18 +61,23 @@ export function matchColumns(
     matchReason: 'METADATA_SOURCE_NAME',
     reason: 'AUTO_MATCH',
   }))
-  return [...decisions, ...rest].sort((left, right) => left.columnIndex - right.columnIndex)
+  return keepFedCalculatedIgnores([...decisions, ...rest], fields, formType).sort(
+    (left, right) => left.columnIndex - right.columnIndex,
+  )
 }
 
 /** V5, after the source-code merge: keeps a calculated-field ignore only when the mapped columns feed its field, else gives the column back pending as V4 left it, and clears the suggestion of every ignore as p78 stores it. */
 export function keepFedCalculatedIgnores(
   decisions: SmartMatchDecision[],
   fields: CoverageField[],
+  formType: string,
 ): SmartMatchDecision[] {
   const codeById = new Map(fields.map((field) => [field.id, field.code]))
   const byCode = new Map(fields.map((field) => [field.code, field]))
-  // The enrollment date is confirmed after upload, and an age rule's at-date with a default is on every row.
-  const supplied = new Set<string>(DEFERRED_REGISTRATION_FIELDS)
+  // A registration's enrollment date is confirmed after upload, and an age rule's at-date with a default is on every row.
+  const supplied = new Set<string>(
+    formType === 'BENEFICIARY_REGISTRATION' ? DEFERRED_REGISTRATION_FIELDS : [],
+  )
   for (const decision of decisions) {
     const code =
       decision.status === 'MAPPED' ? codeById.get(decision.targetFieldId ?? '') : undefined
