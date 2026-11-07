@@ -69,6 +69,14 @@ describe('auditClient audit read', () => {
     fetcher.mockResolvedValueOnce(json(body))
     await expect(client.list()).resolves.toEqual(body)
   })
+  it('accepts scalar event details', async () => {
+    const body = {
+      rows: [{ ...row, details: { source: 'TYPED', rowNumber: 5 } }],
+      nextCursor: null,
+    }
+    fetcher.mockResolvedValueOnce(json(body))
+    await expect(client.list()).resolves.toEqual(body)
+  })
   it.each([
     ['101 rows', { rows: Array.from({ length: 101 }, () => row), nextCursor: null }],
     ['an unknown page key', { ...page, total: 1 }],
@@ -83,6 +91,12 @@ describe('auditClient audit read', () => {
     ],
     ['a missing action', { rows: [{ ...row, action: undefined }], nextCursor: null }],
     ['a numeric actor name', { rows: [{ ...row, actorName: 1 }], nextCursor: null }],
+    ['missing details', { rows: [{ ...row, details: undefined }], nextCursor: null }],
+    [
+      'a nested detail value',
+      { rows: [{ ...row, details: { source: { a: 1 } } }], nextCursor: null },
+    ],
+    ['a null detail value', { rows: [{ ...row, details: { source: null } }], nextCursor: null }],
   ])('rejects %s', async (_label, body) => {
     fetcher.mockResolvedValueOnce(json(body))
     await expect(client.list()).rejects.toThrow('could not be validated')

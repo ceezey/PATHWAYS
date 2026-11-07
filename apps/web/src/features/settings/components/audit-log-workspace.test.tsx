@@ -93,6 +93,15 @@ describe('audit screen current access and business date', () => {
     expect(dialog.getByText('Source').nextElementSibling?.textContent).toBe('TYPED')
     expect(dialog.getByText('Row number').nextElementSibling?.textContent).toBe('5')
   })
+  it('shows no details for an event without any', () => {
+    state.many = true
+    render(<AuditLogWorkspace />)
+    fireEvent.click(screen.getAllByRole('button', { name: /View PROJECT_UPDATED for/ })[1])
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('10000000-0000-4000-8000-000000000002')).toBeTruthy()
+    expect(dialog.queryByText('Source')).toBeNull()
+    expect(dialog.queryByText('Row number')).toBeNull()
+  })
   it('hides an open detail and cached rows when current audit verification fails', () => {
     const view = render(<AuditLogWorkspace />)
     fireEvent.click(screen.getByRole('button', { name: /View PROJECT_UPDATED for/ }))

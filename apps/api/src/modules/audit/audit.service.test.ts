@@ -64,7 +64,7 @@ describe('audit projection and cursor boundary', () => {
     expect(tx.project.findMany).not.toHaveBeenCalled()
     expect(tx.auditLog.findMany.mock.calls[0][0].where).toEqual({ organizationId: org })
   })
-  it('scopes a manager before retrieving audit rows and exposes only the seven permitted fields', async () => {
+  it('scopes a manager before retrieving audit rows and selects only the permitted fields', async () => {
     state.actor = { ...identity, roles: ['PROJECT_MANAGER'] }
     await service.list(identity, { projectId })
     expect(tx.project.findMany.mock.calls[0][0]).toMatchObject({
@@ -107,10 +107,16 @@ describe('audit projection and cursor boundary', () => {
       { ...row('2'), changes: { fullName: 'Fictional participant' } },
       { ...row('3'), action: 'constructor', changes: { source: 'x' } },
       { ...row('4'), action: 'IMPORT_ENROLLMENT_DATE_CONFIRMED', changes: null },
+      {
+        ...row('5'),
+        action: 'IMPORT_ENROLLMENT_DATE_CONFIRMED',
+        changes: { source: { fullName: 'Fictional participant' }, rowNumber: [5] },
+      },
     ])
     const result = await service.list(identity, {})
-    expect(result.rows.map((item) => item.details)).toEqual([
+    expect(result.rows.map((item) => item.details)).toStrictEqual([
       { source: 'TYPED', rowNumber: 5 },
+      {},
       {},
       {},
       {},
