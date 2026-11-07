@@ -11,6 +11,7 @@ import {
   getRecoveryIdentityFromVerifiedClaims,
   inspectPasswordRecoveryGrant,
   passwordRecoveryIntentCookie,
+  recoveryDiagnosticInstance,
 } from '@/lib/supabase/recovery-server'
 
 export const dynamic = 'force-dynamic'
@@ -20,35 +21,41 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
+// TEMPORARY diagnostic: names the failing check without logging any token or identifier.
+const diag = (step: string) => {
+  console.warn('[recovery-diag] page', { instance: recoveryDiagnosticInstance, step })
+  return step === 'ok'
+}
+
 async function hasApprovedRecoverySession() {
   const cookieStore = await cookies()
   const intent = cookieStore.get(passwordRecoveryIntentCookie)?.value
-  if (!intent || !webSupabasePublishableKey) {
-    return false
-  }
+  if (!intent) return diag('no-intent-cookie')
+  if (!webSupabasePublishableKey) return diag('no-publishable-key')
 
   try {
     const supabase = await createClient()
     const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData.user) return false
+    if (userError || !userData.user) return diag('no-user')
 
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError || !sessionData.session) return false
+    if (sessionError || !sessionData.session) return diag('no-session')
 
     const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
       sessionData.session.access_token,
     )
+    if (claimsError) return diag('claims-error')
     const recoveryIdentity = getRecoveryIdentityFromVerifiedClaims(
       claimsData?.claims,
       userData.user.id,
     )
-    return Boolean(
-      !claimsError &&
-        recoveryIdentity &&
-        inspectPasswordRecoveryGrant(intent, userData.user.id, recoveryIdentity.sessionId),
-    )
+    if (!recoveryIdentity) return diag('claims-not-recovery')
+    if (!inspectPasswordRecoveryGrant(intent, userData.user.id, recoveryIdentity.sessionId)) {
+      return diag('grant-not-found')
+    }
+    return diag('ok')
   } catch {
-    return false
+    return diag('threw')
   }
 }
 
