@@ -1,8 +1,9 @@
 import type { CookieOptions } from '@supabase/ssr'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mock = vi.hoisted(() => ({
+  apiFetch: vi.fn(),
   client: vi.fn(),
   exchangeCodeForSession: vi.fn(),
   getClaims: vi.fn(),
@@ -15,7 +16,10 @@ const mock = vi.hoisted(() => ({
 
 vi.mock('@supabase/ssr', () => ({ createServerClient: mock.client }))
 vi.mock('@/lib/env', () => ({
-  webEnv: { NEXT_PUBLIC_SUPABASE_URL: 'https://pdqwsknbzkdtiwjjibqt.supabase.co' },
+  webEnv: {
+    NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api',
+    NEXT_PUBLIC_SUPABASE_URL: 'https://pdqwsknbzkdtiwjjibqt.supabase.co',
+  },
   webSupabasePublishableKey: 'publishable-test-fixture',
 }))
 
@@ -231,10 +235,19 @@ const makePasswordUpdateRequest = ({
   })
 }
 
+const apiAnswer = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+
 describe('password recovery completion', () => {
-  it('updates only the verified developer password and closes the session', async () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', mock.apiFetch)
+    mock.apiFetch.mockResolvedValue(apiAnswer(200, { ok: true, sessionsClosed: true }))
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('asks the API to set the verified password, then clears this browser', async () => {
     await startPasswordRecovery()
-    // A local sign-out revokes the session in Auth, so the next lookup of it fails.
+    // The API ends every session in Auth, so the next lookup of this one fails.
     mock.signOut.mockImplementationOnce(async () => {
       mock.getUser.mockResolvedValue({ data: { user: null }, error: { message: 'session ended' } })
       return { error: null }
@@ -243,19 +256,23 @@ describe('password recovery completion', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true, sessionClosed: true })
-    expect(mock.getUser).toHaveBeenCalledOnce()
-    expect(mock.getSession).toHaveBeenCalledOnce()
     expect(mock.getClaims).toHaveBeenCalledTimes(2)
-    expect(mock.updateUser).toHaveBeenCalledOnce()
-    expect(mock.updateUser).toHaveBeenCalledWith({ password: 'Unique-password-42!' })
+    expect(mock.apiFetch).toHaveBeenCalledOnce()
+    const [url, init] = mock.apiFetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://127.0.0.1:4000/api/auth/password-recovery/complete')
+    expect(init.method).toBe('POST')
+    expect(init.redirect).toBe('error')
+    expect(new Headers(init.headers).get('authorization')).toBe(`Bearer ${session.access_token}`)
+    expect(JSON.parse(String(init.body))).toEqual({ password: 'Unique-password-42!' })
+    expect(mock.updateUser).not.toHaveBeenCalled()
     expect(mock.signOut).toHaveBeenCalledWith({ scope: 'local' })
 
     const replay = await completePasswordUpdate(makePasswordUpdateRequest())
     expect(replay.status).toBe(401)
-    expect(mock.updateUser).toHaveBeenCalledOnce()
+    expect(mock.apiFetch).toHaveBeenCalledOnce()
   })
 
-  it('rejects a session without a recent recovery sign-in before password mutation', async () => {
+  it('rejects a session without a recent recovery sign-in before the API call', async () => {
     mock.getClaims.mockResolvedValueOnce({
       data: { claims: { ...recoveryClaims, amr: [{ method: 'password', timestamp: 1 }] } },
       error: null,
@@ -267,10 +284,10 @@ describe('password recovery completion', () => {
       error: null,
     })
     expect((await completePasswordUpdate(makePasswordUpdateRequest())).status).toBe(401)
-    expect(mock.updateUser).not.toHaveBeenCalled()
+    expect(mock.apiFetch).not.toHaveBeenCalled()
   })
 
-  it('rejects another identity before password mutation', async () => {
+  it('rejects another identity before the API call', async () => {
     mock.getUser.mockResolvedValueOnce({ data: { user: { id: 'another-test-user' } }, error: null })
     expect((await completePasswordUpdate(makePasswordUpdateRequest())).status).toBe(401)
 
@@ -285,7 +302,7 @@ describe('password recovery completion', () => {
       error: null,
     })
     expect((await completePasswordUpdate(makePasswordUpdateRequest())).status).toBe(401)
-    expect(mock.updateUser).not.toHaveBeenCalled()
+    expect(mock.apiFetch).not.toHaveBeenCalled()
   })
 
   it('rejects cross-site, weak, malformed, oversized, and 129-character inputs before Auth', async () => {
@@ -313,13 +330,13 @@ describe('password recovery completion', () => {
       ).status,
     ).toBe(400)
     expect(mock.client).not.toHaveBeenCalled()
+    expect(mock.apiFetch).not.toHaveBeenCalled()
   })
 
-  it('sanitizes provider detail on a definite update rejection', async () => {
-    mock.updateUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: 'test-only-sensitive-update-error', status: 400 },
-    })
+  it('maps an API rejection to not changed without echoing detail', async () => {
+    mock.apiFetch.mockResolvedValueOnce(
+      apiAnswer(400, { message: 'test-only-sensitive-update-error', statusCode: 400 }),
+    )
     const password = 'Unique-password-42!'
     const response = await completePasswordUpdate(makePasswordUpdateRequest({ password }))
     const rendered = await response.text()
@@ -329,46 +346,37 @@ describe('password recovery completion', () => {
     expect(rendered).not.toContain(password)
     expect(rendered).not.toContain('test-only-sensitive-update-error')
     expect(mock.signOut).not.toHaveBeenCalled()
+
+    mock.apiFetch.mockResolvedValueOnce(apiAnswer(401, { statusCode: 401 }))
+    const refused = await completePasswordUpdate(makePasswordUpdateRequest())
+    expect(refused.status).toBe(401)
+    await expect(refused.json()).resolves.toEqual({ ok: false, outcome: 'unauthorized' })
   })
 
-  it('reports an uncertain update without retrying it', async () => {
-    mock.updateUser.mockRejectedValueOnce(new Error('test-only-network-detail'))
-
+  it.each([
+    ['a network failure', () => Promise.reject(new Error('test-only-network-detail'))],
+    ['a server error', () => Promise.resolve(apiAnswer(503, { statusCode: 503 }))],
+    ['an unreadable answer', () => Promise.resolve(new Response('not json', { status: 200 }))],
+    ['an answer without ok', () => Promise.resolve(apiAnswer(200, { sessionsClosed: true }))],
+  ])('reports %s as uncertain without retrying', async (_label, answer) => {
+    mock.apiFetch.mockImplementationOnce(answer)
     const response = await completePasswordUpdate(makePasswordUpdateRequest())
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toEqual({ ok: false, outcome: 'unknown' })
-    expect(mock.updateUser).toHaveBeenCalledOnce()
+    expect(mock.apiFetch).toHaveBeenCalledOnce()
+    expect(mock.signOut).not.toHaveBeenCalled()
   })
 
-  it.each([0, 502, 503, 504, undefined])(
-    'treats a returned transport or unknown provider error as uncertain (status %s)',
-    async (status) => {
-      mock.updateUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: {
-          message: 'test-only-sensitive-transport-detail',
-          name: status === undefined ? 'AuthUnknownError' : 'AuthRetryableFetchError',
-          status,
-        },
-      })
-
-      const response = await completePasswordUpdate(makePasswordUpdateRequest())
-      expect(response.status).toBe(503)
-      await expect(response.json()).resolves.toEqual({ ok: false, outcome: 'unknown' })
-      expect(mock.updateUser).toHaveBeenCalledOnce()
-    },
-  )
-
-  it('reports committed password success separately when sign-out is unconfirmed', async () => {
-    mock.signOut.mockResolvedValueOnce({ error: { message: 'test-only-signout-detail' } })
-    const returnedError = await completePasswordUpdate(makePasswordUpdateRequest())
-    expect(returnedError.status).toBe(200)
-    await expect(returnedError.json()).resolves.toEqual({ ok: true, sessionClosed: false })
+  it('reports committed success separately when ending the sessions is unconfirmed', async () => {
+    mock.apiFetch.mockResolvedValueOnce(apiAnswer(200, { ok: true, sessionsClosed: false }))
+    const unconfirmed = await completePasswordUpdate(makePasswordUpdateRequest())
+    expect(unconfirmed.status).toBe(200)
+    await expect(unconfirmed.json()).resolves.toEqual({ ok: true, sessionClosed: false })
 
     mock.signOut.mockRejectedValueOnce(new Error('test-only-signout-throw'))
-    const thrownError = await completePasswordUpdate(makePasswordUpdateRequest())
-    expect(thrownError.status).toBe(200)
-    await expect(thrownError.json()).resolves.toEqual({ ok: true, sessionClosed: false })
-    expect(mock.updateUser).toHaveBeenCalledTimes(2)
+    const thrown = await completePasswordUpdate(makePasswordUpdateRequest())
+    expect(thrown.status).toBe(200)
+    await expect(thrown.json()).resolves.toEqual({ ok: true, sessionClosed: true })
+    expect(mock.apiFetch).toHaveBeenCalledTimes(2)
   })
 })

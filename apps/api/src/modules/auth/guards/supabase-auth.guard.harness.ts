@@ -33,6 +33,7 @@ import { AuthService } from '../auth.service'
 import { BeneficiaryStepUpPinService } from '../beneficiary-step-up-pin.service'
 import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
 import { DEVELOPER_AUTH_UUID, DEVELOPER_SUPABASE_URL } from '../developer-bootstrap-identity'
+import { PasswordRecoveryService } from '../password-recovery.service'
 import { RouteAccessController } from '../route-access.controller'
 import { RouteAccessService } from '../route-access.service'
 import { SignInLockoutService } from '../signin-lockout.service'
@@ -253,6 +254,7 @@ export function useBoundaryApp() {
         BeneficiaryStepUpService,
         BeneficiaryStepUpPinService,
         SignInLockoutService,
+        PasswordRecoveryService,
         { provide: AuthService, useValue: { getStatus: () => ({ authenticated: true }) } },
         { provide: APP_GUARD, useClass: SupabaseAuthGuard },
       ],

@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { isApprovedServiceProtocol, readApiEnv } from '@pathways/config'
 import { UUID_PATTERN } from '../../common/authz/application-identity'
 
-function verifiedAuthOrigin(value: string) {
+export function verifiedAuthOrigin(value: string) {
   const normalized = value.replace(/\/$/, '')
   const url = new URL(normalized)
   if (

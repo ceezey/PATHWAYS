@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { changeStepUpPinRequest, signInRequest, verifyStepUpPinRequest } from './auth-requests'
+import {
+  changeStepUpPinRequest,
+  hasRecentRecoverySignIn,
+  passwordRecoveryCompleteRequest,
+  passwordRecoveryWindowSeconds,
+  signInRequest,
+  verifyStepUpPinRequest,
+} from './auth-requests'
 
 const grin = String.fromCodePoint(0x1f600)
 
@@ -87,4 +94,44 @@ describe('auth request contracts', () => {
       )
     },
   )
+
+  it('accepts a strong recovery password and nothing else in the body', () => {
+    expect(passwordRecoveryCompleteRequest.parse({ password: 'Unique-password-42!' })).toEqual({
+      password: 'Unique-password-42!',
+    })
+  })
+
+  it.each([
+    ['too short', { password: 'Aa1!short' }],
+    ['no symbol', { password: 'Uniquepassword42' }],
+    ['no uppercase', { password: 'unique-password-42!' }],
+    ['129 characters', { password: `Aa1!${'x'.repeat(125)}` }],
+    ['an extra field', { password: 'Unique-password-42!', email: 'user@example.org' }],
+  ])('rejects the recovery password body: %s', (_label, body) => {
+    expect(passwordRecoveryCompleteRequest.safeParse(body).success).toBe(false)
+  })
+})
+
+describe('recent recovery sign-in', () => {
+  const now = 1_800_000_000_000
+  const at = (timestamp: unknown, method = 'recovery') => [{ method, timestamp }]
+
+  it('accepts a recovery or invite sign-in inside the window', () => {
+    expect(hasRecentRecoverySignIn(at(now / 1000), now)).toBe(true)
+    expect(hasRecentRecoverySignIn(at(now / 1000, 'invite'), now)).toBe(true)
+    expect(hasRecentRecoverySignIn(at(now / 1000 - passwordRecoveryWindowSeconds + 1), now)).toBe(
+      true,
+    )
+  })
+
+  it.each([
+    ['too old', at(now / 1000 - passwordRecoveryWindowSeconds - 1)],
+    ['from the future', at(now / 1000 + 3600)],
+    ['without a time', at(undefined)],
+    ['a password sign-in', at(now / 1000, 'password')],
+    ['a bare method name', ['recovery']],
+    ['not a list', 'recovery'],
+  ])('rejects a sign-in that is %s', (_label, amr) => {
+    expect(hasRecentRecoverySignIn(amr, now)).toBe(false)
+  })
 })

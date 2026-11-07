@@ -9,6 +9,7 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService } from './beneficiary-step-up-pin.service'
+import { PasswordRecoveryService } from './password-recovery.service'
 import { SignInLockoutService } from './signin-lockout.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
@@ -18,6 +19,7 @@ const sessionId = '72000000-0000-4000-8000-000000000003'
 const pinActor = { auth, profile, sessionId }
 const signIns = { signIn: vi.fn() }
 const pins = { verify: vi.fn(), setup: vi.fn(), change: vi.fn() }
+const recovery = { complete: vi.fn() }
 let app: INestApplication
 let base: string
 
@@ -29,6 +31,7 @@ beforeAll(async () => {
       { provide: WorkspaceResolutionService, useValue: {} },
       { provide: BeneficiaryStepUpPinService, useValue: pins },
       { provide: SignInLockoutService, useValue: signIns },
+      { provide: PasswordRecoveryService, useValue: recovery },
     ],
   }).compile()
   app = module.createNestApplication({ logger: false })
@@ -54,14 +57,15 @@ beforeAll(async () => {
 beforeEach(() => {
   signIns.signIn.mockReset().mockResolvedValue({ accessToken: 'a', refreshToken: 'r' })
   for (const fn of Object.values(pins)) fn.mockReset().mockResolvedValue({ pinState: 'SET' })
+  recovery.complete.mockReset().mockResolvedValue({ ok: true, sessionsClosed: true })
 })
 afterAll(async () => app?.close())
 
 // Posts a raw JSON body and returns the status with the raw response text.
-async function post(path: string, body: string) {
+async function post(path: string, body: string, headers: Record<string, string> = {}) {
   const response = await fetch(`${base}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body,
   })
   return { status: response.status, text: await response.text() }
@@ -96,6 +100,29 @@ describe('auth routes body validation', () => {
     expect(result.status).toBe(400)
     expect(signIns.signIn).not.toHaveBeenCalled()
   })
+
+  it('forwards the recovery bearer token and a strong password to the recovery service', async () => {
+    const result = await post('/password-recovery/complete', '{"password":"Unique-password-42!"}', {
+      authorization: 'Bearer header.payload.signature',
+    })
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.text)).toEqual({ ok: true, sessionsClosed: true })
+    expect(recovery.complete).toHaveBeenCalledWith(
+      'Bearer header.payload.signature',
+      'Unique-password-42!',
+    )
+  })
+
+  it.each(['{"password":"weak-secret"}', '{"password":"Unique-password-42!","email":"a@b.org"}'])(
+    'the recovery route answers 400 for %s without echoing the password',
+    async (body) => {
+      const result = await post('/password-recovery/complete', body)
+      expect(result.status).toBe(400)
+      expect(result.text).not.toContain('secret')
+      expect(result.text).not.toContain('Unique-password')
+      expect(recovery.complete).not.toHaveBeenCalled()
+    },
+  )
 
   it.each(['/step-up/pin', '/step-up/pin/setup'])(
     '%s answers 400 for a numeric PIN without echoing it',
@@ -156,6 +183,7 @@ describe('auth controller verified values', () => {
       {} as WorkspaceResolutionService,
       pins as unknown as BeneficiaryStepUpPinService,
       signIns as unknown as SignInLockoutService,
+      recovery as unknown as PasswordRecoveryService,
     )
     const request = { headers: {}, ...values } as unknown as AuthenticatedRequest
     for (const call of [

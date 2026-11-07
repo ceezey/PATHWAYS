@@ -1,3 +1,4 @@
+import { hasRecentRecoverySignIn } from '@pathways/shared'
 import { type CookieOptions, createServerClient } from '@supabase/ssr'
 import type { NextRequest, NextResponse } from 'next/server'
 
@@ -6,9 +7,7 @@ import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 
 // supabase-js 2.118 returns this from exchangeCodeForSession for a resetPasswordForEmail flow.
 export const recoveryRedirectType = 'recovery'
-// A password may be set only this long after the recovery or invite link was opened.
 // shortcut: no hard single use, a session whose sign-out fails can set a password again inside the window, upgrade to a shared grant store if that matters.
-export const passwordRecoveryWindowSeconds = 10 * 60
 
 const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
 
@@ -42,18 +41,7 @@ export const getRecoveryIdentityFromVerifiedClaims = (
   }
 
   // An accepted invite proves inbox control the same way a recovery link does; Auth signs its time.
-  const nowSeconds = now / 1000
-  const isRecentRecovery = (entry: unknown) => {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false
-    const { method, timestamp } = entry as Record<string, unknown>
-    return (
-      (method === 'recovery' || method === 'invite') &&
-      typeof timestamp === 'number' &&
-      timestamp <= nowSeconds + 60 &&
-      nowSeconds - timestamp < passwordRecoveryWindowSeconds
-    )
-  }
-  if (!Array.isArray(payload.amr) || !payload.amr.some(isRecentRecovery)) return null
+  if (!hasRecentRecoverySignIn(payload.amr, now)) return null
 
   return { sessionId: payload.session_id, userId: expectedUserId }
 }
