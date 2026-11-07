@@ -7,6 +7,7 @@ import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 // supabase-js 2.118 returns this from exchangeCodeForSession for a resetPasswordForEmail flow.
 export const recoveryRedirectType = 'recovery'
 // A password may be set only this long after the recovery or invite link was opened.
+// shortcut: no hard single use, a session whose sign-out fails can set a password again inside the window, upgrade to a shared grant store if that matters.
 export const passwordRecoveryWindowSeconds = 10 * 60
 
 const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')

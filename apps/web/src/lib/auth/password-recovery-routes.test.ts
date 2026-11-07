@@ -273,6 +273,18 @@ describe('password recovery completion', () => {
   it('rejects another identity before password mutation', async () => {
     mock.getUser.mockResolvedValueOnce({ data: { user: { id: 'another-test-user' } }, error: null })
     expect((await completePasswordUpdate(makePasswordUpdateRequest())).status).toBe(401)
+
+    mock.getClaims.mockResolvedValueOnce({
+      data: { claims: { ...recoveryClaims, sub: 'another-test-user' } },
+      error: null,
+    })
+    expect((await completePasswordUpdate(makePasswordUpdateRequest())).status).toBe(401)
+
+    mock.getSession.mockResolvedValueOnce({
+      data: { session: { ...session, user: { id: 'another-test-user' } } },
+      error: null,
+    })
+    expect((await completePasswordUpdate(makePasswordUpdateRequest())).status).toBe(401)
     expect(mock.updateUser).not.toHaveBeenCalled()
   })
 

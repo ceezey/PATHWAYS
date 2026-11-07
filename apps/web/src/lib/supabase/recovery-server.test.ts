@@ -40,6 +40,7 @@ describe('password recovery server boundary', () => {
     expect(identity({ ...claims, amr: [{ method: 'password', timestamp: nowSeconds }] })).toBeNull()
     expect(identity({ ...claims, sub: 'another-user' })).toBeNull()
     expect(identity({ ...claims, iss: 'https://example.com/auth/v1' })).toBeNull()
+    expect(identity({ ...claims, session_id: '' })).toBeNull()
   })
 
   it('accepts a recovery sign-in only inside the recovery window', () => {
