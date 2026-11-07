@@ -11,8 +11,6 @@ export const passwordRecoveryIntentMaxAgeSeconds = 10 * 60
 export const passwordRecoveryGrantCapacity = 8
 // supabase-js 2.118 returns this from exchangeCodeForSession for a resetPasswordForEmail flow.
 export const recoveryRedirectType = 'recovery'
-// TEMPORARY diagnostic: a random id per server instance, to see whether callback and page share memory.
-export const recoveryDiagnosticInstance = randomBytes(4).toString('hex')
 
 interface LocalPasswordRecoveryGrant {
   expiresAt: number
