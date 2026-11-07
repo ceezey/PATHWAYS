@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, KeyRound, Loader2, ShieldCheck, Smartphone } from 'lucide-react'
+import { ArrowLeft, KeyRound, Loader2, ShieldCheck } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
@@ -60,12 +60,16 @@ export const BeneficiaryAccessGate = ({
   const [overlay, setOverlay] = useState(false)
   const [statusRetry, setStatusRetry] = useState(0)
   const [pinState, setPinState] = useState<StepUpPinState>('NONE')
-  const [method, setMethod] = useState<Method>('totp')
+  // Unchosen, the prompt opens on the PIN once one is set, otherwise on the authenticator.
+  const [chosen, setChosen] = useState<Method | null>(null)
+  const method: Method = chosen ?? (STEP_UP_PIN_UI_ENABLED && pinState === 'SET' ? 'pin' : 'totp')
   const [code, setCode] = useState('')
   const [pin, setPin] = useState('')
   const [pinConfirm, setPinConfirm] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [message, setMessage] = useState(PROMPT)
+  const [note, setNote] = useState<string | null>(null)
+  const message =
+    note ?? (method === 'pin' ? PIN_PROMPT : method === 'offer' ? OFFER_PROMPT : PROMPT)
   const verifyButtonRef = useRef<HTMLButtonElement>(null)
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: statusRetry re-runs the server check on demand.
@@ -94,8 +98,8 @@ export const BeneficiaryAccessGate = ({
       setPin('')
       setPinConfirm('')
       setStatus('idle')
-      setMethod('totp')
-      setMessage(PROMPT)
+      setChosen(null)
+      setNote(null)
       setOverlay(true)
       // PIN availability is advisory UI only; the authenticator is always offered.
       getBeneficiaryStepUpStatus()
@@ -104,8 +108,8 @@ export const BeneficiaryAccessGate = ({
           // Without a confirmed PIN state, fall back to the always-available authenticator.
           setPinState('NONE')
           setPin('')
-          setMethod('totp')
-          setMessage(PROMPT)
+          setChosen(null)
+          setNote(null)
         })
     }
     window.addEventListener(STEP_UP_REQUIRED_EVENT, onRequired)
@@ -132,17 +136,15 @@ export const BeneficiaryAccessGate = ({
   const choose = (next: Method, nextMessage?: string) => {
     clearSecrets()
     setStatus('idle')
-    setMethod(next)
-    setMessage(
-      nextMessage ?? (next === 'pin' ? PIN_PROMPT : next === 'offer' ? OFFER_PROMPT : PROMPT),
-    )
+    setChosen(next)
+    setNote(nextMessage ?? null)
   }
 
   const enter = () => {
     clearSecrets()
     setStatus('idle')
-    setMethod('totp')
-    setMessage(PROMPT)
+    setChosen(null)
+    setNote(null)
     setOverlay(false)
     setPhase('open')
     announceStepUpCompleted()
@@ -151,7 +153,7 @@ export const BeneficiaryAccessGate = ({
   const verifyCode = async (submitted = code) => {
     if (submitted.length !== 6 || status === 'loading') return
     setStatus('loading')
-    setMessage('Verifying with the server...')
+    setNote('Verifying with the server...')
     try {
       const result = await verifyBeneficiaryStepUp(submitted)
       let nextPinState = result.pinState
@@ -169,13 +171,13 @@ export const BeneficiaryAccessGate = ({
       setStatus('error')
       if (error instanceof BeneficiaryStepUpError && error.failure === 'rejected') {
         setCode('')
-        setMessage(
+        setNote(
           'The code was not accepted. Personal details remain hidden; try the next authenticator code.',
         )
         // The verify button disables with an empty code; keep focus in the dialog.
         focusCode()
       } else {
-        setMessage(
+        setNote(
           'The verification service could not be reached. Check your connection and try again.',
         )
       }
@@ -187,7 +189,7 @@ export const BeneficiaryAccessGate = ({
     const submitted = pin
     setPin('')
     setStatus('loading')
-    setMessage('Verifying with the server...')
+    setNote('Verifying with the server...')
     try {
       await verifyStepUpPin(submitted)
       enter()
@@ -200,7 +202,7 @@ export const BeneficiaryAccessGate = ({
         return
       }
       setStatus('error')
-      setMessage(
+      setNote(
         !(error instanceof BeneficiaryStepUpError) || error.failure === 'unavailable'
           ? 'The verification service could not be reached. Check your connection and try again.'
           : error.message === 'Incorrect PIN'
@@ -219,25 +221,25 @@ export const BeneficiaryAccessGate = ({
     setPinConfirm('')
     if (!isAcceptableStepUpPin(submitted)) {
       setStatus('error')
-      setMessage(STEP_UP_PIN_RULE_MESSAGE)
+      setNote(STEP_UP_PIN_RULE_MESSAGE)
       focusPin('beneficiary-step-up-new-pin')
       return
     }
     if (submitted !== confirmation) {
       setStatus('error')
-      setMessage('The PINs do not match. Enter them again.')
+      setNote('The PINs do not match. Enter them again.')
       focusPin('beneficiary-step-up-new-pin')
       return
     }
     setStatus('loading')
-    setMessage('Saving your PIN...')
+    setNote('Saving your PIN...')
     try {
       await setStepUpPin(submitted)
       setPinState('SET')
       enter()
     } catch (error) {
       setStatus('error')
-      setMessage(
+      setNote(
         error instanceof BeneficiaryStepUpError && error.failure !== 'unavailable'
           ? error.message
           : 'The PIN could not be saved. You can skip and set it later in My Profile.',
@@ -250,35 +252,25 @@ export const BeneficiaryAccessGate = ({
   const leave = () => {
     clearSecrets()
     setStatus('idle')
-    setMethod('totp')
-    setMessage(PROMPT)
+    setChosen(null)
+    setNote(null)
     if (blocking) router.push('/dashboard')
     else setOverlay(false)
   }
 
-  const methodChoice =
+  const methodSwitch =
     STEP_UP_PIN_UI_ENABLED && method !== 'offer' && pinState === 'SET' ? (
-      <fieldset className="flex flex-col gap-2 sm:flex-row">
-        <legend className="sr-only">Verification method</legend>
+      <div className="space-y-1 text-center">
         <Button
-          aria-pressed={method === 'totp'}
-          onClick={() => choose('totp')}
+          onClick={() => choose(method === 'pin' ? 'totp' : 'pin')}
+          size="sm"
           type="button"
-          variant={method === 'totp' ? 'default' : 'outline'}
+          variant="ghost"
         >
-          <Smartphone className="mr-2 h-4 w-4" aria-hidden="true" />
-          Use authenticator
+          {method === 'pin' ? 'Use authenticator instead' : 'Use PIN instead'}
         </Button>
-        <Button
-          aria-pressed={method === 'pin'}
-          onClick={() => choose('pin')}
-          type="button"
-          variant={method === 'pin' ? 'default' : 'outline'}
-        >
-          <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
-          Use PIN
-        </Button>
-      </fieldset>
+        <p className="text-sm text-muted-foreground">You can change your PIN in My Profile.</p>
+      </div>
     ) : null
 
   const pinInput = (id: string, label: string, value: string, set: (value: string) => void) => {
@@ -329,7 +321,6 @@ export const BeneficiaryAccessGate = ({
           >
             {message}
           </output>
-          {methodChoice}
           {STEP_UP_PIN_UI_ENABLED &&
           pinState === 'LOCKED' &&
           method === 'totp' &&
@@ -369,6 +360,7 @@ export const BeneficiaryAccessGate = ({
               <p className="text-sm text-muted-foreground">{STEP_UP_PIN_RULE_MESSAGE}</p>
             </>
           )}
+          {methodSwitch}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             {method === 'offer' ? (
               <>
