@@ -151,7 +151,8 @@ export function checkImportFile(input: {
   const columnOf = new Map<string, (typeof file.sourceColumns)[number]>()
   const mappedFields: CheckField[] = []
   for (const decision of decisions) {
-    const target = fieldById.get(decision.targetFieldId ?? decision.suggestedFieldId ?? '')
+    const suggested = decision.status === 'PENDING' ? decision.suggestedFieldId : null
+    const target = fieldById.get(decision.targetFieldId ?? suggested ?? '')
     const column = file.sourceColumns.find((candidate) => candidate.key === decision.sourceKey)
     if (!target || !column || columnOf.has(target.code)) continue
     columnOf.set(target.code, column)

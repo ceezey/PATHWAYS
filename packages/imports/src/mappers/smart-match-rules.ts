@@ -20,6 +20,9 @@ export const AUTO_SMART_V3 = 'AUTO_SMART_V3' as const
 /** AUTO_SMART_V4: V3 plus Filipino synonyms, Kobo/ODK group-path leaves and submission system columns. */
 export const AUTO_SMART_V4 = 'AUTO_SMART_V4' as const
 
+/** AUTO_SMART_V5: V4 plus ignoring calculated-field, submission time and Kobo timing columns where V4 offers nothing. */
+export const AUTO_SMART_V5 = 'AUTO_SMART_V5' as const
+
 export const SMART_SYNONYMS_V2_ID = 'SMART_SYNONYMS_V2' as const
 
 export const SMART_SYNONYMS_V3_ID = 'SMART_SYNONYMS_V3' as const
@@ -76,6 +79,8 @@ export const SMART_DECISION_REASONS = [
   'EMPTY_NAME',
   'BLANK_COLUMN',
   'SYSTEM_COLUMN',
+  'CALCULATED_FIELD',
+  'SUBMISSION_TIME',
 ] as const
 
 export type SmartDecisionReason = (typeof SMART_DECISION_REASONS)[number]
@@ -177,6 +182,25 @@ export const SYSTEM_COLUMNS_V1: ReadonlySet<string> = new Set([
   'deviceid',
   'edits',
   'formversion',
+])
+
+/** V5: Kobo and ODK form timing columns, compared after the V1 normalizer and ignored only in a file with Kobo or ODK markers. */
+export const KOBO_TIMING_COLUMNS_V5: ReadonlySet<string> = new Set(['start', 'end', 'today'])
+
+// Headers only a Kobo or ODK export has, so two of them mark the file; generic words and Timestamp are left out.
+export const KOBO_ODK_MARKERS_V5: ReadonlySet<string> = new Set([
+  '_uuid',
+  '_id',
+  '_index',
+  '_submission_time',
+  '_submitted_by',
+  '_validation_status',
+  '__version__',
+  'meta_instanceid',
+  'instanceid',
+  'submissiondate',
+  'submitterid',
+  'attachmentspresent',
 ])
 
 /** Fixed stop words removed before the token-set comparison. */

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import { readImportFile } from '../check/read-import-file'
+import { buildAnySourceFixture } from '../fixtures/any-source/build'
+import { REGISTRATION } from '../form-draft/draft-test-support'
 import { importCoverage } from './coverage'
 import {
   AUTO_SMART_V2_LIMITS,
   AUTO_SMART_V3,
   AUTO_SMART_V4,
+  AUTO_SMART_V5,
   SMART_DECISION_REASONS,
   SMART_MATCH_REASONS,
   type SmartMatchColumn,
@@ -16,6 +20,7 @@ import {
   smartMatchColumns,
   smartMatchColumnsV3,
   smartMatchColumnsV4,
+  smartMatchColumnsV5,
 } from './smart-match'
 
 const text = (id: string, code: string, label: string): SmartMatchField => ({
@@ -743,5 +748,187 @@ describe('AUTO_SMART_V4', () => {
 
   it('keeps V3 output unchanged for Filipino synonyms', () => {
     expect(oneV3('Kasarian', ['MALE']).suggestedFieldId).toBeNull()
+  })
+})
+
+describe('AUTO_SMART_V5', () => {
+  const disability = {
+    ...text('f-disability', 'disability_status', 'Disability status'),
+    calculated: true,
+  }
+  const consent = {
+    ...text('f-consent', 'consent_recorded', 'Participation consent'),
+    calculated: true,
+  }
+  const guardian = text('f-guardian', 'guardian_consent_recorded', 'Guardian consent')
+  const fields: SmartMatchField[] = [...registration, disability, consent, guardian]
+  const columns = (headers: string[]) => headers.map((header, index) => column(index + 1, header))
+  const v5 = (headers: string[], list = fields) => smartMatchColumnsV5(columns(headers), list)
+  const v4 = (headers: string[], list = fields) => smartMatchColumnsV4(columns(headers), list)
+  const ignored = (reason: string, suggestedFieldId: string | null = null) => ({
+    status: 'IGNORED',
+    targetFieldId: null,
+    suggestedFieldId,
+    score: null,
+    matchReason: null,
+    reason,
+  })
+  const noMatch = {
+    status: 'PENDING',
+    targetFieldId: null,
+    suggestedFieldId: null,
+    reason: 'NO_MATCH',
+  }
+
+  it('names the algorithm and appends its reasons', () => {
+    expect(AUTO_SMART_V5).toBe('AUTO_SMART_V5')
+    expect(SMART_DECISION_REASONS.slice(-3)).toEqual([
+      'SYSTEM_COLUMN',
+      'CALCULATED_FIELD',
+      'SUBMISSION_TIME',
+    ])
+  })
+
+  it('ignores a participant header naming a calculated field, carrying the field for the fed check', () => {
+    expect(v5(['participant/disability'])[0]).toEqual({
+      sourceKey: 'column_0001',
+      columnIndex: 1,
+      ...ignored('CALCULATED_FIELD', 'f-disability'),
+    })
+    expect(v4(['participant/disability'])[0]).toMatchObject(noMatch)
+  })
+
+  it('ignores every column that names the calculated field loosely', () => {
+    for (const decision of v5(['participant/disability', 'Disability'])) {
+      expect(decision).toMatchObject(ignored('CALCULATED_FIELD', 'f-disability'))
+    }
+  })
+
+  it('still maps the exact label, and ignores a second loose column', () => {
+    const [exact, loose] = v5(['Disability status', 'participant/disability'])
+    expect(exact).toMatchObject({
+      status: 'MAPPED',
+      targetFieldId: 'f-disability',
+      reason: 'AUTO_MATCH',
+    })
+    expect(loose).toMatchObject(ignored('CALCULATED_FIELD', 'f-disability'))
+  })
+
+  it('leaves a header two calculated fields tie on pending', () => {
+    const other = { ...text('f-other', 'pwd_flag', 'Status disability'), calculated: true }
+    expect(v5(['Status of disability'], [disability])[0]).toMatchObject(
+      ignored('CALCULATED_FIELD', 'f-disability'),
+    )
+    expect(v5(['Status of disability'], [disability, other])[0]).toMatchObject(noMatch)
+  })
+
+  it('ignores a submission time header only where V4 offers nothing', () => {
+    for (const header of ['_submission_time', 'SubmissionDate', 'Timestamp', 'timestamp']) {
+      expect(v5([header])[0]).toMatchObject(ignored('SUBMISSION_TIME'))
+      expect(v4([header])[0]).toMatchObject(noMatch)
+    }
+    const owned = { ...text('f-stamp', 'stamp', 'Stamp'), sourceNames: ['Timestamp'] }
+    const coded = text('f-submission', 'submission_time', 'Submitted at')
+    const labelled = text('f-submitted', 'submitted_on', 'Submission date')
+    for (const [header, field, status] of [
+      ['Timestamp', owned, 'MAPPED'],
+      ['_submission_time', coded, 'PENDING'],
+      ['SubmissionDate', labelled, 'PENDING'],
+    ] as const) {
+      const list = [...fields, field]
+      const [decision] = v5([header], list)
+      expect(v5([header], list)).toEqual(v4([header], list))
+      expect(decision.status).toBe(status)
+      expect([decision.targetFieldId, decision.suggestedFieldId]).toContain(field.id)
+    }
+  })
+
+  it('never ignores a calculated field from a path about someone else or a refused word', () => {
+    const calculatedGuardian = {
+      ...text('f-guardian-calc', 'guardian_consent_recorded', 'Guardian approval'),
+      calculated: true,
+    }
+    for (const [header, list] of [
+      ['emergency_contact/disability', fields],
+      ['household/disability', fields],
+      ['Guardian consent given', fields],
+      ['Guardian consent', [calculatedGuardian]],
+    ] as const) {
+      expect(v5([header], [...list])[0]).toMatchObject(noMatch)
+      expect(v5([header], [...list])).toEqual(v4([header], [...list]))
+    }
+    expect(v5(['participant/disability'])[0]).toMatchObject(
+      ignored('CALCULATED_FIELD', 'f-disability'),
+    )
+    expect(v5(['consent/consent_given'])[0]).toMatchObject(ignored('CALCULATED_FIELD', 'f-consent'))
+  })
+
+  it('ignores Kobo timing columns only beside two Kobo or ODK markers', () => {
+    expect(v5(['_uuid', '_submission_time', 'start'])[2]).toMatchObject(ignored('SYSTEM_COLUMN'))
+    expect(v5(['SubmissionDate', 'meta-instanceID', 'End', 'today']).slice(2)).toMatchObject([
+      ignored('SYSTEM_COLUMN'),
+      ignored('SYSTEM_COLUMN'),
+    ])
+    for (const headers of [
+      ['Key', 'Start', 'End'],
+      ['_uuid', 'Start', 'End'],
+      ['_uuid', '_UUID', 'Start', 'End'],
+      ['Timestamp', 'Start', 'End'],
+    ]) {
+      expect(v5(headers).slice(-2)).toEqual(v4(headers).slice(-2))
+      expect(v5(headers).slice(-2)).toMatchObject([noMatch, noMatch])
+    }
+    expect(v5(['start'])).toEqual(v4(['start']))
+    const owned = { ...text('f-start', 'session_start', 'Session start'), sourceNames: ['start'] }
+    expect(v5(['_uuid', '_id', 'start'], [...fields, owned])[2]).toMatchObject({
+      status: 'MAPPED',
+      targetFieldId: 'f-start',
+    })
+  })
+
+  it('leaves only training/training_interests pending on the Kobo corpus file', () => {
+    const { bytes, fileType } = buildAnySourceFixture('kobo-xlsx')
+    const file = readImportFile(
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      fileType,
+      null,
+    )
+    const koboColumns = file.sourceColumns.map((source) => {
+      const values = file.rows.map((row) => row[source.key])
+      return {
+        key: source.key,
+        columnIndex: source.columnIndex,
+        header: source.header,
+        samples: values,
+        blank: values.every((value) => value === '' || value === null || value === undefined),
+      }
+    })
+    // The default registration form with the calculations of the trigger form (ECD-MB-2026).
+    const calculated = ['age_at_registration', 'disability_status', 'consent_recorded', 'is_minor']
+    const form = REGISTRATION.map((field) => ({
+      ...field,
+      id: field.id ?? field.code,
+      calculated: calculated.includes(field.code),
+    }))
+    const reasons = Object.fromEntries(
+      smartMatchColumnsV5(koboColumns, form)
+        .filter((decision) => decision.status !== 'MAPPED')
+        .map((decision) => [
+          koboColumns.find((source) => source.key === decision.sourceKey)?.header,
+          `${decision.status} ${decision.reason}`,
+        ]),
+    )
+    expect(reasons).toEqual({
+      start: 'IGNORED SYSTEM_COLUMN',
+      end: 'IGNORED SYSTEM_COLUMN',
+      'participant/disability': 'IGNORED CALCULATED_FIELD',
+      'training/training_interests': 'PENDING NO_MATCH',
+      'consent/consent_given': 'IGNORED CALCULATED_FIELD',
+      _id: 'IGNORED SYSTEM_COLUMN',
+      _uuid: 'IGNORED SYSTEM_COLUMN',
+      _submission_time: 'IGNORED SUBMISSION_TIME',
+      _validation_status: 'IGNORED BLANK_COLUMN',
+      _index: 'IGNORED SYSTEM_COLUMN',
+    })
   })
 })

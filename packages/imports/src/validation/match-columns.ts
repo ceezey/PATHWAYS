@@ -1,3 +1,4 @@
+import { fedCodes } from '../check/saddd-columns'
 import type { CoverageField } from '../mappers/coverage'
 import {
   AUTO_SMART_V2_LIMITS,
@@ -7,6 +8,7 @@ import {
 } from '../mappers/smart-match'
 import { matchBySourceCode } from '../mappers/source-code-match'
 import type { ImportSourceColumn } from '../parser/matrix'
+import { DEFERRED_REGISTRATION_FIELDS } from './validate-rows'
 
 export const isBlank = (value: unknown) =>
   value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
@@ -58,4 +60,35 @@ export function matchColumns(
     reason: 'AUTO_MATCH',
   }))
   return [...decisions, ...rest].sort((left, right) => left.columnIndex - right.columnIndex)
+}
+
+/** V5, after the source-code merge: keeps a calculated-field ignore only when the mapped columns feed its field, else gives the column back pending as V4 left it, and clears the suggestion of every ignore as p78 stores it. */
+export function keepFedCalculatedIgnores(
+  decisions: SmartMatchDecision[],
+  fields: CoverageField[],
+): SmartMatchDecision[] {
+  const codeById = new Map(fields.map((field) => [field.id, field.code]))
+  const byCode = new Map(fields.map((field) => [field.code, field]))
+  // The enrollment date is confirmed after upload, and an age rule's at-date with a default is on every row.
+  const supplied = new Set<string>(DEFERRED_REGISTRATION_FIELDS)
+  for (const decision of decisions) {
+    const code =
+      decision.status === 'MAPPED' ? codeById.get(decision.targetFieldId ?? '') : undefined
+    if (code) supplied.add(code)
+  }
+  for (const { rule } of fields) {
+    if (
+      (rule?.kind === 'AGE_AT_DATE' || rule?.kind === 'MINOR_AT_DATE') &&
+      byCode.get(rule.atField)?.importDefault
+    )
+      supplied.add(rule.atField)
+  }
+  const fed = fedCodes(fields, supplied)
+  return decisions.map((decision) => {
+    if (decision.status !== 'IGNORED') return decision
+    const code = codeById.get(decision.suggestedFieldId ?? '')
+    if (decision.reason === 'CALCULATED_FIELD' && !(code && fed.has(code)))
+      return { ...decision, status: 'PENDING', reason: 'NO_MATCH', suggestedFieldId: null }
+    return { ...decision, suggestedFieldId: null }
+  })
 }

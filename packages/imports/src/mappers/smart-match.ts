@@ -1,6 +1,8 @@
 import { answerResolver } from '../answers'
+import { submissionTimeColumn } from '../submission-time'
 import {
   type PreparedField,
+  type PreparedName,
   SYNONYMS_V2,
   SYNONYMS_V3,
   groupPathLeaf,
@@ -10,6 +12,8 @@ import {
 } from './smart-match-names'
 import {
   AUTO_SMART_V2_LIMITS,
+  KOBO_ODK_MARKERS_V5,
+  KOBO_TIMING_COLUMNS_V5,
   PARTICIPANT_GROUP_WORDS,
   REFUSED_TAGS,
   SYSTEM_COLUMNS_V1,
@@ -26,6 +30,7 @@ export {
   AUTO_SMART_V2,
   AUTO_SMART_V3,
   AUTO_SMART_V4,
+  AUTO_SMART_V5,
   AUTO_SMART_V2_LIMITS,
   SMART_DECISION_REASONS,
   SMART_MATCH_REASONS,
@@ -88,6 +93,14 @@ export function smartMatchColumnsV4(
   return matchColumns(columns, fields, 4)
 }
 
+/** AUTO_SMART_V5: V4 plus calculated-field, submission time and Kobo timing ignores; a calculated ignore carries its field in suggestedFieldId for the fed check. */
+export function smartMatchColumnsV5(
+  columns: readonly SmartMatchColumn[],
+  fields: readonly SmartMatchField[],
+): SmartMatchDecision[] {
+  return matchColumns(columns, fields, 5)
+}
+
 /** Canonical source names that exactly one field owns; shared names are dropped. */
 function ownedSourceNames(fields: readonly SmartMatchField[]) {
   const sets = fields.map(
@@ -101,13 +114,22 @@ function ownedSourceNames(fields: readonly SmartMatchField[]) {
   )
 }
 
+// A group of participant words or of the leaf's own words (consent/consent_given) maps; under any other, such as emergency_contact, a person confirms it.
+function participantPath(header: string, leaf: string) {
+  const leafTokens = prepareName(leaf).tokens
+  return [...prepareName(header.slice(0, -leaf.length)).tokens].every(
+    (token) => PARTICIPANT_GROUP_WORDS.has(token) || leafTokens.has(token),
+  )
+}
+
 function matchColumns(
   columns: readonly SmartMatchColumn[],
   fields: readonly SmartMatchField[],
-  version: 2 | 3 | 4,
+  version: 2 | 3 | 4 | 5,
 ): SmartMatchDecision[] {
   const v3 = version >= 3
-  const v4 = version === 4
+  const v4 = version >= 4
+  const v5 = version === 5
   const synonyms = v4 ? SYNONYMS_V3 : SYNONYMS_V2
   if (
     columns.length > AUTO_SMART_V2_LIMITS.maxColumns ||
@@ -151,11 +173,40 @@ function matchColumns(
           : undefined,
     }))
 
+  // Two distinct Kobo or ODK headers mark the file, so its start, end and today columns are form timing.
+  const koboFile =
+    v5 &&
+    new Set(
+      columns
+        .map((column) => normalizeMappingNameV1(column.header))
+        .filter((name) => KOBO_ODK_MARKERS_V5.has(name)),
+    ).size >= 2
+  // Calculated fields with the V3 refusal lifted, to find the one a loose name defers to.
+  const calculatedTargets = v5
+    ? orderedFields
+        .filter((target) => target.calculated)
+        .map((target) => ({ ...target, calculated: false }))
+    : []
+  const calculatedFieldOf = (header: string, source: PreparedName) => {
+    if ([...source.tokens].some((token) => REFUSED_TAGS.has(token))) return null
+    const leaf = groupPathLeaf(header)
+    const names =
+      leaf !== null && participantPath(header, leaf) ? [source, prepareName(leaf)] : [source]
+    const scores = calculatedTargets.map((target) =>
+      Math.max(0, ...names.map((name) => nameScore(name, target, synonyms)?.score ?? 0)),
+    )
+    const top = Math.max(0, ...scores)
+    const winners = calculatedTargets.filter((_, index) => scores[index] === top)
+    return top >= AUTO_SMART_V2_LIMITS.suggestionScore && winners.length === 1
+      ? winners[0].field.id
+      : null
+  }
+
   // Candidates at or above the suggestion floor, best first; field order breaks ties.
   const candidates = orderedColumns.map((column) => {
     const source = prepareName(column.header)
     // A source name a field owns outranks the system-column list, as the form publisher approved it.
-    const ignoredReason: SmartDecisionReason | null =
+    let ignoredReason: SmartDecisionReason | null =
       v3 && column.blank === true
         ? 'BLANK_COLUMN'
         : v4 &&
@@ -178,12 +229,8 @@ function matchColumns(
         ? groupPathLeaf(column.header)
         : null
     if (leaf !== null) {
-      // A group of participant words or of the leaf's own words (consent/consent_given) maps; under any other, such as emergency_contact, a person confirms it.
       const leafName = prepareName(leaf)
-      const prefix = prepareName(column.header.slice(0, -leaf.length))
-      const participant = [...prefix.tokens].every(
-        (token) => PARTICIPANT_GROUP_WORDS.has(token) || leafName.tokens.has(token),
-      )
+      const participant = participantPath(column.header, leaf)
       const fromLeaf = scoreOn(leafName).map((candidate) =>
         participant || candidate.score <= TIER.reviewSynonym
           ? candidate
@@ -193,7 +240,18 @@ function matchColumns(
       if (top(fromLeaf) > top(scored)) scored = fromLeaf
     }
     scored.sort((left, right) => right.score - left.score || left.fieldIndex - right.fieldIndex)
-    return { column, source, scored, ignoredReason, samples: boundedSamples(column.samples) }
+    let calculatedFieldId: string | null = null
+    // V5 ignores only a column V4 offers nothing for, so every other decision stays as V4 makes it.
+    if (v5 && !ignoredReason && scored.length === 0) {
+      if (submissionTimeColumn([column]) !== null) ignoredReason = 'SUBMISSION_TIME'
+      else if (koboFile && KOBO_TIMING_COLUMNS_V5.has(source.v1)) ignoredReason = 'SYSTEM_COLUMN'
+      else {
+        calculatedFieldId = calculatedFieldOf(column.header, source)
+        if (calculatedFieldId !== null) ignoredReason = 'CALCULATED_FIELD'
+      }
+    }
+    const samples = boundedSamples(column.samples)
+    return { column, source, scored, ignoredReason, calculatedFieldId, samples }
   })
 
   const bestScoreForField = new Map<number, number[]>()
@@ -205,16 +263,18 @@ function matchColumns(
     }
   })
 
-  const decisions: SmartMatchDecision[] = candidates.map(({ column, ignoredReason }) => ({
-    sourceKey: column.key,
-    columnIndex: column.columnIndex,
-    status: ignoredReason ? 'IGNORED' : 'PENDING',
-    targetFieldId: null,
-    suggestedFieldId: null,
-    score: null,
-    matchReason: null,
-    reason: ignoredReason ?? 'NO_MATCH',
-  }))
+  const decisions: SmartMatchDecision[] = candidates.map(
+    ({ column, ignoredReason, calculatedFieldId }) => ({
+      sourceKey: column.key,
+      columnIndex: column.columnIndex,
+      status: ignoredReason ? 'IGNORED' : 'PENDING',
+      targetFieldId: null,
+      suggestedFieldId: calculatedFieldId,
+      score: null,
+      matchReason: null,
+      reason: ignoredReason ?? 'NO_MATCH',
+    }),
+  )
   const held = new Map<number, SmartDecisionReason>()
   const claimed = new Set<number>()
 

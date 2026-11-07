@@ -8,6 +8,7 @@ const smartMatch = [
   'AUTO_SMART_V2_LIMITS',
   'AUTO_SMART_V3',
   'AUTO_SMART_V4',
+  'AUTO_SMART_V5',
   'SMART_DECISION_REASONS',
   'SMART_MATCH_REASONS',
   'SMART_REVIEW_SYNONYMS_V2',
@@ -24,6 +25,7 @@ const smartMatch = [
   'smartMatchColumns',
   'smartMatchColumnsV3',
   'smartMatchColumnsV4',
+  'smartMatchColumnsV5',
   'sourceNameKey',
 ]
 
@@ -33,6 +35,7 @@ const validation = [
   'deferredRequired',
   'isBlank',
   'isSupplied',
+  'keepFedCalculatedIgnores',
   'matchColumns',
   'normalizeIdentifier',
   'stableJson',
