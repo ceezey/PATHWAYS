@@ -135,7 +135,7 @@ export class GuardianApprovalService {
           if (unchangedOf) {
             await completeUnchangedRow(tx, actor, {
               ...claimInput,
-              resolution: { guardianApproval: true },
+              resolution: parked ? null : { guardianApproval: true },
               beneficiaryId: unchangedOf,
             })
           } else {
@@ -165,7 +165,7 @@ export class GuardianApprovalService {
     )
   }
 
-  // The values a held row is promoted with: a parked row keeps its resolution, else the participant is found again by the client's identifier.
+  // The values a held row is promoted with: a reviewer's resolution stands, any other row has its participant checked again by code or identifier.
   private async approvalValues(
     tx: Tx,
     actor: ApplicationIdentity,

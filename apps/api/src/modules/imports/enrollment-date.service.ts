@@ -191,7 +191,7 @@ export class EnrollmentDateService {
         const claim = await claimBatchForResolution(tx, batch.id)
         let waiting = 0
         for (const { row, unchangedOf, values } of promotable) {
-          // The whole value set is kept, as guardian approval of a parked minor promotes it unchanged.
+          // The whole value set is kept, as guardian approval of a parked minor checks and promotes it with these values.
           const resolution = { kind: 'ENROLLMENT_DATE', source, values } as Prisma.InputJsonValue
           const claimInput = { batch, rowId: row.id, rowNumber: row.rowNumber, claim, resolution }
           if (unchangedOf) {
