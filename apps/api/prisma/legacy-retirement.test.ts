@@ -98,6 +98,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0085_public_tracker_live_revision',
       '0086_public_tracker_media',
       '0087_public_tracker_analytics',
+      '0088_smart_mapping_v5',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })

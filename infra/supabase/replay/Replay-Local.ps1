@@ -635,6 +635,8 @@ END $$;
       Write-Output 'STAGE_IMPORT_RUNTIME=PASS'
       Measure-ReplayStep 'sql smart-mapping-v4-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/smart-mapping-v4-runtime.sql'))) $phase6Database }
       Write-Output 'SMART_MAPPING_V4_RUNTIME=PASS'
+      Measure-ReplayStep 'sql smart-mapping-v5-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/smart-mapping-v5-runtime.sql'))) $phase6Database }
+      Write-Output 'SMART_MAPPING_V5_RUNTIME=PASS'
       Measure-ReplayStep 'sql public-tracker-live-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/public-tracker-live-runtime.sql'))) $phase6Database }
       Write-Output 'PUBLIC_TRACKER_LIVE_RUNTIME=PASS'
       Measure-ReplayStep 'sql public-tracker-media-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/public-tracker-media-runtime.sql'))) $phase6Database }
