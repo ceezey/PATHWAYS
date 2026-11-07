@@ -37,7 +37,10 @@ type AuditEvent = {
   target: string
   outcome: 'Recorded'
   summary: string
+  details: Record<string, string | number | boolean>
 }
+
+const detailLabels: Record<string, string> = { source: 'Source', rowNumber: 'Row number' }
 
 const dateFormatter = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
@@ -91,6 +94,7 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
     target: row.entityId ?? 'No record ID',
     outcome: 'Recorded',
     summary: `${row.action} recorded for ${row.entityType}.`,
+    details: row.details,
   }))
 
   const [query, setQuery] = useState('')
@@ -384,6 +388,12 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
                 <dt className="text-muted-foreground">Recorded action</dt>
                 <dd className="mt-1 leading-6">{selected.summary}</dd>
               </div>
+              {Object.entries(selected.details).map(([key, value]) => (
+                <div key={key}>
+                  <dt className="text-muted-foreground">{detailLabels[key] ?? key}</dt>
+                  <dd className="mt-1 font-medium">{String(value)}</dd>
+                </div>
+              ))}
               <div>
                 <dt className="text-muted-foreground">Outcome</dt>
                 <dd className="mt-1">
