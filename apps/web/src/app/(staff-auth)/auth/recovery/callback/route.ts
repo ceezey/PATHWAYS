@@ -11,6 +11,7 @@ import {
   issuePasswordRecoveryGrant,
   passwordRecoveryIntentCookie,
   passwordRecoveryIntentCookieOptions,
+  recoveryDiagnosticInstance,
   recoveryRedirectType,
   secureRecoveryResponse,
 } from '@/lib/supabase/recovery-server'
@@ -100,6 +101,7 @@ export async function GET(request: NextRequest) {
     }
 
     const response = redirect(passwordUpdatePath, pending)
+    console.warn('[recovery-diag] grant issued', { instance: recoveryDiagnosticInstance })
     response.cookies.set(
       passwordRecoveryIntentCookie,
       issuePasswordRecoveryGrant(user.id, recoveryIdentity.sessionId),
