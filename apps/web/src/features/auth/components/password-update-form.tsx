@@ -26,7 +26,7 @@ import {
 import { StaffAuthFrame } from './staff-auth-frame'
 
 export const PasswordUpdateForm = () => {
-  const [completion, setCompletion] = useState<{ sessionClosed: boolean } | null>(null)
+  const [completed, setCompleted] = useState(false)
   const [safeError, setSafeError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [uncertainOutcome, setUncertainOutcome] = useState(false)
@@ -37,8 +37,8 @@ export const PasswordUpdateForm = () => {
   })
 
   useEffect(() => {
-    if (completion) completionRef.current?.focus()
-  }, [completion])
+    if (completed) completionRef.current?.focus()
+  }, [completed])
 
   const onSubmit = async ({ password }: PasswordUpdate) => {
     setSafeError(null)
@@ -56,7 +56,7 @@ export const PasswordUpdateForm = () => {
       const result = await response.json().catch(() => null)
       const outcome = classifyPasswordCompletionResult(response.ok, result)
       if (outcome.kind === 'success') {
-        setCompletion({ sessionClosed: outcome.sessionClosed })
+        setCompleted(true)
         return
       }
 
@@ -75,7 +75,7 @@ export const PasswordUpdateForm = () => {
     }
   }
 
-  if (completion) {
+  if (completed) {
     return (
       <StaffAuthFrame
         title="Password updated"
@@ -90,17 +90,13 @@ export const PasswordUpdateForm = () => {
           <div className="flex items-start gap-3">
             <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
             <p className="text-sm leading-6">
-              {completion.sessionClosed
-                ? 'Every session of this account was signed out. Sign in with the new password; if MFA is set up, your authenticator code is still required.'
-                : 'The password changed, but PATHWAYS could not confirm that every session was signed out. Close this browser window now. Then reopen this staff portal and sign in with the new password.'}
+              Password successfully changed. Go back to sign in and use your new password.
             </p>
           </div>
         </output>
-        {completion.sessionClosed ? (
-          <Button asChild className="w-full">
-            <Link href="/staff/login">Return to sign in</Link>
-          </Button>
-        ) : null}
+        <Button asChild className="w-full">
+          <Link href="/staff/login">Back to sign in</Link>
+        </Button>
       </StaffAuthFrame>
     )
   }
