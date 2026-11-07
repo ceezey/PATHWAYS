@@ -7,17 +7,33 @@ import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+import { PENDING_ADVICE, PENDING_COLUMN_HELP } from '../../collection.copy'
 import { ToggleRow } from '../../forms/components/toggle-row'
 import type { BatchIntake } from '../hooks/use-batch-intake'
 import type { BatchProcessing } from '../hooks/use-batch-processing'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
 import { importProcessingComplete } from '../import-auto-continue'
-import { automaticMatchReason, batchCoverage, mappingLockedStatuses } from '../import.utils'
+import {
+  automaticMatchReason,
+  batchCoverage,
+  ignoredReasonText,
+  mappingLockedStatuses,
+} from '../import.utils'
 import { CoverageNotice } from './coverage-notice'
 import { ImportDateOrder, columnDateOrders } from './import-date-order'
 import { ImportTargetSelect } from './import-target-select'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
+
+// A pending column shows three of its answers, each cut short, so the person can tell what it holds.
+const sampleLength = 40
+const sampled = (values: readonly string[] = []) =>
+  values
+    .slice(0, 3)
+    .map((value) =>
+      value.length > sampleLength ? `${value.slice(0, sampleLength - 3)}...` : value,
+    )
+    .join(', ')
 
 // At most five values in a line, so a column of many distinct answers stays readable.
 const listed = (values: readonly string[]) =>
@@ -118,6 +134,20 @@ export function ImportMappingCard({
       !rules[key]?.dateOrder &&
       columnDateOrders(columnValues.get(key), referenceYear).needsChoice) ||
     translations(key).unmatched.length > 0
+  const isPending = (key: string) => (mapping[key] ?? '__pending__') === '__pending__'
+  // The matcher's own ignores (stored with a reason) are not the person's, so they do not count as ignored by choice.
+  const ignoredReason = (key: string) => {
+    const stored = storedMappingByKey.get(key)
+    return stored ? ignoredReasonText(stored, batch.formType) : null
+  }
+  const barCounts = {
+    pending: sourceColumns.filter((column) => isPending(column.key)).length,
+    personIgnored: sourceColumns.filter(
+      (column) => mapping[column.key] === '__ignore__' && !ignoredReason(column.key),
+    ).length,
+    unmatchedColumns: sourceColumns.filter((column) => translations(column.key).unmatched.length)
+      .length,
+  }
   const undecidedKeys = () =>
     new Set(sourceColumns.filter((column) => undecided(column.key)).map((column) => column.key))
   // The columns undecided when the filter was switched on, so deciding one keeps it in view.
@@ -158,15 +188,18 @@ export function ImportMappingCard({
       <CardContent className="space-y-3">
         {needsFormUpdate ? (
           <CoverageNotice
-            receipt={coverage}
+            {...barCounts}
             canPrepare={canManageForms}
-            pending={pending}
+            busy={pending}
             onPrepare={() => void intake.prepareForm()}
           />
         ) : null}
         <output aria-live="polite" className="block text-sm text-muted-foreground">
           {mappingNotice}
         </output>
+        {barCounts.pending > 0 ? (
+          <p className="text-sm text-muted-foreground">{PENDING_ADVICE}</p>
+        ) : null}
         {translatedColumns.length ? (
           <p className="text-sm text-muted-foreground">
             Translated automatically: {translatedColumns.join('; ')}. Add a translation on the
@@ -186,6 +219,8 @@ export function ImportMappingCard({
           )
           const suggestion = openSuggestions.find((item) => item.column.key === column.key)
           const { automatic: readOnItsOwn, unmatched } = translations(column.key)
+          const ignoredWhy = mapping[column.key] === '__ignore__' ? ignoredReason(column.key) : null
+          const samples = isPending(column.key) ? sampled(columnValues.get(column.key)) : ''
           return (
             <div
               key={column.key}
@@ -197,6 +232,17 @@ export function ImportMappingCard({
                 </span>
                 {automatic ? (
                   <StatusBadge tone="success">Auto-matched: {automatic}</StatusBadge>
+                ) : null}
+                {ignoredWhy ? <p className="text-sm text-muted-foreground">{ignoredWhy}</p> : null}
+                {isPending(column.key) ? (
+                  <>
+                    {samples ? (
+                      <p className="break-all text-sm text-muted-foreground">
+                        Sample values: {samples}
+                      </p>
+                    ) : null}
+                    <p className="text-sm text-muted-foreground">{PENDING_COLUMN_HELP}</p>
+                  </>
                 ) : null}
                 {suggestion ? (
                   <div className="flex flex-wrap items-center gap-2 text-sm">

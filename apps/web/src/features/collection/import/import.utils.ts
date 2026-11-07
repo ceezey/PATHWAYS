@@ -3,7 +3,7 @@ import { CONSENT_FIELD_CODES, type ImportHoldCode } from '@pathways/shared'
 
 import type { DigitalFormType, ImportBatchDefinition, ImportRowDefinition } from '@/types/pathways'
 
-import { enumLabel } from '../collection.copy'
+import { enumLabel, ignoredReasonCopy } from '../collection.copy'
 
 // Checked in order; surveys repeat the identity columns, so registration comes last.
 const formTypeHeaders: Array<[DigitalFormType, RegExp]> = [
@@ -80,10 +80,19 @@ const matchReasonLabels: Record<string, string> = {
 /** Why the server auto-mapped a column, or null for manual and pending choices. */
 export function automaticMatchReason(stored: StoredMapping | undefined) {
   if (stored?.status !== 'MAPPED' || !stored.validationMessage) return null
-  if (/^AUTO_SMART_V[234]:/.test(stored.validationMessage)) {
+  if (/^AUTO_SMART_V[2345]:/.test(stored.validationMessage)) {
     return matchReasonLabels[stored.matchReason ?? ''] ?? 'automatic match'
   }
   return stored.validationMessage.startsWith('AUTO_CODE_LABEL_V1:') ? 'exact name' : null
+}
+
+/** Why the matcher ignored a column, or null for a person's ignore, another status or an unknown reason. */
+export function ignoredReasonText(
+  stored: { status: string; validationMessage: string | null },
+  formType: string,
+) {
+  const reason = /^AUTO_SMART_V[345]:(\w+)$/.exec(stored.validationMessage ?? '')?.[1]
+  return stored.status === 'IGNORED' && reason ? ignoredReasonCopy(reason, formType) : null
 }
 
 export function displayValue(value: unknown) {

@@ -96,6 +96,58 @@ export const warningLabel = (code: string) => warningLabels[code] ?? enumLabel(c
 export const coverageNotice = (receipt: { uncoveredColumns: number; unresolvedValues: number }) =>
   `Form needs updating: ${plural(receipt.uncoveredColumns, 'column')}, ${plural(receipt.unresolvedValues, 'answer')}`
 
+/** Why the matcher ignored a column, by the reason it stored; a submission time reads differently on a registration form. */
+export const ignoredReasonCopy = (reason: string, formType: string) => {
+  switch (reason) {
+    case 'CALCULATED_FIELD':
+      return 'Ignored: the form works this out from other answers.'
+    case 'SUBMISSION_TIME':
+      return formType === 'BENEFICIARY_REGISTRATION'
+        ? 'Ignored: used only to propose enrollment dates.'
+        : 'Ignored: the time the form was submitted.'
+    case 'SYSTEM_COLUMN':
+      return 'Ignored: a Kobo or ODK record column, not about the person.'
+    case 'BLANK_COLUMN':
+      return 'Ignored: the column is empty.'
+    default:
+      return null
+  }
+}
+
+export const PENDING_COLUMN_HELP = 'Not in the form. If ignored, this column is not saved.'
+
+export const PENDING_ADVICE =
+  'Not sure? Ignore it. The file stays stored, and after a form manager adds the field, the uploader can re-run this import.'
+
+/** The mapping bar's lines for what is still open, kept as separate sentences so each can be read alone. */
+export const mappingBarLines = (
+  counts: { pending: number; personIgnored: number; unmatchedColumns: number },
+  canPrepare: boolean,
+) => {
+  const { pending, personIgnored, unmatchedColumns } = counts
+  const lines: string[] = []
+  if (pending > 0) {
+    lines.push(
+      pending === 1
+        ? '1 column needs a decision: map it to a field, or ignore it.'
+        : `${pending} columns need a decision: map each to a field, or ignore it.`,
+    )
+  } else if (personIgnored > 0) {
+    const keep = personIgnored === 1 ? 'it' : 'them'
+    lines.push(
+      `${personIgnored === 1 ? '1 ignored column is' : `${personIgnored} ignored columns are`} not in the form and will not be saved.${canPrepare ? ` Prepare form to keep ${keep}.` : ''}`,
+    )
+  }
+  if (unmatchedColumns > 0) {
+    lines.push(
+      unmatchedColumns === 1
+        ? '1 column has answers that match no option.'
+        : `${unmatchedColumns} columns have answers that match no option.`,
+    )
+  }
+  return lines
+}
+
 /** Why someone who cannot manage forms cannot upload a file missing a required column. */
 export const UPLOAD_NEEDS_FORM_UPDATE =
   'This file is missing columns the form requires. Ask a Monitoring and Evaluation Officer or System Administrator to update the form, then upload this file again.'

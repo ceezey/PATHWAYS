@@ -197,7 +197,7 @@ describe('import workspace intake paths', () => {
       api.automaticImportMapping.mockResolvedValue(receipt())
       render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
       await uploadFile()
-      await screen.findByText('Form needs updating: 2 columns, 5 answers')
+      await screen.findByText('1 column needs a decision: map it to a field, or ignore it.')
     }
 
     it('shows the read-only notice, not the button, without forms.manage', async () => {
@@ -229,7 +229,7 @@ describe('import workspace intake paths', () => {
       api.getImportBatches.mockResolvedValue([stored])
       api.getImportBatch.mockResolvedValue(stored)
       await openBatch()
-      await screen.findByText('Form needs updating: 2 columns, 5 answers')
+      await screen.findByText('1 column needs a decision: map it to a field, or ignore it.')
       fireEvent.click(screen.getByRole('button', { name: 'Prepare form' }))
       await waitFor(() =>
         expect(api.draftFromImport).toHaveBeenCalledWith('project-1', 'form-1', 'batch-1', 1),
@@ -415,7 +415,7 @@ describe('import workspace intake paths', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Upload anyway' }))
       await screen.findByText('Column 1: Given name')
       expect(api.uploadImport).toHaveBeenCalledTimes(1)
-      expect(screen.queryByText(/Form needs updating/)).toBeNull()
+      expect(screen.queryByText(/column needs a decision/)).toBeNull()
       expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
     })
 
@@ -487,7 +487,7 @@ describe('import workspace intake paths', () => {
       )
       await openBatch()
       fireEvent.click(screen.getByRole('button', { name: 'Re-run import' }))
-      await screen.findByText('Form needs updating: 2 columns, 5 answers')
+      await screen.findByText('1 column needs a decision: map it to a field, or ignore it.')
       expect(api.validateImport).not.toHaveBeenCalled()
       expect(api.processImport).not.toHaveBeenCalled()
     })

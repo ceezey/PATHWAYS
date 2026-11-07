@@ -1,5 +1,6 @@
 /* @vitest-environment jsdom */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ImportBatchDefinition } from '@/types/pathways'
@@ -25,6 +26,34 @@ const notCovered = {
   unresolvedValues: 12,
 }
 const prepareForm = vi.fn()
+const pendingBar = '1 column needs a decision: map it to a field, or ignore it.'
+
+// jsdom lacks the layout APIs Radix Select calls when it opens.
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+)
+Element.prototype.scrollIntoView = () => {}
+Element.prototype.hasPointerCapture = () => false
+
+const storedColumn = (over: object = {}) => ({
+  sourceFieldName: 'column_0001',
+  status: 'MAPPED',
+  revision: 1,
+  targetField: { code: 'first_name', label: 'First name' },
+  validationMessage: 'AUTO_SMART_V3:AUTO_MATCH',
+  suggestedField: null,
+  matchScore: 95,
+  matchReason: 'EXACT',
+  dataType: null,
+  valueMap: null,
+  dateOrder: null,
+  ...over,
+})
 
 const renderCard = (
   over: {
@@ -36,9 +65,16 @@ const renderCard = (
     columnValues?: Map<string, string[]>
     selectedForm?: object
     rules?: object
+    canReview?: boolean
+    columns?: Array<{ key: string; header: string; columnIndex: number }>
+    stored?: Array<[string, object]>
   } = {},
-) =>
-  render(
+) => render(<Card {...over} />)
+
+// The mapping lives in state, as in the workspace, so choosing a target updates the card.
+function Card(over: Parameters<typeof renderCard>[0] & object) {
+  const [mapping, setMapping] = useState(over.mapping ?? { column_0001: '__pending__' })
+  return (
     <ImportMappingCard
       batch={{ ...batch, ...over.batch } as ImportBatchDefinition}
       intake={{ prepareForm }}
@@ -47,12 +83,12 @@ const renderCard = (
       state={{
         canManageForms: over.canManageForms ?? true,
         canProcess: false,
-        canReview: false,
+        canReview: over.canReview ?? false,
         canValidate: false,
         columnValues: over.columnValues ?? new Map(),
         formOfferSeen: over.formOfferSeen ?? new Set(),
-        mapping: over.mapping ?? { column_0001: '__pending__' },
-        mappingEditable: false,
+        mapping,
+        mappingEditable: true,
         mappingHeading: { current: null },
         mappingNotice: '',
         mutation: { current: null },
@@ -62,30 +98,16 @@ const renderCard = (
         rules: (over.rules ?? {}) as never,
         scope: { isCurrent: () => true } as never,
         selectedForm: over.selectedForm as never,
-        setMapping: vi.fn(),
+        setMapping,
         setRules: vi.fn(),
-        sourceColumns: [{ key: 'column_0001', header: 'Given name', columnIndex: 1 }],
-        storedMappingByKey: new Map([
-          [
-            'column_0001',
-            {
-              sourceFieldName: 'column_0001',
-              status: 'MAPPED',
-              revision: 1,
-              targetField: { code: 'first_name', label: 'First name' },
-              validationMessage: 'AUTO_SMART_V3:AUTO_MATCH',
-              suggestedField: null,
-              matchScore: 95,
-              matchReason: 'EXACT',
-              dataType: null,
-              valueMap: null,
-              dateOrder: null,
-            },
-          ],
-        ]),
+        sourceColumns: over.columns ?? [
+          { key: 'column_0001', header: 'Given name', columnIndex: 1 },
+        ],
+        storedMappingByKey: new Map(over.stored ?? [['column_0001', storedColumn()]]) as never,
       }}
-    />,
+    />
   )
+}
 
 describe('ImportMappingCard form coverage', () => {
   afterEach(() => {
@@ -95,14 +117,14 @@ describe('ImportMappingCard form coverage', () => {
 
   it('shows the counts and Prepare form to a holder of forms.manage', () => {
     renderCard()
-    expect(screen.getByText('Form needs updating: 3 columns, 12 answers')).toBeTruthy()
+    expect(screen.getByText(pendingBar)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Prepare form' }))
     expect(prepareForm).toHaveBeenCalledTimes(1)
   })
 
   it('Prepare form is hidden without forms.manage and a read-only notice shows instead', () => {
     renderCard({ canManageForms: false })
-    expect(screen.getByText('Form needs updating: 3 columns, 12 answers')).toBeTruthy()
+    expect(screen.getByText(pendingBar)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
     expect(
       screen.getByText('Someone who manages forms can prepare the form from this file.'),
@@ -112,20 +134,24 @@ describe('ImportMappingCard form coverage', () => {
   it('shows Prepare form from the batch detail coverage to a forms.manage holder with no session receipt', () => {
     const coverage = { coverage: 'NOT_COVERED', uncoveredColumns: 2, unresolvedValues: 4 }
     renderCard({ receipts: {}, batch: { coverage, uploadedByCurrentUser: false } })
-    expect(screen.getByText('Form needs updating: 2 columns, 4 answers')).toBeTruthy()
+    expect(screen.getByText(pendingBar)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Prepare form' }))
     expect(prepareForm).toHaveBeenCalledTimes(1)
   })
 
   it('does not repeat the notice for a batch whose uploader saw Prepare form in the file check', () => {
     renderCard({ formOfferSeen: new Set(['batch-1']) })
-    expect(screen.queryByText(/Form needs updating/)).toBeNull()
+    expect(
+      screen.queryByText(/column needs a decision|columns need a decision|will not be saved/),
+    ).toBeNull()
     expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
   })
 
   it('prefers the server coverage over a stale session receipt', () => {
     renderCard({ batch: { coverage: { ...notCovered, coverage: 'COVERED' } } })
-    expect(screen.queryByText(/Form needs updating/)).toBeNull()
+    expect(
+      screen.queryByText(/column needs a decision|columns need a decision|will not be saved/),
+    ).toBeNull()
   })
 
   it('shows nothing for a covered file, a missing receipt or a later reviewed revision', () => {
@@ -135,7 +161,9 @@ describe('ImportMappingCard form coverage', () => {
       { batch: { mappingRevision: 2 } },
     ]) {
       renderCard(over)
-      expect(screen.queryByText(/Form needs updating/)).toBeNull()
+      expect(
+        screen.queryByText(/column needs a decision|columns need a decision|will not be saved/),
+      ).toBeNull()
       cleanup()
     }
   })
@@ -251,5 +279,112 @@ describe('ImportMappingCard value translations', () => {
     })
     expect(screen.queryByText(/match(es)? no answer/)).toBeNull()
     expect(screen.getByText('Show only columns that need a decision (0 of 1)')).toBeTruthy()
+  })
+})
+
+describe('ImportMappingCard ignored and pending columns', () => {
+  afterEach(cleanup)
+
+  const columns = [
+    { key: 'column_0001', header: 'Total score', columnIndex: 1 },
+    { key: 'column_0002', header: 'Mystery', columnIndex: 2 },
+  ]
+  const ignoredStored = (message: string) =>
+    storedColumn({ status: 'IGNORED', targetField: null, validationMessage: message })
+  const firstName = { fields: [{ code: 'first_name', label: 'First name', dataType: 'TEXT' }] }
+  const choose = (name: string) => {
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' })
+    fireEvent.click(screen.getByRole('option', { name }))
+  }
+
+  it('shows the matcher reason under an ignored column and drops it once the person changes the select', () => {
+    renderCard({
+      columns: columns.slice(0, 1),
+      mapping: { column_0001: '__ignore__' },
+      stored: [['column_0001', ignoredStored('AUTO_SMART_V5:CALCULATED_FIELD')]],
+      selectedForm: firstName,
+    })
+    // A decided column is hidden by the default filter.
+    fireEvent.click(screen.getByRole('checkbox'))
+    expect(screen.getByText('Ignored: the form works this out from other answers.')).toBeTruthy()
+    choose('First name (first_name)')
+    expect(screen.queryByText(/^Ignored:/)).toBeNull()
+  })
+
+  it('shows up to three cut samples, the pending line and the Not sure line for a pending column', () => {
+    renderCard({
+      columns: columns.slice(1),
+      mapping: { column_0002: '__pending__' },
+      stored: [['column_0002', storedColumn({ status: 'PENDING', targetField: null })]],
+      columnValues: new Map([['column_0002', ['Alpha', 'Beta', 'x'.repeat(60), 'Delta']]]),
+    })
+    expect(screen.getByText(`Sample values: Alpha, Beta, ${'x'.repeat(37)}...`)).toBeTruthy()
+    expect(screen.queryByText(/Delta/)).toBeNull()
+    expect(screen.getByText('Not in the form. If ignored, this column is not saved.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Not sure? Ignore it. The file stays stored, and after a form manager adds the field, the uploader can re-run this import.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('follows the decision: pending bar, then a neutral ignored bar, then no bar', () => {
+    renderCard({
+      columns: columns.slice(1),
+      mapping: { column_0002: '__pending__' },
+      stored: [['column_0002', storedColumn({ status: 'PENDING', targetField: null })]],
+      selectedForm: firstName,
+    })
+    const bar = () => screen.getByRole('region', { name: 'Mapping decisions' })
+    expect(bar().textContent).toContain(pendingBar)
+    expect(bar().className).toContain('border-warning')
+    choose('Ignore this source column')
+    expect(bar().textContent).toContain(
+      '1 ignored column is not in the form and will not be saved. Prepare form to keep it.',
+    )
+    expect(bar().className).not.toContain('warning')
+    expect(screen.queryByText(/Not sure\?/)).toBeNull()
+    choose('First name (first_name)')
+    expect(screen.queryByRole('region', { name: 'Mapping decisions' })).toBeNull()
+  })
+
+  it('shows a Project Officer the reasons and the bar without Prepare form', () => {
+    renderCard({
+      canManageForms: false,
+      canReview: true,
+      columns,
+      mapping: { column_0001: '__ignore__', column_0002: '__ignore__' },
+      stored: [
+        ['column_0001', ignoredStored('AUTO_SMART_V5:SUBMISSION_TIME')],
+        ['column_0002', storedColumn({ status: 'PENDING', targetField: null })],
+      ],
+    })
+    fireEvent.click(screen.getByRole('checkbox'))
+    expect(screen.getByText('Ignored: the time the form was submitted.')).toBeTruthy()
+    const bar = screen.getByRole('region', { name: 'Mapping decisions' }).textContent
+    expect(bar).toContain('1 ignored column is not in the form and will not be saved.')
+    expect(bar).not.toContain('Prepare form to keep')
+    expect(bar).toContain('Someone who manages forms can prepare the form from this file.')
+    expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+  })
+
+  it('counts columns with answers that match no option, live', () => {
+    renderCard({
+      columns: columns.slice(0, 1),
+      mapping: { column_0001: 'consent' },
+      columnValues: new Map([['column_0001', ['Yes', 'Maybe']]]),
+      selectedForm: {
+        fields: [
+          {
+            code: 'consent',
+            label: 'Consent',
+            dataType: 'BOOLEAN',
+            allowedValues: null,
+            valueAliases: null,
+          },
+        ],
+      },
+    })
+    expect(screen.getByText('1 column has answers that match no option.')).toBeTruthy()
   })
 })

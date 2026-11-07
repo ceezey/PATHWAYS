@@ -22,7 +22,7 @@ import type {
 } from '../../collection.utils'
 import { FormInfoPanel } from '../../forms/components/form-info-panel'
 import type { MappingReadiness, MappingRow } from '../collection-import-state'
-import { CoverageNotice } from './coverage-notice'
+import { StagedCoverageNotice } from './coverage-notice'
 import { DataPreview } from './data-preview'
 import { ImportValidationPanel } from './import-validation-panel'
 import { MappingTable } from './mapping-table'
@@ -183,7 +183,7 @@ export const ImportView = ({
             {importMessage}
           </output>
           {stagedReceipt ? (
-            <CoverageNotice
+            <StagedCoverageNotice
               receipt={stagedReceipt}
               canPrepare={Boolean(onPrepareForm)}
               pending={operationPending}
