@@ -1,3 +1,4 @@
+import { passwordRecoveryCompleteRequest, strongPassword } from '@pathways/shared'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
@@ -29,15 +30,6 @@ export const passwordRecoveryRequestSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.'),
 })
 
-const strongPassword = z
-  .string()
-  .min(12, 'Use at least 12 characters.')
-  .max(128, 'Use no more than 128 characters.')
-  .regex(/[a-z]/, 'Add at least one lowercase letter.')
-  .regex(/[A-Z]/, 'Add at least one uppercase letter.')
-  .regex(/[0-9]/, 'Add at least one number.')
-  .regex(/[^A-Za-z0-9]/, 'Add at least one symbol.')
-
 export const passwordUpdateSchema = z
   .object({
     password: strongPassword,
@@ -48,11 +40,7 @@ export const passwordUpdateSchema = z
     path: ['confirmPassword'],
   })
 
-export const passwordUpdateRequestSchema = z
-  .object({
-    password: strongPassword,
-  })
-  .strict()
+export const passwordUpdateRequestSchema = passwordRecoveryCompleteRequest
 
 export type PasswordRecoveryRequest = z.infer<typeof passwordRecoveryRequestSchema>
 export type PasswordUpdate = z.infer<typeof passwordUpdateSchema>

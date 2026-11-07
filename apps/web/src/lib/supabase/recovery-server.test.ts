@@ -6,13 +6,14 @@ vi.mock('@/lib/env', () => ({
   webSupabasePublishableKey: 'publishable-test-fixture',
 }))
 
+import { passwordRecoveryWindowSeconds } from '@pathways/shared'
+
 import { testAuthUserId } from '@/lib/auth/auth-access.test-fixtures'
 const developerAuthUserId = testAuthUserId
 import { localPasswordRecoveryOrigin } from '@/lib/auth/password-recovery'
 import {
   getRecoveryIdentityFromVerifiedClaims,
   isApprovedRecoveryRequest,
-  passwordRecoveryWindowSeconds,
   recoveryAuthFetch,
   secureRecoveryResponse,
 } from './recovery-server'

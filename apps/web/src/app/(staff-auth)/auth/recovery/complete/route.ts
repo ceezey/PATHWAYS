@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
+import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { passwordUpdateRequestSchema } from '@/lib/auth/password-recovery'
+import { webEnv } from '@/lib/env'
 import {
   applyPendingAuthCookies,
   createPendingAuthResponse,
@@ -18,10 +20,17 @@ type PasswordCompletionBody =
 
 const maximumPasswordRequestLength = 1024
 
-const isDefinitiveProviderRejection = (error: unknown) => {
-  if (!error || typeof error !== 'object' || Array.isArray(error)) return false
-  const status = (error as Record<string, unknown>).status
-  return typeof status === 'number' && status >= 400 && status < 500
+// Asks the API to set the password through the admin API, so accounts with MFA enrolled can reset too.
+const setPasswordThroughApi = (accessToken: string, password: string) => {
+  const base = approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL)
+  return fetch(`${base.toString().replace(/\/$/, '')}/auth/password-recovery/complete`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(15000),
+  })
 }
 
 const jsonResponse = (
@@ -64,6 +73,7 @@ export async function POST(request: NextRequest) {
 
   const pending = createPendingAuthResponse()
   let supabase: ReturnType<typeof createRecoveryRouteClient>
+  let accessToken: string
   try {
     supabase = createRecoveryRouteClient(request, pending)
     const { data: userData, error: userError } = await supabase.auth.getUser()
@@ -88,31 +98,31 @@ export async function POST(request: NextRequest) {
     ) {
       return jsonResponse(401, { ok: false, outcome: 'unauthorized' }, pending)
     }
+    accessToken = session.access_token
   } catch {
     return jsonResponse(503, { ok: false, outcome: 'not_changed' }, pending)
   }
 
+  let result: unknown = null
   try {
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: parsed.data.password,
-    })
-    if (updateError) {
-      return isDefinitiveProviderRejection(updateError)
-        ? jsonResponse(400, { ok: false, outcome: 'not_changed' }, pending)
-        : jsonResponse(503, { ok: false, outcome: 'unknown' }, pending)
-    }
+    const response = await setPasswordThroughApi(accessToken, parsed.data.password)
+    if (response.status === 400)
+      return jsonResponse(400, { ok: false, outcome: 'not_changed' }, pending)
+    if (response.status === 401)
+      return jsonResponse(401, { ok: false, outcome: 'unauthorized' }, pending)
+    if (response.ok) result = await response.json()
   } catch {
-    // The provider may have received the password before the network failed, so do not retry.
-    return jsonResponse(503, { ok: false, outcome: 'unknown' }, pending)
+    // The API may have set the password before the network failed, so do not retry.
+  }
+  const answer = result as Record<string, unknown> | null
+  if (answer?.ok !== true) return jsonResponse(503, { ok: false, outcome: 'unknown' }, pending)
+
+  // The API ended every session of the account; this drops the cookies of this browser too.
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch {
+    // The password change is committed even when clearing this browser is unconfirmed.
   }
 
-  let sessionClosed = false
-  try {
-    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' })
-    sessionClosed = !signOutError
-  } catch {
-    // The password change is committed even when closing this browser session is unconfirmed.
-  }
-
-  return jsonResponse(200, { ok: true, sessionClosed }, pending)
+  return jsonResponse(200, { ok: true, sessionClosed: answer.sessionsClosed === true }, pending)
 }

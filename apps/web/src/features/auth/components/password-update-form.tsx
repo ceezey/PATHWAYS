@@ -64,7 +64,7 @@ export const PasswordUpdateForm = () => {
       setUncertainOutcome(!isKnownUnchanged)
       setSafeError(
         isKnownUnchanged
-          ? 'Supabase did not change the password. If MFA is already enrolled, stop and use the existing MFA recovery process. Otherwise, request one new recovery message.'
+          ? 'The password was not changed. Request one new recovery message and try again.'
           : 'The password-change result could not be confirmed. Do not submit it again. First try signing in with the new password. If that fails, request one new recovery message.',
       )
     } catch {
@@ -91,8 +91,8 @@ export const PasswordUpdateForm = () => {
             <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
             <p className="text-sm leading-6">
               {completion.sessionClosed
-                ? 'Your recovery session was closed. Sign in with the new password, then continue the existing MFA check.'
-                : 'The password changed, but Supabase did not confirm that this browser session closed. Close this browser window now. Then reopen this staff portal and sign in with the new password.'}
+                ? 'Every session of this account was signed out. Sign in with the new password; if MFA is set up, your authenticator code is still required.'
+                : 'The password changed, but PATHWAYS could not confirm that every session was signed out. Close this browser window now. Then reopen this staff portal and sign in with the new password.'}
             </p>
           </div>
         </output>

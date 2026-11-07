@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Header,
+  Headers,
   HttpCode,
   Inject,
   Post,
@@ -16,9 +17,11 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
 import {
   type ChangeStepUpPinRequest,
+  type PasswordRecoveryCompleteRequest,
   type SignInRequest,
   type VerifyStepUpPinRequest,
   changeStepUpPinRequest,
+  passwordRecoveryCompleteRequest,
   verifyStepUpPinRequest,
 } from '@pathways/shared'
 
@@ -29,6 +32,7 @@ import { ZodPipe } from '../../common/validation/zod-pipe'
 import { signInBody } from './auth.helpers'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'
+import { PasswordRecoveryService } from './password-recovery.service'
 import { SignInLockoutService } from './signin-lockout.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
@@ -48,6 +52,7 @@ export class AuthController {
     @Inject(WorkspaceResolutionService) private readonly workspaces: WorkspaceResolutionService,
     @Inject(BeneficiaryStepUpPinService) private readonly pins: BeneficiaryStepUpPinService,
     @Inject(SignInLockoutService) private readonly signIns: SignInLockoutService,
+    @Inject(PasswordRecoveryService) private readonly recovery: PasswordRecoveryService,
   ) {}
 
   @Post('sign-in')
@@ -59,6 +64,20 @@ export class AuthController {
   })
   signIn(@Body(new ZodPipe(signInBody)) body: SignInRequest) {
     return this.signIns.signIn(body.email, body.password)
+  }
+
+  @Post('password-recovery/complete')
+  @Public()
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiOkResponse({
+    description: 'Sets the password of a recovery or invite session, then ends every session.',
+  })
+  completePasswordRecovery(
+    @Headers('authorization') authorization: string | undefined,
+    @Body(new ZodPipe(passwordRecoveryCompleteRequest)) body: PasswordRecoveryCompleteRequest,
+  ) {
+    return this.recovery.complete(authorization, body.password)
   }
 
   @Get('workspaces')
