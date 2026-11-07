@@ -625,5 +625,58 @@ describe('enrollment date confirmation', () => {
         resolutionData: { kind: 'ENROLLMENT_DATE', source: 'SUBMISSION_TIME' },
       })
     })
+
+    it('on a code-matched batch, is refused by guardian approval naming the row when its code was taken meanwhile', async () => {
+      store.identifierMapped = false
+      await confirm({ rowIds: [rowIds[0]] })
+      vi.clearAllMocks()
+      fakeTx.beneficiary.findUnique.mockImplementation((async (args: {
+        where: { organizationId_code: { code: string } }
+      }) => (args.where.organizationId_code.code === 'PART-1' ? { id: 'taken' } : null)) as never)
+      const guardians = new GuardianApprovalService(
+        {} as PrismaService,
+        new BeneficiaryRegistrationService(),
+      )
+      try {
+        await expect(
+          guardians.approve(projectOfficer, projectId, batchId, { rowIds: [rowIds[0]] }),
+        ).rejects.toThrow(
+          'Row 1 looks like a participant already in PATHWAYS. A Monitoring and Evaluation Officer must review it first.',
+        )
+        expectNoWrites()
+      } finally {
+        fakeTx.beneficiary.findUnique.mockImplementation((async () => null) as never)
+      }
+    })
+
+    it('completes as unchanged, keeping its confirmed date, when the same participant was enrolled here meanwhile', async () => {
+      await confirm({ rowIds: [rowIds[0]] })
+      vi.clearAllMocks()
+      fakeTx.beneficiaryIdentifier.findUnique.mockResolvedValueOnce({
+        beneficiaryId: 'person',
+      } as never)
+      fakeTx.beneficiaryProjectEnrollment.findUnique.mockResolvedValueOnce({
+        id: 'enrolled',
+      } as never)
+      fakeTx.beneficiary.findFirst.mockResolvedValueOnce({
+        firstName: 'Synthetic',
+        lastName: 'Person1',
+        birthDate: day('2014-03-04'),
+      } as never)
+      const guardians = new GuardianApprovalService(
+        {} as PrismaService,
+        new BeneficiaryRegistrationService(),
+      )
+      await expect(
+        guardians.approve(projectOfficer, projectId, batchId, { rowIds: [rowIds[0]] }),
+      ).resolves.toEqual({ approved: 1 })
+      expect(fakeTx.beneficiary.createMany).not.toHaveBeenCalled()
+      expect(store.rows[0]).toMatchObject({
+        status: 'PROCESSED',
+        registrationOutcome: 'UNCHANGED',
+        matchedBeneficiaryId: 'person',
+        resolutionData: { kind: 'ENROLLMENT_DATE', source: 'SUBMISSION_TIME' },
+      })
+    })
   })
 })

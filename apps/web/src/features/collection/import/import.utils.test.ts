@@ -7,6 +7,7 @@ import {
   automaticMatchReason,
   fieldsOfReason,
   guessFormType,
+  ignoredReasonText,
   rowReason,
   rowReasonHelp,
   showsSurveys,
@@ -127,5 +128,39 @@ describe('automatic match reason of a stored mapping', () => {
     expect(automaticMatchReason(stored('MAPPED', 'AUTO_SMART_V4:AUTO_MATCH', 'SYNONYM'))).toBe(
       'known synonym',
     )
+    expect(automaticMatchReason(stored('MAPPED', 'AUTO_SMART_V5:AUTO_MATCH', 'SYNONYM'))).toBe(
+      'known synonym',
+    )
+  })
+})
+
+describe('ignored reason of a stored mapping', () => {
+  const reason = (message: string | null, formType = 'PRE_TEST', status = 'IGNORED') =>
+    ignoredReasonText({ status, validationMessage: message }, formType)
+
+  it('words each reason the matcher gives', () => {
+    expect(reason('AUTO_SMART_V5:CALCULATED_FIELD')).toBe(
+      'Ignored: the form works this out from other answers.',
+    )
+    expect(reason('AUTO_SMART_V5:BLANK_COLUMN')).toBe('Ignored: the column is empty.')
+    expect(reason('AUTO_SMART_V4:SYSTEM_COLUMN')).toBe(
+      'Ignored: a Kobo or ODK record column, not about the person.',
+    )
+  })
+
+  it('words a submission time by form type', () => {
+    expect(reason('AUTO_SMART_V5:SUBMISSION_TIME', 'BENEFICIARY_REGISTRATION')).toBe(
+      'Ignored: used only to propose enrollment dates.',
+    )
+    expect(reason('AUTO_SMART_V5:SUBMISSION_TIME', 'PRE_TEST')).toBe(
+      'Ignored: the time the form was submitted.',
+    )
+  })
+
+  it('gives nothing for an unknown reason, a person ignore or another status', () => {
+    expect(reason('AUTO_SMART_V5:SOMETHING_NEW')).toBeNull()
+    expect(reason(null)).toBeNull()
+    expect(reason('AUTO_SMART_V2:BLANK_COLUMN')).toBeNull()
+    expect(reason('AUTO_SMART_V5:BLANK_COLUMN', 'PRE_TEST', 'MAPPED')).toBeNull()
   })
 })

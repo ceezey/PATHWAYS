@@ -3,6 +3,7 @@ import {
   AUTO_SMART_V2_LIMITS,
   AUTO_SMART_V3,
   AUTO_SMART_V4,
+  AUTO_SMART_V5,
   type CoverageField,
   importCoverage,
 } from '@pathways/imports/server'
@@ -65,7 +66,7 @@ interface StoredDecision {
 }
 
 /**
- * Coverage of a batch still on its automatic AUTO_SMART_V3 or AUTO_SMART_V4 revision, rebuilt
+ * Coverage of a batch still on its automatic AUTO_SMART_V3, AUTO_SMART_V4 or AUTO_SMART_V5 revision, rebuilt
  * from the stored mapping rows with the inputs automatic mapping uses; null for any other batch.
  * Counts only.
  */
@@ -81,7 +82,9 @@ export async function readBatchCoverage(
     batch.mappingRevision !== 1 ||
     mappings.length < 1 ||
     !mappings.every((mapping) =>
-      [AUTO_SMART_V3, AUTO_SMART_V4].some((id) => mapping.validationMessage?.startsWith(`${id}:`)),
+      [AUTO_SMART_V3, AUTO_SMART_V4, AUTO_SMART_V5].some((id) =>
+        mapping.validationMessage?.startsWith(`${id}:`),
+      ),
     )
   ) {
     return null

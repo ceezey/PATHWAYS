@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { type CheckField, checkImportFile } from '../../check/file-check'
 import { consentHeld } from '../../check/held-rules'
 import { readImportFile } from '../../check/read-import-file'
-import { type DraftField, draftFormFromImport } from '../../form-draft/draft-form'
+import { type DraftField, FormDraftError, draftFormFromImport } from '../../form-draft/draft-form'
 import { REGISTRATION } from '../../form-draft/draft-test-support'
 import { type CoverageField, importCoverage } from '../../mappers/coverage'
 import { parseSecureImport } from '../../parser/secure'
@@ -90,7 +90,7 @@ interface Expected {
   systemColumns: string[]
   notes: string[]
   problems: string[]
-  // The fields a form draft from the file adds.
+  // The fields a form draft from the file adds; none when every column is already on the form or ignored.
   draft: string[]
   // What a reviewer maps by hand before validating: header to field code, with a value map when needed.
   reviewer: Array<[string, string, Array<{ from: string; to: string }>?]>
@@ -141,10 +141,10 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
   'kobo-xlsx': {
     headerRowNumber: 1,
     fields: MAPPED_WITH_DISABILITY,
-    systemColumns: ['_id', '_uuid', '_index'],
+    systemColumns: ['start', 'end', '_id', '_uuid', '_index'],
     notes: [enrollmentNote('_submission_time')],
     problems: [],
-    draft: ['start', 'end', 'submission_time'],
+    draft: [],
     reviewer: [['_submission_time', 'enrollment_date']],
     second: {
       sex: 'FEMALE',
@@ -156,10 +156,10 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
   'odk-csv': {
     headerRowNumber: 1,
     fields: MAPPED_WITH_DISABILITY,
-    systemColumns: ['meta-instanceID', 'KEY', 'SubmitterID'],
+    systemColumns: ['start', 'end', 'meta-instanceID', 'KEY', 'SubmitterID'],
     notes: [enrollmentNote('SubmissionDate')],
     problems: [],
-    draft: ['submissiondate', 'start', 'end'],
+    draft: [],
     reviewer: [['SubmissionDate', 'enrollment_date']],
     second: {
       birth_date: '1999-04-03',
@@ -174,7 +174,6 @@ const EXPECTED: Record<AnySourceFixture, Expected> = {
     notes: [enrollmentNote('Timestamp'), disabilityNote(null)],
     problems: [],
     draft: [
-      'timestamp',
       'do_you_have_a_disability',
       'which_trainings_would_you_like_to_join_check_all_that_apply',
     ],
@@ -237,6 +236,19 @@ const draftOf = (
     uploadDate: UPLOAD_DATE,
   })
 
+// A file whose every column is on the form or ignored refuses a draft, which adds nothing.
+function addedFieldsOf(
+  file: ReturnType<typeof readImportFile>,
+  decisions: ReturnType<typeof matchColumns>,
+) {
+  try {
+    return draftOf(file, decisions).summary.addedFields
+  } catch (error) {
+    if (error instanceof FormDraftError && error.code === 'NOTHING_TO_ADD') return []
+    throw error
+  }
+}
+
 describe('any-source corpus', () => {
   it.each(FIXTURES)('%s: the browser check reads it as the server does', async (name) => {
     const { file, server } = await readBoth(name)
@@ -254,7 +266,7 @@ describe('any-source corpus', () => {
   it.each(FIXTURES)('%s: maps, notes, problems and drafts as expected', async (name) => {
     const { file } = await readBoth(name)
     const expected = EXPECTED[name]
-    const decisions = matchColumns(file.sourceColumns, file.rows, FORM)
+    const decisions = matchColumns(file.sourceColumns, file.rows, FORM, 'BENEFICIARY_REGISTRATION')
     const headerOf = (key: string) =>
       file.sourceColumns.find((column) => column.key === key)?.header
     const codeOf = (id: string | null) => FORM.find((field) => field.id === id)?.code ?? ''
@@ -282,18 +294,25 @@ describe('any-source corpus', () => {
       expected.problems,
     )
     expect(report.problemRows).toBe(0)
-    expect(draftOf(file, decisions).summary.addedFields).toEqual(expected.draft)
+    expect(addedFieldsOf(file, decisions)).toEqual(expected.draft)
   })
 
-  it('kobo-xlsx: the drafted form maps every required column and keeps consent on its fields', async () => {
+  it('kobo-xlsx: the form maps every required column and keeps consent on its fields', async () => {
     const { file } = await readBoth('kobo-xlsx')
-    const drafted = draftOf(file, matchColumns(file.sourceColumns, file.rows, FORM)).fields
-    // Publishing keeps each field's id and gives a new field its own.
-    const published = drafted.map((field) => ({
-      ...field,
-      id: FORM.find((existing) => existing.code === field.code)?.id ?? `field-${field.code}`,
-    })) as unknown as CheckField[]
-    const decisions = matchColumns(file.sourceColumns, file.rows, published)
+    // Nothing is left to draft, as the Kobo timing and submission columns are ignored.
+    const published = FORM
+    expect(
+      addedFieldsOf(
+        file,
+        matchColumns(file.sourceColumns, file.rows, FORM, 'BENEFICIARY_REGISTRATION'),
+      ),
+    ).toEqual([])
+    const decisions = matchColumns(
+      file.sourceColumns,
+      file.rows,
+      published,
+      'BENEFICIARY_REGISTRATION',
+    )
     const mapped = new Map(
       decisions
         .filter((decision) => decision.status === 'MAPPED')
@@ -311,8 +330,6 @@ describe('any-source corpus', () => {
         .filter((field) => field.required && !mapped.has(field.code))
         .map((field) => field.code),
     ).toEqual(['registration_operation', 'subject_type', 'enrollment_date'])
-    const added = drafted.filter((field) => !FORM.some((existing) => existing.code === field.code))
-    expect(added.map((field) => field.code)).toEqual(['start', 'end', 'submission_time'])
 
     const report = checkImportFile({
       file,
@@ -337,13 +354,56 @@ describe('any-source corpus', () => {
     ).toMatchObject({ coverage: 'COVERED', requiredUncovered: 0 })
   })
 
+  it('kobo-xlsx: a form that copies the consent answer needs no draft, with no field for an ignored column and no consent flag', async () => {
+    const { file } = await readBoth('kobo-xlsx')
+    const copying = FORM.map((field) =>
+      field.code === 'consent_recorded'
+        ? {
+            ...field,
+            calculated: true,
+            rule: { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' },
+          }
+        : field,
+    ) as unknown as CheckField[]
+    const decisions = matchColumns(
+      file.sourceColumns,
+      file.rows,
+      copying,
+      'BENEFICIARY_REGISTRATION',
+    )
+    const headerOf = (key: string) =>
+      file.sourceColumns.find((column) => column.key === key)?.header
+    const ignored = decisions
+      .filter((decision) => decision.status === 'IGNORED')
+      .map((decision) => headerOf(decision.sourceKey))
+    expect(ignored).toEqual(
+      expect.arrayContaining(['start', 'end', '_submission_time', 'consent/consent_given']),
+    )
+    // A flag or a new field would count as a change, so a draft that refuses has neither.
+    expect(() =>
+      draftFormFromImport({
+        formType: 'BENEFICIARY_REGISTRATION',
+        fields: copying as unknown as DraftField[],
+        columns: file.sourceColumns.map((column) => ({
+          key: column.key,
+          columnIndex: column.columnIndex,
+          header: column.header,
+          sourceCode: column.sourceCode,
+          values: file.rows.map((row) => row[column.key]),
+        })),
+        decisions,
+        uploadDate: UPLOAD_DATE,
+      }),
+    ).toThrow(expect.objectContaining({ code: 'NOTHING_TO_ADD' }))
+  })
+
   it.each(FIXTURES)(
     "%s: the server validates every row of the reviewer's mapping",
     async (name) => {
       const { server } = await readBoth(name)
       const expected = EXPECTED[name]
       const raws = server.rows.map((row) => row.values)
-      const decisions = matchColumns(server.sourceColumns, raws, FORM)
+      const decisions = matchColumns(server.sourceColumns, raws, FORM, 'BENEFICIARY_REGISTRATION')
       const targets = new Map<
         string,
         { code: string; valueMap?: Array<{ from: string; to: string }> }

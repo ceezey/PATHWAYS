@@ -74,6 +74,7 @@ $forwardInventory = @(
   '0085_public_tracker_live_revision'
   '0086_public_tracker_media'
   '0087_public_tracker_analytics'
+  '0088_smart_mapping_v5'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1228,6 +1229,20 @@ SELECT ((SELECT count(*) FROM (VALUES ('pathways.p85_publication_views(jsonb)','
     if ($analyticsShape.Trim() -cne 'true') { throw "0087 public tracker analytics inventory differs in $db." }
   }
   Write-Output 'FORWARD_0087_PUBLIC_TRACKER_ANALYTICS_INVENTORY=PASS'
+  # 0088 inventory: the 0088 p78_record_smart_mapping body under prisma, SECURITY DEFINER with an empty search_path, and EXECUTE for pathways_runtime only.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $smartShape = Read-ForwardSql $db @"
+SELECT (SELECT pg_catalog.md5(p.prosrc)='8f38e72b2d04a29694bd514ca6b4317d' AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef
+  AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']
+  AND (SELECT pg_catalog.array_agg(a.grantee::pg_catalog.regrole::text ORDER BY a.grantee::pg_catalog.regrole::text)
+   FROM pg_catalog.aclexplode(p.proacl) a WHERE a.privilege_type='EXECUTE' AND a.grantee<>p.proowner)=ARRAY['pathways_runtime']
+  AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
+  AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')
+ FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p78_record_smart_mapping(uuid,integer,text,jsonb)'::pg_catalog.regprocedure)::text;
+"@
+    if ($smartShape.Trim() -cne 'true') { throw "0088 smart mapping V5 inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0088_SMART_MAPPING_V5_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

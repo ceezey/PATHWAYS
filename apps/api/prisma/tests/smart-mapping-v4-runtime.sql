@@ -97,7 +97,7 @@ BEGIN
   ('system column with score and match reason','AUTO_SMART_V4',jsonb_set(jsonb_set(good::jsonb,'{2,score}','95'),'{2,matchReason}','"EXACT"')::text),
   ('pending system column','AUTO_SMART_V4',replace(good,'"status":"IGNORED"','"status":"PENDING"')),
   ('mapped system column','AUTO_SMART_V4',replace(good,'"reason":"AUTO_MATCH"},{"sourceKey":"column_0003"','"reason":"SYSTEM_COLUMN"},{"sourceKey":"column_0003"')),
-  ('unknown algorithm id','AUTO_SMART_V5',good),
+  ('unknown algorithm id','AUTO_SMART_V6',good),
   ('null algorithm',NULL,good)
  ) v(label,alg,ds)
  LOOP

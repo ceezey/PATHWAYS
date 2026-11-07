@@ -1,125 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/env', () => ({
   webEnv: { NEXT_PUBLIC_SUPABASE_URL: 'https://pdqwsknbzkdtiwjjibqt.supabase.co' },
   webSupabasePublishableKey: 'publishable-test-fixture',
 }))
 
+import { passwordRecoveryWindowSeconds } from '@pathways/shared'
+
 import { testAuthUserId } from '@/lib/auth/auth-access.test-fixtures'
 const developerAuthUserId = testAuthUserId
 import { localPasswordRecoveryOrigin } from '@/lib/auth/password-recovery'
 import {
-  clearPasswordRecoveryIntent,
-  consumePasswordRecoveryGrant,
   getRecoveryIdentityFromVerifiedClaims,
-  inspectPasswordRecoveryGrant,
   isApprovedRecoveryRequest,
-  issuePasswordRecoveryGrant,
-  passwordRecoveryGrantCapacity,
-  passwordRecoveryIntentCookie,
-  passwordRecoveryIntentCookieOptions,
-  passwordRecoveryIntentMaxAgeSeconds,
   recoveryAuthFetch,
-  resetPasswordRecoveryGrantsForTesting,
   secureRecoveryResponse,
 } from './recovery-server'
 
-describe('password recovery server boundary', () => {
-  beforeEach(() => resetPasswordRecoveryGrantsForTesting())
+const now = 1_800_000_000_000
+const nowSeconds = now / 1000
 
+describe('password recovery server boundary', () => {
   it('accepts only verified PATHWAYS-dev recovery claims for the designated UUID', () => {
     const claims = {
-      amr: [{ method: 'recovery', timestamp: 1 }],
+      amr: [{ method: 'recovery', timestamp: nowSeconds }],
       iss: 'https://pdqwsknbzkdtiwjjibqt.supabase.co/auth/v1',
       session_id: 'test-session-id',
       sub: developerAuthUserId,
     }
-    expect(getRecoveryIdentityFromVerifiedClaims(claims, developerAuthUserId)).toEqual({
+    const identity = (value: unknown) =>
+      getRecoveryIdentityFromVerifiedClaims(value, developerAuthUserId, now)
+    expect(identity(claims)).toEqual({
       sessionId: 'test-session-id',
       userId: developerAuthUserId,
     })
     expect(
-      getRecoveryIdentityFromVerifiedClaims({ ...claims, amr: ['recovery'] }, developerAuthUserId),
+      identity({ ...claims, amr: [{ method: 'invite', timestamp: nowSeconds }] }),
     ).not.toBeNull()
-    expect(
-      getRecoveryIdentityFromVerifiedClaims(
-        { ...claims, amr: [{ method: 'invite', timestamp: 1 }] },
-        developerAuthUserId,
-      ),
-    ).not.toBeNull()
-    expect(
-      getRecoveryIdentityFromVerifiedClaims(
-        { ...claims, amr: [{ method: 'password' }] },
-        developerAuthUserId,
-      ),
-    ).toBeNull()
-    expect(
-      getRecoveryIdentityFromVerifiedClaims(
-        { ...claims, sub: 'another-user' },
-        developerAuthUserId,
-      ),
-    ).toBeNull()
-    expect(
-      getRecoveryIdentityFromVerifiedClaims(
-        { ...claims, iss: 'https://example.com/auth/v1' },
-        developerAuthUserId,
-      ),
-    ).toBeNull()
+    expect(identity({ ...claims, amr: [{ method: 'password', timestamp: nowSeconds }] })).toBeNull()
+    expect(identity({ ...claims, sub: 'another-user' })).toBeNull()
+    expect(identity({ ...claims, iss: 'https://example.com/auth/v1' })).toBeNull()
+    expect(identity({ ...claims, session_id: '' })).toBeNull()
   })
 
-  it('issues an opaque, expiring, session-bound, single-use local grant', () => {
-    const now = 1_000
-    const grant = issuePasswordRecoveryGrant(developerAuthUserId, 'test-session-id', now)
-
-    expect(grant).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(grant).not.toContain(developerAuthUserId)
-    expect(grant).not.toContain('test-session-id')
-    expect(inspectPasswordRecoveryGrant(grant, developerAuthUserId, 'test-session-id', now)).toBe(
-      true,
-    )
-    expect(inspectPasswordRecoveryGrant(grant, developerAuthUserId, 'other-session', now)).toBe(
-      false,
-    )
-    expect(consumePasswordRecoveryGrant(grant, developerAuthUserId, 'test-session-id', now)).toBe(
-      true,
-    )
-    expect(consumePasswordRecoveryGrant(grant, developerAuthUserId, 'test-session-id', now)).toBe(
-      false,
-    )
-  })
-
-  it('rejects forged, expired, superseded, and over-capacity grants', () => {
-    const now = 5_000
-    const first = issuePasswordRecoveryGrant(developerAuthUserId, 'first-session', now)
-    const newest = issuePasswordRecoveryGrant(developerAuthUserId, 'newest-session', now)
-    expect(inspectPasswordRecoveryGrant(first, developerAuthUserId, 'first-session', now)).toBe(
-      false,
-    )
-    expect(
-      inspectPasswordRecoveryGrant('a'.repeat(43), developerAuthUserId, 'newest-session', now),
-    ).toBe(false)
-    expect(
-      inspectPasswordRecoveryGrant(
-        newest,
-        developerAuthUserId,
-        'newest-session',
-        now + passwordRecoveryIntentMaxAgeSeconds * 1000,
-      ),
-    ).toBe(false)
-
-    resetPasswordRecoveryGrantsForTesting()
-    for (let index = 0; index < passwordRecoveryGrantCapacity; index += 1) {
-      issuePasswordRecoveryGrant(`test-user-${index}`, `test-session-${index}`, now)
+  it('accepts a recovery sign-in only inside the recovery window', () => {
+    const claims = {
+      iss: 'https://pdqwsknbzkdtiwjjibqt.supabase.co/auth/v1',
+      session_id: 'test-session-id',
+      sub: developerAuthUserId,
     }
-    expect(() => issuePasswordRecoveryGrant('overflow-user', 'overflow-session', now)).toThrow()
-    expect(() =>
-      issuePasswordRecoveryGrant(
-        'after-expiry-user',
-        'after-expiry-session',
-        now + passwordRecoveryIntentMaxAgeSeconds * 1000,
+    const signedInAt = (timestamp: unknown) =>
+      getRecoveryIdentityFromVerifiedClaims(
+        { ...claims, amr: [{ method: 'recovery', timestamp }] },
+        developerAuthUserId,
+        now,
+      )
+    expect(signedInAt(nowSeconds - passwordRecoveryWindowSeconds + 1)).not.toBeNull()
+    expect(signedInAt(nowSeconds - passwordRecoveryWindowSeconds - 1)).toBeNull()
+    expect(signedInAt(nowSeconds + 3600)).toBeNull()
+    expect(signedInAt(undefined)).toBeNull()
+    expect(
+      getRecoveryIdentityFromVerifiedClaims(
+        { ...claims, amr: ['recovery'] },
+        developerAuthUserId,
+        now,
       ),
-    ).not.toThrow()
+    ).toBeNull()
   })
 
   it('requires the exact request and POST origins', () => {
@@ -187,17 +134,12 @@ describe('password recovery server boundary', () => {
     }
   })
 
-  it('sets security headers and clears only the short-lived recovery marker', () => {
+  it('sets security headers', () => {
     const response = secureRecoveryResponse(NextResponse.json({ ok: false }))
-    clearPasswordRecoveryIntent(response)
-    const cookie = response.cookies.get(passwordRecoveryIntentCookie)
 
     expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(response.headers.get('referrer-policy')).toBe('no-referrer')
     expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow')
-    expect(cookie?.value).toBe('')
-    expect(cookie?.httpOnly).toBe(passwordRecoveryIntentCookieOptions.httpOnly)
-    expect(cookie?.path).toBe('/auth')
   })
 })

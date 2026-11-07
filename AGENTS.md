@@ -324,6 +324,15 @@ Do not bury a human gate inside a long phase report.
 - [ ] next phase not started without explicit authorization
 - [ ] Manuscript Alignment gate satisfied (QAD section 6.1, [qad-pathways.md](<C:/AI Agentic Memory/02_Areas/Quality_&_Strategy/PATHWAYS/qad-pathways.md>); audit in [audit-pathways-manuscript-alignment-20261001.md](<C:/AI Agentic Memory/04_Archives/Audits/2026-10/audit-pathways-manuscript-alignment-20261001.md>))
 
+### 5.6 Session Start and Standing Workflow
+
+At the start of every session, before any other work and also when the session opens with a slash command, read the vault memory index `01_Projects/PATHWAYS/Memory/pathways-memory-index.md` and follow the developer's standing rules in it. Claude Code loads it through the repo's SessionStart hook in `.claude/settings.json`; Codex and other agents read it themselves. The rules that matter most:
+
+- After every task or workflow, commit on its own branch from `dev`; once its tests, typecheck and lint pass, merge it into local `dev` with `--no-ff` without asking, then delete finished branches and worktrees ([delete-finished-branches.md](<C:/AI Agentic Memory/01_Projects/PATHWAYS/Memory/delete-finished-branches.md>)). Do not wait for a browser check or SAD sign-off to merge; report them as still open.
+- Push `origin dev` only when the developer says so; every push starts Vercel deployments ([dev-push-authorization.md](<C:/AI Agentic Memory/01_Projects/PATHWAYS/Memory/dev-push-authorization.md>)). Anything going to `master` follows section 2.2.
+- Stop the merge on failing checks, non-trivial conflicts or migrations.
+- Docs, Change Records, logs and memory go in the vault, never in this repo. Record what was done in the vault activity log before ending.
+
 ## 6. Materialization
 
 | Target | File | Rule |

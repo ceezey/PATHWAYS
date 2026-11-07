@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
 
 import { SkipLink } from '@/components/layout/skip-link'
@@ -7,11 +6,7 @@ import { Button } from '@/components/ui/button'
 import { PasswordUpdateForm, StaffAuthFrame } from '@/features/auth'
 import { webSupabasePublishableKey } from '@/lib/env'
 import { createClient } from '@/lib/server'
-import {
-  getRecoveryIdentityFromVerifiedClaims,
-  inspectPasswordRecoveryGrant,
-  passwordRecoveryIntentCookie,
-} from '@/lib/supabase/recovery-server'
+import { getRecoveryIdentityFromVerifiedClaims } from '@/lib/supabase/recovery-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,11 +16,7 @@ export const metadata: Metadata = {
 }
 
 async function hasApprovedRecoverySession() {
-  const cookieStore = await cookies()
-  const intent = cookieStore.get(passwordRecoveryIntentCookie)?.value
-  if (!intent || !webSupabasePublishableKey) {
-    return false
-  }
+  if (!webSupabasePublishableKey) return false
 
   try {
     const supabase = await createClient()
@@ -42,11 +33,7 @@ async function hasApprovedRecoverySession() {
       claimsData?.claims,
       userData.user.id,
     )
-    return Boolean(
-      !claimsError &&
-        recoveryIdentity &&
-        inspectPasswordRecoveryGrant(intent, userData.user.id, recoveryIdentity.sessionId),
-    )
+    return Boolean(!claimsError && recoveryIdentity)
   } catch {
     return false
   }

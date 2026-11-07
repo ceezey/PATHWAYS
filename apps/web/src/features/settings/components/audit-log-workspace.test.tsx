@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuditLogWorkspace } from './audit-log-workspace'
 
@@ -41,6 +41,7 @@ vi.mock('@/hooks/use-authorized-read', () => ({
                   entityType: 'Project',
                   entityId: '30000000-0000-4000-8000-000000000003',
                   projectId: '30000000-0000-4000-8000-000000000003',
+                  details: index === 0 ? { source: 'TYPED', rowNumber: 5 } : {},
                 })),
             nextCursor: '2026-09-27T16:30:00.123Z|10000000-0000-4000-8000-000000000001',
           }
@@ -84,6 +85,22 @@ describe('audit screen current access and business date', () => {
     expect(screen.queryByText('Audit records unavailable')).toBeNull()
     expect(screen.getByLabelText('Loading content')).toBeTruthy()
     expect(screen.queryByText('PROJECT_UPDATED')).toBeNull()
+  })
+  it('shows the allowlisted details of an event in its detail dialog', () => {
+    render(<AuditLogWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: /View PROJECT_UPDATED for/ }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('Source').nextElementSibling?.textContent).toBe('TYPED')
+    expect(dialog.getByText('Row number').nextElementSibling?.textContent).toBe('5')
+  })
+  it('shows no details for an event without any', () => {
+    state.many = true
+    render(<AuditLogWorkspace />)
+    fireEvent.click(screen.getAllByRole('button', { name: /View PROJECT_UPDATED for/ })[1])
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('10000000-0000-4000-8000-000000000002')).toBeTruthy()
+    expect(dialog.queryByText('Source')).toBeNull()
+    expect(dialog.queryByText('Row number')).toBeNull()
   })
   it('hides an open detail and cached rows when current audit verification fails', () => {
     const view = render(<AuditLogWorkspace />)

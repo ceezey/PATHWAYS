@@ -1,64 +1,15 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-
+import { hasRecentRecoverySignIn } from '@pathways/shared'
 import { type CookieOptions, createServerClient } from '@supabase/ssr'
 import type { NextRequest, NextResponse } from 'next/server'
 
 import { localPasswordRecoveryOrigin } from '@/lib/auth/password-recovery'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 
-export const passwordRecoveryIntentCookie = 'pathways-local-password-recovery'
-export const passwordRecoveryIntentMaxAgeSeconds = 10 * 60
-export const passwordRecoveryGrantCapacity = 8
 // supabase-js 2.118 returns this from exchangeCodeForSession for a resetPasswordForEmail flow.
 export const recoveryRedirectType = 'recovery'
+// shortcut: no hard single use, a session whose sign-out fails can set a password again inside the window, upgrade to a shared grant store if that matters.
 
-interface LocalPasswordRecoveryGrant {
-  expiresAt: number
-  sessionIdHash: string
-  userId: string
-}
-
-type RecoveryGrantGlobal = typeof globalThis & {
-  __PATHWAYS_LOCAL_PASSWORD_RECOVERY_GRANTS_V1__?: Map<string, LocalPasswordRecoveryGrant>
-}
-
-const grantGlobal = globalThis as RecoveryGrantGlobal
-const recoveryGrantPattern = /^[A-Za-z0-9_-]{43}$/
 const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
-
-const getRecoveryGrantStore = () => {
-  grantGlobal.__PATHWAYS_LOCAL_PASSWORD_RECOVERY_GRANTS_V1__ ??= new Map()
-  return grantGlobal.__PATHWAYS_LOCAL_PASSWORD_RECOVERY_GRANTS_V1__
-}
-
-const hashRecoveryValue = (purpose: string, value: string) =>
-  createHash('sha256')
-    .update('PATHWAYS local password recovery v2\0')
-    .update(purpose)
-    .update('\0')
-    .update(value)
-    .digest('base64url')
-
-const safeHashMatch = (left: string, right: string) => {
-  const leftBuffer = Buffer.from(left)
-  const rightBuffer = Buffer.from(right)
-  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer)
-}
-
-const pruneRecoveryGrants = (now: number) => {
-  const grants = getRecoveryGrantStore()
-  for (const [key, grant] of grants) {
-    if (grant.expiresAt <= now) grants.delete(key)
-  }
-  return grants
-}
-
-const getRecoveryGrant = (grantValue: string | undefined, now: number) => {
-  if (!grantValue || !recoveryGrantPattern.test(grantValue)) return null
-  const key = hashRecoveryValue('grant', grantValue)
-  const grant = pruneRecoveryGrants(now).get(key)
-  return grant ? { grant, key } : null
-}
 
 interface PendingAuthResponse {
   cookies: Array<{ name: string; value: string; options: CookieOptions }>
@@ -66,79 +17,6 @@ interface PendingAuthResponse {
 }
 
 export const createPendingAuthResponse = (): PendingAuthResponse => ({ cookies: [], headers: {} })
-
-export const passwordRecoveryIntentCookieOptions = {
-  httpOnly: true,
-  maxAge: passwordRecoveryIntentMaxAgeSeconds,
-  path: '/auth',
-  // The callback begins as a top-level navigation from the Supabase email link. Lax permits
-  // that redirect while still withholding the cookie from cross-site subrequests and POSTs.
-  sameSite: 'lax' as const,
-  secure: false,
-}
-
-export const issuePasswordRecoveryGrant = (userId: string, sessionId: string, now = Date.now()) => {
-  const grants = pruneRecoveryGrants(now)
-
-  // Only the newest verified callback for the designated local account remains usable.
-  for (const [key, grant] of grants) {
-    if (grant.userId === userId) grants.delete(key)
-  }
-  if (grants.size >= passwordRecoveryGrantCapacity) {
-    throw new Error('The local password recovery grant store is full.')
-  }
-
-  let value = randomBytes(32).toString('base64url')
-  let key = hashRecoveryValue('grant', value)
-  while (grants.has(key)) {
-    value = randomBytes(32).toString('base64url')
-    key = hashRecoveryValue('grant', value)
-  }
-
-  grants.set(key, {
-    expiresAt: now + passwordRecoveryIntentMaxAgeSeconds * 1000,
-    sessionIdHash: hashRecoveryValue('session', sessionId),
-    userId,
-  })
-  return value
-}
-
-export const inspectPasswordRecoveryGrant = (
-  grantValue: string | undefined,
-  userId: string,
-  sessionId: string,
-  now = Date.now(),
-) => {
-  const entry = getRecoveryGrant(grantValue, now)
-  return Boolean(
-    entry &&
-      entry.grant.userId === userId &&
-      safeHashMatch(entry.grant.sessionIdHash, hashRecoveryValue('session', sessionId)),
-  )
-}
-
-export const consumePasswordRecoveryGrant = (
-  grantValue: string | undefined,
-  userId: string,
-  sessionId: string,
-  now = Date.now(),
-) => {
-  const entry = getRecoveryGrant(grantValue, now)
-  if (
-    !entry ||
-    entry.grant.userId !== userId ||
-    !safeHashMatch(entry.grant.sessionIdHash, hashRecoveryValue('session', sessionId))
-  ) {
-    return false
-  }
-
-  // Delete synchronously before the caller awaits the password update. This makes the grant
-  // single-use even when two submissions arrive together or the provider result is uncertain.
-  getRecoveryGrantStore().delete(entry.key)
-  return true
-}
-
-export const resetPasswordRecoveryGrantsForTesting = () => getRecoveryGrantStore().clear()
 
 interface VerifiedRecoveryIdentity {
   sessionId: string
@@ -148,6 +26,7 @@ interface VerifiedRecoveryIdentity {
 export const getRecoveryIdentityFromVerifiedClaims = (
   claims: unknown,
   expectedUserId: string,
+  now = Date.now(),
 ): VerifiedRecoveryIdentity | null => {
   if (!claims || typeof claims !== 'object' || Array.isArray(claims)) return null
   const payload = claims as Record<string, unknown>
@@ -161,19 +40,8 @@ export const getRecoveryIdentityFromVerifiedClaims = (
     return null
   }
 
-  // An accepted invite proves inbox control the same way a recovery link does.
-  const isRecoveryMethod = (method: unknown) => method === 'recovery' || method === 'invite'
-  const hasRecoveryMethod =
-    Array.isArray(payload.amr) &&
-    payload.amr.some(
-      (entry) =>
-        isRecoveryMethod(entry) ||
-        (Boolean(entry) &&
-          typeof entry === 'object' &&
-          !Array.isArray(entry) &&
-          isRecoveryMethod((entry as Record<string, unknown>).method)),
-    )
-  if (!hasRecoveryMethod) return null
+  // An accepted invite proves inbox control the same way a recovery link does; Auth signs its time.
+  if (!hasRecentRecoverySignIn(payload.amr, now)) return null
 
   return { sessionId: payload.session_id, userId: expectedUserId }
 }
@@ -255,11 +123,4 @@ export const secureRecoveryResponse = <T extends NextResponse>(response: T): T =
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Robots-Tag', 'noindex, nofollow')
   return response
-}
-
-export const clearPasswordRecoveryIntent = (response: NextResponse) => {
-  response.cookies.set(passwordRecoveryIntentCookie, '', {
-    ...passwordRecoveryIntentCookieOptions,
-    maxAge: 0,
-  })
 }

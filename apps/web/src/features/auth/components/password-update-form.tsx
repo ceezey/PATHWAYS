@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { useSession } from '@/hooks/use-session'
 import {
   type PasswordUpdate,
   classifyPasswordCompletionResult,
@@ -26,7 +27,8 @@ import {
 import { StaffAuthFrame } from './staff-auth-frame'
 
 export const PasswordUpdateForm = () => {
-  const [completion, setCompletion] = useState<{ sessionClosed: boolean } | null>(null)
+  const { signOut } = useSession()
+  const [completed, setCompleted] = useState(false)
   const [safeError, setSafeError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [uncertainOutcome, setUncertainOutcome] = useState(false)
@@ -37,8 +39,8 @@ export const PasswordUpdateForm = () => {
   })
 
   useEffect(() => {
-    if (completion) completionRef.current?.focus()
-  }, [completion])
+    if (completed) completionRef.current?.focus()
+  }, [completed])
 
   const onSubmit = async ({ password }: PasswordUpdate) => {
     setSafeError(null)
@@ -56,7 +58,9 @@ export const PasswordUpdateForm = () => {
       const result = await response.json().catch(() => null)
       const outcome = classifyPasswordCompletionResult(response.ok, result)
       if (outcome.kind === 'success') {
-        setCompletion({ sessionClosed: outcome.sessionClosed })
+        // The server cleared the cookies; drop the cached recovery session so sign-in does not bounce to MFA.
+        await signOut().catch(() => undefined)
+        setCompleted(true)
         return
       }
 
@@ -64,7 +68,7 @@ export const PasswordUpdateForm = () => {
       setUncertainOutcome(!isKnownUnchanged)
       setSafeError(
         isKnownUnchanged
-          ? 'Supabase did not change the password. If MFA is already enrolled, stop and use the existing MFA recovery process. Otherwise, request one new recovery message.'
+          ? 'The password was not changed. Request one new recovery message and try again.'
           : 'The password-change result could not be confirmed. Do not submit it again. First try signing in with the new password. If that fails, request one new recovery message.',
       )
     } catch {
@@ -75,7 +79,7 @@ export const PasswordUpdateForm = () => {
     }
   }
 
-  if (completion) {
+  if (completed) {
     return (
       <StaffAuthFrame
         title="Password updated"
@@ -90,17 +94,13 @@ export const PasswordUpdateForm = () => {
           <div className="flex items-start gap-3">
             <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
             <p className="text-sm leading-6">
-              {completion.sessionClosed
-                ? 'Your recovery session was closed. Sign in with the new password, then continue the existing MFA check.'
-                : 'The password changed, but Supabase did not confirm that this browser session closed. Close this browser window now. Then reopen this staff portal and sign in with the new password.'}
+              Password successfully changed. Go back to sign in and use your new password.
             </p>
           </div>
         </output>
-        {completion.sessionClosed ? (
-          <Button asChild className="w-full">
-            <Link href="/staff/login">Return to sign in</Link>
-          </Button>
-        ) : null}
+        <Button asChild className="w-full">
+          <Link href="/staff/login">Back to sign in</Link>
+        </Button>
       </StaffAuthFrame>
     )
   }

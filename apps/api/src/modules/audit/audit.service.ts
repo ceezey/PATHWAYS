@@ -17,6 +17,23 @@ const auditQuerySchema = z
   })
   .strict()
 
+// Only these non-personal change keys leave the audit table; a new key needs a CR amendment.
+const detailKeys = new Map<string, readonly string[]>([
+  ['IMPORT_ENROLLMENT_DATE_CONFIRMED', ['source', 'rowNumber']],
+])
+const auditDetails = (action: string, changes: unknown) => {
+  const stored =
+    changes && typeof changes === 'object' && !Array.isArray(changes)
+      ? (changes as Record<string, unknown>)
+      : {}
+  return Object.fromEntries(
+    (detailKeys.get(action) ?? []).flatMap((key) => {
+      const value = stored[key]
+      return ['string', 'number', 'boolean'].includes(typeof value) ? [[key, value]] : []
+    }),
+  ) as Record<string, string | number | boolean>
+}
+
 @Injectable()
 export class AuditService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
@@ -62,6 +79,7 @@ export class AuditService {
           entityId: true,
           projectId: true,
           actorUserId: true,
+          changes: true,
           actor: { select: { fullName: true } },
         },
         orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
@@ -70,10 +88,11 @@ export class AuditService {
       const page = rows.slice(0, query.limit)
       const last = page[page.length - 1]
       return {
-        rows: page.map(({ actor, ...row }) => ({
+        rows: page.map(({ actor, changes, ...row }) => ({
           ...row,
           occurredAt: row.occurredAt.toISOString(),
           actorName: actor?.fullName ?? null,
+          details: auditDetails(row.action, changes),
         })),
         nextCursor:
           rows.length > query.limit && last ? `${last.occurredAt.toISOString()}|${last.id}` : null,

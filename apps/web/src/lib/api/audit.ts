@@ -14,6 +14,7 @@ const auditSchema = z
     projectId: uuid.nullable(),
     actorUserId: uuid.nullable(),
     actorName: z.string().nullable(),
+    details: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
   })
   .strict()
 

@@ -40,7 +40,12 @@ export async function createDraftFromImport(
   }
   const sourceColumns = safeSourceColumns(batch.sourceHeaders)
   const raw = await readStagedRaw(tx, actor, batch)
-  const decisions = matchColumns(sourceColumns, raw, source.formField_form.map(coverageField))
+  const decisions = matchColumns(
+    sourceColumns,
+    raw,
+    source.formField_form.map(coverageField),
+    source.formType,
+  )
   let drafted: ReturnType<typeof draftFormFromImport>
   try {
     drafted = draftFormFromImport({

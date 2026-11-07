@@ -1,23 +1,39 @@
 'use client'
 
 import { columnTranslations, deferredRequired, unsuppliedRequired } from '@pathways/imports'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+import { PENDING_ADVICE, PENDING_COLUMN_HELP } from '../../collection.copy'
 import { ToggleRow } from '../../forms/components/toggle-row'
 import type { BatchIntake } from '../hooks/use-batch-intake'
 import type { BatchProcessing } from '../hooks/use-batch-processing'
 import type { BatchReview } from '../hooks/use-batch-review'
 import type { ImportState } from '../hooks/use-import-state'
 import { importProcessingComplete } from '../import-auto-continue'
-import { automaticMatchReason, batchCoverage, mappingLockedStatuses } from '../import.utils'
+import {
+  automaticMatchReason,
+  batchCoverage,
+  ignoredReasonText,
+  mappingLockedStatuses,
+} from '../import.utils'
 import { CoverageNotice } from './coverage-notice'
 import { ImportDateOrder, columnDateOrders } from './import-date-order'
 import { ImportTargetSelect } from './import-target-select'
 import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
+
+// A pending column shows three of its answers, each cut short, so the person can tell what it holds.
+const sampleLength = 40
+const sampled = (values: readonly string[] = []) =>
+  values
+    .slice(0, 3)
+    .map((value) =>
+      value.length > sampleLength ? `${value.slice(0, sampleLength - 3)}...` : value,
+    )
+    .join(', ')
 
 // At most five values in a line, so a column of many distinct answers stays readable.
 const listed = (values: readonly string[]) =>
@@ -118,8 +134,47 @@ export function ImportMappingCard({
       !rules[key]?.dateOrder &&
       columnDateOrders(columnValues.get(key), referenceYear).needsChoice) ||
     translations(key).unmatched.length > 0
+  const isPending = (key: string) => !mapping[key] || mapping[key] === '__pending__'
+  const ignoredReason = (key: string) => {
+    const stored = storedMappingByKey.get(key)
+    return stored ? ignoredReasonText(stored, batch.formType) : null
+  }
+  // Only a column the matcher left undecided and the person then ignored is a choice to leave data unsaved.
+  const ignoredByChoice = (key: string) =>
+    mapping[key] === '__ignore__' &&
+    (!storedMappingByKey.get(key) || storedMappingByKey.get(key)?.status === 'PENDING')
+  const barCounts = {
+    pending: sourceColumns.filter((column) => isPending(column.key)).length,
+    personIgnored: sourceColumns.filter((column) => ignoredByChoice(column.key)).length,
+    unmatchedColumns: sourceColumns.filter((column) => translations(column.key).unmatched.length)
+      .length,
+  }
+  // The advice is for a reviewer facing a column that shows the pending help, not one with a suggestion.
+  const showPendingAdvice =
+    canReview &&
+    sourceColumns.some(
+      (column) =>
+        isPending(column.key) && !openSuggestions.some((item) => item.column.key === column.key),
+    )
   const undecidedKeys = () =>
     new Set(sourceColumns.filter((column) => undecided(column.key)).map((column) => column.key))
+  // The columns whose translations the person opened, by the button or the summary.
+  const [translationsOpen, setTranslationsOpen] = useState<ReadonlySet<string>>(new Set())
+  const setOpen = (key: string, open: boolean) =>
+    setTranslationsOpen((current) => {
+      if (current.has(key) === open) return current
+      const next = new Set(current)
+      if (open) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  // The column whose translations just opened, so focus moves into them once they render.
+  const [focusKey, setFocusKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (!focusKey) return
+    document.getElementById(`import-rule-${focusKey}-type`)?.focus()
+    setFocusKey(null)
+  }, [focusKey])
   // The columns undecided when the filter was switched on, so deciding one keeps it in view.
   const [undecidedShown, setUndecidedShown] = useState<ReadonlySet<string> | null>(undecidedKeys)
   const shownColumns = undecidedShown
@@ -158,15 +213,18 @@ export function ImportMappingCard({
       <CardContent className="space-y-3">
         {needsFormUpdate ? (
           <CoverageNotice
-            receipt={coverage}
+            {...barCounts}
             canPrepare={canManageForms}
-            pending={pending}
+            busy={pending}
             onPrepare={() => void intake.prepareForm()}
           />
         ) : null}
         <output aria-live="polite" className="block text-sm text-muted-foreground">
           {mappingNotice}
         </output>
+        {showPendingAdvice ? (
+          <p className="text-sm text-muted-foreground">{PENDING_ADVICE}</p>
+        ) : null}
         {translatedColumns.length ? (
           <p className="text-sm text-muted-foreground">
             Translated automatically: {translatedColumns.join('; ')}. Add a translation on the
@@ -186,6 +244,11 @@ export function ImportMappingCard({
           )
           const suggestion = openSuggestions.find((item) => item.column.key === column.key)
           const { automatic: readOnItsOwn, unmatched } = translations(column.key)
+          const ignoredWhy = mapping[column.key] === '__ignore__' ? ignoredReason(column.key) : null
+          // A pending column with a server suggestion is not left without a matching field, so it gets no help line.
+          const showPendingHelp = isPending(column.key) && !suggestion
+          const samples = showPendingHelp ? sampled(columnValues.get(column.key)) : ''
+          const noteId = `import-mapping-note-${column.key}`
           return (
             <div
               key={column.key}
@@ -197,6 +260,23 @@ export function ImportMappingCard({
                 </span>
                 {automatic ? (
                   <StatusBadge tone="success">Auto-matched: {automatic}</StatusBadge>
+                ) : null}
+                {ignoredWhy ? (
+                  <p id={noteId} className="text-sm text-muted-foreground">
+                    {ignoredWhy}
+                  </p>
+                ) : null}
+                {showPendingHelp ? (
+                  <>
+                    {samples ? (
+                      <p className="break-all text-sm text-muted-foreground">
+                        Sample values: {samples}
+                      </p>
+                    ) : null}
+                    <p id={noteId} className="text-sm text-muted-foreground">
+                      {PENDING_COLUMN_HELP}
+                    </p>
+                  </>
                 ) : null}
                 {suggestion ? (
                   <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -226,6 +306,7 @@ export function ImportMappingCard({
                 fields={selectedForm?.fields ?? []}
                 value={mapping[column.key] ?? '__pending__'}
                 disabled={!mappingEditable}
+                describedBy={ignoredWhy || showPendingHelp ? noteId : undefined}
                 onChange={(value) =>
                   !mutation.current &&
                   scope.isCurrent() &&
@@ -258,16 +339,39 @@ export function ImportMappingCard({
                 </p>
               ) : null}
               {unmatched.length ? (
-                <p className="text-sm text-warning sm:col-span-2">
-                  {unmatched.length === 1 ? '1 value matches' : `${unmatched.length} values match`}{' '}
-                  no answer: {listed(unmatched)}. Add a translation for each, or rows with these
-                  values will be invalid.
-                </p>
+                <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+                  <p className="text-sm text-warning">
+                    {unmatched.length === 1
+                      ? '1 value matches'
+                      : `${unmatched.length} values match`}{' '}
+                    no answer: {listed(unmatched)}. Add a translation for each, or rows with these
+                    values will be invalid.
+                  </p>
+                  {canReview && mappingEditable && targetField ? (
+                    <Button
+                      aria-label={`Add translations for column ${column.columnIndex}`}
+                      size="sm"
+                      className="min-h-11"
+                      variant="outline"
+                      onClick={() => {
+                        setOpen(column.key, true)
+                        setFocusKey(column.key)
+                      }}
+                    >
+                      Add translations
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
               {targetField ? (
-                <details className="sm:col-span-2">
+                <details
+                  className="sm:col-span-2"
+                  open={translationsOpen.has(column.key)}
+                  onToggle={(event) => setOpen(column.key, event.currentTarget.open)}
+                >
                   <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
                     Data type and value translations
+                    {unmatched.length ? '' : ' (optional)'}
                     {rules[column.key]?.pairs.length ? ` (${rules[column.key]?.pairs.length})` : ''}
                   </summary>
                   <ImportValueMapEditor
