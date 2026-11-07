@@ -76,6 +76,7 @@ const renderCard = (
 // The mapping lives in state, as in the workspace, so choosing a target updates the card.
 function Card(over: Parameters<typeof renderCard>[0] & object) {
   const [mapping, setMapping] = useState(over.mapping ?? { column_0001: '__pending__' })
+  const [rules, setRules] = useState(over.rules ?? {})
   return (
     <ImportMappingCard
       batch={{ ...batch, ...over.batch } as ImportBatchDefinition}
@@ -97,11 +98,11 @@ function Card(over: Parameters<typeof renderCard>[0] & object) {
         openSuggestions: (over.suggestions ?? []) as never,
         pending: false,
         receipts: (over.receipts ?? { 'batch-1': notCovered }) as never,
-        rules: (over.rules ?? {}) as never,
+        rules: rules as never,
         scope: { isCurrent: () => true } as never,
         selectedForm: over.selectedForm as never,
         setMapping,
-        setRules: vi.fn(),
+        setRules: setRules as never,
         sourceColumns: over.columns ?? [
           { key: 'column_0001', header: 'Given name', columnIndex: 1 },
         ],
@@ -281,6 +282,86 @@ describe('ImportMappingCard value translations', () => {
     })
     expect(screen.queryByText(/match(es)? no answer/)).toBeNull()
     expect(screen.getByText('Show only columns that need a decision (0 of 1)')).toBeTruthy()
+  })
+})
+
+describe('ImportMappingCard translations only where values match no answer', () => {
+  afterEach(cleanup)
+
+  const consentForm = {
+    fields: [
+      {
+        code: 'data_processing_consent_recorded',
+        label: 'Data processing consent',
+        dataType: 'BOOLEAN',
+        allowedValues: null,
+        valueAliases: null,
+      },
+    ],
+  }
+  const card = (values: string[], over: object = {}) =>
+    renderCard({
+      receipts: {},
+      mapping: { column_0001: 'data_processing_consent_recorded' },
+      columnValues: new Map([['column_0001', values]]),
+      selectedForm: consentForm,
+      canReview: true,
+      ...over,
+    })
+  const translations = () => document.querySelector('details') as HTMLDetailsElement
+
+  it('offers Suggest translations in the warning, opens the column and adds the pairs', () => {
+    card(['Yes', 'Maybe'])
+    expect(translations().open).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest translations' }))
+    expect(translations().open).toBe(true)
+    expect((screen.getByLabelText('Source value 1') as HTMLInputElement).value).toBe('Yes')
+    expect((screen.getByLabelText('Stored value 1') as HTMLInputElement).value).toBe('true')
+  })
+
+  it('keeps a value the person already translated', () => {
+    card(['Yes', 'Maybe'], {
+      rules: { column_0001: { dataType: '', pairs: [{ from: 'Yes', to: 'false' }] } },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest translations' }))
+    expect((screen.getByLabelText('Source value 1') as HTMLInputElement).value).toBe('Yes')
+    expect((screen.getByLabelText('Stored value 1') as HTMLInputElement).value).toBe('false')
+    expect(screen.queryByLabelText('Source value 2')).toBeNull()
+  })
+
+  it('lets the person close the section again', () => {
+    card(['Yes', 'Maybe'])
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest translations' }))
+    translations().open = false
+    fireEvent(translations(), new Event('toggle'))
+    expect(translations().open).toBe(false)
+  })
+
+  it('marks the section optional and closed when every value matches an answer', () => {
+    card(['Yes', 'No'])
+    // The column needs no decision, so show all columns to reach it.
+    fireEvent.click(screen.getByRole('checkbox'))
+    expect(screen.getByText('Data type and value translations (optional)')).toBeTruthy()
+    expect(translations().open).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Suggest translations' })).toBeNull()
+  })
+
+  it('keeps the plain summary while values match no answer', () => {
+    card(['Yes', 'Maybe'])
+    expect(screen.getByText('Data type and value translations')).toBeTruthy()
+  })
+
+  it('shows the warning without the button to someone who cannot edit the mapping', () => {
+    card(['Yes', 'Maybe'], { canReview: false })
+    expect(screen.getByText(/1 value matches no answer: Maybe/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Suggest translations' })).toBeNull()
+  })
+
+  it('disables the button while the mapping is locked', () => {
+    card(['Yes', 'Maybe'], { mappingEditable: false })
+    expect(
+      (screen.getByRole('button', { name: 'Suggest translations' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
   })
 })
 

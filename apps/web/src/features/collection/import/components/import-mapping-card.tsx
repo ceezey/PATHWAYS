@@ -23,7 +23,11 @@ import {
 import { CoverageNotice } from './coverage-notice'
 import { ImportDateOrder, columnDateOrders } from './import-date-order'
 import { ImportTargetSelect } from './import-target-select'
-import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
+import {
+  ImportValueMapEditor,
+  emptyColumnRule,
+  suggestColumnPairs,
+} from './import-value-map-editor'
 
 // A pending column shows three of its answers, each cut short, so the person can tell what it holds.
 const sampleLength = 40
@@ -151,6 +155,16 @@ export function ImportMappingCard({
   }
   const undecidedKeys = () =>
     new Set(sourceColumns.filter((column) => undecided(column.key)).map((column) => column.key))
+  // The columns whose translations the person opened, by the button or the summary.
+  const [translationsOpen, setTranslationsOpen] = useState<ReadonlySet<string>>(new Set())
+  const setOpen = (key: string, open: boolean) =>
+    setTranslationsOpen((current) => {
+      if (current.has(key) === open) return current
+      const next = new Set(current)
+      if (open) next.add(key)
+      else next.delete(key)
+      return next
+    })
   // The columns undecided when the filter was switched on, so deciding one keeps it in view.
   const [undecidedShown, setUndecidedShown] = useState<ReadonlySet<string> | null>(undecidedKeys)
   const shownColumns = undecidedShown
@@ -315,17 +329,54 @@ export function ImportMappingCard({
                 </p>
               ) : null}
               {unmatched.length ? (
-                <p className="text-sm text-warning sm:col-span-2">
-                  {unmatched.length === 1 ? '1 value matches' : `${unmatched.length} values match`}{' '}
-                  no answer: {listed(unmatched)}. Add a translation for each, or rows with these
-                  values will be invalid.
-                </p>
+                <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+                  <p className="text-sm text-warning">
+                    {unmatched.length === 1
+                      ? '1 value matches'
+                      : `${unmatched.length} values match`}{' '}
+                    no answer: {listed(unmatched)}. Add a translation for each, or rows with these
+                    values will be invalid.
+                  </p>
+                  {canReview && targetField ? (
+                    <Button
+                      disabled={!mappingEditable}
+                      size="sm"
+                      className="min-h-11"
+                      variant="outline"
+                      onClick={() => {
+                        if (mutation.current || !scope.isCurrent()) return
+                        const rule = rules[column.key] ?? emptyColumnRule
+                        const kept = rule.pairs.filter((pair) => pair.from.trim())
+                        const { pairs } = suggestColumnPairs(
+                          targetField.dataType,
+                          targetField.allowedValues,
+                          columnValues.get(column.key) ?? [],
+                          kept,
+                        )
+                        setRules((current) => ({
+                          ...current,
+                          [column.key]: { ...rule, pairs: [...kept, ...pairs] },
+                        }))
+                        setOpen(column.key, true)
+                      }}
+                    >
+                      Suggest translations
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
               {targetField ? (
-                <details className="sm:col-span-2">
+                <details
+                  className="sm:col-span-2"
+                  open={translationsOpen.has(column.key)}
+                  onToggle={(event) => setOpen(column.key, event.currentTarget.open)}
+                >
                   <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
                     Data type and value translations
-                    {rules[column.key]?.pairs.length ? ` (${rules[column.key]?.pairs.length})` : ''}
+                    {unmatched.length ? '' : ' (optional)'}
+                    {rules[column.key]?.pairs.length
+                      ? `, ${rules[column.key]?.pairs.length} set`
+                      : ''}
                   </summary>
                   <ImportValueMapEditor
                     allowedValues={targetField.allowedValues}
