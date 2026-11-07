@@ -128,7 +128,7 @@ describe('automatic mapping API authority boundary', () => {
     const sql = recorderCall()?.[0]
     expect(sql.sql).toContain('pathways.p78_record_smart_mapping')
     expect(sql.sql).not.toContain('p38_record_smart_mapping')
-    expect(sql.values.slice(0, 3)).toEqual([batchId, 0, 'AUTO_SMART_V4'])
+    expect(sql.values.slice(0, 3)).toEqual([batchId, 0, 'AUTO_SMART_V5'])
     expect(JSON.parse(sql.values[3])).toEqual([
       {
         sourceKey: 'column_0001',

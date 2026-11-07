@@ -78,7 +78,12 @@ function drafted(columns: DraftColumn[]) {
 const COVERAGE_FIELDS = REGISTRATION.map((field) => ({ ...field, id: field.id ?? field.code }))
 
 function regressionView(file: ReturnType<typeof readImportFile>) {
-  const decisions = matchColumns(file.sourceColumns, file.rows, COVERAGE_FIELDS)
+  const decisions = matchColumns(
+    file.sourceColumns,
+    file.rows,
+    COVERAGE_FIELDS,
+    'BENEFICIARY_REGISTRATION',
+  )
   const columns: DraftColumn[] = file.sourceColumns.map((column) => ({
     key: column.key,
     columnIndex: column.columnIndex,

@@ -14,6 +14,7 @@ import {
   enumLabel,
   formTypeLabels,
   importOutcomeMessage,
+  mappingBarLines,
   needsCheckLabels,
   ruleKindLabels,
   warningLabel,
@@ -91,5 +92,21 @@ describe('straight-through import copy', () => {
     ])
       expect(warningLabel(code)).not.toMatch(/[A-Z]{2,}_[A-Z]/)
     expect(warningLabel('SOMETHING_NEW')).toBe('Something new')
+  })
+})
+
+describe('mapping bar copy', () => {
+  it('words the plural lines and offers Prepare form only to a form manager', () => {
+    expect(mappingBarLines({ pending: 3, personIgnored: 2, unmatchedColumns: 2 }, true)).toEqual([
+      '3 columns need a decision: map each to a field, or ignore it.',
+      '2 columns have answers that match no option.',
+    ])
+    expect(mappingBarLines({ pending: 0, personIgnored: 2, unmatchedColumns: 0 }, true)).toEqual([
+      '2 ignored columns will not be saved. Prepare form to keep them.',
+    ])
+    expect(mappingBarLines({ pending: 0, personIgnored: 1, unmatchedColumns: 0 }, false)).toEqual([
+      '1 ignored column will not be saved.',
+    ])
+    expect(mappingBarLines({ pending: 0, personIgnored: 0, unmatchedColumns: 0 }, true)).toEqual([])
   })
 })

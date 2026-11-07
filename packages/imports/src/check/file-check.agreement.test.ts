@@ -78,6 +78,7 @@ async function serverView(bytes: Buffer, fileType: 'XLSX' | 'CSV', fields: Check
     parsed.sourceColumns,
     raws,
     fields.map((item): CoverageField => ({ ...item, calculated: isCalculatedRule(item.rule) })),
+    'BENEFICIARY_REGISTRATION',
   )
   const mappings: ColumnMapping[] = []
   const mapped: CheckField[] = []
@@ -190,6 +191,7 @@ async function serverDrafts(bytes: Buffer, fields: CheckField[]) {
         parsed.sourceColumns,
         raws,
         fields.map((item): CoverageField => ({ ...item, calculated: isCalculatedRule(item.rule) })),
+        'BENEFICIARY_REGISTRATION',
       ),
       uploadDate: UPLOAD_DATE,
     })

@@ -1,11 +1,30 @@
 import { Buffer } from 'node:buffer'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 
 import { stageFixtureSheet } from '../form-draft/futuremakers-stage-fixture'
+import type { SmartMatchDecision } from '../mappers/smart-match'
 import { type CheckField, checkImportFile } from './file-check'
 import { readImportFile } from './read-import-file'
+
+// Lets one test rewrite the server's decisions; every other test sees them unchanged.
+const rewrite = vi.hoisted(() => ({
+  decisions: null as ((decisions: SmartMatchDecision[]) => SmartMatchDecision[]) | null,
+}))
+vi.mock('../validation/match-columns', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../validation/match-columns')>()
+  return {
+    ...actual,
+    matchColumns: (...args: Parameters<typeof actual.matchColumns>) => {
+      const decisions = actual.matchColumns(...args)
+      return rewrite.decisions ? rewrite.decisions(decisions) : decisions
+    },
+  }
+})
+afterEach(() => {
+  rewrite.decisions = null
+})
 
 const toArrayBuffer = (bytes: Uint8Array) =>
   bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
@@ -702,5 +721,31 @@ describe('checkImportFile enrollment date left for confirmation', () => {
     const report = check([['First name'], ['Ana']], fields, 'ACTIVITY_MONITORING')
     expect(missing(report)).toEqual(['enrollment_date'])
     expect(noteKinds(report)).toEqual([])
+  })
+})
+
+describe('checkImportFile on an ignored column', () => {
+  const rows = [['Nickname'], ['Ana']]
+  const missing = () =>
+    check(rows, [firstName])
+      .problems.filter((problem) => problem.kind === 'NO_COLUMN')
+      .map((problem) => problem.fieldCode)
+
+  it('does not count the field an ignored decision carries as mapped', () => {
+    expect(missing()).toEqual(['first_name'])
+    rewrite.decisions = (decisions) =>
+      decisions.map((decision) => ({
+        ...decision,
+        status: 'IGNORED',
+        suggestedFieldId: firstName.id,
+        reason: 'CALCULATED_FIELD',
+      }))
+    expect(missing()).toEqual(['first_name'])
+  })
+
+  it('still counts the field a pending decision suggests as mapped', () => {
+    rewrite.decisions = (decisions) =>
+      decisions.map((decision) => ({ ...decision, suggestedFieldId: firstName.id }))
+    expect(missing()).toEqual([])
   })
 })

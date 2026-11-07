@@ -16,6 +16,7 @@ import {
 
 import { buildAnySourceFixture } from '@pathways/imports/fixtures/any-source/build'
 import { SPECS } from '@pathways/imports/form-draft/draft-test-support'
+import { proposedEnrollmentDate, submissionTimeColumn } from '@pathways/imports/server'
 import { rolePermissions } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -260,7 +261,7 @@ function useStore() {
 describe('an any-source masterlist through the import service', () => {
   useImportsHarness()
 
-  it('uploads, maps by AUTO_SMART_V4, drafts, validates and processes every row', async () => {
+  it('uploads, maps by AUTO_SMART_V5, drafts, validates and processes every row', async () => {
     useStore()
     const { bytes } = buildAnySourceFixture('masterlist-xlsx')
     const buffer = Buffer.from(bytes)
@@ -284,7 +285,7 @@ describe('an any-source masterlist through the import service', () => {
     const recorder = tx.$queryRaw.mock.calls.find(([sql]) =>
       String(sql.sql).includes('p78_record_smart_mapping'),
     )?.[0] as { values: unknown[] }
-    expect(recorder.values.slice(0, 3)).toEqual([batchId, 0, 'AUTO_SMART_V4'])
+    expect(recorder.values.slice(0, 3)).toEqual([batchId, 0, 'AUTO_SMART_V5'])
     const headers = store.batch.sourceHeaders as Array<{ key: string; header: string }>
     const headerOf = (key: unknown) => headers.find((column) => column.key === key)?.header
     const codeOf = (id: unknown) => fields.find((field) => field.id === id)?.code ?? null
@@ -365,5 +366,88 @@ describe('an any-source masterlist through the import service', () => {
     expect(store.rows.map((row) => row.status)).toEqual(Array(5).fill('PROCESSED'))
     expect(beneficiaries.promoteRegistration).toHaveBeenCalledTimes(5)
     expect(processed).toMatchObject({ status: 'PROCESSED', totals: { processed: 5 } })
+  })
+
+  it('ignores the Kobo submission time and timing columns yet still proposes enrollment dates from it', async () => {
+    useStore()
+    const { bytes } = buildAnySourceFixture('kobo-xlsx')
+    const buffer = Buffer.from(bytes)
+    await service.upload(
+      officer,
+      projectId,
+      { formId, clientImportId },
+      file({
+        buffer,
+        originalname: 'kobo.xlsx',
+        mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        size: buffer.length,
+      }),
+    )
+    await service.automaticMapping(officer, projectId, store.batch.id, {
+      expectedMappingRevision: 0,
+    })
+    const headers = store.batch.sourceHeaders as Array<{ key: string; header: string }>
+    const reasonOf = (header: string) => {
+      const key = headers.find((column) => column.header === header)?.key
+      const decision = store.recorded.find((item) => item.sourceKey === key)
+      return decision && `${decision.status} ${decision.reason}`
+    }
+    expect(reasonOf('_submission_time')).toBe('IGNORED SUBMISSION_TIME')
+    expect(reasonOf('start')).toBe('IGNORED SYSTEM_COLUMN')
+    expect(reasonOf('end')).toBe('IGNORED SYSTEM_COLUMN')
+
+    const column = submissionTimeColumn(headers)
+    expect(column?.header).toBe('_submission_time')
+    expect(
+      store.rows.map((row) =>
+        proposedEnrollmentDate(
+          (row.rawData as Json)[(column as { key: string }).key],
+          '_submission_time',
+          null,
+          2026,
+        ),
+      ),
+    ).toEqual(Array(5).fill('2026-01-10'))
+  })
+
+  it('leaves Disability and Consent pending, and the batch NOT_COVERED, when no column feeds them', async () => {
+    useStore()
+    const ruled = fields.map((item) => {
+      if (item.code === 'disability_status')
+        return {
+          ...item,
+          rule: {
+            kind: 'WASHINGTON_GROUP_DISABILITY',
+            questionFields: ['wg_1', 'wg_2', 'wg_3', 'wg_4', 'wg_5', 'wg_6'],
+            disabilityValues: ['A lot of difficulty'],
+          },
+        }
+      if (item.code === 'consent_recorded')
+        return {
+          ...item,
+          rule: { kind: 'SAME_ANSWER_AS', field: 'data_processing_consent_recorded' },
+        }
+      return item
+    })
+    tx.digitalForm.findFirst.mockResolvedValue({ ...form, formField_form: ruled })
+    tx.formField.findMany.mockResolvedValue(ruled)
+    const buffer = Buffer.from(
+      'First name,Disability,Consent\nAna,WITH_DISABILITY,true\nLiza,WITHOUT_DISABILITY,true\n',
+    )
+    await service.upload(
+      officer,
+      projectId,
+      { formId, clientImportId },
+      file({ buffer, originalname: 'people.csv', mimetype: 'text/csv', size: buffer.length }),
+    )
+    const receipt = await service.automaticMapping(officer, projectId, store.batch.id, {
+      expectedMappingRevision: 0,
+    })
+    expect(store.recorded.map((item) => [item.status, item.reason])).toEqual([
+      ['MAPPED', 'AUTO_MATCH'],
+      ['PENDING', 'NO_MATCH'],
+      ['PENDING', 'NO_MATCH'],
+    ])
+    expect(receipt).toMatchObject({ coverage: 'NOT_COVERED', uncoveredColumns: 2 })
   })
 })
