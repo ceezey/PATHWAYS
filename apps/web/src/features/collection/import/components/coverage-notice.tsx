@@ -7,15 +7,15 @@ import { coverageNotice, mappingBarLines } from '../../collection.copy'
 
 function PrepareFormOffer({
   canPrepare,
-  pending,
+  busy,
   onPrepare,
 }: {
   canPrepare: boolean
-  pending: boolean
+  busy: boolean
   onPrepare: () => void
 }) {
   return canPrepare ? (
-    <Button className="min-h-11" disabled={pending} onClick={onPrepare}>
+    <Button className="min-h-11" disabled={busy} onClick={onPrepare}>
       Prepare form
     </Button>
   ) : (
@@ -40,7 +40,7 @@ export function StagedCoverageNotice({
   return (
     <div className="space-y-2 rounded-lg border border-warning/30 bg-warning-subtle p-3 text-sm">
       <p className="font-medium text-warning">{coverageNotice(receipt)}</p>
-      <PrepareFormOffer canPrepare={canPrepare} pending={pending} onPrepare={onPrepare} />
+      <PrepareFormOffer canPrepare={canPrepare} busy={pending} onPrepare={onPrepare} />
     </div>
   )
 }
@@ -78,7 +78,7 @@ export function CoverageNotice({
           {line}
         </p>
       ))}
-      <PrepareFormOffer canPrepare={canPrepare} pending={busy} onPrepare={onPrepare} />
+      <PrepareFormOffer canPrepare={canPrepare} busy={busy} onPrepare={onPrepare} />
     </section>
   )
 }

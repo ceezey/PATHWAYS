@@ -66,6 +66,8 @@ const renderCard = (
     selectedForm?: object
     rules?: object
     canReview?: boolean
+    mappingEditable?: boolean
+    suggestions?: object[]
     columns?: Array<{ key: string; header: string; columnIndex: number }>
     stored?: Array<[string, object]>
   } = {},
@@ -88,11 +90,11 @@ function Card(over: Parameters<typeof renderCard>[0] & object) {
         columnValues: over.columnValues ?? new Map(),
         formOfferSeen: over.formOfferSeen ?? new Set(),
         mapping,
-        mappingEditable: true,
+        mappingEditable: over.mappingEditable ?? true,
         mappingHeading: { current: null },
         mappingNotice: '',
         mutation: { current: null },
-        openSuggestions: [],
+        openSuggestions: (over.suggestions ?? []) as never,
         pending: false,
         receipts: (over.receipts ?? { 'batch-1': notCovered }) as never,
         rules: (over.rules ?? {}) as never,
@@ -351,7 +353,8 @@ describe('ImportMappingCard ignored and pending columns', () => {
   it('shows a Project Officer the reasons and the bar without Prepare form', () => {
     renderCard({
       canManageForms: false,
-      canReview: true,
+      canReview: false,
+      mappingEditable: false,
       columns,
       mapping: { column_0001: '__ignore__', column_0002: '__ignore__' },
       stored: [
@@ -366,6 +369,55 @@ describe('ImportMappingCard ignored and pending columns', () => {
     expect(bar).not.toContain('Prepare form to keep')
     expect(bar).toContain('Someone who manages forms can prepare the form from this file.')
     expect(screen.queryByRole('button', { name: 'Prepare form' })).toBeNull()
+  })
+
+  it('gives a pending column with a suggestion no not-in-the-form line, yet still counts it', () => {
+    renderCard({
+      columns: columns.slice(1),
+      mapping: { column_0002: '__pending__' },
+      stored: [['column_0002', storedColumn({ status: 'PENDING', targetField: null })]],
+      suggestions: [{ column: columns[1], label: 'First name (first_name)' }],
+      columnValues: new Map([['column_0002', ['Alpha']]]),
+    })
+    expect(screen.getByText('Suggested: First name (first_name)')).toBeTruthy()
+    expect(screen.queryByText(/Not in the form/)).toBeNull()
+    expect(screen.queryByText(/Sample values/)).toBeNull()
+    expect(screen.getByText(pendingBar)).toBeTruthy()
+  })
+
+  it('does not call an auto-mapped column the person switches to ignore not in the form', () => {
+    renderCard({
+      columns: columns.slice(1),
+      mapping: { column_0002: 'first_name' },
+      stored: [['column_0002', storedColumn()]],
+      selectedForm: { fields: [{ code: 'first_name', label: 'First name', dataType: 'TEXT' }] },
+    })
+    // Column 2 is mapped by the matcher; switching it to ignore says nothing about the form.
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.keyDown(screen.getByRole('combobox', { name: /Target for column 2/ }), {
+      key: 'Enter',
+    })
+    fireEvent.click(screen.getByRole('option', { name: 'Ignore this source column' }))
+    expect(screen.queryByText(/ignored column/)).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Mapping decisions' })).toBeNull()
+  })
+
+  it('ties the reason and the pending help to the column select', () => {
+    renderCard({
+      columns,
+      mapping: { column_0001: '__ignore__', column_0002: '__pending__' },
+      stored: [
+        ['column_0001', ignoredStored('AUTO_SMART_V5:BLANK_COLUMN')],
+        ['column_0002', storedColumn({ status: 'PENDING', targetField: null })],
+      ],
+    })
+    fireEvent.click(screen.getByRole('checkbox'))
+    const describedText = (name: RegExp) => {
+      const id = screen.getByRole('combobox', { name }).getAttribute('aria-describedby')
+      return id ? document.getElementById(id)?.textContent : null
+    }
+    expect(describedText(/column 1/)).toBe('Ignored: the column is empty.')
+    expect(describedText(/column 2/)).toBe('Not in the form. If ignored, this column is not saved.')
   })
 
   it('counts columns with answers that match no option, live', () => {

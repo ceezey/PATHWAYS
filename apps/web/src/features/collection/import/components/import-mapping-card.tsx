@@ -134,17 +134,18 @@ export function ImportMappingCard({
       !rules[key]?.dateOrder &&
       columnDateOrders(columnValues.get(key), referenceYear).needsChoice) ||
     translations(key).unmatched.length > 0
-  const isPending = (key: string) => (mapping[key] ?? '__pending__') === '__pending__'
-  // The matcher's own ignores (stored with a reason) are not the person's, so they do not count as ignored by choice.
+  const isPending = (key: string) => !mapping[key] || mapping[key] === '__pending__'
   const ignoredReason = (key: string) => {
     const stored = storedMappingByKey.get(key)
     return stored ? ignoredReasonText(stored, batch.formType) : null
   }
+  // Only a column the matcher left undecided and the person then ignored is a choice to leave data unsaved.
+  const ignoredByChoice = (key: string) =>
+    mapping[key] === '__ignore__' &&
+    (!storedMappingByKey.get(key) || storedMappingByKey.get(key)?.status === 'PENDING')
   const barCounts = {
     pending: sourceColumns.filter((column) => isPending(column.key)).length,
-    personIgnored: sourceColumns.filter(
-      (column) => mapping[column.key] === '__ignore__' && !ignoredReason(column.key),
-    ).length,
+    personIgnored: sourceColumns.filter((column) => ignoredByChoice(column.key)).length,
     unmatchedColumns: sourceColumns.filter((column) => translations(column.key).unmatched.length)
       .length,
   }
@@ -220,7 +221,10 @@ export function ImportMappingCard({
           const suggestion = openSuggestions.find((item) => item.column.key === column.key)
           const { automatic: readOnItsOwn, unmatched } = translations(column.key)
           const ignoredWhy = mapping[column.key] === '__ignore__' ? ignoredReason(column.key) : null
-          const samples = isPending(column.key) ? sampled(columnValues.get(column.key)) : ''
+          // A pending column with a server suggestion is not "not in the form", so it gets no help line.
+          const showPendingHelp = isPending(column.key) && !suggestion
+          const samples = showPendingHelp ? sampled(columnValues.get(column.key)) : ''
+          const noteId = `import-mapping-note-${column.key}`
           return (
             <div
               key={column.key}
@@ -233,15 +237,21 @@ export function ImportMappingCard({
                 {automatic ? (
                   <StatusBadge tone="success">Auto-matched: {automatic}</StatusBadge>
                 ) : null}
-                {ignoredWhy ? <p className="text-sm text-muted-foreground">{ignoredWhy}</p> : null}
-                {isPending(column.key) ? (
+                {ignoredWhy ? (
+                  <p id={noteId} className="text-sm text-muted-foreground">
+                    {ignoredWhy}
+                  </p>
+                ) : null}
+                {showPendingHelp ? (
                   <>
                     {samples ? (
                       <p className="break-all text-sm text-muted-foreground">
                         Sample values: {samples}
                       </p>
                     ) : null}
-                    <p className="text-sm text-muted-foreground">{PENDING_COLUMN_HELP}</p>
+                    <p id={noteId} className="text-sm text-muted-foreground">
+                      {PENDING_COLUMN_HELP}
+                    </p>
                   </>
                 ) : null}
                 {suggestion ? (
@@ -272,6 +282,7 @@ export function ImportMappingCard({
                 fields={selectedForm?.fields ?? []}
                 value={mapping[column.key] ?? '__pending__'}
                 disabled={!mappingEditable}
+                describedBy={ignoredWhy || showPendingHelp ? noteId : undefined}
                 onChange={(value) =>
                   !mutation.current &&
                   scope.isCurrent() &&

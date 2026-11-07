@@ -18,6 +18,7 @@ export function ImportTargetSelect({
   fields,
   value,
   disabled,
+  describedBy,
   onChange,
 }: {
   id: string
@@ -25,6 +26,8 @@ export function ImportTargetSelect({
   fields: readonly { code: string; label: string }[]
   value: string
   disabled: boolean
+  // The id of a line that explains this column, read after the label.
+  describedBy?: string
   onChange: (value: string) => void
 }) {
   const [query, setQuery] = useState('')
@@ -56,7 +59,7 @@ export function ImportTargetSelect({
       onValueChange={onChange}
       onOpenChange={(open) => !open && setQuery('')}
     >
-      <SelectTrigger aria-label={label} id={id}>
+      <SelectTrigger aria-describedby={describedBy} aria-label={label} id={id}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent onKeyDown={toSearch}>
