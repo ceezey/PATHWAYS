@@ -64,21 +64,6 @@ function suggestionTargets(fieldType: FormFieldDataType, allowedValues?: string[
   return fieldType === 'SELECT' ? (allowedValues ?? []) : []
 }
 
-/** The pairs Suggest would add for a column's loaded values, leaving the kept pairs as the person set them. */
-export function suggestColumnPairs(
-  fieldType: FormFieldDataType,
-  allowedValues: string[] | null | undefined,
-  sourceValues: string[],
-  kept: ColumnRuleDraft['pairs'],
-) {
-  // Booleans already accept true and false in any case, so only other spellings need a pair.
-  const values =
-    fieldType === 'BOOLEAN'
-      ? sourceValues.filter((value) => !/^(true|false)$/i.test(value.trim()))
-      : sourceValues
-  return suggestValueMap(values, suggestionTargets(fieldType, allowedValues), kept)
-}
-
 export function ImportValueMapEditor({
   columnLabel,
   idPrefix,
@@ -95,7 +80,12 @@ export function ImportValueMapEditor({
   const targets = suggestionTargets(fieldType, allowedValues)
   const suggest = () => {
     const kept = rule.pairs.filter((pair) => pair.from.trim())
-    const { pairs, unmatched } = suggestColumnPairs(fieldType, allowedValues, sourceValues, kept)
+    // Booleans already accept true and false in any case, so only other spellings need a pair.
+    const values =
+      fieldType === 'BOOLEAN'
+        ? sourceValues.filter((value) => !/^(true|false)$/i.test(value.trim()))
+        : sourceValues
+    const { pairs, unmatched } = suggestValueMap(values, targets, kept)
     onChange({ ...rule, pairs: [...kept, ...pairs] })
     setSuggestNote(
       `${pairs.length} suggested from the loaded rows. ${

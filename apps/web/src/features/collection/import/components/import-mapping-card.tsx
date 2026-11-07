@@ -1,7 +1,7 @@
 'use client'
 
 import { columnTranslations, deferredRequired, unsuppliedRequired } from '@pathways/imports'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
@@ -23,11 +23,7 @@ import {
 import { CoverageNotice } from './coverage-notice'
 import { ImportDateOrder, columnDateOrders } from './import-date-order'
 import { ImportTargetSelect } from './import-target-select'
-import {
-  ImportValueMapEditor,
-  emptyColumnRule,
-  suggestColumnPairs,
-} from './import-value-map-editor'
+import { ImportValueMapEditor, emptyColumnRule } from './import-value-map-editor'
 
 // A pending column shows three of its answers, each cut short, so the person can tell what it holds.
 const sampleLength = 40
@@ -165,6 +161,13 @@ export function ImportMappingCard({
       else next.delete(key)
       return next
     })
+  // The column whose translations just opened, so focus moves into them once they render.
+  const [focusKey, setFocusKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (!focusKey) return
+    document.getElementById(`import-rule-${focusKey}-type`)?.focus()
+    setFocusKey(null)
+  }, [focusKey])
   // The columns undecided when the filter was switched on, so deciding one keeps it in view.
   const [undecidedShown, setUndecidedShown] = useState<ReadonlySet<string> | null>(undecidedKeys)
   const shownColumns = undecidedShown
@@ -337,30 +340,18 @@ export function ImportMappingCard({
                     no answer: {listed(unmatched)}. Add a translation for each, or rows with these
                     values will be invalid.
                   </p>
-                  {canReview && targetField ? (
+                  {canReview && mappingEditable && targetField ? (
                     <Button
-                      disabled={!mappingEditable}
+                      aria-label={`Add translations for column ${column.columnIndex}`}
                       size="sm"
                       className="min-h-11"
                       variant="outline"
                       onClick={() => {
-                        if (mutation.current || !scope.isCurrent()) return
-                        const rule = rules[column.key] ?? emptyColumnRule
-                        const kept = rule.pairs.filter((pair) => pair.from.trim())
-                        const { pairs } = suggestColumnPairs(
-                          targetField.dataType,
-                          targetField.allowedValues,
-                          columnValues.get(column.key) ?? [],
-                          kept,
-                        )
-                        setRules((current) => ({
-                          ...current,
-                          [column.key]: { ...rule, pairs: [...kept, ...pairs] },
-                        }))
                         setOpen(column.key, true)
+                        setFocusKey(column.key)
                       }}
                     >
-                      Suggest translations
+                      Add translations
                     </Button>
                   ) : null}
                 </div>
@@ -374,9 +365,7 @@ export function ImportMappingCard({
                   <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-primary">
                     Data type and value translations
                     {unmatched.length ? '' : ' (optional)'}
-                    {rules[column.key]?.pairs.length
-                      ? `, ${rules[column.key]?.pairs.length} set`
-                      : ''}
+                    {rules[column.key]?.pairs.length ? ` (${rules[column.key]?.pairs.length})` : ''}
                   </summary>
                   <ImportValueMapEditor
                     allowedValues={targetField.allowedValues}

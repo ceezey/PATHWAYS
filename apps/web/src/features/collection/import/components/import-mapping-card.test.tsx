@@ -310,28 +310,19 @@ describe('ImportMappingCard translations only where values match no answer', () 
     })
   const translations = () => document.querySelector('details') as HTMLDetailsElement
 
-  it('offers Suggest translations in the warning, opens the column and adds the pairs', () => {
+  it('offers Add translations in the warning, which opens the column and focuses into it', () => {
     card(['Yes', 'Maybe'])
     expect(translations().open).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Suggest translations' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add translations for column 1' }))
     expect(translations().open).toBe(true)
-    expect((screen.getByLabelText('Source value 1') as HTMLInputElement).value).toBe('Yes')
-    expect((screen.getByLabelText('Stored value 1') as HTMLInputElement).value).toBe('true')
-  })
-
-  it('keeps a value the person already translated', () => {
-    card(['Yes', 'Maybe'], {
-      rules: { column_0001: { dataType: '', pairs: [{ from: 'Yes', to: 'false' }] } },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Suggest translations' }))
-    expect((screen.getByLabelText('Source value 1') as HTMLInputElement).value).toBe('Yes')
-    expect((screen.getByLabelText('Stored value 1') as HTMLInputElement).value).toBe('false')
-    expect(screen.queryByLabelText('Source value 2')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByLabelText('Data type for column 1'))
+    // The button only opens the section; it adds no pairs.
+    expect(screen.queryByLabelText('Source value 1')).toBeNull()
   })
 
   it('lets the person close the section again', () => {
     card(['Yes', 'Maybe'])
-    fireEvent.click(screen.getByRole('button', { name: 'Suggest translations' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add translations for column 1' }))
     translations().open = false
     fireEvent(translations(), new Event('toggle'))
     expect(translations().open).toBe(false)
@@ -343,7 +334,7 @@ describe('ImportMappingCard translations only where values match no answer', () 
     fireEvent.click(screen.getByRole('checkbox'))
     expect(screen.getByText('Data type and value translations (optional)')).toBeTruthy()
     expect(translations().open).toBe(false)
-    expect(screen.queryByRole('button', { name: 'Suggest translations' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Add translations/ })).toBeNull()
   })
 
   it('keeps the plain summary while values match no answer', () => {
@@ -354,14 +345,12 @@ describe('ImportMappingCard translations only where values match no answer', () 
   it('shows the warning without the button to someone who cannot edit the mapping', () => {
     card(['Yes', 'Maybe'], { canReview: false })
     expect(screen.getByText(/1 value matches no answer: Maybe/)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Suggest translations' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Add translations/ })).toBeNull()
   })
 
-  it('disables the button while the mapping is locked', () => {
+  it('shows no button while the mapping is locked', () => {
     card(['Yes', 'Maybe'], { mappingEditable: false })
-    expect(
-      (screen.getByRole('button', { name: 'Suggest translations' }) as HTMLButtonElement).disabled,
-    ).toBe(true)
+    expect(screen.queryByRole('button', { name: /Add translations/ })).toBeNull()
   })
 })
 
