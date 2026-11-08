@@ -403,7 +403,7 @@ describe('import review dialog', () => {
       'Age',
       'Birth date',
     ])
-    expect(scrolled).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(scrolled).toHaveBeenCalledTimes(1))
     expect(scrolled.mock.contexts[0]).toBe(flagged[0])
     // Only the changed field asks for a check; the answer it is worked out from says so instead.
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'More information about Age' }))
@@ -449,7 +449,8 @@ describe('import review dialog', () => {
       const [row, ...rest] = await openHeld('GUARDIAN_CONSENT_REQUIRED')
       expect(rest).toHaveLength(0)
       expect(row.querySelector('td')?.textContent).toBe('Guardian consent')
-      expect(scrolled.mock.contexts[0]).toBe(row)
+      // The dialog scrolls to and focuses the field after it renders.
+      await waitFor(() => expect(scrolled.mock.contexts[0]).toBe(row))
       expect(document.activeElement).toBe(row)
       await waitFor(() => expect(row.className).toContain('bg-warning-subtle'))
       await waitFor(() => expect(row.className).not.toContain('bg-warning-subtle'), {
@@ -467,7 +468,7 @@ describe('import review dialog', () => {
       const [row, ...rest] = await openHeld('STAGE_IDENTITY_MISMATCH')
       expect(rest).toHaveLength(0)
       expect(row.querySelector('td')?.textContent).toBe('First name')
-      expect(scrolled.mock.contexts[0]).toBe(row)
+      await waitFor(() => expect(scrolled.mock.contexts[0]).toBe(row))
     })
 
     it('says who approves guardian consent on hover, for a minor waiting for it', async () => {
@@ -487,7 +488,7 @@ describe('import review dialog', () => {
     it('leads to the consent field of a row held for missing consent', async () => {
       const [row] = await openHeld('CONSENT_REQUIRED')
       expect(row.querySelector('td')?.textContent).toBe('Consent recorded')
-      expect(document.activeElement).toBe(row)
+      await waitFor(() => expect(document.activeElement).toBe(row))
     })
 
     it('flags nothing for a reason with no fields of its own', async () => {
