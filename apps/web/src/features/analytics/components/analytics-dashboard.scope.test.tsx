@@ -11,6 +11,7 @@ import {
   loadDashboard,
   monitoring,
   project,
+  projectPick,
   resetAnalyticsMocks,
 } from '@/test/fixtures/analytics-dashboard-fixtures'
 
@@ -110,10 +111,12 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
       expect(api.getProjectsForRole).not.toHaveBeenCalled()
     })
 
-    it('selects the first project and keeps a selected project when the role reloads the list', async () => {
+    it('asks for a project first and keeps the chosen one when the role reloads the list', async () => {
+      projectPick.auto = false
       const view = render(<AnalyticsDashboard />)
-      await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-a'))
-      expect(screen.getByLabelText('Project filter')).toHaveProperty('value', 'project-a')
+      expect(await screen.findByText('Select a project first')).toBeTruthy()
+      expect(screen.getByLabelText('Project filter')).toHaveProperty('value', '')
+      expect(api.getActivities).not.toHaveBeenCalled()
 
       fireEvent.change(screen.getByLabelText('Project filter'), { target: { value: 'project-b' } })
       await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
@@ -125,9 +128,10 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
       expect(screen.getByLabelText('Project filter')).toHaveProperty('value', 'project-b')
     })
 
-    it('falls back to the first project when the reloaded list no longer holds the selection', async () => {
+    it('asks for a project again when the reloaded list no longer holds the selection', async () => {
+      projectPick.auto = false
       const view = render(<AnalyticsDashboard />)
-      await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-a'))
+      await screen.findByText('Select a project first')
       fireEvent.change(screen.getByLabelText('Project filter'), { target: { value: 'project-b' } })
       await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
 
@@ -136,8 +140,9 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
       currentAccess.role = 'Program Manager'
       view.rerender(<AnalyticsDashboard />)
 
-      await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-c'))
-      expect(screen.getByLabelText('Project filter')).toHaveProperty('value', 'project-c')
+      expect(await screen.findByText('Select a project first')).toBeTruthy()
+      expect(screen.getByLabelText('Project filter')).toHaveProperty('value', '')
+      expect(api.getActivities).not.toHaveBeenCalledWith('project-c')
     })
   })
 

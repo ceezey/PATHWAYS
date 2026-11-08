@@ -509,11 +509,8 @@ describe('SADDD analysis panel data', () => {
     ])
   })
 
-  it('offers Add to public page only when a public href is given', () => {
-    const href = '/transparency?projectId=p1&addView=saddd'
-    const { rerender } = render(<SadddAnalysisPanel {...props} publicHref={href} />)
-    expect(screen.getByRole('link', { name: 'Add to public page' }).getAttribute('href')).toBe(href)
-    rerender(<SadddAnalysisPanel {...props} />)
+  it('never offers Add to public page', () => {
+    render(<SadddAnalysisPanel {...props} />)
     expect(screen.queryByRole('link', { name: 'Add to public page' })).toBeNull()
   })
 

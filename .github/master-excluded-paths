@@ -1,0 +1,9 @@
+AGENTS.md
+CLAUDE.md
+CODEX.md
+.claude
+.codex
+docs
+supabase
+scripts/sad
+:(glob)infra/**/*.md

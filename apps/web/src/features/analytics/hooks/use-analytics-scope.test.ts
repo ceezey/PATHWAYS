@@ -3,6 +3,8 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { pickFirst, usePickFirstProject } from '@/test/fixtures/pick-first-project'
+
 import { useAnalyticsScope } from './use-analytics-scope'
 
 const api = vi.hoisted(() => ({
@@ -42,6 +44,7 @@ const mount = (initial: Partial<typeof grants> = {}) => {
   const view = renderHook(
     (props: typeof grants) => {
       const value = useAnalyticsScope(props)
+      usePickFirstProject(value)
       seen.push(value)
       return value
     },
@@ -49,12 +52,16 @@ const mount = (initial: Partial<typeof grants> = {}) => {
   )
   return { ...view, seen }
 }
+// Waits for the project list, picks the first project as a person would, then waits for its data.
 const loaded = async (view: ReturnType<typeof mount>) => {
+  await waitFor(() => expect(view.result.current.projectsLoading).toBe(false))
+  if (!view.result.current.projectId) act(() => view.result.current.selectProject('project-a'))
   await waitFor(() => expect(view.result.current.monitoring).toBe(monitoring))
 }
 
 describe('useAnalyticsScope', () => {
   beforeEach(() => {
+    pickFirst.enabled = true
     api.getProjectsForRole.mockResolvedValue([project('project-a'), project('project-b')])
     api.getActivities.mockResolvedValue([{ id: 'activity-1' }])
     api.getProjectIndicators.mockImplementation((projectId: string) =>
@@ -75,15 +82,17 @@ describe('useAnalyticsScope', () => {
   })
 
   describe('project list', () => {
-    it('reads the projects of the role and selects the first one', async () => {
+    it('reads the projects of the role and preselects none', async () => {
+      pickFirst.enabled = false
       const view = mount()
       expect(view.seen[0].projectsLoading).toBe(true)
 
-      await waitFor(() => expect(view.result.current.projectId).toBe('project-a'))
+      await waitFor(() => expect(view.result.current.projectsLoading).toBe(false))
       expect(api.getProjectsForRole).toHaveBeenCalledWith('Project Manager')
       expect(view.result.current.projects.map((row) => row.id)).toEqual(['project-a', 'project-b'])
-      expect(view.result.current.selectedProject?.id).toBe('project-a')
-      expect(view.result.current.projectsLoading).toBe(false)
+      expect(view.result.current.projectId).toBe('')
+      expect(view.result.current.selectedProject).toBeUndefined()
+      expect(api.getActivities).not.toHaveBeenCalled()
     })
 
     it('stops loading and reads nothing without a role', () => {
@@ -107,7 +116,8 @@ describe('useAnalyticsScope', () => {
       expect(view.result.current.projectId).toBe('project-b')
     })
 
-    it('falls back to the first project when the reloaded list lacks the selection', async () => {
+    it('clears the selection when the reloaded list lacks it', async () => {
+      pickFirst.enabled = false
       const view = mount()
       await loaded(view)
       act(() => view.result.current.selectProject('project-b'))
@@ -115,7 +125,8 @@ describe('useAnalyticsScope', () => {
 
       view.rerender({ ...grants, role: 'Program Manager' as never })
 
-      await waitFor(() => expect(view.result.current.projectId).toBe('project-c'))
+      await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalledWith('Program Manager'))
+      await waitFor(() => expect(view.result.current.projectId).toBe(''))
     })
 
     it('selects nothing when the list is empty', async () => {

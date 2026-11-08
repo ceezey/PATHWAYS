@@ -129,13 +129,21 @@ export async function verifyDefenseDemo(
     types.length === 7,
     types.map((row) => row.indicatorType).join(', '),
   )
-  const unlinked = await one(owner.$queryRaw`SELECT count(*) AS n FROM pathways.project_indicators i
-    WHERE i.archived_at IS NULL AND EXISTS (SELECT 1 FROM pathways.project_indicator_measurements m WHERE m.indicator_id = i.id)
-      AND i.code ~ '^(SSG|CRL|ALS|WSH|EHK)-' AND NOT EXISTS (SELECT 1 FROM pathways.activity_indicator_links l WHERE l.indicator_id = i.id)`)
+  // Read as staff: the owner sees live-published readings (0087) but never the activity links.
+  const [withReadings, unlinked] = await scoped('me', async (tx) => {
+    const rows = await tx.$queryRaw<
+      Array<{ total: bigint; unlinked: bigint }>
+    >`SELECT count(*) AS total,
+      count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM pathways.activity_indicator_links l WHERE l.indicator_id = i.id)) AS unlinked
+      FROM pathways.project_indicators i
+      WHERE i.archived_at IS NULL AND i.code ~ '^(SSG|CRL|ALS|WSH|EHK)-'
+        AND EXISTS (SELECT 1 FROM pathways.project_indicator_measurements m WHERE m.indicator_id = i.id)`
+    return [Number(rows[0].total), Number(rows[0].unlinked)]
+  })
   add(
     'every seeded indicator with readings is linked to an activity',
-    unlinked === 0,
-    `${unlinked} unlinked`,
+    withReadings > 0 && unlinked === 0,
+    `${unlinked} unlinked of ${withReadings}`,
   )
   const library = await scoped('me', (tx) =>
     tx.indicatorLibraryEntry.count({ where: { archivedAt: null } }),

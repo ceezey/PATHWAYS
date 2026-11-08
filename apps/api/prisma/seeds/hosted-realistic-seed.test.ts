@@ -4,6 +4,7 @@ import {
   SYSTEM_ADMIN_EMAIL,
   assertGuardedTarget,
   dummyStaff,
+  hostedProjectRef,
   planBeneficiaryRegistration,
   projectPlans,
   reconcileStorageBuckets,
@@ -43,6 +44,36 @@ describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted/seed-
       () => {
         expect(assertGuardedTarget()).toEqual({ testLocal: false })
       },
+    )
+  })
+
+  it('takes production only when the defense launcher names it, and never mixes projects', () => {
+    const prod = 'mvzxitlbtkkyvubgbcmx'
+    const urls = (ref: string) => ({
+      SUPABASE_URL: `https://${ref}.supabase.co`,
+      DATABASE_URL: `postgresql://pathways_runtime:x@db.${ref}.supabase.co:5432/postgres`,
+      DIRECT_URL: `postgresql://prisma:x@db.${ref}.supabase.co:5432/postgres`,
+    })
+    const mode = { PATHWAYS_HOSTED_SEED_MODE: undefined }
+    withEnv({ ...mode, ...urls(prod), PATHWAYS_HOSTED_SEED_PROJECT_REF: prod }, () => {
+      expect(assertGuardedTarget(hostedProjectRef())).toEqual({ testLocal: false })
+      // The realistic seed calls the guard without a ref and stays on devV2 whatever the env says.
+      expect(() => assertGuardedTarget()).toThrow('SUPABASE_URL must equal exactly')
+    })
+    withEnv({ ...mode, ...urls(prod), PATHWAYS_HOSTED_SEED_PROJECT_REF: undefined }, () =>
+      expect(() => assertGuardedTarget(hostedProjectRef())).toThrow(
+        'SUPABASE_URL must equal exactly',
+      ),
+    )
+    withEnv(
+      { ...mode, ...urls('klbtoqdalmcsfjqophty'), PATHWAYS_HOSTED_SEED_PROJECT_REF: prod },
+      () =>
+        expect(() => assertGuardedTarget(hostedProjectRef())).toThrow(
+          'SUPABASE_URL must equal exactly',
+        ),
+    )
+    withEnv({ ...mode, PATHWAYS_HOSTED_SEED_PROJECT_REF: 'a'.repeat(20) }, () =>
+      expect(() => hostedProjectRef()).toThrow('PATHWAYS_HOSTED_SEED_PROJECT_REF'),
     )
   })
 

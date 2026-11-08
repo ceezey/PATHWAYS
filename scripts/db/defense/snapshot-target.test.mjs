@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   assertIdentities,
+  assertIdentitiesProject,
   assertRestoreTarget,
   assertSameMigration,
   libpqUrl,
@@ -48,6 +49,21 @@ test('assertRestoreTarget refuses missing, invalid, other-role, other-project an
       }),
     /host must be/,
   )
+})
+
+test('assertRestoreTarget takes production only when asked, and never crosses projects', () => {
+  const prod = 'mvzxitlbtkkyvubgbcmx'
+  const prodPooler = pooler.replaceAll(ref, prod)
+  assert.equal(assertRestoreTarget({ HOSTED_ADMIN_URL: prodPooler }, prod), prodPooler)
+  assert.throws(() => assertRestoreTarget({ HOSTED_ADMIN_URL: pooler }, prod), /username/)
+  assert.throws(() => assertRestoreTarget({ HOSTED_ADMIN_URL: prodPooler }), /username/)
+})
+
+test('assertIdentitiesProject refuses identities mirrored from another project', () => {
+  const mirrored = { ...identities(), projectRef: ref }
+  assert.equal(assertIdentitiesProject(mirrored, ref), mirrored)
+  assert.throws(() => assertIdentitiesProject(mirrored, 'mvzxitlbtkkyvubgbcmx'), /mirrored from/)
+  assert.throws(() => assertIdentitiesProject(identities(), ref), /mirrored from/)
 })
 
 test('libpqUrl keeps only sslmode', () => {
