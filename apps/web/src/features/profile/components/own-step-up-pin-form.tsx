@@ -14,8 +14,8 @@ import { STEP_UP_PIN_RULE_MESSAGE, type StepUpPinState } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
 import { currentContinuation } from '../own-password-operation'
 import {
+  type InvalidField,
   OwnStepUpPinDialog,
-  type PinField,
   type PinProof,
   type PinStep,
   type PinValues,
@@ -55,7 +55,7 @@ export function OwnStepUpPinForm() {
   const [proof, setProof] = useState<PinProof>('authenticator')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
-  const [invalid, setInvalid] = useState<{ field: PinField; token: number } | null>(null)
+  const [invalid, setInvalid] = useState<{ field: InvalidField; token: number } | null>(null)
   const [reload, setReload] = useState(0)
   const [loadFailed, setLoadFailed] = useState(false)
   const inFlight = useRef(false)
@@ -87,7 +87,7 @@ export function OwnStepUpPinForm() {
     document.getElementById(`own-${invalid.field}`)?.focus()
   }, [invalid])
 
-  const flag = (field: PinField, message: string) => {
+  const flag = (field: InvalidField, message: string) => {
     setNotice(message)
     setInvalid((previous) => ({ field, token: (previous?.token ?? 0) + 1 }))
   }
@@ -105,13 +105,15 @@ export function OwnStepUpPinForm() {
     inFlight.current = true
     setBusy(true)
     setNotice('')
+    setInvalid(null)
     const { step: run } = currentContinuation(isCurrent)
     try {
       await run(() => verifyBeneficiaryStepUp(code))
       if (isCurrent()) setStep('pin')
     } catch (error) {
       if (!isCurrent()) return
-      setNotice(
+      flag(
+        'code',
         error instanceof BeneficiaryStepUpError && error.failure === 'rejected'
           ? 'The code was not accepted. Try the next authenticator code.'
           : 'Your code could not be verified. Check your connection and try again.',
