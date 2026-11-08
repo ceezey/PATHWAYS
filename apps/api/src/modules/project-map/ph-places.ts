@@ -256,3 +256,14 @@ export function resolvePlaces(area: string | null | undefined): ResolvedPlace[] 
   }
   return places.slice(0, 20)
 }
+
+/** Places listed in the old area that the new area no longer lists, by canonical name and province. */
+export function droppedPlaces(
+  oldArea: string | null,
+  newArea: string | null,
+): Array<{ name: string; province: string }> {
+  const kept = new Set(resolvePlaces(newArea).map((place) => `${place.name}|${place.province}`))
+  return resolvePlaces(oldArea)
+    .filter((place) => !kept.has(`${place.name}|${place.province}`))
+    .map(({ name, province }) => ({ name, province }))
+}
