@@ -80,6 +80,7 @@ const base = {
   mapDataError: '',
   mapDataLoading: false,
   monitoringReadable: true,
+  onSelectProject: vi.fn(),
   participationRead: { data: 'participants' },
   periodsReadable: true,
   reportingPeriods: [period],
@@ -87,6 +88,7 @@ const base = {
   retrySurvey,
   retryTimeline,
   selectedPeriod: period,
+  selectedProjectId: 'project-a',
   survey: { id: 'survey-data' },
   surveyClosedPeriodRequired: false,
   surveyError: 'survey failed',
@@ -135,7 +137,7 @@ describe('AnalyticsAnalysisPanel', () => {
       expect(title()).toBe('Project Coverage Map')
       expect(
         screen.getByText(
-          'Projects placed by implementation area. Hover or tap a point for its KPI, progress and SADDD overview.',
+          'Every project in your scope. The selected project is highlighted; click a point to see its details beside the map.',
         ),
       ).toBeTruthy()
       expect(screen.getByTestId('coverage-map')).toBeTruthy()
@@ -154,7 +156,7 @@ describe('AnalyticsAnalysisPanel', () => {
       const { container } = show()
 
       expect(screen.queryByTestId('coverage-map')).toBeNull()
-      expect(screen.queryByText(/^Projects placed by implementation area/)).toBeNull()
+      expect(screen.queryByText(/^Every project in your scope/)).toBeNull()
       expect(container.querySelectorAll('p')).toHaveLength(0)
     })
 

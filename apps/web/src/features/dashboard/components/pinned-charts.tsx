@@ -1,6 +1,7 @@
 'use client'
 
 import { BarChart3 } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/pathways'
@@ -177,15 +178,22 @@ export const PinnedCharts = () => {
                         : ''}
                     </p>
                   </div>
-                  <Button
-                    aria-label={`Unpin ${viewLabels[pin.view]} for ${title}`}
-                    onClick={() => unpin(pin.id)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Unpin
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {pin.view === 'map' ? (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href="/analytics?view=map">Open in Analytics</Link>
+                      </Button>
+                    ) : null}
+                    <Button
+                      aria-label={`Unpin ${viewLabels[pin.view]} for ${title}`}
+                      onClick={() => unpin(pin.id)}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Unpin
+                    </Button>
+                  </div>
                 </div>
                 <PinBody pin={pin} />
               </article>

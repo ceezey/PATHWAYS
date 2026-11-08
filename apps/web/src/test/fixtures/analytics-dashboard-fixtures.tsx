@@ -37,6 +37,8 @@ const coverageMap = vi.hoisted(() => ({
 }))
 // Stands in for the person choosing the first project, since the filter preselects none.
 const projectPick = vi.hoisted(() => ({ auto: true }))
+// The page URL query the dashboard reads once on mount, for example "view=map&project=project-b".
+const pageQuery = vi.hoisted(() => ({ value: '' }))
 const currentAccess = vi.hoisted(() => ({
   role: 'Monitoring and Evaluation Officer',
   profile: {
@@ -60,6 +62,7 @@ export {
   download,
   insightCalls,
   insights,
+  pageQuery,
   previewExport,
   projectPick,
   rbac,
@@ -113,6 +116,9 @@ vi.mock('@/features/analytics/hooks/use-analytics-insights', async (importOrigin
     return insights.participation
   },
 }))
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(pageQuery.value),
+}))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => currentAccess,
 }))
@@ -142,14 +148,20 @@ vi.mock('@/features/analytics/components/analytics-charts', () => ({
 vi.mock('@/features/analytics/components/analytics-coverage-map', async () => {
   const React = await import('react')
   return {
-    AnalyticsCoverageMap: ({ featureCollection }: { featureCollection: unknown }) => {
+    AnalyticsCoverageMap: ({
+      featureCollection,
+      selectedId,
+    }: {
+      featureCollection: unknown
+      selectedId?: string
+    }) => {
       const [instance] = React.useState(() => {
         coverageMap.instanceCount += 1
         return coverageMap.instanceCount
       })
       coverageMap.featureCollections.push(featureCollection)
       return (
-        <div data-instance={instance} data-testid="coverage-map">
+        <div data-instance={instance} data-selected-id={selectedId} data-testid="coverage-map">
           Coverage map
         </div>
       )
@@ -322,6 +334,7 @@ export const resetAnalyticsMocks = () => {
   ]
   alertHook.result = { data: undefined }
   projectPick.auto = true
+  pageQuery.value = ''
   rbac.allowed = []
   insightCalls.budget.length = 0
   insightCalls.participation.length = 0

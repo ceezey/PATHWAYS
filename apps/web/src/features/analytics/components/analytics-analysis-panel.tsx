@@ -33,6 +33,7 @@ export const AnalyticsAnalysisPanel = ({
   mapDataError,
   mapDataLoading,
   monitoringReadable,
+  onSelectProject,
   participationRead,
   periodsReadable,
   reportingPeriods,
@@ -40,6 +41,7 @@ export const AnalyticsAnalysisPanel = ({
   retrySurvey,
   retryTimeline,
   selectedPeriod,
+  selectedProjectId,
   survey,
   surveyClosedPeriodRequired,
   surveyError,
@@ -61,6 +63,7 @@ export const AnalyticsAnalysisPanel = ({
   mapDataError: string
   mapDataLoading: boolean
   monitoringReadable: boolean
+  onSelectProject: (projectId: string) => void
   participationRead: ReturnType<typeof useParticipationBreakdown>
   periodsReadable: boolean
   reportingPeriods: readonly AnalyticsReportingPeriod[]
@@ -68,6 +71,7 @@ export const AnalyticsAnalysisPanel = ({
   retrySurvey: ReturnType<typeof useSurveyAnalytics>['retrySurvey']
   retryTimeline: ReturnType<typeof useTimelineAnalytics>['retryTimeline']
   selectedPeriod: AnalyticsReportingPeriod | undefined
+  selectedProjectId: string
   survey: ReturnType<typeof useSurveyAnalytics>['survey']
   surveyClosedPeriodRequired: boolean
   surveyError: ReturnType<typeof useSurveyAnalytics>['surveyError']
@@ -92,7 +96,7 @@ export const AnalyticsAnalysisPanel = ({
     <ChartPanel
       description={
         mapSelected
-          ? 'Projects placed by implementation area. Hover or tap a point for its KPI, progress and SADDD overview.'
+          ? 'Every project in your scope. The selected project is highlighted; click a point to see its details beside the map.'
           : undefined
       }
       title={
@@ -106,7 +110,11 @@ export const AnalyticsAnalysisPanel = ({
     >
       {mapSelected ? (
         <>
-          <ProjectCoverageMapPanel mode="dashboard" />
+          <ProjectCoverageMapPanel
+            mode="analytics"
+            onSelectProject={onSelectProject}
+            selectedProjectId={selectedProjectId}
+          />
           {mapDataLoading ? (
             <output className="mt-4 rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
               Updating project analytics.

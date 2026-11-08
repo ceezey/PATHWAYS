@@ -10,6 +10,7 @@ import {
   indicator,
   loadDashboard,
   monitoring,
+  pageQuery,
   project,
   projectPick,
   resetAnalyticsMocks,
@@ -192,6 +193,30 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
   })
 
   describe('map view', () => {
+    it('opens the map with the linked project selected from the page link', async () => {
+      pageQuery.value = 'view=map&project=project-b'
+      projectPick.auto = false
+      const MapsDashboard = await loadDashboard({ maps: true })
+      render(<MapsDashboard />)
+
+      const map = await screen.findByTestId('coverage-map')
+      expect(map.getAttribute('data-selected-id')).toBe('project-b')
+      expect(screen.getByLabelText('Visualization type')).toHaveProperty('value', 'map')
+      expect(screen.getByLabelText('Project filter')).toHaveProperty('value', 'project-b')
+      await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
+    })
+
+    it('preselects nothing for an unknown linked project', async () => {
+      pageQuery.value = 'view=map&project=missing'
+      projectPick.auto = false
+      const MapsDashboard = await loadDashboard({ maps: true })
+      render(<MapsDashboard />)
+
+      expect(await screen.findByText('Select a project first')).toBeTruthy()
+      expect(screen.getByLabelText('Project filter')).toHaveProperty('value', '')
+      expect(api.getActivities).not.toHaveBeenCalled()
+    })
+
     it('keeps the map when monitoring fails and retries only the monitoring read', async () => {
       const MapsDashboard = await loadDashboard({ maps: true })
       api.getMonitoringDashboard.mockRejectedValueOnce(new Error('Monitoring is unavailable.'))

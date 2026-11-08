@@ -2,12 +2,14 @@
 
 import { AlertTriangle, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
+import { MAPS_UI_ENABLED } from '@/constants/feature-flags'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -47,6 +49,12 @@ import { SadddAnalysisPanel } from './saddd-analysis-panel'
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
+  // The page link is read once on mount: view=map opens the map and project=<id> picks a project.
+  const params = useSearchParams()
+  const [pageLink] = useState(() => ({
+    map: MAPS_UI_ENABLED && params?.get('view') === 'map',
+    projectId: params?.get('project') ?? '',
+  }))
   const {
     canExportAnalytics,
     canReadActivities,
@@ -87,10 +95,13 @@ export const AnalyticsDashboard = () => {
     canReadIndicatorDefinitions,
     canReadIndicatorValues,
     canReadIndicators,
+    initialProjectId: pageLink.projectId,
     role,
   })
   const [analysisView, setAnalysisView] = useState<AnalysisView>('kpi')
-  const [visualizationType, setVisualizationType] = useState<VisualizationType>('bar')
+  const [visualizationType, setVisualizationType] = useState<VisualizationType>(
+    pageLink.map ? 'map' : 'bar',
+  )
   const [indicatorId, setIndicatorId] = useState('all')
 
   const alertRead = useAuthorizedRead(
@@ -324,9 +335,11 @@ export const AnalyticsDashboard = () => {
             periodsReadable={periodsReadable}
             reportingPeriods={reportingPeriods}
             retryMapData={retryMapData}
+            onSelectProject={handleProjectChange}
             retrySurvey={retrySurvey}
             retryTimeline={retryTimeline}
             selectedPeriod={selectedPeriod}
+            selectedProjectId={projectId}
             survey={survey}
             surveyClosedPeriodRequired={surveyClosedPeriodRequired}
             surveyError={surveyError}
