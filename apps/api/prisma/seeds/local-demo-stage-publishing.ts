@@ -35,6 +35,9 @@ const publications: Array<{
 
 type Publication = { revision: number; state: string } | null
 
+// No photos (each needs its own public approval); the map is left out because projects store no coordinates.
+const selection = { media: [], views: ['kpi', 'saddd', 'participation', 'timeline'] }
+
 /** Public tracker publication workflow: a manager submits a plain-language summary, a second
  * role approves it and a third publishes it. Nothing else leaves the private workspace. */
 export async function stagePublishing(ctx: DemoContext) {
@@ -59,6 +62,7 @@ export async function stagePublishing(ctx: DemoContext) {
             clientRequestId: request('submit'),
             expectedRevision: revision,
             summary: plan.summary,
+            selection,
           }),
         )
       } else if (current?.state === 'FOR_REVIEW') {

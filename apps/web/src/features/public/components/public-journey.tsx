@@ -4,7 +4,7 @@ import { ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
-import { publicOrganizations } from '@/constants/navigation'
+import { organizationsHref } from '@/constants/navigation'
 
 import { journeyStepId, journeySteps } from './public-journey-content'
 import { Glow, shell } from './public-sections'
@@ -138,9 +138,9 @@ export const HeroJourney = ({ children }: { children: ReactNode }) => {
                 </span>
                 <Link
                   className="flex shrink-0 items-center gap-1 font-semibold text-sky-100 hover:text-white"
-                  href={`/organizations/${publicOrganizations[0].slug}`}
+                  href={organizationsHref}
                 >
-                  Published projects
+                  Organizations
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>

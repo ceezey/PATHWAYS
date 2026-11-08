@@ -1,16 +1,23 @@
-// Defense demo snapshot: mirror devV2 identities locally, dump the local seed, restore it onto devV2.
-// Hosted runs belong to the developer; implementers use --test-local and an identities fixture only.
+// Defense demo snapshot: mirror hosted identities locally, dump the local seed, restore it onto the
+// hosted project (devV2, or production with --production). Hosted runs belong to the developer;
+// implementers use --test-local and an identities fixture only.
 //
 // Usage:
-//   node scripts/db/defense/snapshot.mjs mirror (--env-file <path> | --identities <file>)
+//   node scripts/db/defense/snapshot.mjs mirror (--env-file <path> [--production] | --identities <file>)
 //   node scripts/db/defense/snapshot.mjs dump [--identities <file>]
-//   node scripts/db/defense/snapshot.mjs restore (--env-file <path> | --test-local) [--identities <file>]
-//     [--today YYYY-MM-DD, test-local only] [--skip-storage] [--allow-shift] [--dry-run]
-//   node scripts/db/defense/snapshot.mjs storage (--env-file <path> | --test-local)
+//   node scripts/db/defense/snapshot.mjs restore (--env-file <path> [--production] | --test-local)
+//     [--identities <file>] [--today YYYY-MM-DD, test-local only] [--skip-storage] [--allow-shift] [--dry-run]
+//   node scripts/db/defense/snapshot.mjs storage (--env-file <path> [--production] | --test-local)
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { assertSeedTarget, loadEnvFile, resolveEnvFilePath } from '../hosted/seed-target.mjs'
+import {
+  ALLOWED_PROJECT_REF,
+  PRODUCTION_PROJECT_REF,
+  assertSeedTarget,
+  loadEnvFile,
+  resolveEnvFilePath,
+} from '../hosted/seed-target.mjs'
 import { readJson } from './snapshot-io.mjs'
 import { dump, mirror } from './snapshot-local.mjs'
 import { restore, storage } from './snapshot-restore.mjs'
@@ -41,22 +48,25 @@ function parseArgs(argv) {
     skipStorage: argv.includes('--skip-storage'),
     allowShift: argv.includes('--allow-shift'),
     dryRun: argv.includes('--dry-run'),
+    projectRef: argv.includes('--production') ? PRODUCTION_PROJECT_REF : ALLOWED_PROJECT_REF,
   }
 }
 
-function hostedEnv(envFile) {
+function hostedEnv(envFile, projectRef) {
   const env = loadEnvFile(resolveEnvFilePath(envFile))
-  assertSeedTarget(env, { testLocal: false })
+  assertSeedTarget(env, { testLocal: false, projectRef })
   return env
 }
 
 const readIdentities = (file) => assertIdentities(readJson(file ?? files.identities))
 
 const commands = {
-  mirror: (args) => mirror(args, files, hostedEnv),
+  mirror: (args) => mirror(args, files, (file) => hostedEnv(file, args.projectRef)),
   dump: (args) => dump(args, files, readIdentities),
-  restore: (args) => restore(args, files, hostedEnv, readIdentities),
-  storage: (args) => storage(args, files, hostedEnv),
+  restore: (args) =>
+    restore(args, files, (file) => hostedEnv(file, args.projectRef), readIdentities),
+  storage: (args) =>
+    storage(args, files, (file) => hostedEnv(file, args.projectRef), readIdentities),
 }
 
 async function main() {

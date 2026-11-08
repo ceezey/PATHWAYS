@@ -168,9 +168,7 @@ describe('AnalyticsFilterBar', () => {
         ['project-b', 'Project B'],
       ])
       expect(field('Project filter').value).toBe('project-b')
-      expect(field('Project filter').getAttribute('data-placeholder')).toBe(
-        'No authorized projects',
-      )
+      expect(field('Project filter').getAttribute('data-placeholder')).toBe('Select a project')
     })
 
     it('reports the chosen project', () => {

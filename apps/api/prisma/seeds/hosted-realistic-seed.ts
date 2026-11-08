@@ -31,9 +31,8 @@ import { approvedOrganization } from './developer-bootstrap'
  * account; it is looked up by email through the admin API and must already exist.
  */
 
-const ALLOWED_PROJECT_REF = 'klbtoqdalmcsfjqophty'
-const ALLOWED_SUPABASE_URL = `https://${ALLOWED_PROJECT_REF}.supabase.co`
-const ALLOWED_DIRECT_PG_HOST = `db.${ALLOWED_PROJECT_REF}.supabase.co`
+const DEV_PROJECT_REF = 'klbtoqdalmcsfjqophty'
+const PRODUCTION_PROJECT_REF = 'mvzxitlbtkkyvubgbcmx'
 const SYSTEM_ADMIN_EMAIL = 'cianjake.francisco@gmail.com'
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
 
@@ -141,19 +140,18 @@ function isPoolerHost(hostname: string | null): boolean {
 // Mirrors scripts/db/hosted/seed-target.mjs's assertHostedPgUrl: the host must be the
 // project's direct Postgres host (bare role username) or a pooler host (username
 // "<role>.<ref>"). Anything else, including a loopback host, is rejected in hosted mode.
-function assertHostedPgUrl(url: URL, label: string, expectedRole: string): void {
+function assertHostedPgUrl(url: URL, label: string, expectedRole: string, ref: string): void {
+  const directHost = `db.${ref}.supabase.co`
   const host = (url.hostname || '').toLowerCase()
   const username = safeUsername(url)
-  if (host === ALLOWED_DIRECT_PG_HOST) {
+  if (host === directHost) {
     if (username !== expectedRole) {
-      throw new Error(
-        `${label} must connect as role "${expectedRole}" on ${ALLOWED_DIRECT_PG_HOST}.`,
-      )
+      throw new Error(`${label} must connect as role "${expectedRole}" on ${directHost}.`)
     }
     return
   }
   if (isPoolerHost(host)) {
-    const expectedUsername = `${expectedRole}.${ALLOWED_PROJECT_REF}`
+    const expectedUsername = `${expectedRole}.${ref}`
     if (username !== expectedUsername) {
       throw new Error(
         `${label} must use username "${expectedUsername}" on a *.pooler.supabase.com host.`,
@@ -162,11 +160,20 @@ function assertHostedPgUrl(url: URL, label: string, expectedRole: string): void 
     return
   }
   throw new Error(
-    `${label} host must be exactly ${ALLOWED_DIRECT_PG_HOST} or a *.pooler.supabase.com host with username "${expectedRole}.${ALLOWED_PROJECT_REF}". Refusing to seed any other target (including loopback hosts) in hosted mode.`,
+    `${label} host must be exactly ${directHost} or a *.pooler.supabase.com host with username "${expectedRole}.${ref}". Refusing to seed any other target (including loopback hosts) in hosted mode.`,
   )
 }
 
-function assertGuardedTarget() {
+/** The hosted project the launcher validated: devV2 unless it passed production (defense seed only). */
+export function hostedProjectRef() {
+  const ref = process.env.PATHWAYS_HOSTED_SEED_PROJECT_REF ?? DEV_PROJECT_REF
+  if (ref !== DEV_PROJECT_REF && ref !== PRODUCTION_PROJECT_REF)
+    throw new Error('PATHWAYS_HOSTED_SEED_PROJECT_REF must name devV2 or production.')
+  return ref
+}
+
+// The realistic seed calls this without a ref and stays on devV2; only the defense seed passes another.
+function assertGuardedTarget(ref: string = DEV_PROJECT_REF) {
   const testLocal = process.env.PATHWAYS_HOSTED_SEED_MODE === 'test-local'
   const supabaseUrl = process.env.SUPABASE_URL
   const databaseUrl = process.env.DATABASE_URL
@@ -191,12 +198,13 @@ function assertGuardedTarget() {
     }
     return { testLocal: true as const }
   }
-  if (supabaseUrl !== ALLOWED_SUPABASE_URL) {
-    throw new Error(`SUPABASE_URL must equal exactly ${ALLOWED_SUPABASE_URL}.`)
+  const allowedUrl = `https://${ref}.supabase.co`
+  if (supabaseUrl !== allowedUrl) {
+    throw new Error(`SUPABASE_URL must equal exactly ${allowedUrl}.`)
   }
   // DATABASE_URL is the runtime identity; DIRECT_URL is the migration owner.
-  assertHostedPgUrl(databaseParsed, 'DATABASE_URL', 'pathways_runtime')
-  assertHostedPgUrl(directParsed, 'DIRECT_URL', 'prisma')
+  assertHostedPgUrl(databaseParsed, 'DATABASE_URL', 'pathways_runtime', ref)
+  assertHostedPgUrl(directParsed, 'DIRECT_URL', 'prisma', ref)
   return { testLocal: false as const }
 }
 

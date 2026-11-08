@@ -24,7 +24,7 @@ export function guardRun(run, log = console.error) {
     try {
       return run(sql)
     } catch (error) {
-      if (error?.status === 3) log('Restore rolled back; devV2 unchanged.')
+      if (error?.status === 3) log('Restore rolled back; the target is unchanged.')
       else if (error?.status === 2)
         log(
           'Connection lost; if it happened during COMMIT, check with the wipe dry-run (runbook section 4 step 2).',
