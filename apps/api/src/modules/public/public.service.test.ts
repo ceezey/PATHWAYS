@@ -333,6 +333,13 @@ describe('publication live revisions', () => {
     tx.$queryRaw.mockResolvedValue([row('FOR_REVIEW')])
     await expect(service.get(actor, projectId)).resolves.toMatchObject({ live: null })
   })
+  it('get strips the frozen pins from the draft and the live snapshot in SQL', async () => {
+    tx.$queryRaw.mockResolvedValue([row('PUBLISHED')])
+    await service.get(actor, projectId)
+    const query = tx.$queryRaw.mock.calls[0][0] as { sql: string }
+    expect(query.sql).toContain(`snapshot - 'pins' AS snapshot`)
+    expect(query.sql).toContain(`live_snapshot - 'pins' AS "liveSnapshot"`)
+  })
   it('published() calls p85_public_projects', async () => {
     const db = { $queryRaw: vi.fn().mockResolvedValue([{ projects: [] }]) }
     await new PublicService(db as unknown as PrismaService).published().catch(() => undefined)
