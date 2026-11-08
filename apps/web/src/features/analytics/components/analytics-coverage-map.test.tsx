@@ -27,6 +27,8 @@ class MapMock {
   readonly resize = vi.fn()
   readonly easeTo = vi.fn()
   readonly setPaintProperty = vi.fn()
+  readonly setLayoutProperty = vi.fn()
+  readonly dragPan = { enable: vi.fn(), disable: vi.fn() }
   readonly project = vi.fn(() => ({ x: 100, y: 100 }))
   readonly getContainer = vi.fn(() => ({ clientWidth: 600, clientHeight: 400 }))
   readonly getCanvas = vi.fn(() => ({ style: {} as Record<string, string> }))
@@ -101,13 +103,13 @@ class ResizeObserverMock {
 }
 
 const features = (
-  points: readonly [id: string, longitude: number, latitude: number][],
+  points: readonly [id: string, longitude: number, latitude: number, locked?: boolean][],
 ): SafeMapFeatureCollection => ({
   type: 'FeatureCollection',
-  features: points.map(([id, longitude, latitude]) => ({
+  features: points.map(([id, longitude, latitude, locked]) => ({
     type: 'Feature',
     id,
-    properties: { id, key: `${id}:0`, label: id, title: `Project ${id}` },
+    properties: { id, key: `${id}:0`, label: id, title: `Project ${id}`, locked },
     geometry: { type: 'Point', coordinates: [longitude, latitude] },
   })),
 })
@@ -311,5 +313,192 @@ describe('AnalyticsCoverageMap', () => {
     expect(resolveMapStyleUrl(' https://tiles.example.test/style.json ')).toBe(
       'https://tiles.example.test/style.json',
     )
+  })
+
+  describe('selection', () => {
+    const layer = 'pathways-authorized-project-location-points'
+
+    it('highlights the selected project and dims the others', async () => {
+      render(
+        <AnalyticsCoverageMap
+          featureCollection={features([
+            ['a', 121, 14],
+            ['b', 122, 15],
+          ])}
+          selectedId="a"
+          styleUrl="test-style"
+        />,
+      )
+      await waitFor(() =>
+        expect(maplibre.instances[0]?.setPaintProperty).toHaveBeenCalledWith(
+          layer,
+          'circle-radius',
+          ['case', ['==', ['get', 'id'], 'a'], 9, 6],
+        ),
+      )
+      const map = maplibre.instances[0]
+      expect(map?.setPaintProperty).toHaveBeenCalledWith(layer, 'circle-color', [
+        'case',
+        ['==', ['get', 'id'], 'a'],
+        '#005EBF',
+        '#526779',
+      ])
+      expect(map?.setPaintProperty).toHaveBeenCalledWith(layer, 'circle-opacity', [
+        'case',
+        ['==', ['get', 'id'], 'a'],
+        1,
+        0.45,
+      ])
+      expect(map?.setLayoutProperty).toHaveBeenCalledWith(layer, 'circle-sort-key', [
+        'case',
+        ['==', ['get', 'id'], 'a'],
+        1,
+        0,
+      ])
+    })
+
+    it('fits the camera to the selected project when the selection changes', async () => {
+      const collection = features([
+        ['a', 121, 14],
+        ['b', 125, 18],
+      ])
+      const rendered = render(
+        <AnalyticsCoverageMap featureCollection={collection} styleUrl="test-style" />,
+      )
+      await waitFor(() => expect(maplibre.instances[0]?.addLayer).toHaveBeenCalled())
+      const map = maplibre.instances[0]
+
+      rendered.rerender(
+        <AnalyticsCoverageMap
+          featureCollection={collection}
+          selectedId="b"
+          styleUrl="test-style"
+        />,
+      )
+
+      await waitFor(() =>
+        expect(map?.jumpTo).toHaveBeenLastCalledWith({ center: [125, 18], zoom: 12 }),
+      )
+    })
+
+    it('keeps the plain look when nothing is selected', async () => {
+      render(
+        <AnalyticsCoverageMap
+          featureCollection={features([['a', 121, 14]])}
+          styleUrl="test-style"
+        />,
+      )
+      await waitFor(() => expect(maplibre.instances[0]?.addLayer).toHaveBeenCalled())
+      const map = maplibre.instances[0]
+
+      expect(JSON.stringify(map?.setPaintProperty.mock.calls)).not.toContain('"id"')
+      expect(JSON.stringify(map?.setLayoutProperty.mock.calls)).not.toContain('"id"')
+    })
+  })
+
+  describe('editing', () => {
+    const pin = (key: string) => ({ features: [{ properties: { key } }], preventDefault: vi.fn() })
+    const at = (lng: number, lat: number) => ({ lngLat: { lng, lat } })
+    const mountEditing = async (
+      collection: SafeMapFeatureCollection,
+      key: string,
+      onDrop = vi.fn(),
+    ) => {
+      const rendered = render(
+        <AnalyticsCoverageMap
+          editing={{ key, onDrop }}
+          featureCollection={collection}
+          styleUrl="test-style"
+        />,
+      )
+      await waitFor(() => expect(maplibre.instances[0]?.handlers.get('mousedown')?.size).toBe(1))
+      const map = maplibre.instances[0] as MapMock
+      return { map, onDrop, rendered }
+    }
+
+    it('drags the editing pin and reports the release coordinates', async () => {
+      const { map, onDrop } = await mountEditing(features([['a', 121, 14]]), 'a:0')
+      const source = map.sources.get('pathways-authorized-project-locations')
+
+      act(() => map.emit('mousedown', pin('a:0')))
+      expect(map.dragPan.disable).toHaveBeenCalledTimes(1)
+      act(() => map.emit('mousemove', at(122, 15)))
+      expect(source?.setData).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          features: [
+            expect.objectContaining({ geometry: { type: 'Point', coordinates: [122, 15] } }),
+          ],
+        }),
+      )
+      act(() => map.emit('mouseup', at(123, 16)))
+
+      expect(onDrop).toHaveBeenCalledWith([123, 16])
+      expect(map.dragPan.enable).toHaveBeenCalledTimes(1)
+      act(() => map.emit('mousemove', at(130, 20)))
+      expect(onDrop).toHaveBeenCalledTimes(1)
+    })
+
+    it('ignores a press on another pin', async () => {
+      const { map, onDrop } = await mountEditing(
+        features([
+          ['a', 121, 14],
+          ['b', 122, 15],
+        ]),
+        'a:0',
+      )
+
+      act(() => map.emit('mousedown', pin('b:0')))
+      act(() => map.emit('mousemove', at(122, 15)))
+      act(() => map.emit('mouseup', at(122, 15)))
+
+      expect(map.dragPan.disable).not.toHaveBeenCalled()
+      expect(onDrop).not.toHaveBeenCalled()
+    })
+
+    it('does not drag a locked pin even when it is the editing key', async () => {
+      const { map, onDrop } = await mountEditing(features([['a', 121, 14, true]]), 'a:0')
+
+      act(() => map.emit('mousedown', pin('a:0')))
+      act(() => map.emit('mousemove', at(122, 15)))
+      act(() => map.emit('mouseup', at(122, 15)))
+
+      expect(map.dragPan.disable).not.toHaveBeenCalled()
+      expect(onDrop).not.toHaveBeenCalled()
+    })
+
+    it('does not save a press that never moved', async () => {
+      const { map, onDrop } = await mountEditing(features([['a', 121, 14]]), 'a:0')
+
+      act(() => map.emit('mousedown', pin('a:0')))
+      act(() => map.emit('mouseup', at(121, 14)))
+
+      expect(onDrop).not.toHaveBeenCalled()
+      expect(map.dragPan.enable).toHaveBeenCalledTimes(1)
+    })
+
+    it('drags with touch', async () => {
+      const { map, onDrop } = await mountEditing(features([['a', 121, 14]]), 'a:0')
+
+      act(() => map.emit('touchstart', pin('a:0')))
+      act(() => map.emit('touchmove', at(122, 15)))
+      act(() => map.emit('touchend', at(122, 15)))
+
+      expect(onDrop).toHaveBeenCalledWith([122, 15])
+    })
+
+    it('redraws every pin from props when editing ends', async () => {
+      const collection = features([['a', 121, 14]])
+      const { map, rendered } = await mountEditing(collection, 'a:0')
+      const source = map.sources.get('pathways-authorized-project-locations')
+
+      act(() => map.emit('mousedown', pin('a:0')))
+      act(() => map.emit('mousemove', at(125, 18)))
+      rendered.rerender(
+        <AnalyticsCoverageMap featureCollection={collection} styleUrl="test-style" />,
+      )
+
+      await waitFor(() => expect(source?.setData).toHaveBeenLastCalledWith(collection))
+      expect(map.dragPan.enable).toHaveBeenCalledTimes(1)
+    })
   })
 })

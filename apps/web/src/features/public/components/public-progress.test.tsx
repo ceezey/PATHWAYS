@@ -19,6 +19,7 @@ class MapMock {
   readonly resize = vi.fn()
   readonly easeTo = vi.fn()
   readonly setPaintProperty = vi.fn()
+  readonly setLayoutProperty = vi.fn()
   readonly project = vi.fn(() => ({ x: 100, y: 100 }))
   readonly getContainer = vi.fn(() => ({ clientWidth: 600, clientHeight: 400 }))
   readonly getCanvas = vi.fn(() => ({ style: {} }))
