@@ -1,7 +1,6 @@
 // Local-stack halves of the defense snapshot: mirror hosted identities in, dump the seeded stack out.
 import { readFileSync } from 'node:fs'
 
-import { ALLOWED_PROJECT_REF } from '../hosted/seed-target.mjs'
 import {
   assertLocalContainer,
   dumpLocal,
@@ -39,11 +38,11 @@ export async function mirror(args, files, hostedEnv) {
     )
   const identities = env
     ? {
-        projectRef: ALLOWED_PROJECT_REF,
+        projectRef: args.projectRef,
         capturedAt: new Date().toISOString(),
         ...parseJson(
           psqlUrl(libpqUrl(env.DIRECT_URL), mirrorReadSql()).trim(),
-          'The devV2 identities query result',
+          'The hosted identities query result',
         ),
       }
     : readJson(args.identities)

@@ -83,6 +83,29 @@ test('a flag without a value is an error', () => {
   assert.match(cli('restore', '--test-local', '--today', '--skip-storage').stderr, /needs a value/)
 })
 
+test('--production refuses a devV2 env file before any docker call', () => {
+  const ref = 'klbtoqdalmcsfjqophty'
+  const pg = (role) => `postgresql://${role}.${ref}:pw@aws-0-x.pooler.supabase.com:5432/postgres`
+  const lines = [
+    ['SUPABASE_URL', `https://${ref}.supabase.co`],
+    ['DATABASE_URL', pg('pathways_runtime')],
+    ['DIRECT_URL', pg('prisma')],
+    ['HOSTED_ADMIN_URL', pg('postgres')],
+  ].map((pair) => pair.join('='))
+  const dir = mkdtempSync(path.join(tmpdir(), 'snapshot-'))
+  const envFile = path.join(dir, 'x.env')
+  writeFileSync(envFile, `${lines.join('\n')}\n`)
+  try {
+    for (const command of ['mirror', 'restore', 'storage']) {
+      const run = cli(command, '--env-file', envFile, '--production', '--dry-run')
+      assert.equal(run.status, 1)
+      assert.match(run.stderr, /SUPABASE_URL must equal exactly https:\/\/mvzxitlbtkkyvubgbcmx/)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('hosted restore without a service role key fails before any docker call', () => {
   const ref = 'klbtoqdalmcsfjqophty'
   const pg = (role) => `postgresql://${role}.${ref}:pw@aws-0-x.pooler.supabase.com:5432/postgres`
