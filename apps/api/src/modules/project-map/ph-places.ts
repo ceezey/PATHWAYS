@@ -267,3 +267,30 @@ export function droppedPlaces(
     .filter((place) => !kept.has(`${place.name}|${place.province}`))
     .map(({ name, province }) => ({ name, province }))
 }
+
+type SavedPin = {
+  name: string
+  province: string
+  longitude: number
+  latitude: number
+  locked?: boolean
+}
+
+/** Moves each listed place to its saved pin; a pin of a place not in the list is ignored. */
+export function applySavedPins(
+  places: ResolvedPlace[],
+  pins: SavedPin[],
+): Array<ResolvedPlace & { saved: boolean; locked: boolean }> {
+  const byPlace = new Map(pins.map((pin) => [`${pin.name}|${pin.province}`, pin]))
+  return places.map((place) => {
+    const pin = byPlace.get(`${place.name}|${place.province}`)
+    if (!pin) return { ...place, saved: false, locked: false }
+    return {
+      ...place,
+      longitude: pin.longitude,
+      latitude: pin.latitude,
+      saved: true,
+      locked: pin.locked ?? false,
+    }
+  })
+}

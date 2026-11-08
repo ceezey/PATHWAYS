@@ -5,6 +5,7 @@ import { publicAnalyticsResponse } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { resolvePlaces } from '../project-map/ph-places'
 import { PublicAnalyticsService } from './public-analytics.service'
 
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -95,6 +96,39 @@ describe('public analytics', () => {
     })
     expect(JSON.stringify(body)).not.toMatch(/overview|budget/i)
     expect(Object.keys(body).sort()).toEqual(['places', 'view'])
+  })
+
+  it('map draws a pin saved in the snapshot at its saved position', async () => {
+    const pins = [{ name: 'Cebu City', province: 'Cebu', longitude: 123.9, latitude: 10.4 }]
+    sql({ area: 'Cebu City', towns, pins })
+    const body = await service.read(projectId, 'map')
+    expect(body).toMatchObject({
+      places: [{ name: 'Cebu City', longitude: 123.9, latitude: 10.4, saved: true, locked: false }],
+    })
+  })
+
+  it('map without pins in the snapshot keeps the centroids', async () => {
+    sql({ area: 'Cebu City', towns })
+    const body = await service.read(projectId, 'map')
+    const [centroid] = resolvePlaces('Cebu City')
+    expect(body).toMatchObject({
+      places: [
+        {
+          name: 'Cebu City',
+          longitude: centroid?.longitude,
+          latitude: centroid?.latitude,
+          saved: false,
+          locked: false,
+        },
+      ],
+    })
+  })
+
+  it('map ignores a snapshot pin of a place the area no longer lists', async () => {
+    const pins = [{ name: 'Guiuan', province: 'Eastern Samar', longitude: 125.7, latitude: 11 }]
+    sql({ area: 'Cebu City', towns, pins })
+    const body = await service.read(projectId, 'map')
+    expect(body).toMatchObject({ places: [{ name: 'Cebu City', saved: false }] })
   })
 
   it('unknown view 404 before any query', async () => {

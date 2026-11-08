@@ -25,7 +25,7 @@ import {
   timelineAggregateSchema,
 } from '../analytics/timeline-analytics.helpers'
 import { releasedNulls, toIndicatorResponse } from '../indicators/indicators.mapper'
-import { resolvePlaces } from '../project-map/ph-places'
+import { applySavedPins, resolvePlaces } from '../project-map/ph-places'
 import { placeReach, resolveTowns, townReachSchema } from '../project-map/project-map.service'
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -38,7 +38,18 @@ const timelineData = z.object({
   aggregate: timelineAggregateSchema,
   lastCompletion: date.nullable(),
 })
-const mapData = z.object({ area: z.string().nullable(), towns: townReachSchema })
+// Pins are copied into the snapshot at submission; a snapshot from before pins existed has none.
+const snapshotPin = z.object({
+  name: z.string(),
+  province: z.string(),
+  longitude: z.number(),
+  latitude: z.number(),
+})
+const mapData = z.object({
+  area: z.string().nullable(),
+  towns: townReachSchema,
+  pins: z.array(snapshotPin).default([]),
+})
 const kpiData = z.array(z.record(z.string(), z.unknown())).max(100)
 // The public page has no organization; the timeline builder only needs a well-formed scope.
 const NO_ORGANIZATION = '00000000-0000-0000-0000-000000000000'
@@ -111,13 +122,11 @@ export class PublicAnalyticsService {
         })
       }
       case 'map': {
-        const { area, towns } = mapData.parse(data)
+        const { area, towns, pins } = mapData.parse(data)
         const resolved = resolveTowns(towns)
         return {
-          places: resolvePlaces(area).map((place) => ({
+          places: applySavedPins(resolvePlaces(area), pins).map((place) => ({
             ...place,
-            saved: false,
-            locked: false,
             reach: placeReach(place, resolved),
           })),
         }

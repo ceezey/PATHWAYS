@@ -16,7 +16,7 @@ import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
-import { type ResolvedPlace, resolvePlaces } from './ph-places'
+import { type ResolvedPlace, applySavedPins, resolvePlaces } from './ph-places'
 
 const projectLimit = 100
 
@@ -125,17 +125,37 @@ export class ProjectMapService {
   }
 
   async read(identity: ApplicationIdentity): Promise<ProjectMap> {
-    const rows = await withAuthorizedOperation(
+    const { rows, pins } = await withAuthorizedOperation(
       this.prisma,
       identity,
       'projects.read',
-      (tx, actor) =>
-        tx.project.findMany({
+      async (tx, actor) => {
+        const found = await tx.project.findMany({
           where: projectScope(actor),
           select: { id: true, code: true, title: true, status: true, implementationArea: true },
           orderBy: { title: 'asc' },
           take: projectLimit,
-        }),
+        })
+        const ids = found
+          .filter((row) => resolvePlaces(row.implementationArea).length > 0)
+          .map((row) => row.id)
+        // One read covers every located project, scoped to the actor organization.
+        const saved =
+          ids.length === 0
+            ? []
+            : await tx.projectMapPin.findMany({
+                where: { organizationId: actor.organizationId, projectId: { in: ids } },
+                select: {
+                  projectId: true,
+                  placeName: true,
+                  province: true,
+                  longitude: true,
+                  latitude: true,
+                  locked: true,
+                },
+              })
+        return { rows: found, pins: saved }
+      },
     )
     const located = rows
       .map((row) => ({ ...row, places: resolvePlaces(row.implementationArea) }))
@@ -154,10 +174,13 @@ export class ProjectMapService {
         title: row.title,
         status: row.status,
         implementationArea: row.implementationArea ?? '',
-        places: row.places.map((place) => ({
+        places: applySavedPins(
+          row.places,
+          pins
+            .filter((pin) => pin.projectId === row.id)
+            .map(({ placeName, ...pin }) => ({ ...pin, name: placeName })),
+        ).map((place) => ({
           ...place,
-          saved: false,
-          locked: false,
           reach: towns ? placeReach(place, towns) : null,
         })),
         overview,
