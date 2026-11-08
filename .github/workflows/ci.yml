@@ -24,6 +24,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # master is production only; a release must strip every dev-only path listed in this file.
+      - name: Keep dev-only paths off master
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          leaked="$(git ls-files -- $(cat .github/master-excluded-paths))"
+          if [ -n "$leaked" ]; then echo "Dev-only paths on master:"; echo "$leaked"; exit 1; fi
+
       - name: Install PostgreSQL 18 for disposable local replay
         shell: bash
         run: |
@@ -109,6 +117,8 @@ jobs:
 
   sad:
     name: Automated SAD checks (specialist sign-off remains separate)
+    # scripts/sad is dev-only and absent on master.
+    if: github.ref != 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -21,7 +21,7 @@ This file stays in the repo only so that humans and agents know where to look. S
 | `CLAUDE.md` | Claude Code notes; defers to `AGENTS.md` |
 | `CODEX.md` | Codex platform usage and `.codex/agents/*.toml` bindings |
 | `docs/index.md` | This pointer |
-| `README.md`, `README-setup.md` | Repository entry point and local setup |
+| `README.md` | Repository entry point, branch policy and local setup |
 | `.claude/agents/`, `.codex/agents/` | Subagent definitions; they cite the vault SAD, BUILD, PRD and QAD |
 | `apps/**/*.md`, `infra/**/*.md` | Code-adjacent READMEs and setup notes |
 
