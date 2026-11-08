@@ -4,6 +4,8 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { deferred } from '@/test/fixtures/deferred'
+import { pickFirst, usePickFirstProject } from '@/test/fixtures/pick-first-project'
+
 import { useAnalyticsScope } from './use-analytics-scope'
 
 const api = vi.hoisted(() => ({
@@ -48,6 +50,7 @@ const mount = () => {
   const view = renderHook(
     (props: typeof grants) => {
       const value = useAnalyticsScope(props)
+      usePickFirstProject(value)
       seen.push(value)
       return value
     },
@@ -58,6 +61,7 @@ const mount = () => {
 
 describe('useAnalyticsScope stale answers', () => {
   beforeEach(() => {
+    pickFirst.enabled = true
     api.getProjectsForRole.mockResolvedValue([project('project-a'), project('project-b')])
     api.getActivities.mockResolvedValue([{ id: 'activity-1' }])
     api.getProjectIndicators.mockImplementation((projectId: string) =>

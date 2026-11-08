@@ -87,39 +87,13 @@ describe('AnalyticsActionBar', () => {
     const { container } = show({ profile: { userId: 'user-1', permissions: ['public.preview'] } })
 
     expect(container.firstElementChild?.className).toBe('flex flex-wrap items-center gap-2')
-    expect(container.firstElementChild?.children).toHaveLength(3)
+    expect(container.firstElementChild?.children).toHaveLength(2)
   })
 
-  describe('Add to public page', () => {
-    const previewer = { userId: 'user-1', permissions: ['public.preview'] }
-    const publicLink = () =>
-      screen.queryByRole('link', { name: 'Add to public page' }) as HTMLAnchorElement | null
+  it('never offers Add to public page; publishing lives in the public tracker', () => {
+    show({ profile: { userId: 'user-1', permissions: ['public.preview'] } })
 
-    it('opens the publication queue with the analysis view pre-added', () => {
-      show({ profile: previewer })
-
-      expect(publicLink()?.getAttribute('href')).toBe(
-        '/transparency?projectId=project-a&addView=kpi',
-      )
-    })
-
-    it('adds the map when the map is selected', () => {
-      show({ profile: previewer, analysisView: 'survey', visualizationType: 'map' })
-
-      expect(publicLink()?.getAttribute('href')).toBe(
-        '/transparency?projectId=project-a&addView=map',
-      )
-    })
-
-    it.each([
-      ['the survey view', { profile: previewer, analysisView: 'survey' }],
-      ['no public.preview', {}],
-      ['no project', { profile: previewer, selectedProject: undefined }],
-    ])('is hidden for %s', (_name, overrides) => {
-      show(overrides)
-
-      expect(publicLink()).toBeNull()
-    })
+    expect(screen.queryByRole('link', { name: 'Add to public page' })).toBeNull()
   })
 
   describe('Add to Dashboard', () => {
