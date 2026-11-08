@@ -43,6 +43,7 @@ import {
   type StaffKey,
   identityFor,
   manilaToday,
+  seedPublicMedia,
 } from './local-demo-seed'
 import { localDrainRules } from './local-demo-stage-rules'
 import { runDemoStages } from './local-demo-stages'
@@ -189,6 +190,7 @@ async function seed(owner: PrismaClient, testLocal: boolean) {
         ),
         rules: new RulesHumanService(runtime),
         publication: new PublicService(runtime),
+        publicMedia: seedPublicMedia(runtime, storage),
         evaluations: new EvaluationsService(runtime, new EvaluationMetricsService(indicators)),
       },
       staff,
