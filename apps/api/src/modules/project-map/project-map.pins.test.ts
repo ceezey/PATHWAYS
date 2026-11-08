@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import type { PrismaService } from '@app/prisma/prisma.service'
 
+import { applySavedPins, resolvePlaces } from '../../common/places/ph-places'
 import type { DashboardsService } from '../dashboards/dashboards.service'
 import type { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
-import { applySavedPins, resolvePlaces } from './ph-places'
 
 const state = vi.hoisted(() => ({ tx: undefined as Prisma.TransactionClient | undefined }))
 

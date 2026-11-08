@@ -5,9 +5,9 @@ import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { requireScopedProjectRow } from '../../common/authz/scoped-project'
+import { resolvePlaces } from '../../common/places/ph-places'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
-import { resolvePlaces } from './ph-places'
 
 const LOCKED = 'This pin is locked.'
 

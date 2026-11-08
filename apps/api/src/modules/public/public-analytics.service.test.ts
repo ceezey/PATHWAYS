@@ -5,7 +5,7 @@ import { publicAnalyticsResponse } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { resolvePlaces } from '../project-map/ph-places'
+import { resolvePlaces } from '../../common/places/ph-places'
 import { PublicAnalyticsService } from './public-analytics.service'
 
 const projectId = '20000000-0000-4000-8000-000000000002'

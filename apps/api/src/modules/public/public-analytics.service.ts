@@ -18,6 +18,7 @@ import {
 import { z } from 'zod'
 
 import { UUID_PATTERN } from '../../common/authz/application-identity'
+import { applySavedPins, resolvePlaces } from '../../common/places/ph-places'
 import { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode } from '../../prisma/transaction-diagnostic'
 import {
@@ -25,7 +26,6 @@ import {
   timelineAggregateSchema,
 } from '../analytics/timeline-analytics.helpers'
 import { releasedNulls, toIndicatorResponse } from '../indicators/indicators.mapper'
-import { applySavedPins, resolvePlaces } from '../project-map/ph-places'
 import { placeReach, resolveTowns, townReachSchema } from '../project-map/project-map.service'
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)

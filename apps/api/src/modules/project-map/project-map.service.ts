@@ -13,10 +13,10 @@ import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
+import { type ResolvedPlace, applySavedPins, resolvePlaces } from '../../common/places/ph-places'
 import { PrismaService } from '../../prisma/prisma.service'
 import { DashboardsService } from '../dashboards/dashboards.service'
 import { ProjectOverviewMetricsService } from '../projects/project-overview-metrics.service'
-import { type ResolvedPlace, applySavedPins, resolvePlaces } from './ph-places'
 
 const projectLimit = 100
 
