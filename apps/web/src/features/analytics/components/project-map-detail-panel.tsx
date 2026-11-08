@@ -57,6 +57,11 @@ const PlaceRow = ({
     onEdit(null)
   }
   const save = async () => {
+    // Saving the spot the map already shows changes nothing, so it must not resend a stale lock state.
+    if (longitude === place.longitude && latitude === place.latitude) {
+      onEdit(null)
+      return
+    }
     const outcome = await edit.save({ name, province, longitude, latitude, locked: place.locked })
     // A rejected spot returns the inputs to the saved position before the map redraws.
     if (outcome === 'invalid') edit.setDraft(draftOf(place))

@@ -34,7 +34,9 @@ const project: ProjectMapProject = {
   sadddSex: null,
   sadddDisability: null,
 }
-const errorWith = (status: number) => new PathwaysClientError('Rejected.', 'invalid', [], status)
+const noMessage = 'The requested operation could not be completed.'
+const errorWith = (status: number, message = noMessage) =>
+  new PathwaysClientError(message, 'invalid', [], status)
 
 const refetch = vi.fn()
 const onEdit = vi.fn()
@@ -167,6 +169,26 @@ describe('ProjectMapDetailPanel', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('This pin is locked.')
     expect(refetch).toHaveBeenCalledTimes(1)
     expect(onEdit).toHaveBeenLastCalledWith(null)
+  })
+
+  it('shows the server reason when a 409 says the pin changed', async () => {
+    client.saveMapPin.mockRejectedValue(errorWith(409, 'This pin changed. Try again.'))
+    render(<Harness fixedKey={`${project.id}:0`} />)
+    type('Longitude', '125.5')
+    type('Latitude', '11.7')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('This pin changed. Try again.')
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the form without a request when Save keeps the same position', () => {
+    render(<Harness />)
+    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Move' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(client.saveMapPin).not.toHaveBeenCalled()
+    expect(onEdit).toHaveBeenLastCalledWith(null)
+    expect(screen.queryByLabelText('Longitude')).toBeNull()
   })
 
   it('names the map area on a 400, returns the inputs to the saved spot and ends the edit', async () => {

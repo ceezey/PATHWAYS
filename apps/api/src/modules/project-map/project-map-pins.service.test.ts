@@ -90,7 +90,12 @@ describe('ProjectMapPinsService', () => {
 
   it('locks a row, then rejects a move of the locked row with 409', async () => {
     tx.projectMapPin.findUnique.mockResolvedValueOnce(stored(false))
-    await service.save(actor, projectId, { ...move, locked: true })
+    await service.save(actor, projectId, {
+      ...move,
+      longitude: 124.64,
+      latitude: 12.5,
+      locked: true,
+    })
     expect(tx.projectMapPin.updateMany.mock.calls[0][0].data.locked).toBe(true)
 
     tx.projectMapPin.findUnique.mockResolvedValueOnce(stored(true))
@@ -111,6 +116,28 @@ describe('ProjectMapPinsService', () => {
     const call = tx.projectMapPin.updateMany.mock.calls[0][0]
     expect(call.where.locked).toBe(true)
     expect(call.data.locked).toBe(false)
+  })
+
+  it('refuses a lock with stale coordinates so it cannot undo another move', async () => {
+    tx.projectMapPin.findUnique.mockResolvedValue(stored(false))
+    const rejected = service.save(actor, projectId, { ...move, locked: true })
+    await expect(rejected).rejects.toThrow(ConflictException)
+    await expect(rejected).rejects.toThrow('This pin changed. Try again.')
+    expect(tx.projectMapPin.updateMany).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unlock with stale coordinates and keeps the lock', async () => {
+    tx.projectMapPin.findUnique.mockResolvedValue(stored(true))
+    await expect(service.save(actor, projectId, move)).rejects.toThrow(ConflictException)
+    expect(tx.projectMapPin.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('refuses a lock-state change that moves an unlocked row even when only one axis differs', async () => {
+    tx.projectMapPin.findUnique.mockResolvedValue(stored(false))
+    await expect(
+      service.save(actor, projectId, { ...move, longitude: 124.64, locked: true }),
+    ).rejects.toThrow('This pin changed. Try again.')
   })
 
   it('answers 409 when the lock changed between the read and the write', async () => {

@@ -17,6 +17,9 @@ const messages = {
   failed: 'The pin could not be saved.',
 } as const
 
+// The client's fallback when the server sent no message.
+const NO_SERVER_MESSAGE = 'The requested operation could not be completed.'
+
 const failure = (caught: unknown): Exclude<MapPinOutcome, 'saved'> =>
   caught instanceof PathwaysClientError && caught.status === 409
     ? 'locked'
@@ -38,7 +41,9 @@ export const useMapPinEdit = (projectId: string, refetch: () => unknown) => {
       await write()
     } catch (caught) {
       outcome = failure(caught)
-      setError(messages[outcome])
+      const sent = caught instanceof PathwaysClientError ? caught.message : NO_SERVER_MESSAGE
+      // A 409 names its own cause (locked, or changed by someone else), so that text wins.
+      setError(outcome === 'locked' && sent !== NO_SERVER_MESSAGE ? sent : messages[outcome])
     }
     // A saved pin and a lock taken by someone else both change the map, so it reloads.
     if (outcome === 'saved' || outcome === 'locked') await refetch()

@@ -10,6 +10,7 @@ import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 
 const LOCKED = 'This pin is locked.'
+const CHANGED = 'This pin changed. Try again.'
 
 /** Saves, locks and resets the map positions of a project's places; the DB checks bounds and scope too. */
 @Injectable()
@@ -54,6 +55,8 @@ export class ProjectMapPinsService {
       } else {
         const moved = existing.longitude !== input.longitude || existing.latitude !== input.latitude
         if (existing.locked && moved) throw new ConflictException(LOCKED)
+        // A lock change never moves a pin, so a stale client cannot undo a move or clear a lock.
+        if (input.locked !== existing.locked && moved) throw new ConflictException(CHANGED)
         // Matching the lock state read above makes a concurrent lock fail the write instead of losing it.
         const changed = await tx.projectMapPin.updateMany({
           where: { ...key, locked: existing.locked },
