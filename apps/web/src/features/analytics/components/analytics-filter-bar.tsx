@@ -80,7 +80,9 @@ export const AnalyticsFilterBar = ({
         <span className="text-sm font-medium">Project filter</span>
         <Select value={projectId} onValueChange={handleProjectChange}>
           <SelectTrigger aria-label="Project filter">
-            <SelectValue placeholder="No authorized projects" />
+            <SelectValue
+              placeholder={projects.length ? 'Select a project' : 'No authorized projects'}
+            />
           </SelectTrigger>
           <SelectContent>
             {projects.map((project) => (

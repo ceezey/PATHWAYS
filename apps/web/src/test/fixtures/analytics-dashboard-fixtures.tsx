@@ -35,6 +35,8 @@ const coverageMap = vi.hoisted(() => ({
   instanceCount: 0,
   featureCollections: [] as unknown[],
 }))
+// Stands in for the person choosing the first project, since the filter preselects none.
+const projectPick = vi.hoisted(() => ({ auto: true }))
 const currentAccess = vi.hoisted(() => ({
   role: 'Monitoring and Evaluation Officer',
   profile: {
@@ -59,6 +61,7 @@ export {
   insightCalls,
   insights,
   previewExport,
+  projectPick,
   rbac,
   toastError,
   toastSuccess,
@@ -185,6 +188,16 @@ vi.mock('@/components/ui/select', async () => {
     const content = parts.find(
       (part) => React.isValidElement(part) && part.type === SelectContent,
     ) as React.ReactElement<PartProps> | undefined
+    const firstItem = React.Children.toArray(content?.props.children)[0] as
+      | React.ReactElement<PartProps>
+      | undefined
+    const pick =
+      projectPick.auto && trigger?.props['aria-label'] === 'Project filter' && !value
+        ? firstItem?.props.value
+        : undefined
+    React.useEffect(() => {
+      if (pick) onValueChange?.(pick)
+    }, [pick, onValueChange])
     return (
       <select
         aria-label={trigger?.props['aria-label']}
@@ -308,6 +321,7 @@ export const resetAnalyticsMocks = () => {
     'indicators.read',
   ]
   alertHook.result = { data: undefined }
+  projectPick.auto = true
   rbac.allowed = []
   insightCalls.budget.length = 0
   insightCalls.participation.length = 0

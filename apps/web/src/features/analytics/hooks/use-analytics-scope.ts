@@ -68,9 +68,8 @@ export const useAnalyticsScope = ({
       .then((records) => {
         if (!active) return
         setProjects(records)
-        setProjectId((current) =>
-          records.some((row) => row.id === current) ? current : (records[0]?.id ?? ''),
-        )
+        // The person picks a project first; nothing is preselected.
+        setProjectId((current) => (records.some((row) => row.id === current) ? current : ''))
       })
       .catch((caught: unknown) => {
         if (active)
