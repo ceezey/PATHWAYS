@@ -39,11 +39,11 @@ export async function mirror(args, files, hostedEnv) {
     )
   const identities = env
     ? {
-        projectRef: ALLOWED_PROJECT_REF,
+        projectRef: args.projectRef ?? ALLOWED_PROJECT_REF,
         capturedAt: new Date().toISOString(),
         ...parseJson(
           psqlUrl(libpqUrl(env.DIRECT_URL), mirrorReadSql()).trim(),
-          'The devV2 identities query result',
+          'The hosted identities query result',
         ),
       }
     : readJson(args.identities)

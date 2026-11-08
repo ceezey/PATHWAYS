@@ -1,7 +1,7 @@
 // The restore and storage commands of the defense snapshot: storage copy first, then one DB transaction.
 import { readFileSync } from 'node:fs'
 
-import { ALLOWED_PROJECT_REF } from '../hosted/seed-target.mjs'
+import { ALLOWED_PROJECT_REF, PRODUCTION_PROJECT_REF } from '../hosted/seed-target.mjs'
 import { localSupabase } from '../local/target.mjs'
 import { dayDelta, manilaDay, restoreWarnings } from './snapshot-dates.mjs'
 import { assertLocalContainer, psqlLocal, psqlUrl, readJson } from './snapshot-io.mjs'
@@ -15,7 +15,7 @@ import {
 import { assertShiftAllowed, guardRun, summaryLines } from './snapshot-plan.mjs'
 import { buildRestoreSql } from './snapshot-sql.mjs'
 import { assertDistinctStorage, copyObjects } from './snapshot-storage.mjs'
-import { assertRestoreTarget, libpqUrl } from './snapshot-target.mjs'
+import { assertIdentitiesProject, assertRestoreTarget, libpqUrl } from './snapshot-target.mjs'
 
 function localStorageApi() {
   const local = localSupabase()
@@ -38,14 +38,20 @@ function restoreTarget(args, hostedEnv) {
   const needStorage = args.command === 'storage' || !(args.skipStorage || args.dryRun)
   if (needStorage && !env.SUPABASE_SERVICE_ROLE_KEY)
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is required in the env file for the storage copy.')
-  const url = libpqUrl(assertRestoreTarget(env))
+  const projectRef = args.projectRef ?? ALLOWED_PROJECT_REF
+  const production = projectRef === PRODUCTION_PROJECT_REF
+  const url = libpqUrl(assertRestoreTarget(env, projectRef))
   const target = { url: env.SUPABASE_URL, key: env.SUPABASE_SERVICE_ROLE_KEY }
   const source = needStorage ? localStorageApi() : null
   if (source) assertDistinctStorage(source, target)
   assertLocalContainer()
   return {
-    label: `hosted project ${ALLOWED_PROJECT_REF} (PATHWAYS-devV2)`,
-    verify: `node scripts/db/defense/demo.mjs --env-file ${args.envFile} --verify`,
+    projectRef,
+    label: `hosted project ${projectRef} (${production ? 'PATHWAYS' : 'PATHWAYS-devV2'})`,
+    // The seed's own --verify accepts devV2 only; production relies on the restore row-count check.
+    verify: production
+      ? 'sign in once per role'
+      : `node scripts/db/defense/demo.mjs --env-file ${args.envFile} --verify`,
     run: guardRun((sql) => psqlUrl(url, sql, { capture: false })),
     storage: source && { source, target },
   }
@@ -66,6 +72,7 @@ export async function restore(args, files, hostedEnv, readIdentities) {
   const target = restoreTarget(args, hostedEnv)
   const manifest = readJson(files.manifest)
   const identities = readIdentities(args.identities)
+  if (target.projectRef) assertIdentitiesProject(identities, target.projectRef)
   if (identities.organization.id !== manifest.organizationId)
     throw new Error('The snapshot organization differs from the identities file.')
   const wipeSql = readFileSync(files.wipe, 'utf8')
@@ -101,7 +108,7 @@ export async function restore(args, files, hostedEnv, readIdentities) {
       dryRun: args.dryRun,
     }),
   )
-  if (args.dryRun) return console.info('Dry run rolled back; devV2 unchanged.')
+  if (args.dryRun) return console.info(`Dry run rolled back; ${target.label} unchanged.`)
   console.info('Database restore committed.')
   console.info(`Next: ${target.verify}`)
 }

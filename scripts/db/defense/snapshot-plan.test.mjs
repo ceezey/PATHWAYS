@@ -36,7 +36,7 @@ test('summaryLines reports day, delta, migration, rows, storage and identities',
 
 test('guardRun explains psql exit 3 and 2, and rethrows', () => {
   for (const [status, pattern] of [
-    [3, /Restore rolled back; devV2 unchanged\./],
+    [3, /Restore rolled back; the target is unchanged\./],
     [
       2,
       /Connection lost; if it happened during COMMIT, check with the wipe dry-run \(runbook section 4 step 2\)\./,

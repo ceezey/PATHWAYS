@@ -1,19 +1,19 @@
 // Restore target and identities guards for the defense snapshot; validates input and connects to nothing.
-import { assertHostedPgUrl } from '../hosted/seed-target.mjs'
+import { ALLOWED_PROJECT_REF, assertHostedPgUrl } from '../hosted/seed-target.mjs'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Returns HOSTED_ADMIN_URL once it is the postgres role on PATHWAYS-devV2. */
-export function assertRestoreTarget(env) {
+/** Returns HOSTED_ADMIN_URL once it is the postgres role on the target project (devV2 by default). */
+export function assertRestoreTarget(env, projectRef = ALLOWED_PROJECT_REF) {
   const raw = env.HOSTED_ADMIN_URL
-  if (!raw) throw new Error('HOSTED_ADMIN_URL (role postgres on PATHWAYS-devV2) is required.')
+  if (!raw) throw new Error('HOSTED_ADMIN_URL (role postgres on the target project) is required.')
   let url
   try {
     url = new URL(raw)
   } catch {
     throw new Error('HOSTED_ADMIN_URL is not a valid URL.')
   }
-  assertHostedPgUrl(url, 'HOSTED_ADMIN_URL', 'postgres')
+  assertHostedPgUrl(url, 'HOSTED_ADMIN_URL', 'postgres', projectRef)
   if (/.pooler.supabase.com$/i.test(url.hostname) && url.port && url.port !== '5432')
     throw new Error('HOSTED_ADMIN_URL on the pooler must use the session port 5432.')
   return raw
@@ -47,15 +47,24 @@ export function assertIdentities(identities) {
   return identities
 }
 
+/** Refuses identities mirrored from a project other than the restore target. */
+export function assertIdentitiesProject(identities, projectRef) {
+  if (identities.projectRef !== projectRef)
+    throw new Error(
+      `The identities file was mirrored from ${identities.projectRef ?? 'no project'}, not ${projectRef}; run mirror for this target.`,
+    )
+  return identities
+}
+
 /** Latest finished migration name, as the restore and the mirror compare it. */
 export const latestMigrationSql = () =>
   'SELECT max(migration_name) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;'
 
-/** Fails unless the local stack and devV2 report the same non-empty latest migration. */
+/** Fails unless the local stack and the hosted target report the same non-empty latest migration. */
 export function assertSameMigration(local, hosted) {
   const [a, b] = [local, hosted].map((name) => String(name).trim())
   if (!a || a !== b)
     throw new Error(
-      `Local migration (${a || 'none'}) and devV2 migration (${b || 'none'}) differ; align the local stack first.`,
+      `Local migration (${a || 'none'}) and hosted migration (${b || 'none'}) differ; align the local stack first.`,
     )
 }
