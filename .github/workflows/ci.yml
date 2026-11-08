@@ -117,8 +117,8 @@ jobs:
 
   sad:
     name: Automated SAD checks (specialist sign-off remains separate)
-    # scripts/sad is dev-only and absent on master.
-    if: github.ref != 'refs/heads/master'
+    # scripts/sad is dev-only, absent on master and on release PRs into it.
+    if: github.ref != 'refs/heads/master' && github.base_ref != 'master'
     runs-on: ubuntu-latest
     permissions:
       contents: read
