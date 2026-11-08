@@ -156,6 +156,8 @@ export class ProjectMapService {
         implementationArea: row.implementationArea ?? '',
         places: row.places.map((place) => ({
           ...place,
+          saved: false,
+          locked: false,
           reach: towns ? placeReach(place, towns) : null,
         })),
         overview,

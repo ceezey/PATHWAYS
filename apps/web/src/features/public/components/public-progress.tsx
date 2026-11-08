@@ -76,7 +76,7 @@ const PlacesMap = ({ places }: { places: Body<'map'>['places'] }) => {
   const features = useMemo(
     () =>
       toProjectMapFeatures({
-        contractVersion: 'analytics.project-map.v1',
+        contractVersion: 'analytics.project-map.v2',
         generatedAt: new Date(0).toISOString(),
         unmappedCount: 0,
         projects: [

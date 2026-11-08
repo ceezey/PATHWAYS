@@ -1,6 +1,6 @@
 import type { ProjectMapPlace } from '@pathways/shared'
 
-export type ResolvedPlace = Omit<ProjectMapPlace, 'reach'>
+export type ResolvedPlace = Omit<ProjectMapPlace, 'reach' | 'saved' | 'locked'>
 
 type Row = readonly [name: string, longitude: number, latitude: number]
 type CityRow = readonly [name: string, province: string, longitude: number, latitude: number]

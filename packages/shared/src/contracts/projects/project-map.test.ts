@@ -6,6 +6,8 @@ const place = {
   province: 'Sample Province',
   longitude: 121,
   latitude: 14,
+  saved: false,
+  locked: false,
   reach: null,
 }
 const bucket = { key: 'F', label: 'Female', metric: { state: 'ZERO', value: '0', reason: null } }
@@ -55,6 +57,11 @@ describe('projectMapSchema', () => {
 
   it('rejects an unknown key on a project', () => {
     expect(projectMapSchema.safeParse(withProject({ beneficiaryRows: [] })).success).toBe(false)
+  })
+
+  it('rejects a place missing the locked flag', () => {
+    const { locked: _locked, ...unlocked } = place
+    expect(projectMapSchema.safeParse(withProject({ places: [unlocked] })).success).toBe(false)
   })
 
   it('rejects an unknown key on a place', () => {

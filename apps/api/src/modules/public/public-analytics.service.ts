@@ -116,6 +116,8 @@ export class PublicAnalyticsService {
         return {
           places: resolvePlaces(area).map((place) => ({
             ...place,
+            saved: false,
+            locked: false,
             reach: placeReach(place, resolved),
           })),
         }
