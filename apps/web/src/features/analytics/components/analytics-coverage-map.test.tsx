@@ -486,6 +486,72 @@ describe('AnalyticsCoverageMap', () => {
       expect(onDrop).toHaveBeenCalledWith([122, 15])
     })
 
+    it('ends a drag released outside the map and drops at the last spot', async () => {
+      const { map, onDrop } = await mountEditing(features([['a', 121, 14]]), 'a:0')
+
+      act(() => map.emit('mousedown', pin('a:0')))
+      act(() => map.emit('mousemove', at(122, 15)))
+      act(() => {
+        document.dispatchEvent(new MouseEvent('mouseup'))
+      })
+
+      expect(onDrop).toHaveBeenCalledWith([122, 15])
+      expect(map.dragPan.enable).toHaveBeenCalledTimes(1)
+      act(() => map.emit('mousemove', at(130, 20)))
+      act(() => map.emit('mouseup', at(130, 20)))
+      act(() => {
+        document.dispatchEvent(new MouseEvent('mouseup'))
+      })
+      expect(onDrop).toHaveBeenCalledTimes(1)
+    })
+
+    it('drops once when the map and the page both see the release', async () => {
+      const { map, onDrop } = await mountEditing(features([['a', 121, 14]]), 'a:0')
+
+      act(() => map.emit('mousedown', pin('a:0')))
+      act(() => map.emit('mousemove', at(122, 15)))
+      act(() => map.emit('mouseup', at(123, 16)))
+      act(() => {
+        document.dispatchEvent(new MouseEvent('mouseup'))
+      })
+
+      expect(onDrop).toHaveBeenCalledTimes(1)
+      expect(onDrop).toHaveBeenCalledWith([123, 16])
+    })
+
+    it('restores panning and drops nothing when a touch is cancelled', async () => {
+      const collection = features([['a', 121, 14]])
+      const { map, onDrop } = await mountEditing(collection, 'a:0')
+      const source = map.sources.get('pathways-authorized-project-locations')
+
+      act(() => map.emit('touchstart', pin('a:0')))
+      act(() => map.emit('touchmove', at(122, 15)))
+      act(() => map.emit('touchcancel'))
+
+      expect(map.dragPan.enable).toHaveBeenCalledTimes(1)
+      expect(onDrop).not.toHaveBeenCalled()
+      expect(source?.setData).toHaveBeenLastCalledWith(collection)
+      act(() => map.emit('touchend', at(123, 16)))
+      expect(onDrop).not.toHaveBeenCalled()
+    })
+
+    it('removes the page listener when editing ends mid-drag', async () => {
+      const collection = features([['a', 121, 14]])
+      const { map, onDrop, rendered } = await mountEditing(collection, 'a:0')
+
+      act(() => map.emit('mousedown', pin('a:0')))
+      act(() => map.emit('mousemove', at(122, 15)))
+      rendered.rerender(
+        <AnalyticsCoverageMap featureCollection={collection} styleUrl="test-style" />,
+      )
+      act(() => {
+        document.dispatchEvent(new MouseEvent('mouseup'))
+      })
+
+      expect(map.dragPan.enable).toHaveBeenCalledTimes(1)
+      expect(onDrop).not.toHaveBeenCalled()
+    })
+
     it('redraws every pin from props when editing ends', async () => {
       const collection = features([['a', 121, 14]])
       const { map, rendered } = await mountEditing(collection, 'a:0')

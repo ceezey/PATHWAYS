@@ -429,19 +429,34 @@ export const AnalyticsCoverageMap = ({
       event.preventDefault()
       dragging = true
       map.dragPan.disable()
+      // MapLibre misses a release over the page outside the canvas, so the document ends it too.
+      document.addEventListener('mouseup', releaseOutside, { once: true })
     }
     const move = (event: MapMouseEvent | MapTouchEvent) => {
       if (!dragging) return
       moved = [event.lngLat.lng, event.lngLat.lat]
       draw(moved)
     }
-    const end = (event: MapMouseEvent | MapTouchEvent) => {
-      if (!dragging) return
+    const stop = () => {
       dragging = false
-      map.dragPan.enable()
-      if (!moved) return
-      onDropRef.current?.(event.lngLat ? [event.lngLat.lng, event.lngLat.lat] : moved)
       moved = null
+      map.dragPan.enable()
+      document.removeEventListener('mouseup', releaseOutside)
+    }
+    // A release reports the last spot, or the release point when the map sees it.
+    function end(event?: MapMouseEvent | MapTouchEvent) {
+      if (!dragging) return
+      const drop = moved && event?.lngLat ? [event.lngLat.lng, event.lngLat.lat] : moved
+      stop()
+      if (drop) onDropRef.current?.([drop[0], drop[1]])
+    }
+    const releaseOutside = () => end()
+    // A cancelled touch restores the map and puts the pin back where props say it is.
+    const cancel = () => {
+      if (!dragging) return
+      stop()
+      const source = map.getSource(sourceId)
+      if (source?.type === 'geojson') (source as GeoJSONSource).setData(latestFeaturesRef.current)
     }
     map.on('mousedown', layerId, start)
     map.on('touchstart', layerId, start)
@@ -449,6 +464,7 @@ export const AnalyticsCoverageMap = ({
     map.on('touchmove', move)
     map.on('mouseup', end)
     map.on('touchend', end)
+    map.on('touchcancel', cancel)
     return () => {
       map.off('mousedown', layerId, start)
       map.off('touchstart', layerId, start)
@@ -456,7 +472,8 @@ export const AnalyticsCoverageMap = ({
       map.off('touchmove', move)
       map.off('mouseup', end)
       map.off('touchend', end)
-      if (dragging) map.dragPan.enable()
+      map.off('touchcancel', cancel)
+      if (dragging) stop()
     }
   }, [editingKey, status])
 
