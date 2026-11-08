@@ -92,6 +92,7 @@ model Organization {
   activityExtensionRequest_organization ActivityExtensionRequest[] @relation("ActivityExtensionRequest_organization")
   activityEscalation_organization ActivityEscalation[] @relation("ActivityEscalation_organization")
   importValueRejection_organization ImportValueRejection[] @relation("ImportValueRejection_organization")
+  projectMapPin_organization ProjectMapPin[] @relation("ProjectMapPin_organization")
   indicatorLibraryEntry_organization            IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_organization")
 
   @@index([status], map: "organizations_status_idx")
@@ -211,6 +212,7 @@ model SystemUser {
   dataImportRow_validatedBy                   DataImportRow[]                    @relation("DataImportRow_validatedBy")
   dataImportRow_resolvedBy DataImportRow[] @relation("DataImportRow_resolvedBy")
   importValueRejection_rejectedBy ImportValueRejection[] @relation("ImportValueRejection_rejectedBy")
+  projectMapPin_updatedBy ProjectMapPin[] @relation("ProjectMapPin_updatedBy")
   formSubmission_submittedBy                  FormSubmission[]                   @relation("FormSubmission_submittedBy")
   formSubmission_validatedBy                  FormSubmission[]                   @relation("FormSubmission_validatedBy")
   beneficiary_createdBy                       Beneficiary[]                      @relation("Beneficiary_createdBy")
@@ -741,6 +743,7 @@ model Project {
   activityExtensionRequest_project ActivityExtensionRequest[] @relation("ActivityExtensionRequest_project")
   activityEscalation_project ActivityEscalation[] @relation("ActivityEscalation_project")
   importValueRejection_project ImportValueRejection[] @relation("ImportValueRejection_project")
+  projectMapPin_project ProjectMapPin[] @relation("ProjectMapPin_project")
   projectPublication_project               ProjectPublication?                @relation("ProjectPublication_project")
 
   @@unique([organizationId, id], map: "projects_scope_key")
@@ -1578,6 +1581,26 @@ model ImportValueRejection {
   @@index([organizationId, projectId, fieldId], map: "import_value_rejections_project_field_idx")
   @@index([organizationId, rejectedById], map: "import_value_rejections_rejected_by_idx")
   @@map("import_value_rejections")
+  @@schema("pathways")
+}
+
+model ProjectMapPin {
+  organizationId String       @map("organization_id") @db.Uuid
+  projectId      String       @map("project_id") @db.Uuid
+  placeName      String       @map("place_name")
+  province       String
+  longitude      Float
+  latitude       Float
+  locked         Boolean      @default(false)
+  updatedById    String       @map("updated_by_id") @db.Uuid
+  updatedAt      DateTime     @default(now()) @map("updated_at") @db.Timestamptz(3)
+  organization   Organization @relation("ProjectMapPin_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "project_map_pins_organization_fk")
+  project        Project      @relation("ProjectMapPin_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_map_pins_project_fk")
+  updatedBy      SystemUser   @relation("ProjectMapPin_updatedBy", fields: [organizationId, updatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_map_pins_updated_by_fk")
+
+  @@id([organizationId, projectId, placeName, province])
+  @@index([organizationId, updatedById], map: "project_map_pins_updated_by_idx")
+  @@map("project_map_pins")
   @@schema("pathways")
 }
 

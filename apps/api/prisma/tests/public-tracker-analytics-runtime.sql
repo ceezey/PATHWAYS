@@ -249,7 +249,7 @@ RESET SESSION AUTHORIZATION;
 SELECT pg_temp.same('public_view_needs_no_actor saddd', pg_temp.doc('public_saddd'), jsonb_build_object('total',pg_temp.doc('core_saddd')->'total',
  'sex',pg_temp.doc('core_saddd')->'sex','age',pg_temp.doc('core_saddd')->'age','disability',pg_temp.doc('core_saddd')->'disability'));
 SELECT pg_temp.same('public_view_needs_no_actor map', pg_temp.doc('public_map'),
- jsonb_build_object('area','Eastern Samar','towns',pg_temp.doc('core_map')));
+ jsonb_build_object('area','Eastern Samar','towns',pg_temp.doc('core_map'),'pins','[]'::jsonb));
 SELECT pg_temp.ok('map_has_no_budget', NOT jsonb_path_exists(pg_temp.doc('public_map'),'lax $.**.overview')
  AND NOT jsonb_path_exists(pg_temp.doc('public_map'),'lax $.**.budget')
  AND NOT jsonb_path_exists(pg_temp.doc('public_map'),'lax $.**.budgetUtilization'));
