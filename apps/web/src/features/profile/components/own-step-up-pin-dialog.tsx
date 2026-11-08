@@ -17,6 +17,7 @@ import {
 export type PinStep = 'code' | 'pin'
 export type PinProof = 'authenticator' | 'pin'
 export type PinField = 'newPin' | 'confirmPin' | 'currentPin'
+export type InvalidField = PinField | 'code'
 export type PinValues = { newPin: string; currentPin: string }
 
 type Props = {
@@ -25,7 +26,7 @@ type Props = {
   pinState: StepUpPinState
   busy: boolean
   notice: string
-  invalid: PinField | null
+  invalid: InvalidField | null
   onVerify: (code: string) => void
   onSubmit: (values: PinValues) => void
   onInvalid: (field: PinField, message: string) => void
@@ -147,13 +148,15 @@ export function OwnStepUpPinDialog({
         {step === 'code' ? (
           <div className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="own-pin-code">Authenticator code</Label>
+              <Label htmlFor="own-code">Authenticator code</Label>
               <OtpInput
-                id="own-pin-code"
+                id="own-code"
                 label="Authenticator code"
                 className="justify-center"
                 autoFocus
                 disabled={busy}
+                invalid={invalid === 'code'}
+                describedBy={invalid === 'code' ? 'own-pin-notice' : undefined}
                 value={code}
                 onChange={(next) => {
                   setCode(next)
