@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { demoActivities } from './local-demo-data'
 import { publicMediaBytes, publicMediaPlan } from './local-demo-public-media'
 import { type MediaRow, pickExisting } from './local-demo-stage-public-media'
+import {
+  type Draft,
+  type Wanted,
+  nextPublicationStep,
+  publications,
+  selectionKey,
+} from './local-demo-stage-publishing'
 
 const keys = ['EHK', 'ALS', 'CRL', 'SSG'] as const
 
@@ -62,5 +69,76 @@ describe('pickExisting', () => {
     expect(
       pickExisting([row({ status: 'REJECTED' }), row({ id: 'b', sha256: 'x' })], 'h'),
     ).toBeUndefined()
+  })
+})
+
+describe('nextPublicationStep', () => {
+  const wanted: Wanted = {
+    summary: 'S',
+    state: 'PUBLISHED',
+    selection: { media: [{ id: 'm', caption: 'c' }], views: ['kpi'] },
+  }
+  const draft = (state: 'FOR_REVIEW' | 'APPROVED' | 'PUBLISHED', over = {}): Draft => ({
+    revision: 1,
+    state,
+    summary: 'S',
+    snapshot: { views: ['kpi'], media: [{ id: 'm', caption: 'c' }] },
+    ...over,
+  })
+  it.each([
+    ['no row', null, 'SUBMIT'],
+    [
+      'old live selection',
+      draft('PUBLISHED', { snapshot: { views: ['kpi', 'saddd'], media: [] } }),
+      'SUBMIT',
+    ],
+    ['new summary', draft('PUBLISHED', { summary: 'T' }), 'SUBMIT'],
+    [
+      'new caption',
+      draft('PUBLISHED', { snapshot: { views: ['kpi'], media: [{ id: 'm', caption: 'd' }] } }),
+      'SUBMIT',
+    ],
+    [
+      'reordered views',
+      draft('PUBLISHED', {
+        snapshot: { views: ['saddd', 'kpi'], media: [{ id: 'm', caption: 'c' }] },
+      }),
+      'SUBMIT',
+    ],
+    ['submitted', draft('FOR_REVIEW'), 'APPROVE'],
+    ['approved', draft('APPROVED'), 'PUBLISH'],
+    ['done', draft('PUBLISHED'), null],
+  ] as const)('%s', (_, current, step) => expect(nextPublicationStep(current, wanted)).toBe(step))
+  it('ignores the type and content type the database adds to snapshot media', () => {
+    const filled = draft('PUBLISHED', {
+      snapshot: {
+        views: ['kpi'],
+        media: [{ id: 'm', caption: 'c', type: 'PHOTO', contentType: 'image/jpeg' }],
+      },
+    })
+    expect(nextPublicationStep(filled, wanted)).toBeNull()
+  })
+  it('stops a FOR_REVIEW target after a resubmit', () => {
+    expect(nextPublicationStep(draft('FOR_REVIEW'), { ...wanted, state: 'FOR_REVIEW' })).toBeNull()
+    expect(
+      nextPublicationStep(draft('FOR_REVIEW', { summary: 'T' }), {
+        ...wanted,
+        state: 'FOR_REVIEW',
+      }),
+    ).toBe('SUBMIT')
+  })
+  it('keys a selection by its content', () => {
+    expect(selectionKey(wanted)).toMatch(/^[0-9a-f]{16}$/)
+    expect(selectionKey(wanted)).toBe(selectionKey({ ...wanted, state: 'FOR_REVIEW' }))
+    expect(selectionKey(wanted)).not.toBe(selectionKey({ ...wanted, summary: 'T' }))
+  })
+  it('gives every project a different view list without map', () => {
+    const lists = publications.map((p) => p.views.join(','))
+    expect(new Set(lists).size).toBe(publications.length)
+    for (const p of publications) {
+      expect(p.views).not.toContain('map')
+      expect(p.views.length).toBeGreaterThanOrEqual(2)
+      expect(p.views.length).toBeLessThanOrEqual(5)
+    }
   })
 })
