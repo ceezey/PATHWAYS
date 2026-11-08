@@ -1,4 +1,4 @@
--- cr-pathways-public-tracker-media-analytics (0089): disposable checks for pathways.project_map_pins, the pins key of the
+-- cr-pathways-map-pins-and-detail-panel (0089): disposable checks for pathways.project_map_pins, the pins key of the
 -- publication snapshot and the public map view. Synthetic fixtures only; everything rolls back. Run as a local superuser
 -- against a disposable pathways_phase2_* or phase4/phase6 replay database that already has 0089 applied.
 -- Success prints PROJECT_MAP_PINS_RUNTIME=PASS (n).

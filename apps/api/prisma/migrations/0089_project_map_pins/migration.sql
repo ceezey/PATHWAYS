@@ -1,4 +1,4 @@
--- 0089 project map pins (cr-pathways-public-tracker-media-analytics map pins); forward migration.
+-- 0089 project map pins (cr-pathways-map-pins-and-detail-panel); forward migration.
 -- project_map_pins keeps one saved position per place of a project: the pin sits at its saved position instead of the
 -- bundled town or province centroid, and locked stops anyone from moving it until it is unlocked. Reads need projects.read;
 -- writes need projects.update. A submitted publication snapshot freezes the project's pins under the optional key pins, so the
