@@ -35,6 +35,16 @@ describe('toProjectMapFeatures', () => {
     expect(features[2]?.geometry.coordinates).not.toEqual([121, 14.6])
   })
 
+  it('keeps the ring slot of a locked pin that was never moved', () => {
+    const { features } = toProjectMapFeatures(
+      mapOf([place(false, 121, 14.6, true)], [place(false)]),
+    )
+
+    expect(features[0]?.geometry.coordinates).toEqual([121, 14.6])
+    expect(features[1]?.geometry.coordinates).not.toEqual([121, 14.6])
+    expect(features[0]?.properties.locked).toBe(true)
+  })
+
   it('copies locked into the feature properties', () => {
     const { features } = toProjectMapFeatures(mapOf([place(true, 121, 14.6, true)], [place(false)]))
 

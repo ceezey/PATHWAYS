@@ -289,7 +289,8 @@ export function applySavedPins(
       ...place,
       longitude: pin.longitude,
       latitude: pin.latitude,
-      saved: true,
+      // A lock-only row sits at the centroid, so it still counts as unmoved.
+      saved: pin.longitude !== place.longitude || pin.latitude !== place.latitude,
       locked: pin.locked ?? false,
     }
   })

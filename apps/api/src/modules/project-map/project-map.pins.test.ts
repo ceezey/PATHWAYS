@@ -41,6 +41,19 @@ describe('applySavedPins', () => {
     expect(first).toMatchObject({ saved: true, locked: true })
   })
 
+  it('reads a locked pin at the centroid as unmoved', () => {
+    const [first] = applySavedPins(places, [
+      {
+        name: 'Borongan',
+        province: 'Eastern Samar',
+        longitude: borongan.longitude,
+        latitude: borongan.latitude,
+        locked: true,
+      },
+    ])
+    expect(first).toEqual({ ...borongan, saved: false, locked: true })
+  })
+
   it('ignores a pin for a place the area no longer lists', () => {
     const result = applySavedPins(places, [
       {
