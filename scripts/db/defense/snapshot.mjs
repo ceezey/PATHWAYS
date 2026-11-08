@@ -65,7 +65,8 @@ const commands = {
   dump: (args) => dump(args, files, readIdentities),
   restore: (args) =>
     restore(args, files, (file) => hostedEnv(file, args.projectRef), readIdentities),
-  storage: (args) => storage(args, files, (file) => hostedEnv(file, args.projectRef)),
+  storage: (args) =>
+    storage(args, files, (file) => hostedEnv(file, args.projectRef), readIdentities),
 }
 
 async function main() {

@@ -96,7 +96,7 @@ test('--production refuses a devV2 env file before any docker call', () => {
   const envFile = path.join(dir, 'x.env')
   writeFileSync(envFile, `${lines.join('\n')}\n`)
   try {
-    for (const command of ['mirror', 'restore']) {
+    for (const command of ['mirror', 'restore', 'storage']) {
       const run = cli(command, '--env-file', envFile, '--production', '--dry-run')
       assert.equal(run.status, 1)
       assert.match(run.stderr, /SUPABASE_URL must equal exactly https:\/\/mvzxitlbtkkyvubgbcmx/)
