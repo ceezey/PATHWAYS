@@ -1,19 +1,18 @@
-import { assertGuardedTarget } from './hosted-realistic-seed'
+import { assertGuardedTarget, hostedProjectRef } from './hosted-realistic-seed'
 import { assertLocalDemoTarget } from './local-demo-target'
 
-const PROJECT_REF = 'klbtoqdalmcsfjqophty'
-
-// Rule machine URLs may only point at the one allowed hosted project (direct or pooler host).
+// Rule machine URLs may only point at the validated hosted project (direct or pooler host).
 function assertHostedRulesUrl(label: string, value: string | undefined) {
   if (!value) return
+  const ref = hostedProjectRef()
   const url = new URL(value)
   const host = url.hostname.toLowerCase()
-  const direct = host === `db.${PROJECT_REF}.supabase.co`
-  const pooler = host.endsWith('.pooler.supabase.com') && url.username.endsWith(`.${PROJECT_REF}`)
-  if (!direct && !pooler) throw new Error(`${label} must point at the PATHWAYS-devV2 project.`)
+  const direct = host === `db.${ref}.supabase.co`
+  const pooler = host.endsWith('.pooler.supabase.com') && url.username.endsWith(`.${ref}`)
+  if (!direct && !pooler) throw new Error(`${label} must point at the target project ${ref}.`)
 }
 
-/** Refuses any target other than loopback (--test-local) or exactly PATHWAYS-devV2 (hosted). */
+/** Refuses any target other than loopback (--test-local) or the hosted project the launcher validated. */
 export function assertDefenseTarget(testLocal: boolean, env: NodeJS.ProcessEnv = process.env) {
   if (testLocal) {
     assertLocalDemoTarget(env)

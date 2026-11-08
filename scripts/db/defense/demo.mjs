@@ -1,15 +1,21 @@
-// Launches apps/api/prisma/seeds/defense-demo-seed.ts against hosted PATHWAYS-devV2 or, with
+// Launches apps/api/prisma/seeds/defense-demo-seed.ts against hosted PATHWAYS-devV2 (production with --production) or, with
 // --test-local, the loopback Supabase stack. It reuses existing staff accounts and never creates users.
 //
 // Usage:
-//   node scripts/db/defense/demo.mjs --env-file <path under .tmp/ or outside the repo> [--verify] [--only a,b]
+//   node scripts/db/defense/demo.mjs --env-file <path under .tmp/ or outside the repo> [--production] [--verify] [--only a,b]
 //   node scripts/db/defense/demo.mjs --test-local [--verify] [--only a,b]
 import { execFileSync, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { assertSeedTarget, loadEnvFile, resolveEnvFilePath } from '../hosted/seed-target.mjs'
+import {
+  ALLOWED_PROJECT_REF,
+  PRODUCTION_PROJECT_REF,
+  assertSeedTarget,
+  loadEnvFile,
+  resolveEnvFilePath,
+} from '../hosted/seed-target.mjs'
 import { localDatabase, localSupabase } from '../local/target.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -23,6 +29,7 @@ function parseArgs(argv) {
     only: value('--only'),
     testLocal: flag('--test-local') >= 0,
     verify: flag('--verify') >= 0,
+    production: flag('--production') >= 0,
   }
 }
 
@@ -105,16 +112,21 @@ ALTER ROLE pathways_rules_sweeper WITH CONNECTION LIMIT 0 PASSWORD NULL;`,
 }
 
 function main() {
-  const { envFile, only, testLocal, verify } = parseArgs(process.argv.slice(2))
+  const { envFile, only, testLocal, verify, production } = parseArgs(process.argv.slice(2))
   const args = [...(testLocal ? ['--test-local'] : []), ...(verify ? ['--verify'] : [])]
   if (testLocal) {
     console.info('Running the defense demo against the loopback stack (--test-local).')
     process.exit(runLocal(args, only))
   }
   const env = loadEnvFile(resolveEnvFilePath(envFile))
-  const target = assertSeedTarget(env, { testLocal: false })
-  console.info(`Defense demo target: hosted project ${target.projectRef} (PATHWAYS-devV2).`)
-  process.exit(runSeed({ ...env, ...(only ? { PATHWAYS_DEMO_ONLY: only } : {}) }, args))
+  const projectRef = production ? PRODUCTION_PROJECT_REF : ALLOWED_PROJECT_REF
+  const target = assertSeedTarget(env, { testLocal: false, projectRef })
+  console.info(
+    `Defense demo target: hosted project ${target.projectRef} (${production ? 'PATHWAYS' : 'PATHWAYS-devV2'}).`,
+  )
+  // The seed's own guard checks the env against this ref again.
+  const seedEnv = { ...env, PATHWAYS_HOSTED_SEED_PROJECT_REF: projectRef }
+  process.exit(runSeed({ ...seedEnv, ...(only ? { PATHWAYS_DEMO_ONLY: only } : {}) }, args))
 }
 
 main()
