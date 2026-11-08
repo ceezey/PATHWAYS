@@ -4,6 +4,7 @@ import {
   SYSTEM_ADMIN_EMAIL,
   assertGuardedTarget,
   dummyStaff,
+  hostedProjectRef,
   planBeneficiaryRegistration,
   projectPlans,
   reconcileStorageBuckets,
@@ -46,7 +47,7 @@ describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted/seed-
     )
   })
 
-  it('takes production only when the launcher names it, and never mixes projects', () => {
+  it('takes production only when the defense launcher names it, and never mixes projects', () => {
     const prod = 'mvzxitlbtkkyvubgbcmx'
     const urls = (ref: string) => ({
       SUPABASE_URL: `https://${ref}.supabase.co`,
@@ -54,18 +55,25 @@ describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted/seed-
       DIRECT_URL: `postgresql://prisma:x@db.${ref}.supabase.co:5432/postgres`,
     })
     const mode = { PATHWAYS_HOSTED_SEED_MODE: undefined }
-    withEnv({ ...mode, ...urls(prod), PATHWAYS_HOSTED_SEED_PROJECT_REF: prod }, () =>
-      expect(assertGuardedTarget()).toEqual({ testLocal: false }),
-    )
+    withEnv({ ...mode, ...urls(prod), PATHWAYS_HOSTED_SEED_PROJECT_REF: prod }, () => {
+      expect(assertGuardedTarget(hostedProjectRef())).toEqual({ testLocal: false })
+      // The realistic seed calls the guard without a ref and stays on devV2 whatever the env says.
+      expect(() => assertGuardedTarget()).toThrow('SUPABASE_URL must equal exactly')
+    })
     withEnv({ ...mode, ...urls(prod), PATHWAYS_HOSTED_SEED_PROJECT_REF: undefined }, () =>
-      expect(() => assertGuardedTarget()).toThrow('SUPABASE_URL must equal exactly'),
+      expect(() => assertGuardedTarget(hostedProjectRef())).toThrow(
+        'SUPABASE_URL must equal exactly',
+      ),
     )
     withEnv(
       { ...mode, ...urls('klbtoqdalmcsfjqophty'), PATHWAYS_HOSTED_SEED_PROJECT_REF: prod },
-      () => expect(() => assertGuardedTarget()).toThrow('SUPABASE_URL must equal exactly'),
+      () =>
+        expect(() => assertGuardedTarget(hostedProjectRef())).toThrow(
+          'SUPABASE_URL must equal exactly',
+        ),
     )
-    withEnv({ ...mode, ...urls(prod), PATHWAYS_HOSTED_SEED_PROJECT_REF: 'a'.repeat(20) }, () =>
-      expect(() => assertGuardedTarget()).toThrow('PATHWAYS_HOSTED_SEED_PROJECT_REF'),
+    withEnv({ ...mode, PATHWAYS_HOSTED_SEED_PROJECT_REF: 'a'.repeat(20) }, () =>
+      expect(() => hostedProjectRef()).toThrow('PATHWAYS_HOSTED_SEED_PROJECT_REF'),
     )
   })
 

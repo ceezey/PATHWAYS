@@ -172,7 +172,8 @@ export function hostedProjectRef() {
   return ref
 }
 
-function assertGuardedTarget() {
+// The realistic seed calls this without a ref and stays on devV2; only the defense seed passes another.
+function assertGuardedTarget(ref: string = DEV_PROJECT_REF) {
   const testLocal = process.env.PATHWAYS_HOSTED_SEED_MODE === 'test-local'
   const supabaseUrl = process.env.SUPABASE_URL
   const databaseUrl = process.env.DATABASE_URL
@@ -197,7 +198,6 @@ function assertGuardedTarget() {
     }
     return { testLocal: true as const }
   }
-  const ref = hostedProjectRef()
   const allowedUrl = `https://${ref}.supabase.co`
   if (supabaseUrl !== allowedUrl) {
     throw new Error(`SUPABASE_URL must equal exactly ${allowedUrl}.`)

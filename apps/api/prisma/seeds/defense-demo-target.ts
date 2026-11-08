@@ -21,7 +21,7 @@ export function assertDefenseTarget(testLocal: boolean, env: NodeJS.ProcessEnv =
   if (!env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required.')
   // The hosted guard reads process.env directly.
   process.env.PATHWAYS_HOSTED_SEED_MODE = 'hosted'
-  assertGuardedTarget()
+  assertGuardedTarget(hostedProjectRef())
   assertHostedRulesUrl('RULES_WORKER_DATABASE_URL', env.RULES_WORKER_DATABASE_URL)
   assertHostedRulesUrl('RULES_SWEEPER_DATABASE_URL', env.RULES_SWEEPER_DATABASE_URL)
 }
