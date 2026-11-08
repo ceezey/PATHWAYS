@@ -120,7 +120,7 @@ const PinBody = ({ pin }: { pin: DashboardPin }) => {
     map: principalHasAtomicPermission(profile, 'projects.read'),
   }[pin.view]
   if (!allowed) return <RestrictedInsight label={label} />
-  if (pin.view === 'map') return <ProjectCoverageMapPanel />
+  if (pin.view === 'map') return <ProjectCoverageMapPanel mode="dashboard" />
   if (pin.view === 'participation') return <Participation pin={pin} />
   if (pin.view === 'timeline') return <Timeline pin={pin} />
   return <Kpi pin={pin} />

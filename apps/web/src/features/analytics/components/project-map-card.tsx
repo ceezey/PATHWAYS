@@ -31,25 +31,15 @@ const breakdown = (
     .map((bucket) => `${bucket.label} ${overviewMetricLabel(bucket.metric, 'count')}`)
     .join(' · ') || undefined
 
-/** Overview aggregates for one mapped location, shown in the map popup; SADDD values arrive exact. */
-export const ProjectMapCard = ({
-  project,
-  place,
-  onClose,
-}: {
-  project: ProjectMapProject
-  place: ProjectMapPlace
-  onClose: () => void
-}) => {
+/** The whole-project aggregates a role can read, shared by the map popup and the side panel. */
+export const ProjectOverviewRows = ({ project }: { project: ProjectMapProject }) => {
   const { overview } = project
   const kpi = overview?.kpiAchievement
   const reached = overview?.beneficiariesReached
   const timeline = overview?.timeline
   const budget = overview?.budgetUtilization
-  // A one-pin project's place reach repeats the whole-project figure, so only multi-pin projects show it.
-  const here = project.places.length > 1 ? place.reach : null
   // Rows a role cannot read are left out rather than shown as unavailable.
-  const wholeProject = [
+  const rows = [
     kpi && {
       label: 'KPI achievement',
       value: overviewMetricLabel(kpi.metric, 'percent'),
@@ -72,6 +62,34 @@ export const ProjectMapCard = ({
     },
     budget && { label: 'Budget utilization', value: overviewMetricLabel(budget.metric, 'percent') },
   ].filter((row): row is RowData => Boolean(row))
+  if (rows.length === 0) return null
+
+  return (
+    <>
+      <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Whole project
+      </p>
+      <dl>
+        {rows.map((row) => (
+          <Row key={row.label} {...row} />
+        ))}
+      </dl>
+    </>
+  )
+}
+
+/** Overview aggregates for one mapped location, shown in the map popup; SADDD values arrive exact. */
+export const ProjectMapCard = ({
+  project,
+  place,
+  onClose,
+}: {
+  project: ProjectMapProject
+  place: ProjectMapPlace
+  onClose: () => void
+}) => {
+  // A one-pin project's place reach repeats the whole-project figure, so only multi-pin projects show it.
+  const here = project.places.length > 1 ? place.reach : null
 
   return (
     <aside aria-label={`${project.title} overview`} className="w-64 max-w-full text-left sm:w-72">
@@ -101,24 +119,21 @@ export const ProjectMapCard = ({
           />
         </dl>
       ) : null}
-      {wholeProject.length > 0 ? (
-        <>
-          <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Whole project
-          </p>
-          <dl>
-            {wholeProject.map((row) => (
-              <Row key={row.label} {...row} />
-            ))}
-          </dl>
-        </>
-      ) : null}
-      <Link
-        className="mt-2 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
-        href={`/projects/${project.id}`}
-      >
-        Open project
-      </Link>
+      <ProjectOverviewRows project={project} />
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium">
+        <Link
+          className="text-primary underline-offset-4 hover:underline"
+          href={`/projects/${project.id}`}
+        >
+          Open project
+        </Link>
+        <Link
+          className="text-primary underline-offset-4 hover:underline"
+          href={`/analytics?view=map&project=${project.id}`}
+        >
+          Open in Analytics
+        </Link>
+      </div>
     </aside>
   )
 }

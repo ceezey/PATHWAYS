@@ -208,6 +208,33 @@ describe('AnalyticsCoverageMap', () => {
     expect(screen.queryByText('place-b card')).toBeNull()
   })
 
+  it('reports a clicked or listed pin to onPick without any popup', async () => {
+    const onPick = vi.fn()
+    render(
+      <AnalyticsCoverageMap
+        featureCollection={features([['place-c', 121, 14.6]])}
+        onPick={onPick}
+        styleUrl="test-style"
+      />,
+    )
+    await screen.findByRole('button', { name: 'Project place-c: place-c' })
+    const map = maplibre.instances[0]
+    map?.queryRenderedFeatures.mockReturnValue([
+      {
+        properties: { id: 'place-c', key: 'place-c:0', label: 'place-c' },
+        geometry: { type: 'Point', coordinates: [121, 14.6] },
+      },
+    ])
+    act(() => map?.emit('click', { point: { x: 100, y: 100 } }))
+    expect(onPick).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: 'place-c', key: 'place-c:0' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project place-c: place-c' }))
+    expect(onPick).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('mounts normalized GeoJSON once with navigation controls and a one-point camera', async () => {
     render(
       <AnalyticsCoverageMap

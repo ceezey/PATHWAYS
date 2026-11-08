@@ -49,6 +49,8 @@ type AnalyticsCoverageMapProps = Readonly<{
   /** Content of the popup anchored on a hovered or tapped point. */
   renderPopup?: (point: MapPoint, close: () => void) => ReactNode
   emptyDescription?: string
+  /** Called with the project id and feature key of a clicked or listed pin, for hosts that show no popup. */
+  onPick?: (point: Readonly<{ id: string; key: string }>) => void
   /** Project id to highlight; every other project dims. */
   selectedId?: string
   /** Lets one pin, by its feature key, be dragged; onDrop receives the release point. */
@@ -170,6 +172,7 @@ export const AnalyticsCoverageMap = ({
   className,
   renderPopup,
   emptyDescription = 'No authoritative project coordinates are available. Text-only implementation areas remain unresolved and unplotted.',
+  onPick,
   selectedId,
   editing,
 }: AnalyticsCoverageMapProps) => {
@@ -178,6 +181,7 @@ export const AnalyticsCoverageMap = ({
   const latestFeaturesRef = useRef<SafeMapFeatureCollection>(featureCollection)
   const selectedIdRef = useRef(selectedId)
   const onDropRef = useRef(editing?.onDrop)
+  const onPickRef = useRef(onPick)
   const editingKey = editing?.key
   const resolvedStyleUrl = styleUrl === undefined ? resolveMapStyleUrl() : styleUrl?.trim() || null
   const [status, setStatus] = useState<MapStatus>(resolvedStyleUrl ? 'loading' : 'error')
@@ -192,6 +196,7 @@ export const AnalyticsCoverageMap = ({
   const openerRef = useRef<HTMLElement | null>(null)
   const [openPoint, setOpenPoint] = useState<OpenPoint | null>(null)
   const hasPopup = Boolean(renderPopup)
+  const pickable = hasPopup || Boolean(onPick)
 
   // Closing returns focus to the place button that opened the card, if any.
   const close = () => {
@@ -202,12 +207,14 @@ export const AnalyticsCoverageMap = ({
   const pinFromList = (feature: SafeMapFeature, opener: HTMLElement) => {
     openerRef.current = opener
     setOpenPoint(featurePoint(feature))
+    onPickRef.current?.(feature.properties)
     if (mapRef.current) centerLow(mapRef.current, feature.geometry.coordinates)
   }
 
   latestFeaturesRef.current = featureCollection
   selectedIdRef.current = selectedId
   onDropRef.current = editing?.onDrop
+  onPickRef.current = onPick
 
   useEffect(() => {
     const container = containerRef.current
@@ -319,12 +326,13 @@ export const AnalyticsCoverageMap = ({
           const point = toPoint(onPoint[0], true)
           openerRef.current = null
           setOpenPoint(point)
+          if (point) onPickRef.current?.(point)
           if (point && map) centerLow(map, point.coordinates)
         }
         map.on('style.load', handleLoad)
         map.on('load', handleLoad)
         map.on('error', handleError)
-        if (hasPopup) {
+        if (pickable) {
           map.on('mouseenter', layerId, handleEnter)
           map.on('mouseleave', layerId, handleLeave)
           map.on('click', handleClick)
@@ -353,7 +361,7 @@ export const AnalyticsCoverageMap = ({
       if (mapRef.current === map) mapRef.current = null
       delete container.dataset.mapAttempt
     }
-  }, [centerLatitude, centerLongitude, hasPopup, initialZoom, resolvedStyleUrl, retryKey])
+  }, [centerLatitude, centerLongitude, initialZoom, pickable, resolvedStyleUrl, retryKey])
 
   // Also re-runs when edit mode starts or ends, so every pin is redrawn from props and a rejected drop snaps back.
   // biome-ignore lint/correctness/useExhaustiveDependencies: editingKey only triggers the redraw.
@@ -541,7 +549,7 @@ export const AnalyticsCoverageMap = ({
           title="No mapped locations available"
         />
       ) : null}
-      {hasPopup && status === 'ready' && hasFeatures ? (
+      {pickable && status === 'ready' && hasFeatures ? (
         // Shown only while a place button has focus, so the map stays clear for pointer users.
         <nav
           aria-label="Mapped places"

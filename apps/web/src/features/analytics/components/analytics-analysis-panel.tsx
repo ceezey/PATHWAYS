@@ -106,7 +106,7 @@ export const AnalyticsAnalysisPanel = ({
     >
       {mapSelected ? (
         <>
-          <ProjectCoverageMapPanel />
+          <ProjectCoverageMapPanel mode="dashboard" />
           {mapDataLoading ? (
             <output className="mt-4 rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
               Updating project analytics.
