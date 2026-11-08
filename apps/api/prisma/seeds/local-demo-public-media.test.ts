@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { demoActivities } from './local-demo-data'
 import { publicMediaBytes, publicMediaPlan } from './local-demo-public-media'
+import { type MediaRow, pickExisting } from './local-demo-stage-public-media'
 
 const keys = ['EHK', 'ALS', 'CRL', 'SSG'] as const
 
@@ -39,5 +40,27 @@ describe('public media plan', () => {
       const { bytes } = publicMediaBytes(item)
       expect(bytes.length, item.file).toBeLessThan(item.kind === 'photo' ? 300_000 : 1_000_000)
     }
+  })
+})
+
+describe('pickExisting', () => {
+  const row = (over: Partial<MediaRow>): MediaRow => ({
+    id: 'a',
+    sha256: 'h',
+    storageReady: true,
+    publicVisibilityStatus: 'APPROVED',
+    status: 'VERIFIED',
+    ...over,
+  })
+  it('reuses an approved row with the same hash', () => {
+    expect(pickExisting([row({})], 'h')?.id).toBe('a')
+  })
+  it('skips an upload that never finished', () => {
+    expect(pickExisting([row({ storageReady: false })], 'h')).toBeUndefined()
+  })
+  it('skips rejected rows and other hashes', () => {
+    expect(
+      pickExisting([row({ status: 'REJECTED' }), row({ id: 'b', sha256: 'x' })], 'h'),
+    ).toBeUndefined()
   })
 })
