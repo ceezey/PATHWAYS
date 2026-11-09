@@ -8,6 +8,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import { useMapPinEdit } from '../hooks/use-map-pin-edit'
 import { placeKey, toProjectMapFeatures, useProjectMap } from '../hooks/use-project-map'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
+import { PlacePopupCard } from './place-popup-card'
 import { ProjectMapCard } from './project-map-card'
 import { ProjectMapDetailPanel } from './project-map-detail-panel'
 
@@ -120,6 +121,22 @@ const AnalyticsMap = ({
         emptyDescription={emptyText(read)}
         featureCollection={features}
         onPick={pick}
+        // Hidden while a pin is being dragged, so the card never covers the drop spot.
+        renderPopup={
+          editing
+            ? undefined
+            : (point, close) => {
+                const match = places.get(point.key)
+                return match ? (
+                  <PlacePopupCard
+                    onClose={close}
+                    place={match.place}
+                    projectTitle={match.project.title}
+                    showBreakdown
+                  />
+                ) : null
+              }
+        }
         selectedId={selectedProjectId}
       />
       <div ref={panelRef}>

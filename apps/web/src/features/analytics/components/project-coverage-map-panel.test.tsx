@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import type { ProjectMap, ProjectMapProject } from '@pathways/shared'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -114,6 +114,49 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
     renderAnalytics()
     expect(screen.getByRole('complementary', { name: 'Alpha details' })).toBeTruthy()
     expect(lastMap().selectedId).toBe(ids.a)
+  })
+
+  it('shows the place card with the project name and SADDD split over a pin', () => {
+    const count = (value: number) => ({
+      state: 'AVAILABLE' as const,
+      value: String(value),
+      reason: null,
+    })
+    const reached = {
+      ...projectOf(ids.b, 'Bravo'),
+      places: [
+        {
+          ...place(false),
+          name: 'Llorente',
+          reach: {
+            total: count(150),
+            sex: [
+              { key: 'male', label: 'Male', metric: count(24) },
+              { key: 'female', label: 'Female', metric: count(126) },
+            ],
+            disability: count(14),
+          },
+        },
+      ],
+    } as ProjectMapProject
+    state.data = mapOf(projectOf(ids.a, 'Alpha'), reached)
+    renderAnalytics()
+    fireEvent.click(screen.getByRole('button', { name: 'Pin b' }))
+
+    const card = screen.getByRole('button', { name: 'Close place overview' }).closest('div')
+      ?.parentElement as HTMLElement
+    expect(within(card).getByText('Llorente')).toBeTruthy()
+    expect(within(card).getByText('Bravo')).toBeTruthy()
+    expect(within(card).getByText('Male 24 · Female 126 · With disability 14')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close place overview' }))
+    expect(screen.queryByRole('button', { name: 'Close place overview' })).toBeNull()
+  })
+
+  it('hides the place card while a pin is being moved', () => {
+    renderAnalytics()
+    expect(lastMap().renderPopup).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
     expect(lastMap().renderPopup).toBeUndefined()
   })
 

@@ -1,14 +1,13 @@
 'use client'
 
-import { X } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
 
-import { Button } from '@/components/ui/button'
 import {
   AnalyticsCoverageMap,
   ChartPanel,
   IndicatorProgressChart,
   ParticipationBreakdownPanel,
+  PlacePopupCard,
   SadddChart,
   UnavailableChart,
   progressRows,
@@ -102,30 +101,7 @@ const PlacesMap = ({ places }: { places: Body<'map'>['places'] }) => {
       renderPopup={(point, close) => {
         // Point keys end in the place index.
         const place = places[Number(point.key.slice(point.key.lastIndexOf(':') + 1))]
-        return place ? (
-          <div className="w-56 max-w-full text-left">
-            <div className="flex items-start justify-between gap-2">
-              <p className="font-medium text-foreground">{place.name}</p>
-              <Button
-                aria-label="Close place overview"
-                onClick={close}
-                size="icon"
-                type="button"
-                variant="ghost"
-              >
-                <X aria-hidden="true" className="h-4 w-4" />
-              </Button>
-            </div>
-            {place.reach ? (
-              <p className="mt-1 text-sm text-muted-foreground">
-                People reached:{' '}
-                <span className="font-medium tabular-nums text-foreground">
-                  {overviewMetricLabel(place.reach.total, 'count')}
-                </span>
-              </p>
-            ) : null}
-          </div>
-        ) : null
+        return place ? <PlacePopupCard onClose={close} place={place} /> : null
       }}
     />
   )

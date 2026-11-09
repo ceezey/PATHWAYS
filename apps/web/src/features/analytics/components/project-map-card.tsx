@@ -22,7 +22,7 @@ const Row = ({ label, value, detail }: RowData) => (
 )
 
 // SADDD groups other than exact zeros; a withheld group keeps its label so it never reads as empty.
-const breakdown = (
+export const breakdown = (
   sex: ProjectMapProject['sadddSex'] | undefined,
   disability: MetricCell | null | undefined,
 ) =>
