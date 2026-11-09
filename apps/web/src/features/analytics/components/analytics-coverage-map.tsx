@@ -574,7 +574,7 @@ export const AnalyticsCoverageMap = ({
         // Non-modal: the map stays usable; the browser default insets and margin are reset to place it.
         <dialog
           aria-label={`${openPoint.label} overview`}
-          className="absolute bottom-auto right-auto z-10 m-0 max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border bg-card p-3 text-foreground shadow-md"
+          className="absolute bottom-auto right-auto z-10 m-0 max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border bg-background p-3 text-foreground shadow-md"
           onKeyDown={(event) => {
             if (event.key === 'Escape') close()
           }}
