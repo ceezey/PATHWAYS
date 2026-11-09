@@ -1,15 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Header,
-  HttpCode,
-  Inject,
-  Param,
-  Put,
-  Query,
-  Req,
-} from '@nestjs/common'
+import { Body, Controller, Header, HttpCode, Inject, Param, Post, Put, Req } from '@nestjs/common'
 import {
   type MapPinPlaceQuery,
   type SaveMapPinRequest,
@@ -39,15 +28,16 @@ export class ProjectMapPinsController {
     return this.service.save(requestIdentity(request), projectId, body)
   }
 
-  @Delete()
+  // POST, not DELETE: the CORS policy allows no DELETE, so a browser could never send one.
+  @Post('reset')
   @HttpCode(204)
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('projects.update')
   reset(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
-    @Query(new ZodPipe(mapPinPlaceQuery)) query: MapPinPlaceQuery,
+    @Body(new ZodPipe(mapPinPlaceQuery)) place: MapPinPlaceQuery,
   ) {
-    return this.service.reset(requestIdentity(request), projectId, query)
+    return this.service.reset(requestIdentity(request), projectId, place)
   }
 }

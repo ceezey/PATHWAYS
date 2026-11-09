@@ -1,12 +1,15 @@
 'use client'
 
 import type { ProjectMapPlace, ProjectMapProject } from '@pathways/shared'
+import { Lock, LockOpen, Move } from 'lucide-react'
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { overviewMetricLabel } from '@/features/projects'
+import { cn } from '@/lib/utils'
 
 import type { MapPinDraft, useMapPinEdit } from '../hooks/use-map-pin-edit'
 import { placeKey } from '../hooks/use-project-map'
@@ -24,6 +27,23 @@ const statusLabel = (status: string) => {
   const words = status.replace(/_/g, ' ').toLowerCase()
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
+
+// The tip sits on a wrapper, so it still shows over a disabled button.
+const HoverTip = ({
+  tip,
+  className,
+  children,
+}: { tip: string; className?: string; children: ReactNode }) => (
+  <span className={cn('group relative inline-flex', className)}>
+    {children}
+    <span
+      aria-hidden="true"
+      className="pointer-events-none invisible absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:visible"
+    >
+      {tip}
+    </span>
+  </span>
+)
 
 const coordinate = (text: string) => (text.trim() === '' ? Number.NaN : Number(text))
 
@@ -95,33 +115,48 @@ const PlaceRow = ({
         </p>
         {editable ? (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
-            <Button
-              disabled={place.locked || edit.pending}
-              onClick={startMove}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Move
-            </Button>
-            <Button
-              disabled={edit.pending}
-              onClick={toggleLock}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {place.locked ? 'Unlock' : 'Lock'}
-            </Button>
-            <Button
-              disabled={place.locked || edit.pending}
-              onClick={reset}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Reset to town centre
-            </Button>
+            <HoverTip tip="Move pin">
+              <Button
+                aria-label="Move pin"
+                disabled={place.locked || edit.pending}
+                onClick={startMove}
+                className="w-9 px-0"
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <Move aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            </HoverTip>
+            <HoverTip tip={place.locked ? 'Unlock pin' : 'Lock pin'}>
+              <Button
+                aria-label={place.locked ? 'Unlock pin' : 'Lock pin'}
+                disabled={edit.pending}
+                onClick={toggleLock}
+                className="w-9 px-0"
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {place.locked ? (
+                  <Lock aria-hidden="true" className="h-4 w-4" />
+                ) : (
+                  <LockOpen aria-hidden="true" className="h-4 w-4" />
+                )}
+              </Button>
+            </HoverTip>
+            <HoverTip className="ml-auto" tip="Reset to town centre">
+              <Button
+                aria-label="Reset to town centre"
+                disabled={place.locked || edit.pending}
+                onClick={reset}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Reset
+              </Button>
+            </HoverTip>
           </div>
         ) : null}
         {editable && editing ? (

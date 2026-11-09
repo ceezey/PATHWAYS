@@ -88,25 +88,29 @@ describe('ProjectMapDetailPanel', () => {
 
   it('shows no edit buttons without the update permission', () => {
     render(<Harness canEdit={false} />)
-    expect(screen.queryByRole('button', { name: 'Move' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Lock' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Move pin' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Lock pin' })).toBeNull()
   })
 
   it('disables Move and Reset on a locked row and offers Unlock', () => {
     render(<Harness />)
     const locked = within(row('Guiuan'))
-    expect((locked.getByRole('button', { name: 'Move' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((locked.getByRole('button', { name: 'Move pin' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
     expect(
       (locked.getByRole('button', { name: 'Reset to town centre' }) as HTMLButtonElement).disabled,
     ).toBe(true)
-    expect(locked.getByRole('button', { name: 'Unlock' })).toBeTruthy()
+    expect(locked.getByRole('button', { name: 'Unlock pin' })).toBeTruthy()
     const open = within(row('Borongan'))
-    expect((open.getByRole('button', { name: 'Move' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((open.getByRole('button', { name: 'Move pin' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    )
   })
 
   it('saves the typed position and keeps the lock as it was', async () => {
     render(<Harness />)
-    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Move' }))
+    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Move pin' }))
     expect((screen.getByLabelText('Longitude') as HTMLInputElement).value).toBe('125.4')
     type('Longitude', '125.5')
     type('Latitude', '11.7')
@@ -125,7 +129,7 @@ describe('ProjectMapDetailPanel', () => {
 
   it('locks a pin with the position exactly as received', async () => {
     render(<Harness />)
-    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Lock' }))
+    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Lock pin' }))
     await waitFor(() => expect(refetch).toHaveBeenCalled())
     expect(client.saveMapPin).toHaveBeenCalledWith(project.id, {
       name: 'Borongan',
@@ -138,7 +142,7 @@ describe('ProjectMapDetailPanel', () => {
 
   it('unlocks a pin with the position exactly as received', async () => {
     render(<Harness />)
-    fireEvent.click(within(row('Guiuan')).getByRole('button', { name: 'Unlock' }))
+    fireEvent.click(within(row('Guiuan')).getByRole('button', { name: 'Unlock pin' }))
     await waitFor(() => expect(refetch).toHaveBeenCalled())
     expect(client.saveMapPin).toHaveBeenCalledWith(project.id, {
       name: 'Guiuan',
@@ -184,7 +188,7 @@ describe('ProjectMapDetailPanel', () => {
 
   it('closes the form without a request when Save keeps the same position', () => {
     render(<Harness />)
-    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Move' }))
+    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Move pin' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(client.saveMapPin).not.toHaveBeenCalled()
     expect(onEdit).toHaveBeenLastCalledWith(null)
@@ -225,7 +229,7 @@ describe('ProjectMapDetailPanel', () => {
 
   it('cancels an edit without writing', () => {
     render(<Harness />)
-    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Move' }))
+    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Move pin' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onEdit).toHaveBeenLastCalledWith(null)
     expect(client.saveMapPin).not.toHaveBeenCalled()
@@ -236,7 +240,7 @@ describe('ProjectMapDetailPanel', () => {
     render(<Harness preview />)
     fireEvent.click(screen.getByRole('button', { name: 'Switch filter to this project' }))
     expect(onSwitch).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('button', { name: 'Move' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Unlock' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Move pin' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Unlock pin' })).toBeNull()
   })
 })

@@ -304,6 +304,31 @@ describe('AnalyticsCoverageMap', () => {
     expect(map?.jumpTo).toHaveBeenLastCalledWith({ center: [122, 12.5], zoom: 4.5 })
   })
 
+  it('keeps the camera when the same pins reload, as after a save or lock', async () => {
+    const rendered = render(
+      <AnalyticsCoverageMap
+        featureCollection={features([['west', 120, 10]])}
+        styleUrl="test-style"
+      />,
+    )
+    const map = await waitFor(() => {
+      const instance = maplibre.instances[0]
+      expect(instance?.sources.get('pathways-authorized-project-locations')).toBeTruthy()
+      return instance
+    })
+    const fits = map.fitBounds.mock.calls.length + map.jumpTo.mock.calls.length
+    rendered.rerender(
+      <AnalyticsCoverageMap
+        featureCollection={features([['west', 121, 11]])}
+        styleUrl="test-style"
+      />,
+    )
+    await waitFor(() =>
+      expect(map.sources.get('pathways-authorized-project-locations')?.setData).toHaveBeenCalled(),
+    )
+    expect(map.fitBounds.mock.calls.length + map.jumpTo.mock.calls.length).toBe(fits)
+  })
+
   it('contains style failure inside the map surface and retries only the renderer', async () => {
     render(<AnalyticsCoverageMap styleUrl="error-style" />)
 

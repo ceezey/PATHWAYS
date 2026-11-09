@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common'
+import { BadRequestException, RequestMethod } from '@nestjs/common'
 import { describe, expect, it, vi } from 'vitest'
 
 import { mapPinPlaceQuery, saveMapPinRequest } from '@pathways/shared'
@@ -52,7 +52,13 @@ describe('ProjectMapPinsController', () => {
     },
   )
 
-  it('answers 400 for a reset query missing the province', () => {
+  it('serves reset as POST, since the CORS policy allows no DELETE', () => {
+    const reset = ProjectMapPinsController.prototype.reset
+    expect(Reflect.getMetadata('method', reset)).toBe(RequestMethod.POST)
+    expect(Reflect.getMetadata('path', reset)).toBe('reset')
+  })
+
+  it('answers 400 for a reset body missing the province', () => {
     expect(() => new ZodPipe(mapPinPlaceQuery).transform({ name: 'Catarman' })).toThrow(
       BadRequestException,
     )
