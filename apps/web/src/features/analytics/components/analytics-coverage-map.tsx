@@ -50,7 +50,8 @@ type AnalyticsCoverageMapProps = Readonly<{
   renderPopup?: (point: MapPoint, close: () => void) => ReactNode
   emptyDescription?: string
   /** Called with the project id and feature key of a clicked or listed pin, for hosts that show no popup. */
-  onPick?: (point: Readonly<{ id: string; key: string }>) => void
+  /** Called with the clicked point, or null when the card closes or the empty map is clicked. */
+  onPick?: (point: Readonly<{ id: string; key: string }> | null) => void
   /** Project id to highlight; every other project dims. */
   selectedId?: string
   /** Lets one pin, by its feature key, be dragged; onDrop receives the release point. */
@@ -201,6 +202,7 @@ export const AnalyticsCoverageMap = ({
   // Closing returns focus to the place button that opened the card, if any.
   const close = () => {
     setOpenPoint(null)
+    onPickRef.current?.(null)
     openerRef.current?.focus()
     openerRef.current = null
   }
@@ -326,7 +328,7 @@ export const AnalyticsCoverageMap = ({
           const point = toPoint(onPoint[0], true)
           openerRef.current = null
           setOpenPoint(point)
-          if (point) onPickRef.current?.(point)
+          onPickRef.current?.(point)
           if (point && map) centerLow(map, point.coordinates)
         }
         map.on('style.load', handleLoad)
@@ -574,7 +576,7 @@ export const AnalyticsCoverageMap = ({
         // Non-modal: the map stays usable; the browser default insets and margin are reset to place it.
         <dialog
           aria-label={`${openPoint.label} overview`}
-          className="absolute bottom-auto right-auto z-10 m-0 max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border bg-background p-3 text-foreground shadow-md"
+          className="absolute bottom-auto right-auto z-10 m-0 max-w-[calc(100%-1rem)] overflow-y-auto rounded-md border border-border bg-card p-3 text-foreground shadow-md"
           onKeyDown={(event) => {
             if (event.key === 'Escape') close()
           }}

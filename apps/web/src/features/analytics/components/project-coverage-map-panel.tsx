@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import { cn } from '@/lib/utils'
 
 import { useMapPinEdit } from '../hooks/use-map-pin-edit'
 import { placeKey, toProjectMapFeatures, useProjectMap } from '../hooks/use-project-map'
@@ -95,12 +96,14 @@ const AnalyticsMap = ({
   }, [focus, previewId])
 
   // A click that ends a drag lands here too, so a pick of the selected project keeps the edit open.
-  const pick = ({ id, key }: { id: string; key: string }) => {
-    if (id === selectedProjectId) {
+  // A null pick clears only the preview; a project chosen in the filter stays shown.
+  const pick = (point: { id: string; key: string } | null) => {
+    if (!point) setPreviewId(null)
+    else if (point.id === selectedProjectId) {
       setPreviewId(null)
-      setFocus({ key })
+      setFocus({ key: point.key })
     } else {
-      setPreviewId(id)
+      setPreviewId(point.id)
       setEditingKey(null)
     }
   }
@@ -115,7 +118,8 @@ const AnalyticsMap = ({
     : undefined
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+    // The map fills the row until a project is shown, then makes room for the side panel.
+    <div className={cn('grid gap-4', project && 'lg:grid-cols-[minmax(0,1fr)_22rem]')}>
       <AnalyticsCoverageMap
         editing={editing}
         emptyDescription={emptyText(read)}
@@ -139,8 +143,8 @@ const AnalyticsMap = ({
         }
         selectedId={selectedProjectId}
       />
-      <div ref={panelRef}>
-        {project ? (
+      {project ? (
+        <div ref={panelRef}>
           <ProjectMapDetailPanel
             canEdit={canEdit}
             edit={edit}
@@ -153,10 +157,8 @@ const AnalyticsMap = ({
             preview={previewId !== null}
             project={project}
           />
-        ) : (
-          <p className="text-sm text-muted-foreground">Click a pin to see its details.</p>
-        )}
-      </div>
+        </div>
+      ) : null}
     </div>
   )
 }

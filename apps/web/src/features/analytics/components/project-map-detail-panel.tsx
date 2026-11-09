@@ -82,7 +82,7 @@ const PlaceRow = ({
   }
 
   return (
-    <li className="border-t border-border py-2 first:border-t-0" data-place-key={rowKey}>
+    <li className="rounded-md bg-background p-2" data-place-key={rowKey}>
       <fieldset aria-label={`${name}, ${province}`} className="min-w-0">
         <p className="text-sm font-medium text-foreground">
           {name}
@@ -213,7 +213,7 @@ export const ProjectMapDetailPanel = ({
         {edit.error}
       </p>
     ) : null}
-    <ul className="mt-2">
+    <ul className="mt-2 space-y-2">
       {project.places.map((place, index) => {
         const rowKey = placeKey(project.id, index)
         return (
