@@ -2,19 +2,22 @@ import { z } from 'zod'
 import { metricCellSchema } from '../../metrics/metric-cell'
 import { projectOverviewMetricsSchema } from './overview-metrics'
 
-export const PROJECT_MAP_CONTRACT_VERSION = 'analytics.project-map.v1' as const
+export const PROJECT_MAP_CONTRACT_VERSION = 'analytics.project-map.v2' as const
 
 const sexBucketSchema = z
   .object({ key: z.string().max(80), label: z.string().max(160), metric: metricCellSchema })
   .strict()
 
-/** One named place a project's implementation area resolves to, at a bundled centroid. */
+/** One named place a project's implementation area resolves to, at its bundled centroid or saved site. */
 export const projectMapPlaceSchema = z
   .object({
     name: z.string().max(120),
     province: z.string().max(120),
     longitude: z.number().min(114).max(128),
     latitude: z.number().min(4).max(22),
+    // True when the position comes from a saved pin rather than the bundled centroid.
+    saved: z.boolean(),
+    locked: z.boolean(),
     // SADDD individuals whose recorded city or municipality is this place; null without the SADDD grant.
     reach: z
       .object({
@@ -27,7 +30,7 @@ export const projectMapPlaceSchema = z
   })
   .strict()
 
-/** Project-level map point: centroids only, never Beneficiary coordinates. */
+/** Project-level map point: centroids or saved project sites, never Beneficiary coordinates. */
 export const projectMapProjectSchema = z
   .object({
     id: z.guid(),

@@ -48,7 +48,8 @@ const permissions = {
   PUBLISH: 'public.publish',
   WITHDRAW: 'public.publish',
 } as const
-const rowSelection = Prisma.sql`revision,state,summary,snapshot,live_revision AS "liveRevision",live_snapshot AS "liveSnapshot",
+// The staff read drops the frozen pins, which only the anonymous map reads (0089), so the strict web schema still parses.
+const rowSelection = Prisma.sql`revision,state,summary,snapshot - 'pins' AS snapshot,live_revision AS "liveRevision",live_snapshot - 'pins' AS "liveSnapshot",
  live_published_at AS "livePublishedAt",submitted_by_id::text AS "submittedById",
  approved_by_id::text AS "approvedById",published_by_id::text AS "publishedById",updated_at AS "updatedAt"`
 

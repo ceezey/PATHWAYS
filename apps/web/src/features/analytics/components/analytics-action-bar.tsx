@@ -2,6 +2,7 @@
 
 import { ChevronDown, Download, Plus } from 'lucide-react'
 
+import { useHoverTip } from '@/components/pathways/metric-tooltip'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -81,13 +82,16 @@ export const AnalyticsActionBar = ({
           ? ''
           : 'Your role cannot read timeline adherence, so this view cannot be pinned.',
       }[analysisView]
+  const pinUnavailable =
+    (!mapSelected && !selectedProject) || !profile?.userId || Boolean(pinBlockedReason)
+  const pinTip = useHoverTip(pinBlockedReason || undefined)
   const addToDashboard = () => {
-    if (!selectedProject || !profile?.userId || pinBlockedReason) return
+    if (pinUnavailable || !profile?.userId) return
     const view = mapSelected ? 'map' : analysisView
     if (view === 'survey') return
     const result = addPin(profile.userId, {
       view,
-      projectId: view === 'map' ? '' : selectedProject.id,
+      projectId: view === 'map' || !selectedProject ? '' : selectedProject.id,
       ...(view !== 'map' && view !== 'timeline' && selectedPeriod
         ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
         : {}),
@@ -105,23 +109,26 @@ export const AnalyticsActionBar = ({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {DASHBOARD_PINS_UI_ENABLED && pinPermitted ? (
+        // With a reason the button stays focusable (aria-disabled), so the tip opens on hover or keyboard focus.
         <div className="flex items-center">
           <Button
             className="shrink-0"
+            {...(pinBlockedReason ? pinTip.triggerProps : {})}
             aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
-            disabled={!selectedProject || !profile?.userId || Boolean(pinBlockedReason)}
+            aria-disabled={pinBlockedReason ? true : undefined}
+            disabled={pinUnavailable && !pinBlockedReason}
             onClick={addToDashboard}
-            title={pinBlockedReason || undefined}
             type="button"
           >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Add to Dashboard
           </Button>
           {pinBlockedReason ? (
-            <p className="ml-3 text-xs text-muted-foreground" id="pin-blocked-reason">
+            <span className="sr-only" id="pin-blocked-reason">
               {pinBlockedReason}
-            </p>
+            </span>
           ) : null}
+          {pinTip.tip}
         </div>
       ) : null}
       {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (

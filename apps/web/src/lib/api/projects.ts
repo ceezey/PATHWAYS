@@ -1,14 +1,20 @@
 import {
   type ArchiveProjectResponse,
+  type MapPinPlaceQuery,
   type ProjectMap,
   type ProjectOverviewMetrics,
   type ProjectResponse,
+  type SaveMapPinRequest,
   type StoredProjectStatus,
   projectMapSchema,
   projectOverviewMetricsSchema,
 } from '@pathways/shared'
 
-import { PathwaysClientError, requestFoundation } from '@/lib/api/core/request'
+import {
+  PathwaysClientError,
+  requestFoundation,
+  requestFoundationResponse,
+} from '@/lib/api/core/request'
 import type { SourceMutationContext, SourceMutationResult } from '@/lib/api/core/source-mutation'
 import { requestSourceMutation } from '@/lib/api/core/source-mutation-request'
 import type {
@@ -153,5 +159,20 @@ export const projectsClient = {
 
   async getProjectMap(signal: AbortSignal): Promise<ProjectMap> {
     return projectMapSchema.parse(await requestFoundation('/analytics/project-map', { signal }))
+  },
+
+  // Both pin writes answer 204 with no body, so they skip the JSON read.
+  async saveMapPin(projectId: string, input: SaveMapPinRequest): Promise<void> {
+    await requestFoundationResponse(`/projects/${encodeURIComponent(projectId)}/map-pins`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    })
+  },
+
+  async resetMapPin(projectId: string, place: MapPinPlaceQuery): Promise<void> {
+    await requestFoundationResponse(`/projects/${encodeURIComponent(projectId)}/map-pins/reset`, {
+      method: 'POST',
+      body: JSON.stringify({ name: place.name, province: place.province }),
+    })
   },
 }

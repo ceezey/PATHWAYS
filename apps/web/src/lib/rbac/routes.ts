@@ -7,6 +7,8 @@ export const isPublicPath = (path: string) =>
 export const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
   activity: ['proof', 'review', 'action'],
   alerts: ['alert'],
+  // The Analytics page reads only project ids the API already scoped for this person.
+  analytics: ['project', 'view'],
   beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
   beneficiary: ['returnTo'],
   budget: ['expense'],

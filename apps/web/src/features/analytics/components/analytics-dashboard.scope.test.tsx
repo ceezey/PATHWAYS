@@ -10,6 +10,7 @@ import {
   indicator,
   loadDashboard,
   monitoring,
+  pageQuery,
   project,
   projectPick,
   resetAnalyticsMocks,
@@ -111,15 +112,16 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
       expect(api.getProjectsForRole).not.toHaveBeenCalled()
     })
 
-    it('asks for a project first and keeps the chosen one when the role reloads the list', async () => {
+    it('opens on the map and keeps the chosen project when the role reloads the list', async () => {
       projectPick.auto = false
       const view = render(<AnalyticsDashboard />)
-      expect(await screen.findByText('Select a project first')).toBeTruthy()
+      expect(await screen.findByTestId('coverage-map')).toBeTruthy()
       expect(screen.getByLabelText('Project filter')).toHaveProperty('value', '')
       expect(api.getActivities).not.toHaveBeenCalled()
 
       fireEvent.change(screen.getByLabelText('Project filter'), { target: { value: 'project-b' } })
       await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
+      expect(screen.getByLabelText('Visualization type')).toHaveProperty('value', 'bar')
 
       currentAccess.role = 'Program Manager'
       view.rerender(<AnalyticsDashboard />)
@@ -131,7 +133,7 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
     it('asks for a project again when the reloaded list no longer holds the selection', async () => {
       projectPick.auto = false
       const view = render(<AnalyticsDashboard />)
-      await screen.findByText('Select a project first')
+      await screen.findByTestId('coverage-map')
       fireEvent.change(screen.getByLabelText('Project filter'), { target: { value: 'project-b' } })
       await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
 
@@ -192,6 +194,41 @@ describe('Analytics dashboard scope: projects, project data and monitoring', () 
   })
 
   describe('map view', () => {
+    it('opens the map with the linked project selected from the page link', async () => {
+      pageQuery.value = 'view=map&project=project-b'
+      projectPick.auto = false
+      const MapsDashboard = await loadDashboard({ maps: true })
+      render(<MapsDashboard />)
+
+      const map = await screen.findByTestId('coverage-map')
+      expect(map.getAttribute('data-selected-id')).toBe('project-b')
+      expect(screen.getByLabelText('Visualization type')).toHaveProperty('value', 'map')
+      expect(screen.getByLabelText('Project filter')).toHaveProperty('value', 'project-b')
+      await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
+    })
+
+    it('preselects nothing for an unknown linked project', async () => {
+      pageQuery.value = 'view=map&project=missing'
+      projectPick.auto = false
+      const MapsDashboard = await loadDashboard({ maps: true })
+      render(<MapsDashboard />)
+
+      expect(await screen.findByTestId('coverage-map')).toBeTruthy()
+      expect(screen.getByLabelText('Project filter')).toHaveProperty('value', '')
+      expect(api.getActivities).not.toHaveBeenCalled()
+    })
+
+    it('still asks for a project when another visualization is chosen', async () => {
+      const MapsDashboard = await loadDashboard({ maps: true })
+      projectPick.auto = false
+      render(<MapsDashboard />)
+      await screen.findByTestId('coverage-map')
+
+      fireEvent.change(screen.getByLabelText('Visualization type'), { target: { value: 'bar' } })
+
+      expect(await screen.findByText('Select a project first')).toBeTruthy()
+    })
+
     it('keeps the map when monitoring fails and retries only the monitoring read', async () => {
       const MapsDashboard = await loadDashboard({ maps: true })
       api.getMonitoringDashboard.mockRejectedValueOnce(new Error('Monitoring is unavailable.'))

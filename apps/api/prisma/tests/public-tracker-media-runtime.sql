@@ -120,7 +120,7 @@ SELECT pg_temp.ok('catalog', (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.
   AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))=2
  AND EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::regclass AND conname='p3_evidence_public' AND convalidated)
  AND (SELECT md5(prosrc)='32c52a969c76775b0a86b6731c3d6fff' AND NOT prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::regprocedure)
- AND (SELECT md5(prosrc)='4ded05556c8c942b497f1845710359e2' AND prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p85_public_projects(uuid,integer,integer)'::regprocedure)
+ AND (SELECT md5(prosrc)='2e377c27df955be9547b46648b7c32d9' AND prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p85_public_projects(uuid,integer,integer)'::regprocedure)
  AND EXISTS(SELECT FROM pg_catalog.pg_trigger WHERE tgname='p3_40_public' AND tgenabled='O' AND tgrelid='pathways.evidence_media'::regclass));
 
 -- Fixtures: one organization; A (21), B (22) and C (23) are Project Managers assigned to projects 41 and 42.
