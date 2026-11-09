@@ -161,7 +161,7 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
   it('hides the place card while a pin is being moved', () => {
     renderAnalytics()
     expect(lastMap().renderPopup).toBeDefined()
-    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move pin' }))
     expect(lastMap().renderPopup).toBeUndefined()
   })
 
@@ -169,7 +169,7 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
     renderAnalytics()
     fireEvent.click(screen.getByRole('button', { name: 'Pin b' }))
     expect(screen.getByRole('complementary', { name: 'Bravo details' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Move' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Move pin' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Switch filter to this project' }))
     expect(onSelectProject).toHaveBeenCalledWith(ids.b)
@@ -207,7 +207,7 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
   it('makes only the moved pin draggable and fills the inputs from a drop', () => {
     renderAnalytics()
     expect(lastMap().editing).toBeUndefined()
-    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move pin' }))
     expect(lastMap().editing?.key).toBe(`${ids.a}:0`)
 
     act(() => lastMap().editing?.onDrop([125.123456789, 11.987654321]))
@@ -218,14 +218,16 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
   it('never makes a locked pin draggable', () => {
     state.data = mapOf(projectOf(ids.a, 'Alpha', true), projectOf(ids.b, 'Bravo'))
     renderAnalytics()
-    expect((screen.getByRole('button', { name: 'Move' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Move pin' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
     expect(lastMap().editing).toBeUndefined()
   })
 
   it('snaps the pin back by ending the edit when the server rejects a drop', async () => {
     state.saveMapPin.mockRejectedValue(new PathwaysClientError('Rejected.', 'invalid', [], 400))
     renderAnalytics()
-    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move pin' }))
     act(() => lastMap().editing?.onDrop([125.5, 11.7]))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -237,7 +239,7 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
   it('shows no edit buttons without the update permission', () => {
     state.permissions = ['projects.read']
     renderAnalytics()
-    expect(screen.queryByRole('button', { name: 'Move' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Move pin' })).toBeNull()
   })
 })
 

@@ -196,6 +196,8 @@ export const AnalyticsCoverageMap = ({
   const cardRef = useRef<HTMLDialogElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const [openPoint, setOpenPoint] = useState<OpenPoint | null>(null)
+  // The selection the camera was last fitted to, or null before any fit with pins.
+  const fittedForRef = useRef<string | null>(null)
   const hasPopup = Boolean(renderPopup)
   const pickable = hasPopup || Boolean(onPick)
 
@@ -277,6 +279,9 @@ export const AnalyticsCoverageMap = ({
             [centerLongitude, centerLatitude],
             initialZoom,
           )
+          fittedForRef.current = latestFeaturesRef.current.features.length
+            ? (selectedIdRef.current ?? '')
+            : null
           map.resize()
           setStatus('ready')
         }
@@ -372,16 +377,19 @@ export const AnalyticsCoverageMap = ({
     if (source?.type === 'geojson') (source as GeoJSONSource).setData(featureCollection)
   }, [featureCollection, editingKey])
 
+  // Fits the camera once per selection; a data reload after a save or lock keeps the person's view.
   useEffect(() => {
     const map = mapRef.current
-    if (map?.getSource(sourceId)) {
-      syncMapCamera(
-        map,
-        cameraCollection(featureCollection, selectedId),
-        [centerLongitude, centerLatitude],
-        initialZoom,
-      )
-    }
+    const target = selectedId ?? ''
+    const hasPins = featureCollection.features.length > 0
+    if (!map?.getSource(sourceId) || (hasPins && fittedForRef.current === target)) return
+    syncMapCamera(
+      map,
+      cameraCollection(featureCollection, selectedId),
+      [centerLongitude, centerLatitude],
+      initialZoom,
+    )
+    fittedForRef.current = hasPins ? target : null
   }, [centerLatitude, centerLongitude, featureCollection, initialZoom, selectedId])
 
   useLayoutEffect(() => {
@@ -403,19 +411,24 @@ export const AnalyticsCoverageMap = ({
       selectedId ? pickByProject(selectedId, 1, 0) : 0,
     )
     const baseRadius = selectedId ? pickByProject(selectedId, 9, 6) : 8
+    // The pin being moved, else the open card's pin, is drawn larger.
+    const bigKey = editingKey ?? (hasPopup ? openPoint?.key : undefined)
     map.setPaintProperty(
       layerId,
       'circle-radius',
-      hasPopup
-        ? ['case', ['==', ['get', 'key'], openPoint?.key ?? ''], 11, baseRadius]
-        : baseRadius,
+      bigKey ? ['case', ['==', ['get', 'key'], bigKey], 11, baseRadius] : baseRadius,
     )
-  }, [hasPopup, openPoint?.key, selectedId, status])
+  }, [editingKey, hasPopup, openPoint?.key, selectedId, status])
 
   // Dragging one pin: pan is off while it moves, and the new spot is reported on release.
   useEffect(() => {
     const map = mapRef.current
     if (status !== 'ready' || !map || !editingKey) return
+    // Brings the movable pin into view, since it may sit outside the current zoom.
+    const target = latestFeaturesRef.current.features.find(
+      (feature) => feature.properties.key === editingKey,
+    )
+    if (target) map.easeTo({ center: [...target.geometry.coordinates], duration: 300 })
     let dragging = false
     let moved: [number, number] | null = null
     const draw = (coordinates: [number, number]) => {
@@ -438,6 +451,7 @@ export const AnalyticsCoverageMap = ({
       if (!onPin || !pin || pin.properties.locked) return
       event.preventDefault()
       dragging = true
+      map.getCanvas().style.cursor = 'grabbing'
       map.dragPan.disable()
       // MapLibre misses a release over the page outside the canvas, so the document ends it too.
       document.addEventListener('mouseup', releaseOutside, { once: true })
@@ -450,6 +464,7 @@ export const AnalyticsCoverageMap = ({
     const stop = () => {
       dragging = false
       moved = null
+      map.getCanvas().style.cursor = ''
       map.dragPan.enable()
       document.removeEventListener('mouseup', releaseOutside)
     }

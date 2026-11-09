@@ -170,10 +170,9 @@ export const projectsClient = {
   },
 
   async resetMapPin(projectId: string, place: MapPinPlaceQuery): Promise<void> {
-    const query = new URLSearchParams({ name: place.name, province: place.province })
-    await requestFoundationResponse(
-      `/projects/${encodeURIComponent(projectId)}/map-pins?${query.toString()}`,
-      { method: 'DELETE' },
-    )
+    await requestFoundationResponse(`/projects/${encodeURIComponent(projectId)}/map-pins/reset`, {
+      method: 'POST',
+      body: JSON.stringify({ name: place.name, province: place.province }),
+    })
   },
 }

@@ -345,10 +345,9 @@ export const AnalyticsDashboard = () => {
           onRetry={retryLoad}
         />
       ) : !selectedProject ? (
-        // The map covers every scoped project, so it needs no project selection.
-        mapSelected && projects.length ? (
-          analysisPanel
-        ) : (
+        // The map covers every scoped project, so it shows above the select-a-project prompt.
+        <>
+          {mapSelected && projects.length ? analysisPanel : null}
           <EmptyState
             description={
               projects.length
@@ -358,7 +357,7 @@ export const AnalyticsDashboard = () => {
             icon={BarChart3}
             title={projects.length ? 'Select a project first' : 'No analytics data for this filter'}
           />
-        )
+        </>
       ) : (
         <>
           {analysisPanel}
