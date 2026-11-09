@@ -12,6 +12,7 @@ export type SafeMapFeature = Readonly<{
     key: string
     label?: string
     title?: string
+    locked?: boolean
   }>
   geometry: Readonly<{
     type: 'Point'

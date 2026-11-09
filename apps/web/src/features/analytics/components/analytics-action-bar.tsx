@@ -81,13 +81,15 @@ export const AnalyticsActionBar = ({
           ? ''
           : 'Your role cannot read timeline adherence, so this view cannot be pinned.',
       }[analysisView]
+  const pinUnavailable =
+    (!mapSelected && !selectedProject) || !profile?.userId || Boolean(pinBlockedReason)
   const addToDashboard = () => {
-    if (!selectedProject || !profile?.userId || pinBlockedReason) return
+    if (pinUnavailable || !profile?.userId) return
     const view = mapSelected ? 'map' : analysisView
     if (view === 'survey') return
     const result = addPin(profile.userId, {
       view,
-      projectId: view === 'map' ? '' : selectedProject.id,
+      projectId: view === 'map' || !selectedProject ? '' : selectedProject.id,
       ...(view !== 'map' && view !== 'timeline' && selectedPeriod
         ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
         : {}),
@@ -105,20 +107,24 @@ export const AnalyticsActionBar = ({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {DASHBOARD_PINS_UI_ENABLED && pinPermitted ? (
-        <div className="flex items-center">
+        // The wrapper takes the hover, since a disabled button ignores pointer events.
+        <div className="group relative flex items-center">
           <Button
             className="shrink-0"
             aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
-            disabled={!selectedProject || !profile?.userId || Boolean(pinBlockedReason)}
+            disabled={pinUnavailable}
             onClick={addToDashboard}
-            title={pinBlockedReason || undefined}
             type="button"
           >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Add to Dashboard
           </Button>
           {pinBlockedReason ? (
-            <p className="ml-3 text-xs text-muted-foreground" id="pin-blocked-reason">
+            <p
+              className="invisible absolute left-0 top-full z-10 mt-2 w-64 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md group-hover:visible"
+              id="pin-blocked-reason"
+              role="tooltip"
+            >
               {pinBlockedReason}
             </p>
           ) : null}

@@ -2,12 +2,14 @@
 
 import { AlertTriangle, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
+import { MAPS_UI_ENABLED } from '@/constants/feature-flags'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -47,6 +49,9 @@ import { SadddAnalysisPanel } from './saddd-analysis-panel'
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
+  // The page link is read once on mount: project=<id> picks a project; the map is already the default view.
+  const params = useSearchParams()
+  const [pageLink] = useState(() => ({ projectId: params?.get('project') ?? '' }))
   const {
     canExportAnalytics,
     canReadActivities,
@@ -87,10 +92,13 @@ export const AnalyticsDashboard = () => {
     canReadIndicatorDefinitions,
     canReadIndicatorValues,
     canReadIndicators,
+    initialProjectId: pageLink.projectId,
     role,
   })
   const [analysisView, setAnalysisView] = useState<AnalysisView>('kpi')
-  const [visualizationType, setVisualizationType] = useState<VisualizationType>('bar')
+  const [visualizationType, setVisualizationType] = useState<VisualizationType>(
+    MAPS_UI_ENABLED ? 'map' : 'bar',
+  )
   const [indicatorId, setIndicatorId] = useState('all')
 
   const alertRead = useAuthorizedRead(
@@ -188,6 +196,11 @@ export const AnalyticsDashboard = () => {
     resetSurvey()
     resetTimeline()
   }
+  // The map is the overview before any project, so the first project picked in the filter opens its charts; a pin click keeps the map.
+  const handleFilterProjectChange = (nextProjectId: string) => {
+    if (!projectId && visualizationType === 'map') setVisualizationType('bar')
+    handleProjectChange(nextProjectId)
+  }
 
   const mapSelected = visualizationType === 'map'
   const mapDataLoading = projectDataLoading || monitoringLoading
@@ -217,6 +230,39 @@ export const AnalyticsDashboard = () => {
   const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError
   const canViewRules = Boolean(role && can(role, 'rules.view'))
   const canConfigureRules = Boolean(role && can(role, 'rules.configure'))
+  const analysisPanel = (
+    <AnalyticsAnalysisPanel
+      activities={activities}
+      analysisRows={analysisRows}
+      analysisView={analysisView}
+      canReadParticipation={canReadParticipation}
+      canReadSurvey={canReadSurvey}
+      canReadSurveyTimeline={canReadSurveyTimeline}
+      mapDataError={mapDataError}
+      mapDataLoading={mapDataLoading}
+      monitoringReadable={monitoringReadable}
+      participationRead={participationRead}
+      periodsReadable={periodsReadable}
+      reportingPeriods={reportingPeriods}
+      retryMapData={retryMapData}
+      onSelectProject={handleProjectChange}
+      retrySurvey={retrySurvey}
+      retryTimeline={retryTimeline}
+      selectedPeriod={selectedPeriod}
+      selectedProjectId={projectId}
+      survey={survey}
+      surveyClosedPeriodRequired={surveyClosedPeriodRequired}
+      surveyError={surveyError}
+      surveyErrorKind={surveyErrorKind}
+      surveyFrozenOnly={surveyFrozenOnly}
+      surveyLoading={surveyLoading}
+      surveyPeriods={surveyPeriods}
+      timeline={timeline}
+      timelineError={timelineError}
+      timelineLoading={timelineLoading}
+      visualizationType={visualizationType}
+    />
+  )
 
   return (
     <div className="space-y-6">
@@ -238,7 +284,7 @@ export const AnalyticsDashboard = () => {
         canReadParticipation={canReadParticipation}
         canReadSurvey={canReadSurvey}
         canReadSurveyTimeline={canReadSurveyTimeline}
-        handleProjectChange={handleProjectChange}
+        handleProjectChange={handleFilterProjectChange}
         indicatorId={indicatorId}
         indicators={indicators}
         pickerPeriod={pickerPeriod}
@@ -299,46 +345,23 @@ export const AnalyticsDashboard = () => {
           onRetry={retryLoad}
         />
       ) : !selectedProject ? (
-        <EmptyState
-          description={
-            projects.length
-              ? 'Choose a project in the Project filter to see its analytics.'
-              : 'No authorized project is available for this account.'
-          }
-          icon={BarChart3}
-          title={projects.length ? 'Select a project first' : 'No analytics data for this filter'}
-        />
+        // The map covers every scoped project, so it needs no project selection.
+        mapSelected && projects.length ? (
+          analysisPanel
+        ) : (
+          <EmptyState
+            description={
+              projects.length
+                ? 'Choose a project in the Project filter to see its analytics.'
+                : 'No authorized project is available for this account.'
+            }
+            icon={BarChart3}
+            title={projects.length ? 'Select a project first' : 'No analytics data for this filter'}
+          />
+        )
       ) : (
         <>
-          <AnalyticsAnalysisPanel
-            activities={activities}
-            analysisRows={analysisRows}
-            analysisView={analysisView}
-            canReadParticipation={canReadParticipation}
-            canReadSurvey={canReadSurvey}
-            canReadSurveyTimeline={canReadSurveyTimeline}
-            mapDataError={mapDataError}
-            mapDataLoading={mapDataLoading}
-            monitoringReadable={monitoringReadable}
-            participationRead={participationRead}
-            periodsReadable={periodsReadable}
-            reportingPeriods={reportingPeriods}
-            retryMapData={retryMapData}
-            retrySurvey={retrySurvey}
-            retryTimeline={retryTimeline}
-            selectedPeriod={selectedPeriod}
-            survey={survey}
-            surveyClosedPeriodRequired={surveyClosedPeriodRequired}
-            surveyError={surveyError}
-            surveyErrorKind={surveyErrorKind}
-            surveyFrozenOnly={surveyFrozenOnly}
-            surveyLoading={surveyLoading}
-            surveyPeriods={surveyPeriods}
-            timeline={timeline}
-            timelineError={timelineError}
-            timelineLoading={timelineLoading}
-            visualizationType={visualizationType}
-          />
+          {analysisPanel}
           <AnalyticsSummaryCards
             activities={activities}
             alertsFailed={alertsFailed}

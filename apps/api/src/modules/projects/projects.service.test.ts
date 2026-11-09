@@ -155,6 +155,7 @@ const tx = {
     updateMany: vi.fn(),
   },
   projectActivityAssignment: { updateMany: vi.fn() },
+  projectMapPin: { deleteMany: vi.fn() },
   projectBudgetRecord: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
@@ -400,10 +401,16 @@ describe('Project update scope', () => {
     vi.clearAllMocks()
     state.actor = manager
     state.tx = tx as unknown as Prisma.TransactionClient
-    tx.project.findFirst.mockResolvedValue({ id: projectId, code: project.code, updatedAt: now })
+    tx.project.findFirst.mockResolvedValue({
+      id: projectId,
+      code: project.code,
+      updatedAt: now,
+      implementationArea: 'Borongan City, Guiuan',
+    })
     tx.project.updateMany.mockResolvedValue({ count: 1 })
     tx.project.findUniqueOrThrow.mockResolvedValue(project)
     tx.projectBudgetRecord.findMany.mockResolvedValue([])
+    tx.projectMapPin.deleteMany.mockResolvedValue({ count: 1 })
   })
 
   it('answers the uniform 404 for a malformed id before any project query', async () => {
@@ -420,7 +427,7 @@ describe('Project update scope', () => {
       where: {
         AND: [expect.objectContaining({ organizationId, archivedAt: null }), { id: lowerId }],
       },
-      select: { id: true, code: true, updatedAt: true },
+      select: { id: true, code: true, updatedAt: true, implementationArea: true },
     })
   })
 
@@ -438,10 +445,39 @@ describe('Project update scope', () => {
       id: projectId,
       code: project.code,
       updatedAt: new Date('2026-09-26T00:00:00.000Z'),
+      implementationArea: null,
     })
     await expect(service.update(manager, projectId, input)).rejects.toBeInstanceOf(
       ConflictException,
     )
     expect(tx.project.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('deletes only the unlocked pins of places removed from the area', async () => {
+    await service.update(manager, projectId, { ...input, implementationArea: 'Guiuan' })
+    expect(tx.projectMapPin.deleteMany).toHaveBeenCalledWith({
+      where: {
+        organizationId,
+        projectId,
+        locked: false,
+        OR: [{ placeName: 'Borongan', province: 'Eastern Samar' }],
+      },
+    })
+  })
+
+  it('keeps every pin when the area is rewritten with the same towns', async () => {
+    await service.update(manager, projectId, {
+      ...input,
+      implementationArea: 'guiuan and borongan city, nearby barangays',
+    })
+    expect(tx.projectMapPin.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('issues no pin delete when the area is unchanged', async () => {
+    await service.update(manager, projectId, {
+      ...input,
+      implementationArea: 'Borongan City, Guiuan',
+    })
+    expect(tx.projectMapPin.deleteMany).not.toHaveBeenCalled()
   })
 })

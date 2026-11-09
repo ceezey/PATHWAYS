@@ -162,7 +162,6 @@ describe('Analytics dashboard actions: rules link, Add to Dashboard and export',
       fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
 
       expect(addButton().disabled).toBe(true)
-      expect(addButton().title).toBe('Survey improvement cannot be pinned.')
       expect(addButton().getAttribute('aria-describedby')).toBe('pin-blocked-reason')
       expect(document.getElementById('pin-blocked-reason')?.textContent).toBe(
         'Survey improvement cannot be pinned.',
@@ -178,12 +177,11 @@ describe('Analytics dashboard actions: rules link, Add to Dashboard and export',
       await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalled())
 
       await waitFor(() =>
-        expect(addButton().title).toBe('Choose a reporting period to pin this view.'),
+        expect(document.getElementById('pin-blocked-reason')?.textContent).toBe(
+          'Choose a reporting period to pin this view.',
+        ),
       )
       expect(addButton().disabled).toBe(true)
-      expect(document.getElementById('pin-blocked-reason')?.textContent).toBe(
-        'Choose a reporting period to pin this view.',
-      )
     })
 
     it('has no reason text and no title while the view can be pinned', async () => {

@@ -177,7 +177,7 @@ describe('Analytics dashboard request dependencies', () => {
     expect(await screen.findByRole('heading', { name: 'Project Coverage Map' })).toBeTruthy()
     expect(
       screen.getByText(
-        'Projects placed by implementation area. Hover or tap a point for its KPI, progress and SADDD overview.',
+        'Every project in your scope. The selected project is highlighted; click a point to see its details beside the map.',
       ),
     ).toBeTruthy()
     expect(screen.getByTestId('coverage-map')).toBeTruthy()

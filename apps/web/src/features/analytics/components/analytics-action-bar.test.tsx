@@ -150,9 +150,11 @@ describe('AnalyticsActionBar', () => {
       show({ analysisView, ...overrides })
 
       expect(pin()?.disabled).toBe(true)
-      expect(pin()?.title).toBe(reason)
       expect(pin()?.getAttribute('aria-describedby')).toBe('pin-blocked-reason')
-      expect(document.getElementById('pin-blocked-reason')?.textContent).toBe(reason)
+      const tooltip = screen.getByRole('tooltip', { hidden: true })
+      expect(tooltip.textContent).toBe(reason)
+      // The reason shows only on hover, not in plain sight.
+      expect(tooltip.className).toMatch(/^invisible .*group-hover:visible/)
       fireEvent.click(pin() as HTMLButtonElement)
       expect(addPin).not.toHaveBeenCalled()
     })
@@ -196,6 +198,18 @@ describe('AnalyticsActionBar', () => {
       })
 
       expect(pin()?.disabled).toBe(false)
+      fireEvent.click(pin() as HTMLButtonElement)
+
+      expect(addPin).toHaveBeenCalledWith('user-1', { view: 'map', projectId: '' })
+    })
+
+    it('pins the scope-wide map before any project is selected', () => {
+      show({
+        profile: { userId: 'user-1', permissions: ['projects.read'] },
+        selectedProject: undefined,
+        visualizationType: 'map',
+      })
+
       fireEvent.click(pin() as HTMLButtonElement)
 
       expect(addPin).toHaveBeenCalledWith('user-1', { view: 'map', projectId: '' })

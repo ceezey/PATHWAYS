@@ -85,6 +85,7 @@ TRUNCATE TABLE
   pathways.project_indicator_bindings,
   pathways.project_indicator_measurements,
   pathways.project_indicators,
+  pathways.project_map_pins,
   pathways.project_milestones,
   pathways.project_publications,
   pathways.projects,

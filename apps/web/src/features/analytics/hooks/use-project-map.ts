@@ -45,10 +45,14 @@ export const toProjectMapFeatures = (map: ProjectMap | undefined): SafeMapFeatur
           key: placeKey(project.id, index),
           label: place.name,
           title: project.title,
+          locked: place.locked,
         },
         geometry: {
           type: 'Point' as const,
-          coordinates: offset(place.longitude, place.latitude, seen),
+          // A saved pin sits exactly where it was put, so it skips the ring and takes no slot.
+          coordinates: place.saved
+            ? ([place.longitude, place.latitude] as const)
+            : offset(place.longitude, place.latitude, seen),
         },
       })),
     ),

@@ -2,11 +2,14 @@
 
 import { AlertTriangle, LoaderCircle, MapPinned } from 'lucide-react'
 import type {
+  ExpressionSpecification,
   GeoJSONSource,
   MapGeoJSONFeature,
   MapLayerMouseEvent,
+  MapLayerTouchEvent,
   MapLibreMap,
   MapMouseEvent,
+  MapTouchEvent,
 } from 'maplibre-gl'
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
@@ -26,6 +29,8 @@ const layerId = 'pathways-authorized-project-location-points'
 const defaultCenter: readonly [longitude: number, latitude: number] = [122, 12.5]
 const defaultZoom = 4.5
 const singleFeatureZoom = 12
+// Mirrors the --muted-foreground token because MapLibre cannot read CSS variables.
+const mutedPinColor = '#526779'
 
 export const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
 
@@ -44,6 +49,15 @@ type AnalyticsCoverageMapProps = Readonly<{
   /** Content of the popup anchored on a hovered or tapped point. */
   renderPopup?: (point: MapPoint, close: () => void) => ReactNode
   emptyDescription?: string
+  /** Called with the project id and feature key of a clicked or listed pin, for hosts that show no popup. */
+  onPick?: (point: Readonly<{ id: string; key: string }>) => void
+  /** Project id to highlight; every other project dims. */
+  selectedId?: string
+  /** Lets one pin, by its feature key, be dragged; onDrop receives the release point. */
+  editing?: Readonly<{
+    key: string
+    onDrop: (coordinates: [longitude: number, latitude: number]) => void
+  }>
 }>
 
 type MapStatus = 'loading' | 'ready' | 'error'
@@ -132,6 +146,24 @@ const syncMapCamera = (
   )
 }
 
+// The selected project's features, or every feature when none is selected or matches.
+const cameraCollection = (
+  featureCollection: SafeMapFeatureCollection,
+  selectedId: string | undefined,
+): SafeMapFeatureCollection => {
+  const features = featureCollection.features.filter(
+    (feature) => feature.properties.id === selectedId,
+  )
+  return selectedId && features.length > 0 ? { ...featureCollection, features } : featureCollection
+}
+
+// Picks one value for the selected project's pins and another for the rest.
+const pickByProject = <T extends number | string>(
+  selectedId: string,
+  selected: T,
+  others: T,
+): ExpressionSpecification => ['case', ['==', ['get', 'id'], selectedId], selected, others]
+
 export const AnalyticsCoverageMap = ({
   featureCollection = EMPTY_SAFE_MAP_FEATURE_COLLECTION,
   styleUrl,
@@ -140,10 +172,17 @@ export const AnalyticsCoverageMap = ({
   className,
   renderPopup,
   emptyDescription = 'No authoritative project coordinates are available. Text-only implementation areas remain unresolved and unplotted.',
+  onPick,
+  selectedId,
+  editing,
 }: AnalyticsCoverageMapProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const latestFeaturesRef = useRef<SafeMapFeatureCollection>(featureCollection)
+  const selectedIdRef = useRef(selectedId)
+  const onDropRef = useRef(editing?.onDrop)
+  const onPickRef = useRef(onPick)
+  const editingKey = editing?.key
   const resolvedStyleUrl = styleUrl === undefined ? resolveMapStyleUrl() : styleUrl?.trim() || null
   const [status, setStatus] = useState<MapStatus>(resolvedStyleUrl ? 'loading' : 'error')
   const [errorMessage, setErrorMessage] = useState(
@@ -157,6 +196,7 @@ export const AnalyticsCoverageMap = ({
   const openerRef = useRef<HTMLElement | null>(null)
   const [openPoint, setOpenPoint] = useState<OpenPoint | null>(null)
   const hasPopup = Boolean(renderPopup)
+  const pickable = hasPopup || Boolean(onPick)
 
   // Closing returns focus to the place button that opened the card, if any.
   const close = () => {
@@ -167,10 +207,14 @@ export const AnalyticsCoverageMap = ({
   const pinFromList = (feature: SafeMapFeature, opener: HTMLElement) => {
     openerRef.current = opener
     setOpenPoint(featurePoint(feature))
+    onPickRef.current?.(feature.properties)
     if (mapRef.current) centerLow(mapRef.current, feature.geometry.coordinates)
   }
 
   latestFeaturesRef.current = featureCollection
+  selectedIdRef.current = selectedId
+  onDropRef.current = editing?.onDrop
+  onPickRef.current = onPick
 
   useEffect(() => {
     const container = containerRef.current
@@ -227,7 +271,7 @@ export const AnalyticsCoverageMap = ({
           })
           syncMapCamera(
             map,
-            latestFeaturesRef.current,
+            cameraCollection(latestFeaturesRef.current, selectedIdRef.current),
             [centerLongitude, centerLatitude],
             initialZoom,
           )
@@ -282,12 +326,13 @@ export const AnalyticsCoverageMap = ({
           const point = toPoint(onPoint[0], true)
           openerRef.current = null
           setOpenPoint(point)
+          if (point) onPickRef.current?.(point)
           if (point && map) centerLow(map, point.coordinates)
         }
         map.on('style.load', handleLoad)
         map.on('load', handleLoad)
         map.on('error', handleError)
-        if (hasPopup) {
+        if (pickable) {
           map.on('mouseenter', layerId, handleEnter)
           map.on('mouseleave', layerId, handleLeave)
           map.on('click', handleClick)
@@ -316,26 +361,133 @@ export const AnalyticsCoverageMap = ({
       if (mapRef.current === map) mapRef.current = null
       delete container.dataset.mapAttempt
     }
-  }, [centerLatitude, centerLongitude, hasPopup, initialZoom, resolvedStyleUrl, retryKey])
+  }, [centerLatitude, centerLongitude, initialZoom, pickable, resolvedStyleUrl, retryKey])
+
+  // Also re-runs when edit mode starts or ends, so every pin is redrawn from props and a rejected drop snaps back.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: editingKey only triggers the redraw.
+  useEffect(() => {
+    const source = mapRef.current?.getSource(sourceId)
+    if (source?.type === 'geojson') (source as GeoJSONSource).setData(featureCollection)
+  }, [featureCollection, editingKey])
 
   useEffect(() => {
     const map = mapRef.current
-    const source = map?.getSource(sourceId)
-    if (map && source?.type === 'geojson') {
-      ;(source as GeoJSONSource).setData(featureCollection)
-      syncMapCamera(map, featureCollection, [centerLongitude, centerLatitude], initialZoom)
+    if (map?.getSource(sourceId)) {
+      syncMapCamera(
+        map,
+        cameraCollection(featureCollection, selectedId),
+        [centerLongitude, centerLatitude],
+        initialZoom,
+      )
     }
-  }, [centerLatitude, centerLongitude, featureCollection, initialZoom])
+  }, [centerLatitude, centerLongitude, featureCollection, initialZoom, selectedId])
+
+  useLayoutEffect(() => {
+    const map = mapRef.current
+    if (status !== 'ready' || !map) return
+    map.setPaintProperty(
+      layerId,
+      'circle-color',
+      selectedId ? pickByProject(selectedId, chartPalette[0], mutedPinColor) : chartPalette[0],
+    )
+    map.setPaintProperty(
+      layerId,
+      'circle-opacity',
+      selectedId ? pickByProject(selectedId, 1, 0.45) : 1,
+    )
+    map.setLayoutProperty(
+      layerId,
+      'circle-sort-key',
+      selectedId ? pickByProject(selectedId, 1, 0) : 0,
+    )
+    const baseRadius = selectedId ? pickByProject(selectedId, 9, 6) : 8
+    map.setPaintProperty(
+      layerId,
+      'circle-radius',
+      hasPopup
+        ? ['case', ['==', ['get', 'key'], openPoint?.key ?? ''], 11, baseRadius]
+        : baseRadius,
+    )
+  }, [hasPopup, openPoint?.key, selectedId, status])
+
+  // Dragging one pin: pan is off while it moves, and the new spot is reported on release.
+  useEffect(() => {
+    const map = mapRef.current
+    if (status !== 'ready' || !map || !editingKey) return
+    let dragging = false
+    let moved: [number, number] | null = null
+    const draw = (coordinates: [number, number]) => {
+      const source = map.getSource(sourceId)
+      if (source?.type !== 'geojson') return
+      ;(source as GeoJSONSource).setData({
+        type: 'FeatureCollection',
+        features: latestFeaturesRef.current.features.map((feature) =>
+          feature.properties.key === editingKey
+            ? { ...feature, geometry: { ...feature.geometry, coordinates } }
+            : feature,
+        ),
+      })
+    }
+    const start = (event: MapLayerMouseEvent | MapLayerTouchEvent) => {
+      const onPin = event.features?.some((feature) => feature.properties?.key === editingKey)
+      const pin = latestFeaturesRef.current.features.find(
+        (feature) => feature.properties.key === editingKey,
+      )
+      if (!onPin || !pin || pin.properties.locked) return
+      event.preventDefault()
+      dragging = true
+      map.dragPan.disable()
+      // MapLibre misses a release over the page outside the canvas, so the document ends it too.
+      document.addEventListener('mouseup', releaseOutside, { once: true })
+    }
+    const move = (event: MapMouseEvent | MapTouchEvent) => {
+      if (!dragging) return
+      moved = [event.lngLat.lng, event.lngLat.lat]
+      draw(moved)
+    }
+    const stop = () => {
+      dragging = false
+      moved = null
+      map.dragPan.enable()
+      document.removeEventListener('mouseup', releaseOutside)
+    }
+    // A release reports the last spot, or the release point when the map sees it.
+    function end(event?: MapMouseEvent | MapTouchEvent) {
+      if (!dragging) return
+      const drop = moved && event?.lngLat ? [event.lngLat.lng, event.lngLat.lat] : moved
+      stop()
+      if (drop) onDropRef.current?.([drop[0], drop[1]])
+    }
+    const releaseOutside = () => end()
+    // A cancelled touch restores the map and puts the pin back where props say it is.
+    const cancel = () => {
+      if (!dragging) return
+      stop()
+      const source = map.getSource(sourceId)
+      if (source?.type === 'geojson') (source as GeoJSONSource).setData(latestFeaturesRef.current)
+    }
+    map.on('mousedown', layerId, start)
+    map.on('touchstart', layerId, start)
+    map.on('mousemove', move)
+    map.on('touchmove', move)
+    map.on('mouseup', end)
+    map.on('touchend', end)
+    map.on('touchcancel', cancel)
+    return () => {
+      map.off('mousedown', layerId, start)
+      map.off('touchstart', layerId, start)
+      map.off('mousemove', move)
+      map.off('touchmove', move)
+      map.off('mouseup', end)
+      map.off('touchend', end)
+      map.off('touchcancel', cancel)
+      if (dragging) stop()
+    }
+  }, [editingKey, status])
 
   useLayoutEffect(() => {
     const map = mapRef.current
     if (status !== 'ready' || !map || !hasPopup) return
-    map.setPaintProperty(layerId, 'circle-radius', [
-      'case',
-      ['==', ['get', 'key'], openPoint?.key ?? ''],
-      11,
-      8,
-    ])
     const card = cardRef.current
     if (!openPoint || !card) return
     const place = () => {
@@ -397,7 +549,7 @@ export const AnalyticsCoverageMap = ({
           title="No mapped locations available"
         />
       ) : null}
-      {hasPopup && status === 'ready' && hasFeatures ? (
+      {pickable && status === 'ready' && hasFeatures ? (
         // Shown only while a place button has focus, so the map stays clear for pointer users.
         <nav
           aria-label="Mapped places"

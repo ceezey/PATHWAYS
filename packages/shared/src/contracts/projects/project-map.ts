@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { metricCellSchema } from '../../metrics/metric-cell'
 import { projectOverviewMetricsSchema } from './overview-metrics'
 
-export const PROJECT_MAP_CONTRACT_VERSION = 'analytics.project-map.v1' as const
+export const PROJECT_MAP_CONTRACT_VERSION = 'analytics.project-map.v2' as const
 
 const sexBucketSchema = z
   .object({ key: z.string().max(80), label: z.string().max(160), metric: metricCellSchema })
@@ -15,6 +15,9 @@ export const projectMapPlaceSchema = z
     province: z.string().max(120),
     longitude: z.number().min(114).max(128),
     latitude: z.number().min(4).max(22),
+    // True when the position comes from a saved pin rather than the bundled centroid.
+    saved: z.boolean(),
+    locked: z.boolean(),
     // SADDD individuals whose recorded city or municipality is this place; null without the SADDD grant.
     reach: z
       .object({

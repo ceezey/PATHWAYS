@@ -25,6 +25,7 @@ import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/appli
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { requireScopedProjectRow } from '../../common/authz/scoped-project'
+import { droppedPlaces } from '../../common/places/ph-places'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readProjectBudgets, saveProjectBudget } from './project-budget.service'
@@ -196,6 +197,7 @@ export class ProjectsService {
         id: true,
         code: true,
         updatedAt: true,
+        implementationArea: true,
       })
       const expected = new Date(input.expectedUpdatedAt)
       if (Number.isNaN(expected.valueOf()) || current.updatedAt.valueOf() !== expected.valueOf()) {
@@ -217,6 +219,17 @@ export class ProjectsService {
         },
       })
       if (changed.count !== 1) throw new ConflictException('Project changed; reload before saving.')
+      const dropped = droppedPlaces(current.implementationArea, data.implementationArea)
+      // Locked pins of removed places stay and return if the place is listed again.
+      if (dropped.length > 0)
+        await tx.projectMapPin.deleteMany({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: current.id,
+            locked: false,
+            OR: dropped.map(({ name, province }) => ({ placeName: name, province })),
+          },
+        })
       await replaceTeamAssignments(tx, actor, current.id, input, false)
       await saveProjectBudget(tx, actor, current.id, input.projectBudget, 'update')
       if (input.implementingPartnerNames !== undefined)
