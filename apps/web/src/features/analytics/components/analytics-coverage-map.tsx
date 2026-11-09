@@ -49,7 +49,6 @@ type AnalyticsCoverageMapProps = Readonly<{
   /** Content of the popup anchored on a hovered or tapped point. */
   renderPopup?: (point: MapPoint, close: () => void) => ReactNode
   emptyDescription?: string
-  /** Called with the project id and feature key of a clicked or listed pin, for hosts that show no popup. */
   /** Called with the clicked point, or null when the card closes or the empty map is clicked. */
   onPick?: (point: Readonly<{ id: string; key: string }> | null) => void
   /** Project id to highlight; every other project dims. */

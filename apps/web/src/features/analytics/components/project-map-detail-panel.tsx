@@ -3,13 +3,13 @@
 import type { ProjectMapPlace, ProjectMapProject } from '@pathways/shared'
 import { Lock, LockOpen, Move } from 'lucide-react'
 import Link from 'next/link'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 
+import { useHoverTip } from '@/components/pathways/metric-tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { overviewMetricLabel } from '@/features/projects'
-import { cn } from '@/lib/utils'
 
 import type { MapPinDraft, useMapPinEdit } from '../hooks/use-map-pin-edit'
 import { placeKey } from '../hooks/use-project-map'
@@ -28,22 +28,44 @@ const statusLabel = (status: string) => {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-// The tip sits on a wrapper, so it still shows over a disabled button.
-const HoverTip = ({
+// A button whose tip opens on hover or keyboard focus; an inert one stays focusable so its tip is still reachable.
+const TipButton = ({
   tip,
+  label,
+  inert = false,
+  pending,
   className,
+  onClick,
   children,
-}: { tip: string; className?: string; children: ReactNode }) => (
-  <span className={cn('group relative inline-flex', className)}>
-    {children}
-    <span
-      aria-hidden="true"
-      className="pointer-events-none invisible absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:visible"
-    >
-      {tip}
-    </span>
-  </span>
-)
+}: {
+  tip: string
+  label: string
+  inert?: boolean
+  pending: boolean
+  className?: string
+  onClick: () => void
+  children: ReactNode
+}) => {
+  const hover = useHoverTip(tip)
+  return (
+    <>
+      <Button
+        {...hover.triggerProps}
+        aria-disabled={inert || undefined}
+        aria-label={label}
+        className={className}
+        disabled={pending}
+        onClick={inert ? undefined : onClick}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        {children}
+      </Button>
+      {hover.tip}
+    </>
+  )
+}
 
 const coordinate = (text: string) => (text.trim() === '' ? Number.NaN : Number(text))
 
@@ -66,6 +88,15 @@ const PlaceRow = ({
   const longitude = coordinate(edit.draft.longitude)
   const latitude = coordinate(edit.draft.latitude)
   const typed = Number.isFinite(longitude) && Number.isFinite(latitude)
+  const rowRef = useRef<HTMLLIElement>(null)
+  const wasEditing = useRef(editing)
+
+  // Save and Cancel unmount with the form, so focus returns to this row's Move button instead of the page top.
+  useEffect(() => {
+    if (wasEditing.current && !editing && document.activeElement === document.body)
+      rowRef.current?.querySelector<HTMLButtonElement>('button[aria-label="Move pin"]')?.focus()
+    wasEditing.current = editing
+  }, [editing])
 
   const startMove = () => {
     edit.clearError()
@@ -102,7 +133,7 @@ const PlaceRow = ({
   }
 
   return (
-    <li className="rounded-md bg-background p-2" data-place-key={rowKey}>
+    <li className="rounded-md bg-background p-2" data-place-key={rowKey} ref={rowRef}>
       <fieldset aria-label={`${name}, ${province}`} className="min-w-0">
         <p className="text-sm font-medium text-foreground">
           {name}
@@ -115,48 +146,39 @@ const PlaceRow = ({
         </p>
         {editable ? (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
-            <HoverTip tip="Move pin">
-              <Button
-                aria-label="Move pin"
-                disabled={place.locked || edit.pending}
-                onClick={startMove}
-                className="w-9 px-0"
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <Move aria-hidden="true" className="h-4 w-4" />
-              </Button>
-            </HoverTip>
-            <HoverTip tip={place.locked ? 'Unlock pin' : 'Lock pin'}>
-              <Button
-                aria-label={place.locked ? 'Unlock pin' : 'Lock pin'}
-                disabled={edit.pending}
-                onClick={toggleLock}
-                className="w-9 px-0"
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                {place.locked ? (
-                  <Lock aria-hidden="true" className="h-4 w-4" />
-                ) : (
-                  <LockOpen aria-hidden="true" className="h-4 w-4" />
-                )}
-              </Button>
-            </HoverTip>
-            <HoverTip className="ml-auto" tip="Reset to town centre">
-              <Button
-                aria-label="Reset to town centre"
-                disabled={place.locked || edit.pending}
-                onClick={reset}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Reset
-              </Button>
-            </HoverTip>
+            <TipButton
+              className="w-9 px-0"
+              inert={place.locked}
+              label="Move pin"
+              onClick={startMove}
+              pending={edit.pending}
+              tip="Move pin"
+            >
+              <Move aria-hidden="true" className="h-4 w-4" />
+            </TipButton>
+            <TipButton
+              className="w-9 px-0"
+              label={place.locked ? 'Unlock pin' : 'Lock pin'}
+              onClick={toggleLock}
+              pending={edit.pending}
+              tip={place.locked ? 'Unlock pin' : 'Lock pin'}
+            >
+              {place.locked ? (
+                <Lock aria-hidden="true" className="h-4 w-4" />
+              ) : (
+                <LockOpen aria-hidden="true" className="h-4 w-4" />
+              )}
+            </TipButton>
+            <TipButton
+              className="ml-auto"
+              inert={place.locked}
+              label="Reset to town centre"
+              onClick={reset}
+              pending={edit.pending}
+              tip="Reset to town centre"
+            >
+              Reset
+            </TipButton>
           </div>
         ) : null}
         {editable && editing ? (

@@ -85,6 +85,7 @@ const AnalyticsMap = ({
   useEffect(() => {
     setPreviewId(null)
     setEditingKey(null)
+    edit.clearError()
   }, [selectedProjectId])
 
   // Waits for the panel to show the selected project before scrolling to the clicked place.
@@ -98,6 +99,8 @@ const AnalyticsMap = ({
   // A click that ends a drag lands here too, so a pick of the selected project keeps the edit open.
   // A null pick clears only the preview; a project chosen in the filter stays shown.
   const pick = (point: { id: string; key: string } | null) => {
+    // Another project's panel must not show this one's pin error.
+    if (point?.id !== shownId) edit.clearError()
     if (!point) setPreviewId(null)
     else if (point.id === selectedProjectId) {
       setPreviewId(null)
@@ -107,8 +110,12 @@ const AnalyticsMap = ({
       setEditingKey(null)
     }
   }
-  // A locked pin is never draggable, so it never becomes the editing key.
-  const editable = editingKey && !previewId && !places.get(editingKey)?.place.locked
+  const editedLocked = editingKey ? places.get(editingKey)?.place.locked : false
+  // Locking the pin being moved ends the edit, so unlocking never reopens a stale draft.
+  useEffect(() => {
+    if (editedLocked) setEditingKey(null)
+  }, [editedLocked])
+  const editable = editingKey && !previewId && !editedLocked
   const editing = editable
     ? {
         key: editingKey,

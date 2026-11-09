@@ -161,7 +161,7 @@ describe('Analytics dashboard actions: rules link, Add to Dashboard and export',
       await pinnable()
       fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
 
-      expect(addButton().disabled).toBe(true)
+      expect(addButton().getAttribute('aria-disabled')).toBe('true')
       expect(addButton().getAttribute('aria-describedby')).toBe('pin-blocked-reason')
       expect(document.getElementById('pin-blocked-reason')?.textContent).toBe(
         'Survey improvement cannot be pinned.',
@@ -181,7 +181,7 @@ describe('Analytics dashboard actions: rules link, Add to Dashboard and export',
           'Choose a reporting period to pin this view.',
         ),
       )
-      expect(addButton().disabled).toBe(true)
+      expect(addButton().getAttribute('aria-disabled')).toBe('true')
     })
 
     it('has no reason text and no title while the view can be pinned', async () => {
