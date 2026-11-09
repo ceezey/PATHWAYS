@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 type MapProps = {
   selectedId?: string
   editing?: { key: string; onDrop: (coordinates: [number, number]) => void }
-  onPick?: (point: { id: string; key: string }) => void
+  onPick?: (point: { id: string; key: string } | null) => void
   renderPopup?: (point: unknown, close: () => void) => ReactNode
 }
 
@@ -55,7 +55,12 @@ vi.mock('./analytics-coverage-map', () => ({
             Pin {name}
           </button>
         ))}
-        {open ? props.renderPopup?.(open, () => setOpen(null)) : null}
+        {open
+          ? props.renderPopup?.(open, () => {
+              props.onPick?.(null)
+              setOpen(null)
+            })
+          : null}
       </div>
     )
   },
@@ -168,6 +173,28 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Switch filter to this project' }))
     expect(onSelectProject).toHaveBeenCalledWith(ids.b)
+    expect(screen.getByRole('complementary', { name: 'Alpha details' })).toBeTruthy()
+  })
+
+  it('shows the side panel only while a pin is picked when no project is selected', () => {
+    render(
+      <ProjectCoverageMapPanel
+        mode="analytics"
+        onSelectProject={onSelectProject}
+        selectedProjectId=""
+      />,
+    )
+    expect(screen.queryByRole('complementary')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Pin b' }))
+    expect(screen.getByRole('complementary', { name: 'Bravo details' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close place overview' }))
+    expect(screen.queryByRole('complementary')).toBeNull()
+  })
+
+  it('keeps the filtered project panel when the card closes', () => {
+    renderAnalytics()
+    fireEvent.click(screen.getByRole('button', { name: 'Pin b' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close place overview' }))
     expect(screen.getByRole('complementary', { name: 'Alpha details' })).toBeTruthy()
   })
 
