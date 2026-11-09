@@ -218,9 +218,9 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
   it('never makes a locked pin draggable', () => {
     state.data = mapOf(projectOf(ids.a, 'Alpha', true), projectOf(ids.b, 'Bravo'))
     renderAnalytics()
-    expect((screen.getByRole('button', { name: 'Move pin' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    )
+    const move = screen.getByRole('button', { name: 'Move pin' })
+    expect(move.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(move)
     expect(lastMap().editing).toBeUndefined()
   })
 
@@ -234,6 +234,16 @@ describe('ProjectCoverageMapPanel in analytics mode', () => {
     expect(await screen.findByRole('alert')).toBeTruthy()
     await waitFor(() => expect(lastMap().editing).toBeUndefined())
     expect(screen.getByText('Pick a spot inside the Philippines map area.')).toBeTruthy()
+  })
+
+  it('clears a pin error when another project is shown', async () => {
+    state.saveMapPin.mockRejectedValue(new PathwaysClientError('Locked.', 'invalid', [], 409))
+    renderAnalytics()
+    fireEvent.click(screen.getByRole('button', { name: 'Lock pin' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Pin b' }))
+    expect(screen.getByRole('complementary', { name: 'Bravo details' })).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('shows no edit buttons without the update permission', () => {

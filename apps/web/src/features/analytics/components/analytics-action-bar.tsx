@@ -2,6 +2,7 @@
 
 import { ChevronDown, Download, Plus } from 'lucide-react'
 
+import { useHoverTip } from '@/components/pathways/metric-tooltip'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -83,6 +84,7 @@ export const AnalyticsActionBar = ({
       }[analysisView]
   const pinUnavailable =
     (!mapSelected && !selectedProject) || !profile?.userId || Boolean(pinBlockedReason)
+  const pinTip = useHoverTip(pinBlockedReason || undefined)
   const addToDashboard = () => {
     if (pinUnavailable || !profile?.userId) return
     const view = mapSelected ? 'map' : analysisView
@@ -107,12 +109,14 @@ export const AnalyticsActionBar = ({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {DASHBOARD_PINS_UI_ENABLED && pinPermitted ? (
-        // The wrapper takes the hover, since a disabled button ignores pointer events.
-        <div className="group relative flex items-center">
+        // With a reason the button stays focusable (aria-disabled), so the tip opens on hover or keyboard focus.
+        <div className="flex items-center">
           <Button
             className="shrink-0"
+            {...(pinBlockedReason ? pinTip.triggerProps : {})}
             aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
-            disabled={pinUnavailable}
+            aria-disabled={pinBlockedReason ? true : undefined}
+            disabled={pinUnavailable && !pinBlockedReason}
             onClick={addToDashboard}
             type="button"
           >
@@ -120,14 +124,11 @@ export const AnalyticsActionBar = ({
             Add to Dashboard
           </Button>
           {pinBlockedReason ? (
-            <p
-              className="invisible absolute left-0 top-full z-10 mt-2 w-64 rounded-md border border-border bg-popover p-2 text-xs text-popover-foreground shadow-md group-hover:visible"
-              id="pin-blocked-reason"
-              role="tooltip"
-            >
+            <span className="sr-only" id="pin-blocked-reason">
               {pinBlockedReason}
-            </p>
+            </span>
           ) : null}
+          {pinTip.tip}
         </div>
       ) : null}
       {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (

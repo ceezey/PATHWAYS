@@ -57,12 +57,17 @@ export class ProjectMapPinsService {
         if (existing.locked && moved) throw new ConflictException(LOCKED)
         // A lock change never moves a pin, so a stale client cannot undo a move or clear a lock.
         if (input.locked !== existing.locked && moved) throw new ConflictException(CHANGED)
-        // Matching the lock state read above makes a concurrent lock fail the write instead of losing it.
+        // Matching the row read above makes a concurrent lock, move or reset fail the write instead of losing it.
         const changed = await tx.projectMapPin.updateMany({
-          where: { ...key, locked: existing.locked },
+          where: {
+            ...key,
+            locked: existing.locked,
+            longitude: existing.longitude,
+            latitude: existing.latitude,
+          },
           data: { ...fields, updatedById: actor.userId, updatedAt: new Date() },
         })
-        if (changed.count !== 1) throw new ConflictException(LOCKED)
+        if (changed.count !== 1) throw new ConflictException(CHANGED)
       }
       await writeAuditLog(tx, actor, {
         projectId: key.projectId,

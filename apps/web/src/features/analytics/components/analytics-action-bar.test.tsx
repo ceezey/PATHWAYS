@@ -149,12 +149,19 @@ describe('AnalyticsActionBar', () => {
     ])('blocks the %s view with its reason', (analysisView, overrides, reason) => {
       show({ analysisView, ...overrides })
 
-      expect(pin()?.disabled).toBe(true)
+      // Focusable but inert, so a keyboard user can reach the reason.
+      expect(pin()?.disabled).toBe(false)
+      expect(pin()?.getAttribute('aria-disabled')).toBe('true')
       expect(pin()?.getAttribute('aria-describedby')).toBe('pin-blocked-reason')
-      const tooltip = screen.getByRole('tooltip', { hidden: true })
-      expect(tooltip.textContent).toBe(reason)
-      // The reason shows only on hover, not in plain sight.
-      expect(tooltip.className).toMatch(/^invisible .*group-hover:visible/)
+      expect(document.getElementById('pin-blocked-reason')?.textContent).toBe(reason)
+      // Not in plain sight: the visible tip opens only on hover or focus.
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      fireEvent.focus(pin() as HTMLButtonElement)
+      expect(screen.getByRole('tooltip').textContent).toBe(reason)
+      fireEvent.blur(pin() as HTMLButtonElement)
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      fireEvent.mouseEnter(pin() as HTMLButtonElement)
+      expect(screen.getByRole('tooltip').textContent).toBe(reason)
       fireEvent.click(pin() as HTMLButtonElement)
       expect(addPin).not.toHaveBeenCalled()
     })

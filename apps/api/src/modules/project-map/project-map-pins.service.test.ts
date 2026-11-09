@@ -78,7 +78,12 @@ describe('ProjectMapPinsService', () => {
     await service.save(actor, projectId, move)
     expect(tx.projectMapPin.create).not.toHaveBeenCalled()
     const call = tx.projectMapPin.updateMany.mock.calls[0][0]
-    expect(call.where).toEqual({ ...rowKey, locked: false })
+    expect(call.where).toEqual({
+      ...rowKey,
+      locked: false,
+      longitude: stored(false).longitude,
+      latitude: stored(false).latitude,
+    })
     expect(call.data).toMatchObject({
       longitude: 124.7,
       latitude: 12.6,
@@ -140,10 +145,12 @@ describe('ProjectMapPinsService', () => {
     ).rejects.toThrow('This pin changed. Try again.')
   })
 
-  it('answers 409 when the lock changed between the read and the write', async () => {
+  it('answers 409 when the row changed between the read and the write', async () => {
     tx.projectMapPin.findUnique.mockResolvedValue(stored(false))
     tx.projectMapPin.updateMany.mockResolvedValue({ count: 0 })
-    await expect(service.save(actor, projectId, move)).rejects.toThrow('This pin is locked.')
+    await expect(service.save(actor, projectId, move)).rejects.toThrow(
+      'This pin changed. Try again.',
+    )
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 

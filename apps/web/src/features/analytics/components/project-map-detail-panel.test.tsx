@@ -92,19 +92,40 @@ describe('ProjectMapDetailPanel', () => {
     expect(screen.queryByRole('button', { name: 'Lock pin' })).toBeNull()
   })
 
-  it('disables Move and Reset on a locked row and offers Unlock', () => {
+  it('makes Move and Reset inert on a locked row and offers Unlock', () => {
     render(<Harness />)
     const locked = within(row('Guiuan'))
-    expect((locked.getByRole('button', { name: 'Move pin' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    )
+    const move = locked.getByRole('button', { name: 'Move pin' })
+    // Inert but focusable, so the tip stays reachable by keyboard.
+    expect(move.getAttribute('aria-disabled')).toBe('true')
     expect(
-      (locked.getByRole('button', { name: 'Reset to town centre' }) as HTMLButtonElement).disabled,
-    ).toBe(true)
+      locked.getByRole('button', { name: 'Reset to town centre' }).getAttribute('aria-disabled'),
+    ).toBe('true')
+    fireEvent.click(move)
+    expect(screen.queryByLabelText('Longitude')).toBeNull()
     expect(locked.getByRole('button', { name: 'Unlock pin' })).toBeTruthy()
     const open = within(row('Borongan'))
-    expect((open.getByRole('button', { name: 'Move pin' }) as HTMLButtonElement).disabled).toBe(
-      false,
+    expect(open.getByRole('button', { name: 'Move pin' }).hasAttribute('aria-disabled')).toBe(false)
+  })
+
+  it('shows each button tip on keyboard focus, not only on hover', () => {
+    render(<Harness />)
+    const move = within(row('Borongan')).getByRole('button', { name: 'Move pin' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(move)
+    expect(screen.getByRole('tooltip').textContent).toBe('Move pin')
+    fireEvent.blur(move)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('returns focus to the Move button when Cancel closes the form', () => {
+    render(<Harness />)
+    fireEvent.click(within(row('Borongan')).getByRole('button', { name: 'Move pin' }))
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    cancel.focus()
+    fireEvent.click(cancel)
+    expect(document.activeElement).toBe(
+      within(row('Borongan')).getByRole('button', { name: 'Move pin' }),
     )
   })
 

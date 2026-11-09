@@ -8,7 +8,7 @@ const sexBucketSchema = z
   .object({ key: z.string().max(80), label: z.string().max(160), metric: metricCellSchema })
   .strict()
 
-/** One named place a project's implementation area resolves to, at a bundled centroid. */
+/** One named place a project's implementation area resolves to, at its bundled centroid or saved site. */
 export const projectMapPlaceSchema = z
   .object({
     name: z.string().max(120),
@@ -30,7 +30,7 @@ export const projectMapPlaceSchema = z
   })
   .strict()
 
-/** Project-level map point: centroids only, never Beneficiary coordinates. */
+/** Project-level map point: centroids or saved project sites, never Beneficiary coordinates. */
 export const projectMapProjectSchema = z
   .object({
     id: z.guid(),
