@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolvePlaces } from './ph-places'
+import { droppedPlaces, resolvePlaces } from './ph-places'
 
 const names = (area: string | null) => resolvePlaces(area).map((place) => place.name)
 
@@ -33,5 +33,21 @@ describe('resolvePlaces', () => {
     expect(names('las pinas')).toEqual(['Las Piñas'])
     expect(names('Synthetic area')).toEqual([])
     expect(names(null)).toEqual([])
+  })
+})
+
+describe('droppedPlaces', () => {
+  it('drops nothing when the same towns are rewritten with other words', () => {
+    expect(
+      droppedPlaces('Borongan City, Guiuan', 'guiuan and borongan city, nearby barangays'),
+    ).toEqual([])
+  })
+
+  it('returns the old places that the new area no longer lists', () => {
+    expect(droppedPlaces('Borongan City, Guiuan', 'Guiuan')).toEqual([
+      { name: 'Borongan', province: 'Eastern Samar' },
+    ])
+    expect(droppedPlaces('Guiuan', null)).toEqual([{ name: 'Guiuan', province: 'Eastern Samar' }])
+    expect(droppedPlaces(null, 'Guiuan')).toEqual([])
   })
 })

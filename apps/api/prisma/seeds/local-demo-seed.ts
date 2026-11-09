@@ -8,6 +8,7 @@ import { ActivityProgressService } from '../../src/modules/activities/activity-p
 import { ActivityProofFinalizeService } from '../../src/modules/activities/activity-proof-finalize.service'
 import { ActivityProofsService } from '../../src/modules/activities/activity-proofs.service'
 import { ActivityReviewService } from '../../src/modules/activities/activity-review.service'
+import type { BeneficiaryStepUpService } from '../../src/modules/auth/beneficiary-step-up.service'
 import { BeneficiariesService } from '../../src/modules/beneficiaries/beneficiaries.service'
 import { BeneficiaryRegistrationService } from '../../src/modules/beneficiaries/beneficiary-registration.service'
 import { DashboardsService } from '../../src/modules/dashboards/dashboards.service'
@@ -25,6 +26,7 @@ import { JourneyStagesService } from '../../src/modules/participants/journey-sta
 import { ParticipantsService } from '../../src/modules/participants/participants.service'
 import { ProjectOverviewMetricsService } from '../../src/modules/projects/project-overview-metrics.service'
 import { ProjectsService } from '../../src/modules/projects/projects.service'
+import { PublicMediaService } from '../../src/modules/public/public-media.service'
 import { PublicService } from '../../src/modules/public/public.service'
 import type { ReportPdfRenderer } from '../../src/modules/reports/report-pdf.renderer'
 import { ReportsService } from '../../src/modules/reports/reports.service'
@@ -90,6 +92,7 @@ export type DemoContext = {
     reports: ReportsService
     rules: RulesHumanService
     publication: PublicService
+    publicMedia: PublicMediaService
     evaluations: EvaluationsService
   }
   staff: Record<StaffKey, Staff>
@@ -110,6 +113,13 @@ const staffEmails: Record<StaffKey, string> = {
   liza: 'liza.bautista@pathways.example',
   emmanuel: 'emmanuel.cruz@pathways.example',
 }
+
+/** Public media service for the seed; seeded public media is never enrollment-linked, so step-up is never asked. */
+export const seedPublicMedia = (runtime: PrismaService, storage: StorageService) =>
+  new PublicMediaService(runtime, storage, privateStorageFactories, {
+    enforce: async () => {},
+    isFresh: async () => false,
+  } as unknown as BeneficiaryStepUpService)
 
 export function manilaToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
@@ -209,6 +219,7 @@ async function main() {
     ),
     rules: new RulesHumanService(runtime),
     publication: new PublicService(runtime),
+    publicMedia: seedPublicMedia(runtime, storage),
     evaluations: new EvaluationsService(runtime, new EvaluationMetricsService(indicators)),
   }
 

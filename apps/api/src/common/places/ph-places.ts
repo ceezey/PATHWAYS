@@ -1,6 +1,6 @@
 import type { ProjectMapPlace } from '@pathways/shared'
 
-export type ResolvedPlace = Omit<ProjectMapPlace, 'reach'>
+export type ResolvedPlace = Omit<ProjectMapPlace, 'reach' | 'saved' | 'locked'>
 
 type Row = readonly [name: string, longitude: number, latitude: number]
 type CityRow = readonly [name: string, province: string, longitude: number, latitude: number]
@@ -255,4 +255,43 @@ export function resolvePlaces(area: string | null | undefined): ResolvedPlace[] 
     places.push({ name: province, province, longitude: centroid[1], latitude: centroid[2] })
   }
   return places.slice(0, 20)
+}
+
+/** Places listed in the old area that the new area no longer lists, by canonical name and province. */
+export function droppedPlaces(
+  oldArea: string | null,
+  newArea: string | null,
+): Array<{ name: string; province: string }> {
+  const kept = new Set(resolvePlaces(newArea).map((place) => `${place.name}|${place.province}`))
+  return resolvePlaces(oldArea)
+    .filter((place) => !kept.has(`${place.name}|${place.province}`))
+    .map(({ name, province }) => ({ name, province }))
+}
+
+type SavedPin = {
+  name: string
+  province: string
+  longitude: number
+  latitude: number
+  locked?: boolean
+}
+
+/** Moves each listed place to its saved pin; a pin of a place not in the list is ignored. */
+export function applySavedPins(
+  places: ResolvedPlace[],
+  pins: SavedPin[],
+): Array<ResolvedPlace & { saved: boolean; locked: boolean }> {
+  const byPlace = new Map(pins.map((pin) => [`${pin.name}|${pin.province}`, pin]))
+  return places.map((place) => {
+    const pin = byPlace.get(`${place.name}|${place.province}`)
+    if (!pin) return { ...place, saved: false, locked: false }
+    return {
+      ...place,
+      longitude: pin.longitude,
+      latitude: pin.latitude,
+      // A lock-only row sits at the centroid, so it still counts as unmoved.
+      saved: pin.longitude !== place.longitude || pin.latitude !== place.latitude,
+      locked: pin.locked ?? false,
+    }
+  })
 }

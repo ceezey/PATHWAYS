@@ -342,10 +342,12 @@ describe('collection operation ownership', () => {
         'Processing paused: 100 of 250 rows handled',
       ),
     )
-    // Proceed unmounted; focus moved into the processing panel (heading, then Resume).
-    expect(
-      within(dialog).getByTestId('import-processing-panel').contains(document.activeElement),
-    ).toBe(true)
+    // Proceed unmounted; focus moves into the processing panel (heading, then Resume) after render.
+    await waitFor(() =>
+      expect(
+        within(dialog).getByTestId('import-processing-panel').contains(document.activeElement),
+      ).toBe(true),
+    )
     expect(within(dialog).getByRole('button', { name: 'Resume processing' })).toBeTruthy()
     expect(within(dialog).queryByRole('button', { name: 'Proceed' })).toBeNull()
   })

@@ -224,7 +224,7 @@ describe('projectsClient', () => {
   it('parses the project map and rejects a payload that breaks the contract', async () => {
     const signal = new AbortController().signal
     const map = {
-      contractVersion: 'analytics.project-map.v1',
+      contractVersion: 'analytics.project-map.v2',
       generatedAt: '2026-10-01T00:00:00.000Z',
       projects: [],
       unmappedCount: 0,

@@ -131,6 +131,9 @@ describe('pinned charts', () => {
     render(<PinnedCharts />)
     expect(screen.getByText('coverage map')).toBeTruthy()
     expect(screen.getByText('All projects in your scope')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Open in Analytics' }).getAttribute('href')).toBe(
+      '/analytics?view=map',
+    )
   })
 
   it('shows a restricted card for a map pin without projects.read', () => {

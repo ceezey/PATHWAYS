@@ -19,6 +19,8 @@ const place = (
   province,
   longitude: 125.4,
   latitude: 11.6,
+  saved: false,
+  locked: false,
   reach,
 })
 const borongan = place('Borongan', {

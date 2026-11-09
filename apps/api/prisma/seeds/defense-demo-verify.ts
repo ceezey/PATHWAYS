@@ -203,6 +203,26 @@ export async function verifyDefenseDemo(
     tx.projectPublication.count({ where: { state: 'PUBLISHED' } }),
   )
   add('a project is published on the public tracker', published > 0, `${published} published`)
+  const publications = await scoped('projectManager', (tx) =>
+    tx.projectPublication.findMany({
+      select: { snapshot: true, liveSnapshot: true, project: { select: { code: true } } },
+    }),
+  )
+  const media = (snapshot: unknown) => (snapshot as { media?: unknown[] }).media?.length ?? 0
+  const live = publications.filter((row) => row.liveSnapshot !== null)
+  add(
+    'every published project shows photos',
+    live.length > 0 && live.every((row) => media(row.liveSnapshot) > 0),
+    live.map((row) => `${row.project.code} ${media(row.liveSnapshot)}`).join(', '),
+  )
+  const viewLists = publications.map((row) =>
+    String((row.snapshot as { views?: unknown[] }).views ?? []),
+  )
+  add(
+    'publications use different view lists',
+    new Set(viewLists).size === viewLists.length,
+    viewLists.join(' | '),
+  )
 
   const start = new Date(`${thisMonth}T00:00:00.000Z`)
   const participation = await owner.beneficiaryActivityParticipation.count({

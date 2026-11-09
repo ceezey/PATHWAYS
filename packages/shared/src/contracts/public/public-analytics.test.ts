@@ -9,6 +9,8 @@ const place = {
   province: 'Cebu',
   longitude: 123.9,
   latitude: 10.3,
+  saved: false,
+  locked: false,
   reach: { total: cell, sex: [bucket], disability: cell },
 }
 

@@ -59,7 +59,7 @@ export const activityCode = (project: DemoProject, index: number) =>
   `${project.key}-${String(index + 1).padStart(2, '0')}`
 
 /** Uploads one file to the signed URL the service returned, exactly like the browser does. */
-async function putSignedUpload(
+export async function putSignedUpload(
   ctx: DemoContext,
   uploadUrl: string,
   bytes: Buffer,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolvePlaces } from './ph-places'
+import { resolvePlaces } from '../../common/places/ph-places'
 import { placeReach, resolveTowns } from './project-map.service'
 
 const [borongan, guiuan] = resolvePlaces('Borongan City and Guiuan, Eastern Samar')

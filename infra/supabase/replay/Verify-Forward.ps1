@@ -75,6 +75,7 @@ $forwardInventory = @(
   '0086_public_tracker_media'
   '0087_public_tracker_analytics'
   '0088_smart_mapping_v5'
+  '0089_project_map_pins'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1179,13 +1180,13 @@ SELECT ((SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid='pathways.p
   }
   Write-Output 'FORWARD_0085_PUBLIC_TRACKER_LIVE_INVENTORY=PASS'
   # 0086 inventory: the validated public media queue CHECK, the 0086 validator and evidence guard bodies, the runtime-only
-  # p86 lookup, the 0086 public read body, and every upgraded evidence row still PRIVATE.
+  # p86 lookup, the public read body (replaced by 0089, so its 0089 md5), and every upgraded evidence row still PRIVATE.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
     $mediaShape = Read-ForwardSql $db @"
 SELECT (EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::pg_catalog.regclass AND conname='p3_evidence_public' AND convalidated)
  AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p85_publication_media(jsonb,uuid)'::pg_catalog.regprocedure)='60613af01de09c839c3408f0193ceb82'
  AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure)='32c52a969c76775b0a86b6731c3d6fff'
- AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p85_public_projects(uuid,integer,integer)'::pg_catalog.regprocedure)='4ded05556c8c942b497f1845710359e2'
+ AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p85_public_projects(uuid,integer,integer)'::pg_catalog.regprocedure)='2e377c27df955be9547b46648b7c32d9'
  AND (SELECT pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
   AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
   AND NOT has_function_privilege('service_role',p.oid,'EXECUTE') FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p86_public_media(uuid,uuid)'::pg_catalog.regprocedure)
@@ -1243,6 +1244,37 @@ SELECT (SELECT pg_catalog.md5(p.prosrc)='8f38e72b2d04a29694bd514ca6b4317d' AND p
     if ($smartShape.Trim() -cne 'true') { throw "0088 smart mapping V5 inventory differs in $db." }
   }
   Write-Output 'FORWARD_0088_SMART_MAPPING_V5_INVENTORY=PASS'
+  # 0089 inventory: the prisma-owned forced-RLS pins table with its keys, checks, policies and column grants, the pins-aware snapshot
+  # check, and the three replaced publication bodies under prisma with their modes and the runtime-only public ACLs.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $pinsShape = Read-ForwardSql $db @"
+SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity AND relforcerowsecurity
+  FROM pg_catalog.pg_class WHERE oid='pathways.project_map_pins'::pg_catalog.regclass)
+ AND (SELECT count(*) FROM pg_catalog.pg_policy WHERE polrelid='pathways.project_map_pins'::pg_catalog.regclass
+  AND polroles=ARRAY['pathways_runtime'::pg_catalog.regrole::oid])=4
+ AND (SELECT count(*) FROM pg_catalog.pg_constraint WHERE conrelid='pathways.project_map_pins'::pg_catalog.regclass AND convalidated
+  AND contype IN ('c','f','p'))=8
+ AND has_table_privilege('pathways_runtime','pathways.project_map_pins','SELECT') AND has_table_privilege('pathways_runtime','pathways.project_map_pins','INSERT')
+ AND has_table_privilege('pathways_runtime','pathways.project_map_pins','DELETE') AND NOT has_table_privilege('pathways_runtime','pathways.project_map_pins','UPDATE')
+ AND has_column_privilege('pathways_runtime','pathways.project_map_pins','locked','UPDATE')
+ AND NOT has_column_privilege('pathways_runtime','pathways.project_map_pins','place_name','UPDATE')
+ AND NOT has_table_privilege('anon','pathways.project_map_pins','SELECT,INSERT,UPDATE,DELETE')
+ AND NOT has_table_privilege('authenticated','pathways.project_map_pins','SELECT,INSERT,UPDATE,DELETE')
+ AND NOT has_table_privilege('service_role','pathways.project_map_pins','SELECT,INSERT,UPDATE,DELETE')
+ AND EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.project_publications'::pg_catalog.regclass
+  AND conname='publication_snapshot_shape' AND convalidated AND pg_catalog.pg_get_constraintdef(oid) LIKE '%pins%')
+ AND (SELECT count(*) FROM (VALUES ('pathways.p34_guard_publication()','2d5c0d23902592338d987e8d8c4dc1fa',false),
+   ('pathways.p85_public_projects(uuid,integer,integer)','2e377c27df955be9547b46648b7c32d9',true),
+   ('pathways.p87_public_view(uuid,text)','ac69bf9b641ce7374b5f1ce9ebc93e6f',true)) w(sig,md5,secdef)
+  JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
+  WHERE pg_catalog.md5(p.prosrc)=w.md5 AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef=w.secdef
+   AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']
+   AND (NOT w.secdef OR (has_function_privilege('pathways_runtime',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE')
+    AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))))=3)::text;
+"@
+    if ($pinsShape.Trim() -cne 'true') { throw "0089 project map pins inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0089_PROJECT_MAP_PINS_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

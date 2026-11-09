@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { useCurrentRole } from '@/hooks/use-current-role'
 import { activitiesClient } from '@/lib/api/activities'
@@ -17,12 +17,14 @@ export const useAnalyticsScope = ({
   canReadIndicatorDefinitions,
   canReadIndicatorValues,
   canReadIndicators,
+  initialProjectId = '',
   role,
 }: {
   canReadActivities: boolean
   canReadIndicatorDefinitions: boolean
   canReadIndicatorValues: boolean
   canReadIndicators: boolean
+  initialProjectId?: string
   role: ReturnType<typeof useCurrentRole>['role']
 }) => {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
@@ -37,6 +39,8 @@ export const useAnalyticsScope = ({
   const [projectsError, setProjectsError] = useState('')
   const [projectDataError, setProjectDataError] = useState('')
   const [monitoringError, setMonitoringError] = useState('')
+  // A linked project is applied once, when the first project list arrives.
+  const linkedProjectId = useRef(initialProjectId)
   const [projectsLoadAttempt, setProjectsLoadAttempt] = useState(0)
   const [projectDataLoadAttempt, setProjectDataLoadAttempt] = useState(0)
   const [monitoringLoadAttempt, setMonitoringLoadAttempt] = useState(0)
@@ -68,8 +72,13 @@ export const useAnalyticsScope = ({
       .then((records) => {
         if (!active) return
         setProjects(records)
-        // The person picks a project first; nothing is preselected.
-        setProjectId((current) => (records.some((row) => row.id === current) ? current : ''))
+        const linked = linkedProjectId.current
+        linkedProjectId.current = ''
+        // Nothing is preselected unless the page link names a project the person can read.
+        setProjectId((current) => {
+          const wanted = current || linked
+          return records.some((row) => row.id === wanted) ? wanted : ''
+        })
       })
       .catch((caught: unknown) => {
         if (active)

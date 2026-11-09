@@ -92,6 +92,13 @@ describe('publicationClient publication read', () => {
     fetcher.mockResolvedValueOnce(read(body))
     await expect(client.get(projectId)).resolves.toEqual(body)
   })
+  it('rejects a snapshot that still carries the frozen pins, so the API strips them (0089)', async () => {
+    const stripped = edit({ revision: 2, live: livePublication })
+    fetcher.mockResolvedValueOnce(read(stripped))
+    await expect(client.get(projectId)).resolves.toEqual(stripped)
+    fetcher.mockResolvedValueOnce(read(editSnapshot({ pins: [] })))
+    await expect(client.get(projectId)).rejects.toThrow('could not be validated')
+  })
   it('rejects a bare row or an empty envelope', async () => {
     fetcher.mockResolvedValueOnce(json(publication))
     await expect(client.get(projectId)).rejects.toThrow('could not be validated')

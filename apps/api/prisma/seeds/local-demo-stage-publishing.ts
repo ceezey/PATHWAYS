@@ -1,85 +1,119 @@
-import type { ProjectKey } from './local-demo-data'
+import { createHash } from 'node:crypto'
+import type { PublicView } from '@pathways/shared'
 import type { DemoContext } from './local-demo-seed'
+import { ensurePublicMedia } from './local-demo-stage-public-media'
 import { projectOf, step } from './local-demo-util'
 
-const publications: Array<{
-  project: ProjectKey
+type State = 'FOR_REVIEW' | 'APPROVED' | 'PUBLISHED'
+
+// The map is left out because projects store no coordinates.
+export const publications: Array<{
+  project: 'EHK' | 'CRL' | 'ALS' | 'SSG'
   summary: string
-  state: 'PUBLISHED' | 'APPROVED' | 'FOR_REVIEW'
+  state: State
+  views: PublicView[]
 }> = [
   {
     project: 'EHK',
     state: 'PUBLISHED',
+    views: ['kpi', 'timeline', 'participation'],
     summary:
       'Emergency Hygiene and Learning Kits reached 70 families in Sulangan, Salug and Bungtod in Guiuan, Eastern Samar, helping learners return to school within eight weeks of the typhoon.',
   },
   {
     project: 'CRL',
     state: 'PUBLISHED',
+    views: ['saddd', 'timeline', 'kpi'],
     summary:
       'Community Resilience and Livelihoods supports households in coastal Catarman and Lavezares, Northern Samar, with livelihood grants, coaching and barangay disaster response team training.',
   },
   {
     project: 'ALS',
     state: 'PUBLISHED',
+    views: ['kpi', 'saddd', 'participation'],
     summary:
       'Alternative Learning System Support has helped 30 out-of-school youth and adults in Lavezares enroll in community learning centers and prepare for the accreditation and equivalency assessment.',
   },
   {
     project: 'SSG',
     state: 'FOR_REVIEW',
+    views: ['saddd', 'participation'],
     summary:
       'Safe Schools for Girls strengthens school protection committees and life skills sessions for adolescent girls in Borongan City, Guiuan and Llorente, Eastern Samar.',
   },
 ]
 
-type Publication = { revision: number; state: string } | null
+type Media = Array<{ id: string; caption: string }>
 
-// No photos (each needs its own public approval); the map is left out because projects store no coordinates.
-const selection = { media: [], views: ['kpi', 'saddd', 'participation', 'timeline'] }
+export type Draft = {
+  revision: number
+  state: State
+  summary: string
+  snapshot: { views?: unknown; media?: Media }
+} | null
 
-/** Public tracker publication workflow: a manager submits a plain-language summary, a second
- * role approves it and a third publishes it. Nothing else leaves the private workspace. */
+export type Wanted = { summary: string; state: State; selection: { media: Media; views: string[] } }
+
+const order: State[] = ['FOR_REVIEW', 'APPROVED', 'PUBLISHED']
+
+/** The next workflow step: resubmit when the draft differs from the plan, else walk it to the target state. */
+export function nextPublicationStep(current: Draft, wanted: Wanted) {
+  const same =
+    current &&
+    current.summary === wanted.summary &&
+    JSON.stringify(current.snapshot.views) === JSON.stringify(wanted.selection.views) &&
+    JSON.stringify((current.snapshot.media ?? []).map(({ id, caption }) => ({ id, caption }))) ===
+      JSON.stringify(wanted.selection.media)
+  if (!same) return 'SUBMIT'
+  if (order.indexOf(current.state) >= order.indexOf(wanted.state)) return null
+  return current.state === 'FOR_REVIEW' ? 'APPROVE' : 'PUBLISH'
+}
+
+/** Short content hash of the planned summary and selection, so a changed plan gets a new request key. */
+export const selectionKey = (wanted: Wanted) =>
+  createHash('sha256')
+    .update(JSON.stringify([wanted.summary, wanted.selection]))
+    .digest('hex')
+    .slice(0, 16)
+
+/** Public tracker publication workflow: a manager submits a plain-language summary with the project's
+ * own views and approved media, a second role approves it and a third publishes it. A changed plan
+ * submits a new revision; the live revision stays up until the new one is published. */
 export async function stagePublishing(ctx: DemoContext) {
-  const submitter = ctx.staff.projectManager.identity
-  const approver = ctx.staff.programManager.identity
-  const publisher = ctx.staff.grantManager.identity
+  const actors = {
+    SUBMIT: ctx.staff.projectManager.identity,
+    APPROVE: ctx.staff.programManager.identity,
+    PUBLISH: ctx.staff.grantManager.identity,
+  }
   const service = ctx.services.publication
   let changed = 0
-  const order = ['FOR_REVIEW', 'APPROVED', 'PUBLISHED']
   for (const plan of publications) {
     const projectId = projectOf(ctx, plan.project)
-    const request = (operation: string) => ctx.stable(`publication:${plan.project}:${operation}`)
-    // Resume from whatever state the project is already in, so reruns finish the workflow.
+    const media = await ensurePublicMedia(ctx, plan.project)
+    const wanted: Wanted = {
+      summary: plan.summary,
+      state: plan.state,
+      selection: { media, views: plan.views },
+    }
     for (let guard = 0; guard < 4; guard += 1) {
-      const current = (await service.get(submitter, projectId)) as Publication
-      const reached = current ? order.indexOf(current.state) : -1
-      if (reached >= order.indexOf(plan.state)) break
+      const current = (await service.get(actors.SUBMIT, projectId)) as Draft
+      const operation = nextPublicationStep(current, wanted)
+      if (!operation) break
       const revision = current?.revision ?? 0
-      if (reached < 0) {
-        await step(`submit ${plan.project}`, () =>
-          service.transition(submitter, projectId, 'SUBMIT', {
-            clientRequestId: request('submit'),
-            expectedRevision: revision,
-            summary: plan.summary,
-            selection,
-          }),
-        )
-      } else if (current?.state === 'FOR_REVIEW') {
-        await step(`approve ${plan.project}`, () =>
-          service.transition(approver, projectId, 'APPROVE', {
-            clientRequestId: request('approve'),
-            expectedRevision: revision,
-          }),
-        )
-      } else {
-        await step(`publish ${plan.project}`, () =>
-          service.transition(publisher, projectId, 'PUBLISH', {
-            clientRequestId: request('publish'),
-            expectedRevision: revision,
-          }),
-        )
-      }
+      // Keys never repeat the old fixed ones (publication:EHK:submit) already on hosted targets.
+      const key =
+        operation === 'SUBMIT'
+          ? `publication:${plan.project}:submit:${selectionKey(wanted)}:r${revision}`
+          : `publication:${plan.project}:${operation.toLowerCase()}:r${revision}`
+      await step(`${operation.toLowerCase()} ${plan.project}`, () =>
+        service.transition(actors[operation], projectId, operation, {
+          clientRequestId: ctx.stable(key),
+          expectedRevision: revision,
+          ...(operation === 'SUBMIT'
+            ? { summary: wanted.summary, selection: wanted.selection }
+            : {}),
+        }),
+      )
       changed += 1
     }
   }

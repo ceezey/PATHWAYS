@@ -149,10 +149,19 @@ describe('AnalyticsActionBar', () => {
     ])('blocks the %s view with its reason', (analysisView, overrides, reason) => {
       show({ analysisView, ...overrides })
 
-      expect(pin()?.disabled).toBe(true)
-      expect(pin()?.title).toBe(reason)
+      // Focusable but inert, so a keyboard user can reach the reason.
+      expect(pin()?.disabled).toBe(false)
+      expect(pin()?.getAttribute('aria-disabled')).toBe('true')
       expect(pin()?.getAttribute('aria-describedby')).toBe('pin-blocked-reason')
       expect(document.getElementById('pin-blocked-reason')?.textContent).toBe(reason)
+      // Not in plain sight: the visible tip opens only on hover or focus.
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      fireEvent.focus(pin() as HTMLButtonElement)
+      expect(screen.getByRole('tooltip').textContent).toBe(reason)
+      fireEvent.blur(pin() as HTMLButtonElement)
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      fireEvent.mouseEnter(pin() as HTMLButtonElement)
+      expect(screen.getByRole('tooltip').textContent).toBe(reason)
       fireEvent.click(pin() as HTMLButtonElement)
       expect(addPin).not.toHaveBeenCalled()
     })
@@ -196,6 +205,18 @@ describe('AnalyticsActionBar', () => {
       })
 
       expect(pin()?.disabled).toBe(false)
+      fireEvent.click(pin() as HTMLButtonElement)
+
+      expect(addPin).toHaveBeenCalledWith('user-1', { view: 'map', projectId: '' })
+    })
+
+    it('pins the scope-wide map before any project is selected', () => {
+      show({
+        profile: { userId: 'user-1', permissions: ['projects.read'] },
+        selectedProject: undefined,
+        visualizationType: 'map',
+      })
+
       fireEvent.click(pin() as HTMLButtonElement)
 
       expect(addPin).toHaveBeenCalledWith('user-1', { view: 'map', projectId: '' })
