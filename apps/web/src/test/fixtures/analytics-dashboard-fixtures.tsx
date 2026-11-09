@@ -136,7 +136,11 @@ vi.mock('@/components/layout/page-header', () => ({
     </>
   ),
 }))
-vi.mock('@/hooks/use-authorized-read', () => ({ useAuthorizedRead: () => alertHook.result }))
+// Only the open-alerts read takes the stubbed result; other reads, such as the project map, stay empty.
+vi.mock('@/hooks/use-authorized-read', () => ({
+  useAuthorizedRead: (key: string) =>
+    key === 'analytics-open-alerts' ? alertHook.result : { data: undefined },
+}))
 vi.mock('@/lib/api/rules', () => ({ rulesHumanClient: { listAlerts: vi.fn() } }))
 vi.mock('@/features/analytics/components/analytics-charts', () => ({
   ActivityCompletionChart: () => <div>Activity chart</div>,
