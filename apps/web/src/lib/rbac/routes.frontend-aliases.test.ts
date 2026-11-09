@@ -84,6 +84,8 @@ describe('frontend route aliases', () => {
       [`${form}?submissionId=${beneficiaryId}`, form],
       [`/indicators/library?project=${projectId}`, '/indicators/library'],
       [`/collection/import?project=${projectId}&batch=${beneficiaryId}`, '/collection/import'],
+      [`/analytics?view=map&project=${projectId}`, '/analytics'],
+      ['/analytics?project=nonsense', '/analytics'],
     ]) {
       expect(authorizationPathForUiPath(ui)).toBe(checked)
     }
