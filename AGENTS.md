@@ -342,7 +342,7 @@ At the start of every session, before any other work and also when the session o
 | Brand and design reference | vault note [dsd-pathways.md](<C:/AI Agentic Memory/03_Resources/Blueprints/PATHWAYS/dsd-pathways.md>) | canonical; nothing materialized |
 | Phase/task workflow | external/disposable prompt context | never committed as repository authority |
 
-Regenerate `AGENTS.md` with `python .vault/scripts/pathways_docs/materialize.py` (run in the vault; `--check` reports drift without writing). It is the only vault tool allowed to write into PATHWAYS, and it writes `AGENTS.md` only. Validate the suite with `python .vault/scripts/pathways_docs/check.py`: em-dash/voice rules, manifest coverage, PRD-F# traceability, and Locked-doc reconciliation dates.
+Regenerate `AGENTS.md` with `python .vault/scripts/pathways_docs/materialize.py` (run in the vault; `--check` reports drift without writing). It writes `AGENTS.md` only; the one other vault tool that touches PATHWAYS is the housekeeping script, which removes old `.tmp\` files and finished worktrees and, with the user's yes through the `housekeeping` agent, may also resolve flagged worktrees and orphans (vault `AGENTS.md` section 5). Validate the suite with `python .vault/scripts/pathways_docs/check.py`: em-dash/voice rules, manifest coverage, PRD-F# traceability, and Locked-doc reconciliation dates.
 
 ## Self-Check
 
