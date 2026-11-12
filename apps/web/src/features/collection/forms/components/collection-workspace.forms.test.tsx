@@ -523,6 +523,50 @@ describe('collection form definition export', () => {
   })
 })
 
+describe('forms list entry link', () => {
+  it('gives the Project Officer a Fill in form link from the Collection page (UC010 step 4)', async () => {
+    currentAccess.role = 'Project Officer'
+    currentAccess.profile.roles = ['PROJECT_OFFICER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'activities.read',
+      'collection.read',
+      'forms.read',
+      'submissions.write',
+      'imports.read',
+      'imports.upload',
+    ]
+    api.getDigitalForms.mockResolvedValue([
+      {
+        id: 'form-1',
+        projectId: 'futuremakers-ncr',
+        code: 'activity_entry',
+        version: 2,
+        name: 'Activity Entry',
+        description: null,
+        formType: 'ACTIVITY_MONITORING',
+        status: 'PUBLISHED',
+        activityId: null,
+        journeyStageId: null,
+        updatedAt: '2026-09-23T00:00:00.000Z',
+        createdByCurrentUser: true,
+        fields: [],
+      },
+    ])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialMode="scratch" initialView="home" />
+      </DisplayLabelsProvider>,
+    )
+    const link = await screen.findByRole('link', { name: 'Fill in form' })
+    expect(link.getAttribute('href')).toBe(
+      '/collection/projects/futuremakers-ncr/forms/form-1/entries/new',
+    )
+    expect(screen.queryByRole('button', { name: 'Export form' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Download format' })).toBeNull()
+  })
+})
+
 describe('publishing selected drafts', () => {
   const draftOf = (id: string, name: string) => ({
     id,

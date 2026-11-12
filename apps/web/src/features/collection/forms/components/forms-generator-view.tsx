@@ -1,5 +1,6 @@
 'use client'
 
+import { DIRECT_ENTRY_FORM_TYPES } from '@pathways/shared'
 import { Database, FileSpreadsheet, FolderSearch, ListPlus, Plus, Send } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useState } from 'react'
@@ -38,6 +39,7 @@ const checkboxClass =
 export const FormsGeneratorView = ({
   canCreate,
   canExport,
+  canFillIn,
   canImport,
   canPublish,
   errorState,
@@ -51,6 +53,7 @@ export const FormsGeneratorView = ({
 }: {
   canCreate: boolean
   canExport: boolean
+  canFillIn: boolean
   canImport: boolean
   canPublish: boolean
   errorState: ReactNode
@@ -245,6 +248,17 @@ export const FormsGeneratorView = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {canFillIn &&
+                      form.type === 'PUBLISHED' &&
+                      (DIRECT_ENTRY_FORM_TYPES as readonly string[]).includes(form.formType) ? (
+                        <Button asChild size="sm">
+                          <Link
+                            href={`/collection/projects/${encodeURIComponent(form.projectId)}/forms/${encodeURIComponent(form.id)}/entries/new`}
+                          >
+                            Fill in form
+                          </Link>
+                        </Button>
+                      ) : null}
                       <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
                         Open form
                       </Button>

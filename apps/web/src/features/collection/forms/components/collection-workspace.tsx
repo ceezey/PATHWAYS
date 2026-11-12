@@ -123,6 +123,7 @@ const OwnedCollectionWorkspace = (
     view,
   } = state
   const {
+    canEnterForms,
     canExportForms,
     canGenerateForms,
     canManageForms,
@@ -224,6 +225,7 @@ const OwnedCollectionWorkspace = (
         <FormsGeneratorView
           canCreate={canManageForms}
           canExport={canExportForms}
+          canFillIn={canEnterForms}
           canImport={canOpenImport}
           canPublish={canPublishForms}
           initialProjectId={projectId}

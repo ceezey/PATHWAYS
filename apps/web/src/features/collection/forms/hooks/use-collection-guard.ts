@@ -26,6 +26,7 @@ export function useCollectionGuard(state: CollectionState) {
   const canPublishForms = principalHasAtomicPermission(profile, 'forms.publish')
   const canGenerateForms = principalHasAtomicPermission(profile, 'forms.generate')
   const canExportForms = principalHasAtomicPermission(profile, 'forms.export')
+  const canEnterForms = principalHasAtomicPermission(profile, 'submissions.write')
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
   const canOpenForms = Boolean(
@@ -117,6 +118,7 @@ export function useCollectionGuard(state: CollectionState) {
       forms.some((form) => form.id === editingFormId && form.projectId === projectId))
   return {
     beginOperation,
+    canEnterForms,
     canExportForms,
     canGenerateForms,
     canManageForms,
