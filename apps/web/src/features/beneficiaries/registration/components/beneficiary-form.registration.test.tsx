@@ -129,6 +129,52 @@ describe('BeneficiaryForm registration', () => {
     expect(routerPush).not.toHaveBeenCalled()
   })
 
+  it('warns about a possible duplicate and registers anyway on confirm', async () => {
+    const message =
+      'A beneficiary with the same name and birth date is already registered. Register anyway to list both for identity review.'
+    window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(
+      context([
+        {
+          id: 'registration-form',
+          formType: 'BENEFICIARY_REGISTRATION',
+          status: 'PUBLISHED',
+          version: 1,
+        },
+      ]),
+    )
+    client.registerBeneficiary
+      .mockRejectedValueOnce(
+        Object.assign(new Error(message), { status: 409, reason: 'POSSIBLE_DUPLICATE' }),
+      )
+      .mockResolvedValueOnce({ ...testBeneficiaries[0], id: 'beneficiary-created' })
+
+    render(<BeneficiaryForm projects={mockProjects} />)
+    await completeSelects()
+    await screen.findByText(/Recovered your unsaved beneficiary draft/)
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Save beneficiary' }),
+    )
+
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveProperty('textContent', message)
+    expect(toastError).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Register anyway' }))
+    await waitFor(() => expect(client.registerBeneficiary).toHaveBeenCalledTimes(2))
+    const [first, second] = client.registerBeneficiary.mock.calls.map((call) => call[1])
+    expect(first).not.toHaveProperty('confirmDuplicate')
+    expect(second).toMatchObject({
+      confirmDuplicate: true,
+      clientRegistrationId: first.clientRegistrationId,
+    })
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith(
+        'Beneficiary registered. The possible duplicate is listed for identity review.',
+      ),
+    )
+  })
+
   it('updates a supported profile with optimistic concurrency and keeps identity fields fixed', async () => {
     const beneficiary = testBeneficiaries[0]
     if (!beneficiary) throw new Error('Expected a beneficiary fixture.')
