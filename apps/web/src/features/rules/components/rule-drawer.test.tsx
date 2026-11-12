@@ -733,7 +733,10 @@ describe('RuleDrawer', () => {
   })
   it('shows only the server message when a save conflicts', async () => {
     const conflict = Object.assign(
-      new PathwaysClientError('Another rule already uses this code. Choose a different rule code.'),
+      new PathwaysClientError(
+        'Another rule already uses this code. Choose a different rule code.',
+        'invalid',
+      ),
       { status: 409 },
     )
     state.createRule.mockRejectedValueOnce(conflict)
@@ -746,9 +749,12 @@ describe('RuleDrawer', () => {
     expect(screen.queryByText(/Verify your access/)).toBeNull()
   })
   it('keeps the fallback after a 400 message', async () => {
-    const invalid = Object.assign(new PathwaysClientError('Invalid typed rules request.'), {
-      status: 400,
-    })
+    const invalid = Object.assign(
+      new PathwaysClientError('Invalid typed rules request.', 'invalid'),
+      {
+        status: 400,
+      },
+    )
     state.createRule.mockRejectedValueOnce(invalid)
     renderDrawer()
     fillBasics()
