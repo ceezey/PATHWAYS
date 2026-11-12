@@ -548,6 +548,34 @@ describe('SADDD analysis panel data', () => {
     expect(screen.queryByText(caption)).toBeNull()
     expect(screen.getByTestId('saddd-chart')).toBeTruthy()
   })
+
+  const notice =
+    'Some beneficiaries did not disclose their sex, age or disability, so this breakdown may be incomplete.'
+  it.each([
+    ['an Unknown age band', { age: [bucket('Unknown', 'Unknown', cell('2'))] }],
+    ['undisclosed sex', { sex: [bucket('NOT_SPECIFIED', 'Unknown', cell('1'))] }],
+    ['sex withheld', { sex: [bucket('PREFER_NOT_TO_SAY', 'Prefer not to say', cell('3'))] }],
+    ['undisclosed disability', { disability: [bucket('NOT_SPECIFIED', 'Unknown', cell('4'))] }],
+  ])('warns that the breakdown may be incomplete for %s', (_name, patch) => {
+    render(<SadddAnalysisPanel {...props} saddd={{ ...saddd, ...patch } as SadddDashboard} />)
+    expect(screen.getByRole('note').textContent).toBe(notice)
+    fireEvent.click(screen.getByRole('radio', { name: 'Disability' }))
+    expect(screen.getByText(notice)).toBeTruthy()
+  })
+
+  it('shows no notice when every undisclosed bucket is zero or absent', () => {
+    const zeros = {
+      age: [bucket('Unknown', 'Unknown', zero)],
+      sex: [bucket('NOT_SPECIFIED', 'Unknown', zero)],
+      disability: [bucket('NOT_SPECIFIED', 'Unknown', gap('MISSING'))],
+    }
+    const { rerender } = render(
+      <SadddAnalysisPanel {...props} saddd={{ ...saddd, ...zeros } as SadddDashboard} />,
+    )
+    expect(screen.queryByText(notice)).toBeNull()
+    rerender(<SadddAnalysisPanel {...props} />)
+    expect(screen.queryByText(notice)).toBeNull()
+  })
 })
 
 describe('Rule-Based Alerts panel without a count', () => {

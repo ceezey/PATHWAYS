@@ -13,6 +13,23 @@ import { ChartPanel, UnavailableChart } from './chart-panel'
 const sadddDimensions = { Sex: 'sex', 'Age group': 'age', Disability: 'disability' } as const
 type SadddDimension = keyof typeof sadddDimensions
 
+const undisclosed = {
+  sex: ['NOT_SPECIFIED', 'PREFER_NOT_TO_SAY'],
+  age: ['Unknown'],
+  disability: ['NOT_SPECIFIED'],
+} as const
+
+// True when any undisclosed sex, age or disability bucket has a positive count.
+export function hasIncompleteSaddd(saddd: Pick<SadddDashboard, 'sex' | 'age' | 'disability'>) {
+  return (Object.keys(undisclosed) as (keyof typeof undisclosed)[]).some((dimension) =>
+    saddd[dimension].some(
+      (row) =>
+        (undisclosed[dimension] as readonly string[]).includes(row.key) &&
+        Number(row.metric.value ?? 0) > 0,
+    ),
+  )
+}
+
 export const SadddAnalysisPanel = ({
   retrySaddd,
   saddd,
@@ -59,6 +76,15 @@ export const SadddAnalysisPanel = ({
           <StatusMessage>SADDD analysis loaded.</StatusMessage>
           {sadddOngoing ? (
             <p className="mb-2 text-sm text-muted-foreground">Counts to date.</p>
+          ) : null}
+          {hasIncompleteSaddd(saddd) ? (
+            <p
+              role="note"
+              className="mb-3 rounded-lg border border-warning/30 bg-warning-subtle p-3 text-sm text-warning"
+            >
+              Some beneficiaries did not disclose their sex, age or disability, so this breakdown
+              may be incomplete.
+            </p>
           ) : null}
           <FilterChoiceGroup
             label="SADDD dimension"
