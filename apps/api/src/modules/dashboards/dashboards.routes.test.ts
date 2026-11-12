@@ -17,7 +17,10 @@ import { AnalyticsModule } from '../analytics/analytics.module'
 import { DashboardsModule } from './dashboards.module'
 
 type Handler = (request: object, ...args: unknown[]) => unknown
-type ControllerClass = { new (service: unknown): Record<string, Handler>; prototype: object }
+type ControllerClass = {
+  new (service: unknown, extra?: unknown): Record<string, Handler>
+  prototype: object
+}
 
 const controllers = (): ControllerClass[] => [
   ...Reflect.getMetadata('controllers', DashboardsModule),
@@ -134,11 +137,15 @@ describe('dashboards and analytics routes', () => {
               called.push(
                 `${controller.name}.${method}(${args.map((arg) => (arg === user ? 'user' : arg)).join(', ')})`,
               )
-              return { contentType: 'text/csv', fileName: 'export.csv', bytes: new Uint8Array() }
+              return Promise.resolve({
+                contentType: 'text/csv',
+                fileName: 'export.csv',
+                bytes: new Uint8Array(),
+              })
             },
         },
       )
-      const instance = new controller(service)
+      const instance = new controller(service, { record: () => Promise.resolve() })
       for (const name of handlers(controller)) await instance[name]({ user }, 'query', res)
     }
     expect(called.sort()).toEqual([
