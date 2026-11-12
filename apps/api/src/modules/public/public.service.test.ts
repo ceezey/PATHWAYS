@@ -1,5 +1,11 @@
-import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  BadRequestException,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
+import type { Prisma } from '@prisma/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
 import { PublicProjectsController } from './public-projects.controller'
@@ -54,6 +60,66 @@ describe('public published projects', () => {
     await expect(
       new PublicService(db as unknown as PrismaService).published(projectId),
     ).rejects.toBeInstanceOf(NotFoundException)
+  })
+})
+const publishedFixture = {
+  id: projectId,
+  title: 'Synthetic project',
+  code: 'SYN-1',
+  approvedSummary: 'Synthetic approved summary.',
+  area: null,
+  sector: null,
+  startDate: null,
+  endDate: null,
+  media: [],
+  views: [],
+  publishedAt: '2026-09-27T00:00:00.000Z',
+}
+describe('public project view counting', () => {
+  afterEach(() => vi.restoreAllMocks())
+  it('counts one view after a single published project is returned', async () => {
+    const db = {
+      $queryRaw: vi
+        .fn()
+        .mockResolvedValueOnce([{ projects: [publishedFixture] }])
+        .mockResolvedValueOnce([{ s: 0 }]),
+    }
+    await new PublicService(db as unknown as PrismaService).published(projectId)
+    expect(db.$queryRaw).toHaveBeenCalledTimes(2)
+    const sql = db.$queryRaw.mock.calls[1][0] as Prisma.Sql
+    expect(sql.sql).toContain('pathways.p90_count_public_view(')
+    expect(sql.values).toEqual([projectId])
+  })
+  it('does not count the list, a list that returns one project or an unknown project', async () => {
+    const list = { $queryRaw: vi.fn().mockResolvedValue([{ projects: [publishedFixture] }]) }
+    await new PublicService(list as unknown as PrismaService).published()
+    expect(list.$queryRaw).toHaveBeenCalledTimes(1)
+    const unknown = { $queryRaw: vi.fn().mockResolvedValue([{ projects: [] }]) }
+    await expect(
+      new PublicService(unknown as unknown as PrismaService).published(projectId),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(unknown.$queryRaw).toHaveBeenCalledTimes(1)
+  })
+  it('does not count the staff preview', async () => {
+    const db = { $queryRaw: vi.fn() }
+    state.actor = actor
+    state.tx = { ...tx, $queryRaw: vi.fn().mockResolvedValue([]) }
+    tx.project.findFirst.mockResolvedValue({ id: projectId })
+    await new PublicService(db as unknown as PrismaService).get(actor, projectId)
+    expect(db.$queryRaw).not.toHaveBeenCalled()
+  })
+  it('still returns the project when counting fails', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    const db = {
+      $queryRaw: vi
+        .fn()
+        .mockResolvedValueOnce([{ projects: [publishedFixture] }])
+        .mockRejectedValueOnce(Error('counter down')),
+    }
+    await expect(
+      new PublicService(db as unknown as PrismaService).published(projectId),
+    ).resolves.toEqual(publishedFixture)
+    expect(warn).toHaveBeenCalledWith({ event: 'PATHWAYS_PUBLIC_VIEW_COUNT_FAILED' })
   })
 })
 let receipt: unknown
