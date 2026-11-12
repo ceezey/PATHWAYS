@@ -76,6 +76,7 @@ $forwardInventory = @(
   '0087_public_tracker_analytics'
   '0088_smart_mapping_v5'
   '0089_project_map_pins'
+  '0090_test_case_gap_closure'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1275,6 +1276,29 @@ SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity
     if ($pinsShape.Trim() -cne 'true') { throw "0089 project map pins inventory differs in $db." }
   }
   Write-Output 'FORWARD_0089_PROJECT_MAP_PINS_INVENTORY=PASS'
+  # 0090 inventory: the prisma-owned public view counter with row security on, no policy and no API-role grant, and the three
+  # runtime-only definers (public view counter, password reset audit, dashboard view throttle) with their reviewed bodies.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $gapShape = Read-ForwardSql $db @"
+SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity AND NOT relforcerowsecurity
+  FROM pg_catalog.pg_class WHERE oid='pathways.public_project_views'::pg_catalog.regclass)
+ AND NOT EXISTS(SELECT FROM pg_catalog.pg_policy WHERE polrelid='pathways.public_project_views'::pg_catalog.regclass)
+ AND (SELECT pg_catalog.string_agg(contype::text,'' ORDER BY contype) FROM pg_catalog.pg_constraint
+  WHERE conrelid='pathways.public_project_views'::pg_catalog.regclass AND convalidated AND contype IN ('c','f','p'))='cfp'
+ AND NOT EXISTS(SELECT FROM pg_catalog.unnest(ARRAY['pathways_runtime','anon','authenticated','service_role']) r
+  WHERE has_table_privilege(r,'pathways.public_project_views','SELECT,INSERT,UPDATE,DELETE'))
+ AND (SELECT count(*) FROM (VALUES ('pathways.p90_count_public_view(uuid)','cfb21cf6fa70efc079f1660c0ffc49b2'),
+   ('pathways.p90_record_password_reset(uuid)','e2ffa51704707c0525e3d394154ef75f'),
+   ('pathways.p90_dashboard_view_due(uuid,uuid,text)','bab5035acc9c2b020d35d747919ceaf4')) w(sig,md5)
+  JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
+  WHERE pg_catalog.md5(p.prosrc)=w.md5 AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef
+   AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'] AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
+   AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
+   AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))=3)::text;
+"@
+    if ($gapShape.Trim() -cne 'true') { throw "0090 test case gap closure inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0090_TEST_CASE_GAP_CLOSURE_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }
