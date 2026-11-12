@@ -1,7 +1,13 @@
 'use client'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { AsyncState, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import {
+  AsyncState,
+  ConfirmationDialog,
+  EmptyState,
+  SectionCard,
+  StatusBadge,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,6 +50,7 @@ export const PublicationQueueWorkspace = ({
   const [pendingView, setPendingView] = useState(initialAddView)
   const [busy, setBusy] = useState(false)
   const [mediaBlocked, setMediaBlocked] = useState(false)
+  const [confirmingPublish, setConfirmingPublish] = useState(false)
   const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
   const projects = useAuthorizedRead('publication-projects', null, 'public.preview', (signal) =>
     projectsClient.getProjects(signal),
@@ -115,10 +122,17 @@ export const PublicationQueueWorkspace = ({
     JSON.stringify(views) !== JSON.stringify(savedViews)
   const captionsReady = media.every((entry) => entry.caption.trim())
   const permitted = usePermission()
+  const publishReady =
+    Boolean(owner) &&
+    !busy &&
+    current?.state === 'APPROVED' &&
+    !edited &&
+    permitted('public.publish')
   // biome-ignore lint/correctness/useExhaustiveDependencies: Clear transient state when its authorization ownership changes.
   useEffect(() => {
     setDraft(null)
     setBusy(false)
+    setConfirmingPublish(false)
     activeOperation.current = null
   }, [owner?.key, owner?.generation])
   // biome-ignore lint/correctness/useExhaustiveDependencies: A revoked purpose owner must release the pending UI even while preview remains available.
@@ -362,16 +376,7 @@ export const PublicationQueueWorkspace = ({
                   <ShieldCheck className="mr-2 h-4 w-4" />
                   Approve revision
                 </Button>
-                <Button
-                  disabled={
-                    !owner ||
-                    busy ||
-                    current?.state !== 'APPROVED' ||
-                    edited ||
-                    !permitted('public.publish')
-                  }
-                  onClick={() => void act('publish')}
-                >
+                <Button disabled={!publishReady} onClick={() => setConfirmingPublish(true)}>
                   <Send className="mr-2 h-4 w-4" />
                   Publish
                 </Button>
@@ -386,6 +391,19 @@ export const PublicationQueueWorkspace = ({
                   </Button>
                 )}
               </div>
+              <ConfirmationDialog
+                confirmDisabled={!publishReady}
+                confirmLabel="Publish revision"
+                confirmVariant="default"
+                description={`Revision ${revision} goes live on the public tracker, where anyone can see it. You can withdraw it later.`}
+                onConfirm={() => {
+                  setConfirmingPublish(false)
+                  void act('publish')
+                }}
+                onOpenChange={setConfirmingPublish}
+                open={confirmingPublish}
+                title="Publish this revision?"
+              />
               {selected && (
                 <PublicDraftPreview
                   current={current}
