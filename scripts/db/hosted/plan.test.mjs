@@ -330,7 +330,9 @@ test('planIndexForAppliedCount on a complete 0000-0090 ledger resumes at alter-r
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
   assert.equal(plan[index].type, 'alter-runtime-role')
-  const residual = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length, { residualOwnerMemberships: true })
+  const residual = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length, {
+    residualOwnerMemberships: true,
+  })
   assert.equal(plan[residual].type, 'cleanup')
   assert.equal(plan[residual].name, 'test-case-gaps')
 })
