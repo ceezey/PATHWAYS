@@ -8,6 +8,7 @@
 -- DBA prerequisite: run hosted-backup-preprovision.sql first (creates the backup owner and job roles and a temporary SET-only
 -- membership from prisma to the backup, rules store, rules context and report owners) and hosted-backup-cleanup.sql
 -- afterwards, also after a failure; until the cleanup runs, both assertions and the backup functions fail closed.
+-- It then adds pathways.recovery_points with its row security and the two actor checks p91_backup_actor and p91_backup_job_actor.
 BEGIN;
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='60s';
@@ -15,6 +16,8 @@ DO $$ DECLARE fn record;postgres_oid oid;prisma_oid oid;bootstrap_oid oid;hosted
  IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0089_project_map_pins'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
  THEN RAISE EXCEPTION '0091 requires the verified 0089 state and migration identity'; END IF;
+ IF pg_catalog.to_regclass('pathways.recovery_points') IS NOT NULL
+ THEN RAISE EXCEPTION '0091 requires the recovery points table to not already exist'; END IF;
  IF EXISTS(SELECT FROM unnest(ARRAY['pathways_backup_owner','rules_store_owner','rules_context_owner','report_projection_owner']) o
   WHERE NOT pg_catalog.pg_has_role('prisma',o,'SET') OR pg_catalog.pg_has_role('prisma',o,'USAGE'))
  THEN RAISE EXCEPTION '0091 requires the temporary SET-only chain (run hosted-backup-preprovision.sql)'; END IF;
@@ -188,6 +191,112 @@ SET LOCAL ROLE rules_store_owner;
 REVOKE CREATE ON SCHEMA pathways_rules_internal FROM rules_context_owner;
 RESET ROLE;
 
+-- 3. Recovery points: one row per point of an organization, readable with backups.create or backups.restore.
+CREATE TABLE pathways.recovery_points (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    point_type text NOT NULL,
+    status text DEFAULT 'CREATING' NOT NULL,
+    file_mode text NOT NULL,
+    created_by_id uuid,
+    started_at timestamp(3) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    captured_at timestamp(3) with time zone,
+    completed_at timestamp(3) with time zone,
+    migration_name text,
+    size_bytes bigint,
+    manifest_sha256 text,
+    failure_reason text,
+    CONSTRAINT recovery_points_type_check CHECK (point_type IN ('MANUAL','AUTOMATIC','PRE_RESTORE')),
+    CONSTRAINT recovery_points_status_check CHECK (status IN ('CREATING','READY','FAILED','UNAVAILABLE')),
+    CONSTRAINT recovery_points_file_mode_check CHECK (file_mode IN ('manifest','copy')),
+    CONSTRAINT recovery_points_migration_name_check CHECK (char_length(migration_name) BETWEEN 1 AND 255),
+    CONSTRAINT recovery_points_size_bytes_check CHECK (size_bytes >= 0),
+    CONSTRAINT recovery_points_manifest_sha256_check CHECK (manifest_sha256 ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT recovery_points_failure_reason_check CHECK (char_length(btrim(failure_reason)) BETWEEN 1 AND 500),
+    -- Only the daily job writes a point without a creator.
+    CONSTRAINT recovery_points_creator_check CHECK ((point_type = 'AUTOMATIC') = (created_by_id IS NULL)),
+    CONSTRAINT recovery_points_state_check CHECK (
+     (status = 'CREATING' AND completed_at IS NULL AND failure_reason IS NULL)
+     OR (status = 'READY' AND captured_at IS NOT NULL AND completed_at IS NOT NULL AND migration_name IS NOT NULL
+      AND size_bytes IS NOT NULL AND manifest_sha256 IS NOT NULL AND failure_reason IS NULL)
+     OR (status = 'FAILED' AND completed_at IS NOT NULL AND failure_reason IS NOT NULL)
+     OR (status = 'UNAVAILABLE' AND manifest_sha256 IS NOT NULL AND failure_reason IS NOT NULL))
+);
+ALTER TABLE pathways.recovery_points OWNER TO prisma;
+ALTER TABLE ONLY pathways.recovery_points ADD CONSTRAINT recovery_points_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY pathways.recovery_points
+ ADD CONSTRAINT recovery_points_organization_fk FOREIGN KEY (organization_id)
+ REFERENCES pathways.organizations(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+ALTER TABLE ONLY pathways.recovery_points
+ ADD CONSTRAINT recovery_points_created_by_fk FOREIGN KEY (organization_id, created_by_id)
+ REFERENCES pathways.system_users(organization_id, id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+CREATE INDEX recovery_points_list_idx ON pathways.recovery_points (organization_id, point_type, started_at DESC);
+
+-- 4. The actor checks: a signed-in user holding a wanted permission, or the daily job login with no user at all.
+CREATE FUNCTION pathways.p91_backup_actor(wanted_permissions text[]) RETURNS boolean
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+ SELECT nullif(current_setting('app.organization_id',true),'') IS NOT NULL
+  AND nullif(current_setting('app.user_id',true),'') IS NOT NULL
+  AND EXISTS(SELECT FROM pg_catalog.unnest(wanted_permissions) w(code) WHERE pathways.p09_can(w.code))
+$$;
+ALTER FUNCTION pathways.p91_backup_actor(text[]) OWNER TO prisma;
+REVOKE ALL ON FUNCTION pathways.p91_backup_actor(text[]) FROM PUBLIC,anon,authenticated,service_role,pathways_backup_job;
+GRANT EXECUTE ON FUNCTION pathways.p91_backup_actor(text[]) TO pathways_runtime;
+-- session_user is the login, which no caller can set; the job functions of this migration are its only callers.
+CREATE FUNCTION pathways.p91_backup_job_actor(wanted_org uuid) RETURNS boolean
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+ SELECT session_user = 'pathways_backup_job'
+  AND coalesce(current_setting('app.user_id',true),'') = ''
+  AND coalesce(current_setting('request.jwt.claim.sub',true),'') = ''
+  AND EXISTS(SELECT FROM pathways.organizations o WHERE o.id = wanted_org AND o.status = 'ACTIVE' AND o.archived_at IS NULL)
+$$;
+ALTER FUNCTION pathways.p91_backup_job_actor(uuid) OWNER TO prisma;
+REVOKE ALL ON FUNCTION pathways.p91_backup_job_actor(uuid)
+ FROM PUBLIC,anon,authenticated,service_role,pathways_runtime,pathways_backup_job;
+
+-- 5. Row security: users act in their own organization; the prisma policies serve only the job login inside the job functions.
+ALTER TABLE ONLY pathways.recovery_points ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ONLY pathways.recovery_points FORCE ROW LEVEL SECURITY;
+CREATE POLICY p91_recovery_points_select ON pathways.recovery_points
+ FOR SELECT TO pathways_runtime USING (
+  organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+  AND pathways.p91_backup_actor(ARRAY['backups.create','backups.restore'])
+ );
+CREATE POLICY p91_recovery_points_insert ON pathways.recovery_points
+ FOR INSERT TO pathways_runtime WITH CHECK (
+  organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+  AND status = 'CREATING'
+  AND created_by_id = nullif(current_setting('app.user_id', true), '')::uuid
+  AND ((point_type = 'MANUAL' AND pathways.p91_backup_actor(ARRAY['backups.create']))
+   OR (point_type = 'PRE_RESTORE' AND pathways.p91_backup_actor(ARRAY['backups.restore'])))
+ );
+CREATE POLICY p91_recovery_points_update ON pathways.recovery_points
+ FOR UPDATE TO pathways_runtime USING (
+  organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+  AND pathways.p91_backup_actor(ARRAY['backups.create','backups.restore'])
+ ) WITH CHECK (
+  organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+  AND pathways.p91_backup_actor(ARRAY['backups.create','backups.restore'])
+ );
+-- Pre-restore retention runs under backups.restore, so that permission may delete pre-restore points.
+CREATE POLICY p91_recovery_points_delete ON pathways.recovery_points
+ FOR DELETE TO pathways_runtime USING (
+  organization_id = nullif(current_setting('app.organization_id', true), '')::uuid
+  AND (pathways.p91_backup_actor(ARRAY['backups.create'])
+   OR (point_type = 'PRE_RESTORE' AND pathways.p91_backup_actor(ARRAY['backups.restore'])))
+ );
+CREATE POLICY p91_recovery_points_job_select ON pathways.recovery_points
+ FOR SELECT TO prisma USING (pathways.p91_backup_job_actor(organization_id));
+CREATE POLICY p91_recovery_points_job_write ON pathways.recovery_points
+ FOR ALL TO prisma USING (point_type = 'AUTOMATIC' AND pathways.p91_backup_job_actor(organization_id))
+ WITH CHECK (point_type = 'AUTOMATIC' AND pathways.p91_backup_job_actor(organization_id));
+
+-- 6. Grants: the type, mode, organization, creator and start never change.
+REVOKE ALL ON TABLE pathways.recovery_points FROM PUBLIC,anon,authenticated,service_role,pathways_backup_job;
+GRANT SELECT, INSERT, DELETE ON TABLE pathways.recovery_points TO pathways_runtime;
+GRANT UPDATE (status, captured_at, completed_at, migration_name, size_bytes, manifest_sha256, failure_reason)
+ ON TABLE pathways.recovery_points TO pathways_runtime;
+
 -- Postconditions: the widened bodies, owners, invoker mode, volatility, empty search_path, the saved ACLs and no lent CREATE.
 DO $$ DECLARE fn record; BEGIN
  FOR fn IN SELECT w.n, w.nsp, w.name, w.owner, w.md5, p.prosrc, p.proowner, p.prosecdef, p.provolatile, p.proconfig, p.proacl
@@ -203,5 +312,20 @@ DO $$ DECLARE fn record; BEGIN
  IF pg_catalog.has_schema_privilege('report_projection_owner','pathways','CREATE')
   OR pg_catalog.has_schema_privilege('rules_context_owner','pathways_rules_internal','CREATE')
  THEN RAISE EXCEPTION '0091 lent schema CREATE remains'; END IF;
+ IF NOT (SELECT relrowsecurity AND relforcerowsecurity AND pg_catalog.pg_get_userbyid(relowner)='prisma' FROM pg_catalog.pg_class
+   WHERE oid='pathways.recovery_points'::pg_catalog.regclass)
+  OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polrelid='pathways.recovery_points'::pg_catalog.regclass
+   AND polroles=ARRAY['pathways_runtime'::pg_catalog.regrole::oid])<>4
+  OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polrelid='pathways.recovery_points'::pg_catalog.regclass
+   AND polroles=ARRAY['prisma'::pg_catalog.regrole::oid])<>2
+  OR (SELECT count(*) FROM pg_catalog.pg_constraint WHERE conrelid='pathways.recovery_points'::pg_catalog.regclass
+   AND contype='c' AND convalidated)<>9
+  OR pg_catalog.has_table_privilege('pathways_runtime','pathways.recovery_points','UPDATE')
+  OR pg_catalog.has_column_privilege('pathways_runtime','pathways.recovery_points','point_type','UPDATE')
+  OR pg_catalog.has_table_privilege('pathways_backup_job','pathways.recovery_points','SELECT,INSERT,UPDATE,DELETE')
+  OR NOT pg_catalog.has_function_privilege('pathways_runtime','pathways.p91_backup_actor(text[])','EXECUTE')
+  OR pg_catalog.has_function_privilege('pathways_runtime','pathways.p91_backup_job_actor(uuid)','EXECUTE')
+  OR pg_catalog.has_function_privilege('pathways_backup_job','pathways.p91_backup_job_actor(uuid)','EXECUTE')
+ THEN RAISE EXCEPTION '0091 recovery points postcondition failed'; END IF;
 END $$;
 COMMIT;
