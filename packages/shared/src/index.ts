@@ -5,6 +5,7 @@ export * from './validation/beneficiary-registration'
 export * from './validation/activity-monitoring'
 export * from './validation/form-data'
 export * from './validation/project-code'
+export * from './validation/duplicate-match'
 export * from './export/neutralize-cell'
 
 export * from './metrics/metric-math'

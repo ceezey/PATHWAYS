@@ -62,7 +62,9 @@ const projectFields = {
 }
 
 // Body of POST /projects.
-export const createProjectRequest = z.object(projectFields).strict()
+export const createProjectRequest = z
+  .object({ ...projectFields, confirmDuplicate: z.literal(true).optional() })
+  .strict()
 export type CreateProjectRequest = z.infer<typeof createProjectRequest>
 
 // Body of PATCH /projects/:projectId.

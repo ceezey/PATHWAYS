@@ -59,4 +59,14 @@ describe('project request contracts', () => {
     expect(updateProjectRequest.safeParse(base).success).toBe(false)
     expect(createProjectRequest.safeParse({ ...base, ...mutation }).success).toBe(false)
   })
+
+  it('accepts confirmDuplicate on create only', () => {
+    expect(createProjectRequest.parse({ ...base, confirmDuplicate: true }).confirmDuplicate).toBe(
+      true,
+    )
+    expect(createProjectRequest.safeParse({ ...base, confirmDuplicate: 'yes' }).success).toBe(false)
+    expect(
+      updateProjectRequest.safeParse({ ...base, ...mutation, confirmDuplicate: true }).success,
+    ).toBe(false)
+  })
 })
