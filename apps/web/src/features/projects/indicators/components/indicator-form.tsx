@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { metricGlossary } from '@/constants/metric-glossary'
 import type { Activity, DigitalFormDefinition } from '@/types/pathways'
-import type { CreateIndicatorDraftRequest } from '@pathways/shared'
+import { type CreateIndicatorDraftRequest, duplicateNameKey } from '@pathways/shared'
 import { Loader2, Plus } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import {
@@ -59,6 +59,7 @@ function IndicatorForm({
   const [fieldId, setFieldId] = useState('')
   const [activityId, setActivityId] = useState(allActivities)
   const [validation, setValidation] = useState<string | null>(null)
+  const [duplicateOf, setDuplicateOf] = useState<string | null>(null)
   const selectedForm = forms.find((form) => form.id === formId)
   const numericFields =
     selectedForm?.fields.filter(
@@ -74,6 +75,14 @@ function IndicatorForm({
     try {
       const input = indicatorInputFromForm(new FormData(event.currentTarget), forms)
       setValidation(null)
+      // A same-name indicator warns once; saving again confirms.
+      const match = existingNames.find(
+        (existing) => duplicateNameKey(existing) === duplicateNameKey(input.name),
+      )
+      if (match && duplicateOf !== match) {
+        setDuplicateOf(match)
+        return
+      }
       if (await onSave(input)) onDone()
     } catch {
       setValidation('Check the name, target and recipe inputs, then save again.')
@@ -98,7 +107,10 @@ function IndicatorForm({
             id="indicator-name"
             name="name"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              setName(event.target.value)
+              setDuplicateOf(null)
+            }}
             required
             maxLength={160}
             aria-describedby="indicator-code-preview"
@@ -271,13 +283,18 @@ function IndicatorForm({
         </div>
       </fieldset>
       {validation ? <InlineNotice tone="danger">{validation}</InlineNotice> : null}
+      {duplicateOf ? (
+        <InlineNotice>
+          {`An indicator named "${duplicateOf}" already exists in this project. Select Save anyway to add it.`}
+        </InlineNotice>
+      ) : null}
       {message ? <InlineNotice>{message}</InlineNotice> : null}
       {period ? null : (
         <InlineNotice>Loading the project dates for the reporting period.</InlineNotice>
       )}
       <Button className="gap-2" type="submit" disabled={busy || !period}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-        {busy ? 'Saving...' : 'Save indicator'}
+        {busy ? 'Saving...' : duplicateOf ? 'Save anyway' : 'Save indicator'}
       </Button>
     </form>
   )

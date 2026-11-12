@@ -9,7 +9,7 @@ vi.mock('@/components/ui/select', async () =>
 
 afterEach(cleanup)
 
-const open = () => {
+const open = (existingNames: string[] = []) => {
   const onSave = vi.fn().mockResolvedValue(true)
   render(
     <NewIndicator
@@ -17,7 +17,7 @@ const open = () => {
       activities={[]}
       period={{ periodStart: '2026-01-01', periodEnd: '2026-12-31' }}
       existingCodes={[]}
-      existingNames={[]}
+      existingNames={existingNames}
       busy={false}
       message={null}
       onSave={onSave}
@@ -83,5 +83,39 @@ describe('IndicatorForm measurement type', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
     expect(onSave.mock.calls[0][0]).toMatchObject({ mode: 'DERIVED' })
     expect(onSave.mock.calls[0][0].binding.recipe).toBe('ACTIVITY_COMPLETION_PERCENTAGE')
+  })
+})
+
+describe('IndicatorForm duplicate name', () => {
+  const saveWithName = (name: string) => {
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } })
+    fireEvent.change(screen.getByLabelText('Source description'), {
+      target: { value: 'Activity records' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save indicator' }))
+  }
+  const warning =
+    'An indicator named "Households reached" already exists in this project. Select Save anyway to add it.'
+
+  it('warns once on a matching name, then saves anyway', async () => {
+    const onSave = open(['Households reached'])
+    saveWithName('  households REACHED ')
+    expect(await screen.findByText(warning)).toBeTruthy()
+    expect(onSave).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save anyway' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+  })
+
+  it('clears the warning when the name changes', async () => {
+    const onSave = open(['Households reached'])
+    saveWithName('Households reached')
+    expect(await screen.findByText(warning)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Households reached 2026' },
+    })
+    expect(screen.queryByText(warning)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save indicator' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText(warning)).toBeNull()
   })
 })
