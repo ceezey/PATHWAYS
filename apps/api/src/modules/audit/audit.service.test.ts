@@ -45,7 +45,7 @@ const row = (suffix: string) => ({
   actorUserId: userId,
   actor: { fullName: 'Fictional audit reviewer' },
 })
-const tx = { project: { findMany: vi.fn() }, auditLog: { findMany: vi.fn() } }
+const tx = { project: { findMany: vi.fn() }, auditLog: { findMany: vi.fn(), create: vi.fn() } }
 const service = new AuditService({} as PrismaService)
 
 describe('audit projection and cursor boundary', () => {
@@ -300,5 +300,47 @@ describe('audit server filters', () => {
   ])('rejects invalid filters %o before reading', async (input) => {
     await expect(async () => service.list(identity, input)).rejects.toThrow(BadRequestException)
     expect(tx.auditLog.findMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('audit log viewing is itself recorded', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.actor = identity
+    state.tx = tx
+    tx.project.findMany.mockResolvedValue([{ id: projectId }])
+    tx.auditLog.findMany.mockResolvedValue([])
+  })
+  it('records one AUDIT_LOG_VIEWED after reading the first page', async () => {
+    await service.list(identity, {})
+    expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        organizationId: org,
+        actorUserId: userId,
+        projectId: null,
+        action: 'AUDIT_LOG_VIEWED',
+        entityType: 'AuditLog',
+      },
+    })
+    expect(tx.auditLog.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.auditLog.create.mock.invocationCallOrder[0],
+    )
+  })
+  it('records the project filter of a first-page search', async () => {
+    await service.list(identity, { projectId, module: 'projects' })
+    expect(tx.auditLog.create.mock.calls[0][0].data.projectId).toBe(projectId)
+  })
+  it('writes nothing for Load older events, invalid filters or a revoked grant', async () => {
+    await service.list(identity, {
+      module: 'projects',
+      cursor: `${instant.toISOString()}|${row('1').id}`,
+    })
+    await expect(async () => service.list(identity, { limit: 0 })).rejects.toBeInstanceOf(
+      BadRequestException,
+    )
+    state.actor = { ...identity, permissions: [] }
+    await expect(service.list(identity, {})).rejects.toBeInstanceOf(ForbiddenException)
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 })

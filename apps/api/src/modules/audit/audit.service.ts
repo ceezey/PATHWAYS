@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common'
 import { AUDIT_MODULES, auditQuerySchema } from '@pathways/shared'
 import { z } from 'zod'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
@@ -103,6 +104,13 @@ export class AuditService {
         orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
         take: query.limit + 1,
       })
+      // Opening the Audit Log is itself recorded; older pages are not.
+      if (!query.cursor)
+        await writeAuditLog(tx, actor, {
+          projectId: query.projectId ?? null,
+          action: 'AUDIT_LOG_VIEWED',
+          entityType: 'AuditLog',
+        })
       const page = rows.slice(0, query.limit)
       const last = page[page.length - 1]
       return {
