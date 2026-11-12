@@ -16,10 +16,12 @@ import {
 import { ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
 import {
+  type ChangeOwnPasswordRequest,
   type ChangeStepUpPinRequest,
   type PasswordRecoveryCompleteRequest,
   type SignInRequest,
   type VerifyStepUpPinRequest,
+  changeOwnPasswordRequest,
   changeStepUpPinRequest,
   passwordRecoveryCompleteRequest,
   verifyStepUpPinRequest,
@@ -92,6 +94,21 @@ export class AuthController {
   })
   recordSignOut(@Req() request: AuthenticatedRequest) {
     return this.account.recordSignOut(pinActor(request).profile)
+  }
+
+  @Post('password/change')
+  @AuthBoundary('profile')
+  @HttpCode(204)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiNoContentResponse({
+    description:
+      "Sets the caller's password after a fresh authenticator check; the password is never logged or echoed.",
+  })
+  changeOwnPassword(
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodPipe(changeOwnPasswordRequest)) body: ChangeOwnPasswordRequest,
+  ) {
+    return this.account.changePassword(pinActor(request), body.password)
   }
 
   @Get('workspaces')

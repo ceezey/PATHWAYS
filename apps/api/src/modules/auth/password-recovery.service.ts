@@ -31,19 +31,7 @@ export class PasswordRecoveryService {
     const client = this.client()
     const userId = await this.recoveryUserId(client, token)
 
-    let updateError: { status?: unknown } | null
-    try {
-      ;({ error: updateError } = await client.auth.admin.updateUserById(userId, { password }))
-    } catch {
-      throw unconfirmed()
-    }
-    if (updateError) {
-      const status = updateError.status
-      if (typeof status === 'number' && status >= 400 && status < 500) {
-        throw new BadRequestException('The password was not changed.')
-      }
-      throw unconfirmed()
-    }
+    await this.applyPassword(client, userId, password)
 
     await this.recordReset(userId)
 
@@ -54,6 +42,27 @@ export class PasswordRecoveryService {
       // The password change is committed even when ending the sessions is unconfirmed.
     }
     return { ok: true as const, sessionsClosed }
+  }
+
+  // Sets the password of an Auth user through the admin client; the caller proves who the user is.
+  async setPassword(authUserId: string, password: string): Promise<void> {
+    await this.applyPassword(this.client(), authUserId, password)
+  }
+
+  private async applyPassword(client: SupabaseClient, authUserId: string, password: string) {
+    let updateError: { status?: unknown } | null
+    try {
+      ;({ error: updateError } = await client.auth.admin.updateUserById(authUserId, { password }))
+    } catch {
+      throw unconfirmed()
+    }
+    if (updateError) {
+      const status = updateError.status
+      if (typeof status === 'number' && status >= 400 && status < 500) {
+        throw new BadRequestException('The password was not changed.')
+      }
+      throw unconfirmed()
+    }
   }
 
   // Writes PASSWORD_RESET_COMPLETED through the definer; the password change is already committed.

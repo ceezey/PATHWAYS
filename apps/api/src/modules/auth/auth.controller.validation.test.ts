@@ -17,6 +17,7 @@ import { WorkspaceResolutionService } from './workspace-resolution.service'
 const auth = { id: '72000000-0000-4000-8000-000000000001', aal: 'aal2' }
 const profile = { id: auth.id, userId: '72000000-0000-4000-8000-000000000002' }
 const sessionId = '72000000-0000-4000-8000-000000000003'
+const GOOD = 'Str0ng!Passw0rd#1'
 const pinActor = { auth, profile, sessionId }
 const signIns = { signIn: vi.fn() }
 const pins = { verify: vi.fn(), setup: vi.fn(), change: vi.fn() }
@@ -62,7 +63,7 @@ beforeEach(() => {
   for (const fn of Object.values(pins)) fn.mockReset().mockResolvedValue({ pinState: 'SET' })
   recovery.complete.mockReset().mockResolvedValue({ ok: true, sessionsClosed: true })
   account.recordSignOut.mockReset().mockResolvedValue(undefined)
-  account.changePassword.mockReset()
+  account.changePassword.mockReset().mockResolvedValue(undefined)
 })
 afterAll(async () => app?.close())
 
@@ -135,6 +136,23 @@ describe('auth routes body validation', () => {
     expect(account.recordSignOut).toHaveBeenCalledWith(profile)
   })
 
+  it('changes the own password with 204 and no body', async () => {
+    const result = await post('/password/change', JSON.stringify({ password: GOOD }))
+    expect(result).toEqual({ status: 204, text: '' })
+    expect(account.changePassword).toHaveBeenCalledWith(pinActor, GOOD)
+  })
+
+  it.each([JSON.stringify({ password: 'short' }), JSON.stringify({ password: GOOD, extra: 1 })])(
+    'the own password route answers 400 for %s without calling the service or echoing it',
+    async (body) => {
+      const result = await post('/password/change', body)
+      expect(result.status).toBe(400)
+      expect(result.text).not.toContain(GOOD)
+      expect(result.text).not.toContain('short')
+      expect(account.changePassword).not.toHaveBeenCalled()
+    },
+  )
+
   it.each(['/step-up/pin', '/step-up/pin/setup'])(
     '%s answers 400 for a numeric PIN without echoing it',
     async (path) => {
@@ -205,11 +223,13 @@ describe('auth controller verified values', () => {
       () => controller.changeStepUpPin(request, { newPin: '529317' }),
       () => controller.unlockStepUpPin(request),
       () => controller.recordSignOut(request),
+      () => controller.changeOwnPassword(request, { password: GOOD }),
     ]) {
       expect(call).toThrow(ForbiddenException)
       expect(call).toThrow('Verified profile required.')
     }
     for (const fn of Object.values(pins)) expect(fn).not.toHaveBeenCalled()
     expect(account.recordSignOut).not.toHaveBeenCalled()
+    expect(account.changePassword).not.toHaveBeenCalled()
   })
 })

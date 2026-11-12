@@ -184,4 +184,26 @@ describe('PasswordRecoveryService', () => {
     await expect(complete()).rejects.toBeInstanceOf(ServiceUnavailableException)
     expect(provider.updateUserById).not.toHaveBeenCalled()
   })
+
+  describe('setPassword', () => {
+    it('sets the password of the given Auth user without touching the database', async () => {
+      await expect(service().setPassword(userId, password)).resolves.toBeUndefined()
+      expect(provider.updateUserById).toHaveBeenCalledExactlyOnceWith(userId, { password })
+      expect(db.$queryRaw).not.toHaveBeenCalled()
+    })
+
+    it('maps a 4xx Auth refusal to 400', async () => {
+      provider.updateUserById.mockResolvedValue({ error: { status: 422 } })
+      await expect(service().setPassword(userId, password)).rejects.toBeInstanceOf(
+        BadRequestException,
+      )
+    })
+
+    it('maps a thrown Auth call to 503', async () => {
+      provider.updateUserById.mockRejectedValue(new Error('network'))
+      await expect(service().setPassword(userId, password)).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      )
+    })
+  })
 })
