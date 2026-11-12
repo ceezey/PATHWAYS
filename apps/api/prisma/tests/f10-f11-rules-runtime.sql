@@ -813,4 +813,47 @@ RESET SESSION AUTHORIZATION;
 INSERT INTO pathways.role_permissions SELECT * FROM t_saved_kpi;
 COMMIT;
 
+-- 0090: a live rule code cannot be reused in the same scope; the active-rule cap has its own code.
+BEGIN;
+SELECT pg_temp.act(1);
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}',
+ jsonb_build_object('code','F10-EXPECT','clientOperationId',pg_temp.u(20001)))),'42710','duplicate live code in the same project');
+INSERT INTO t_out SELECT 'dup_other_scope',pathways.f10_rule_create(pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}',
+ jsonb_build_object('code','F10-EXPECT','projectId',pg_temp.u(304),'clientOperationId',pg_temp.u(20002))));
+-- the exact rule_expect request (lines 214-217, op u(9610)) returns its receipt, not 42710
+INSERT INTO t_out SELECT 'expect_retry',pathways.f10_rule_create(pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"SURVEY_MEAN_IMPROVEMENT_POINTS","operator":"LT","threshold":"5"}',
+ jsonb_build_object('severity','CRITICAL','code','F10-EXPECT','clientOperationId',pg_temp.u(9610),
+  'expectations',jsonb_build_object('expectedScoreImprovement','10.50','manageableFollowUpPercent',NULL))));
+-- an archived rule's code can be reused
+SELECT pg_temp.make_rule('reuse',305,'PROJECT_OVERDUE_DAYS','GT','0',1,20010);
+-- The archive runs in its own transaction, as the API does, because one transaction holds one UPDATE intent per rule.
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(1);
+SELECT pathways.f10_rule_archive(r.id,jsonb_build_object('expectedVersion',r.version,'clientOperationId',pg_temp.u(20012),'note','Done'))
+ FROM pathways.alert_rules r WHERE r.id=(SELECT (doc->>'id')::uuid FROM t_out WHERE name='rule_reuse');
+INSERT INTO t_out SELECT 'reuse_again',pathways.f10_rule_create(pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}',
+ jsonb_build_object('code','F10-REUSE','projectId',pg_temp.u(305),'clientOperationId',pg_temp.u(20014))));
+-- templates (no projectId) compare with templates
+INSERT INTO t_out SELECT 'tpl',pathways.f10_rule_create(pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}',
+ jsonb_build_object('code','F10-TPL','clientOperationId',pg_temp.u(20020)))-'projectId');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_create(%L::jsonb)',pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}',
+ jsonb_build_object('code','F10-TPL','clientOperationId',pg_temp.u(20022)))-'projectId'),'42710','duplicate template code');
+SELECT pg_temp.make_rule('cap'||g,302,'PROJECT_OVERDUE_DAYS','GT','0',1,20100+2*g) FROM generate_series(1,20) g;
+INSERT INTO t_out SELECT 'cap21',pathways.f10_rule_create(pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"}',
+ jsonb_build_object('code','F10-CAP21','projectId',pg_temp.u(302),'clientOperationId',pg_temp.u(20200))));
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_activate(%L,%L::jsonb)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='cap21'),
+ jsonb_build_object('expectedVersion',1,'clientOperationId',pg_temp.u(20201))),'54000','twenty-first active rule');
+COMMIT;
+SELECT pg_temp.ok((SELECT doc->>'status' FROM t_out WHERE name='dup_other_scope')='DRAFT','same code in another project is allowed');
+SELECT pg_temp.ok((SELECT doc->>'id' FROM t_out WHERE name='expect_retry')=(SELECT doc->>'id' FROM t_out WHERE name='rule_expect'),'retry returns the stored receipt');
+SELECT pg_temp.ok((SELECT doc->>'status' FROM t_out WHERE name='reuse_again')='DRAFT','an archived rule code can be reused');
+
 DO $$ BEGIN RAISE NOTICE 'F10_F11_RULES_RUNTIME=PASS (% checks)',(SELECT count(*) FROM t_results); END $$;

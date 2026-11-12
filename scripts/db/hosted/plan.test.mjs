@@ -126,7 +126,9 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'deploy:0087_public_tracker_analytics',
     'deploy:0088_smart_mapping_v5',
     'deploy:0089_project_map_pins',
+    'preprovision:test-case-gaps',
     'deploy:0090_test_case_gap_closure',
+    'cleanup:test-case-gaps',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -324,10 +326,13 @@ test('planIndexForAppliedCount on a 0000-0048 ledger resumes at the 0049 deploy'
   assert.deepEqual(plan[index].migrations, ['0049_journey_event_note'])
 })
 
-test('planIndexForAppliedCount on a complete 0000-0090 ledger resumes at alter-runtime-role', () => {
+test('planIndexForAppliedCount on a complete 0000-0090 ledger resumes at alter-runtime-role, or at the test-case-gaps cleanup with residual owner memberships', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
   assert.equal(plan[index].type, 'alter-runtime-role')
+  const residual = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length, { residualOwnerMemberships: true })
+  assert.equal(plan[residual].type, 'cleanup')
+  assert.equal(plan[residual].name, 'test-case-gaps')
 })
 
 test('planIndexForAppliedCount on a 0000-0056 ledger resumes at the 0057 deploy', () => {
@@ -659,8 +664,12 @@ test('planIndexForAppliedCount on a 0000-0088 ledger resumes at the 0089 deploy'
   assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0089_project_map_pins'])
 })
 
-test('planIndexForAppliedCount on a 0000-0089 ledger resumes at the 0090 deploy', () => {
+test('planIndexForAppliedCount on a 0000-0089 ledger resumes at the test-case-gaps preprovision, or at the 0090 deploy with residual owner memberships', () => {
   const plan = buildPlan()
   const applied = MIGRATIONS_IN_ORDER.indexOf('0089_project_map_pins') + 1
-  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0090_test_case_gap_closure'])
+  const fresh = planIndexForAppliedCount(applied)
+  assert.equal(plan[fresh].type, 'preprovision')
+  assert.equal(plan[fresh].name, 'test-case-gaps')
+  const granted = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.deepEqual(plan[granted].migrations, ['0090_test_case_gap_closure'])
 })
