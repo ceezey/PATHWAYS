@@ -1,13 +1,16 @@
 import type {
+  ActivitySummary,
+  BeneficiaryAssessmentRecord,
   BeneficiaryJourneyHistory,
   BeneficiaryNoteRecord,
   BeneficiaryOutcomeRecord,
   BeneficiaryParticipationRecord,
   JourneyCorrectionTarget,
   JourneyEventType,
+  JourneyStageConfig,
 } from '@/types/pathways'
 
-import { formatDate } from '../beneficiaries.utils'
+import { formatDate, stageForActivity } from '../beneficiaries.utils'
 
 const attendanceLabels: Record<string, BeneficiaryParticipationRecord['attendanceStatus']> = {
   PRESENT: 'Present',
@@ -114,4 +117,89 @@ export const mapBeneficiaryJourneyHistory = (history: BeneficiaryJourneyHistory)
     }))
 
   return { notes, participation, outcomes, correctionTargets }
+}
+
+export type ParticipationHistoryEntry = {
+  id: string
+  kind: 'participation' | 'assessment' | 'outcome'
+  date: string
+  stageId: string | null
+  title: string
+  detail: string
+  result: string | null
+  note: string
+}
+
+export const buildParticipationHistory = ({
+  participation,
+  assessments,
+  outcomes,
+  activities,
+  stages,
+}: {
+  participation: BeneficiaryParticipationRecord[]
+  assessments: BeneficiaryAssessmentRecord[]
+  outcomes: BeneficiaryOutcomeRecord[]
+  activities: ActivitySummary[]
+  stages: JourneyStageConfig[]
+}): ParticipationHistoryEntry[] => {
+  const activityTitle = (activityId: string | null) =>
+    activities.find((activity) => activity.id === activityId)?.title
+
+  const entries: ParticipationHistoryEntry[] = [
+    ...participation.map((record) => ({
+      id: `participation:${record.id}`,
+      kind: 'participation' as const,
+      date: record.participatedAt.slice(0, 10),
+      stageId: stageForActivity(record.activityId, stages, activities)?.id ?? null,
+      title: activityTitle(record.activityId) ?? record.activityId,
+      detail: record.attendanceStatus,
+      result: record.outcome ? `Outcome: ${record.outcome}` : null,
+      note: record.note,
+    })),
+    ...assessments.map((assessment) => ({
+      id: `assessment:${assessment.id}`,
+      kind: 'assessment' as const,
+      date: assessment.assessedAt.slice(0, 10),
+      stageId: assessment.stageId || null,
+      title: assessment.title,
+      detail: 'Assessment',
+      result: `Score: ${assessment.score} / ${assessment.maximumScore}`,
+      note: assessment.note,
+    })),
+    ...outcomes.map((outcome) => ({
+      id: `outcome:${outcome.id}`,
+      kind: 'outcome' as const,
+      date: outcome.occurredAt.slice(0, 10),
+      stageId: outcome.stageId,
+      title: eventTypeLabels[outcome.eventType],
+      detail: activityTitle(outcome.activityId) ?? 'Enrollment status',
+      result: `Outcome: ${eventTypeLabels[outcome.eventType]}`,
+      note: outcome.description,
+    })),
+  ]
+
+  // Newest date first; same-date entries fall back to id so the order is stable.
+  return entries.sort(
+    (first, second) => second.date.localeCompare(first.date) || first.id.localeCompare(second.id),
+  )
+}
+
+/** An empty bound is open; stageId 'all' keeps every stage. */
+export type ParticipationHistoryFilters = { from: string; to: string; stageId: string }
+
+export const filterParticipationHistory = (
+  entries: ParticipationHistoryEntry[],
+  { from, to, stageId }: ParticipationHistoryFilters,
+) => {
+  if (from && to && from > to) {
+    return []
+  }
+
+  return entries.filter(
+    (entry) =>
+      (!from || entry.date >= from) &&
+      (!to || entry.date <= to) &&
+      (stageId === 'all' || entry.stageId === stageId),
+  )
 }
