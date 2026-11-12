@@ -14,7 +14,8 @@ import {
 } from '@/test/fixtures/beneficiary-detail-fixtures'
 import { BeneficiaryDetail } from './beneficiary-detail'
 
-const { client, toastSuccess, toastError, useCurrentRoleMock } = vi.hoisted(() => ({
+const { client, toastSuccess, toastError, useCurrentRoleMock, routerPush } = vi.hoisted(() => ({
+  routerPush: vi.fn(),
   client: {
     getBeneficiaryJourneyHistory: vi.fn(),
     saveDirectSubmission: vi.fn(),
@@ -34,7 +35,10 @@ const { client, toastSuccess, toastError, useCurrentRoleMock } = vi.hoisted(() =
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: useCurrentRoleMock,
 }))
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: routerPush }),
+}))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: client }))
 vi.mock('@/lib/api/forms', () => ({ formsClient: client }))
 vi.mock('@/lib/api/journeys', () => ({ journeysClient: client }))

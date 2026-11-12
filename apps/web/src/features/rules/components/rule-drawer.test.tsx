@@ -1,3 +1,4 @@
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 /* @vitest-environment jsdom */
 import type { HumanRule } from '@pathways/shared'
@@ -729,5 +730,37 @@ describe('RuleDrawer', () => {
       expectedVersion: 2,
       note: 'Superseded by a new rule.',
     })
+  })
+  it('shows only the server message when a save conflicts', async () => {
+    const conflict = Object.assign(
+      new PathwaysClientError(
+        'Another rule already uses this code. Choose a different rule code.',
+        'invalid',
+      ),
+      { status: 409 },
+    )
+    state.createRule.mockRejectedValueOnce(conflict)
+    renderDrawer()
+    fillBasics()
+    fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
+    expect(
+      await screen.findByText('Another rule already uses this code. Choose a different rule code.'),
+    ).toBeTruthy()
+    expect(screen.queryByText(/Verify your access/)).toBeNull()
+  })
+  it('keeps the fallback after a 400 message', async () => {
+    const invalid = Object.assign(
+      new PathwaysClientError('Invalid typed rules request.', 'invalid'),
+      {
+        status: 400,
+      },
+    )
+    state.createRule.mockRejectedValueOnce(invalid)
+    renderDrawer()
+    fillBasics()
+    fireEvent.click(screen.getByRole('button', { name: 'Save Rule' }))
+    expect(
+      await screen.findByText(/Invalid typed rules request\. The rule could not be saved\./),
+    ).toBeTruthy()
   })
 })

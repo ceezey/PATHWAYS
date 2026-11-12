@@ -1,8 +1,10 @@
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { beneficiariesClient } from '@/lib/api/beneficiaries'
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { formsClient } from '@/lib/api/forms'
 import { journeysClient } from '@/lib/api/journeys'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
@@ -16,7 +18,7 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
-import { mapBeneficiaryJourneyHistory } from '../profile.utils'
+import { buildParticipationHistory, mapBeneficiaryJourneyHistory } from '../profile.utils'
 
 import { useBeneficiaryDetailView } from './use-beneficiary-detail-view'
 
@@ -44,8 +46,15 @@ export const useBeneficiaryDetail = ({
   refreshAssessments = async () => undefined,
 }: BeneficiaryDetailProps) => {
   const { role, profile } = useCurrentRole()
-  const [participation, setParticipation] = useState(loadedBeneficiary.participation)
-  const [notes, setNotes] = useState(loadedBeneficiary.notes)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [journey, setJourney] = useState(() => ({
+    participation: loadedBeneficiary.participation,
+    notes: loadedBeneficiary.notes,
+    outcomes: loadedBeneficiary.outcomes ?? [],
+    correctionTargets: loadedBeneficiary.correctionTargets ?? [],
+  }))
+  const { participation, notes, outcomes, correctionTargets } = journey
   // The server journey summary and enrollment status change with every journey write.
   const [summary, setSummary] = useState({
     progress: loadedBeneficiary.progress,
@@ -118,13 +127,29 @@ export const useBeneficiaryDetail = ({
     activities,
     participation,
     notes,
+    correctionTargets,
     selectedStage,
     participationForms,
     projectId,
     assessmentsUnavailable,
     canRecordAssessment,
   })
-  const { selectedStageParticipationActivities, transferDestinationOptions, correctableNote } = view
+  const participationHistory = useMemo(
+    () =>
+      buildParticipationHistory({
+        participation,
+        assessments: beneficiary.assessments,
+        outcomes,
+        activities,
+        stages,
+      }),
+    [participation, beneficiary.assessments, outcomes, activities, stages],
+  )
+  const {
+    selectedStageParticipationActivities,
+    transferDestinationOptions,
+    selectedStageCorrectionTargets,
+  } = view
 
   const openParticipationForSelectedStage = () => {
     if (
@@ -158,15 +183,28 @@ export const useBeneficiaryDetail = ({
   }
 
   const openNoteForSelectedStage = () => {
-    if (!canCorrectJourney || !correctableNote) return
+    const latest = selectedStageCorrectionTargets.at(-1)
+    if (!canCorrectJourney || !latest) return
     setNoteDraft({
-      eventId: correctableNote.id,
+      eventId: latest.id,
       eventDate: todayIso(),
-      description: correctableNote.note,
-      note: correctableNote.journeyNote ?? '',
+      description: latest.description,
+      note: latest.note,
       reason: '',
     })
     setNoteOpen(true)
+  }
+
+  // Switching the target swaps the prefilled text and keeps the reason and date already typed.
+  const chooseCorrectionTarget = (eventId: string) => {
+    const target = selectedStageCorrectionTargets.find((candidate) => candidate.id === eventId)
+    if (!target) return
+    setNoteDraft((current) => ({
+      ...current,
+      eventId: target.id,
+      description: target.description,
+      note: target.note,
+    }))
   }
 
   const recordParticipation = async () => {
@@ -229,9 +267,29 @@ export const useBeneficiaryDetail = ({
         : null,
     ])
     const nextJourney = mapBeneficiaryJourneyHistory(history)
-    setParticipation(nextJourney.participation)
-    setNotes(nextJourney.notes)
+    setJourney(nextJourney)
     if (record) setSummary({ progress: record.progress, enrollmentStatus: record.enrollmentStatus })
+  }
+
+  // Every read is scoped to one project, so the filter switches the page after an enrollment probe.
+  const openHistoryForProject = async (nextProjectId: string) => {
+    if (nextProjectId === projectId || !role) return
+    try {
+      await beneficiariesClient.getBeneficiaryRecordForRole(role, nextProjectId, beneficiary.id)
+    } catch (error) {
+      toast.error(
+        error instanceof PathwaysClientError && error.code === 'not_found'
+          ? 'This person is not enrolled in that project.'
+          : error instanceof Error
+            ? error.message
+            : 'The project history could not be opened.',
+      )
+      return
+    }
+    const params = new URLSearchParams(searchParams?.toString())
+    params.set('projectId', nextProjectId)
+    params.set('tab', 'participation')
+    router.push(`/beneficiaries/${encodeURIComponent(beneficiary.id)}?${params}`)
   }
 
   const transitionJourney = async () => {
@@ -270,7 +328,7 @@ export const useBeneficiaryDetail = ({
 
   const correctJourneyNote = async () => {
     if (!noteDraft.eventId) {
-      toast.error('Select a note to correct.')
+      toast.error('Select an entry to correct.')
       return
     }
     if (!noteDraft.description.trim() || !noteDraft.reason.trim() || !noteDraft.eventDate) {
@@ -294,9 +352,9 @@ export const useBeneficiaryDetail = ({
       )
       await refreshJourneyHistory()
       setNoteOpen(false)
-      toast.success('Journey note added and reloaded from the project history.')
+      toast.success('Correction saved and reloaded from the project history.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'The note could not be added.')
+      toast.error(error instanceof Error ? error.message : 'The correction could not be saved.')
     } finally {
       setSavingNote(false)
     }
@@ -310,6 +368,8 @@ export const useBeneficiaryDetail = ({
     stages,
     projectId,
     participation,
+    participationHistory,
+    openHistoryForProject,
     enrollmentStatus,
     canEditBeneficiary,
     canViewMedia,
@@ -344,6 +404,7 @@ export const useBeneficiaryDetail = ({
     openParticipationForSelectedStage,
     openJourneyTransition,
     openNoteForSelectedStage,
+    chooseCorrectionTarget,
     recordParticipation,
     transitionJourney,
     correctJourneyNote,

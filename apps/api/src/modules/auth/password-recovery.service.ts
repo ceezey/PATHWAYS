@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
@@ -9,6 +11,7 @@ import { type SupabaseClient, createClient } from '@supabase/supabase-js'
 import { readApiEnv } from '@pathways/config'
 import { hasRecentRecoverySignIn } from '@pathways/shared'
 import { UUID_PATTERN } from '../../common/authz/application-identity'
+import { PrismaService } from '../../prisma/prisma.service'
 import { verifiedAuthOrigin } from '../users/auth-directory.service'
 
 const bearerPattern = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/
@@ -17,6 +20,10 @@ const unconfirmed = () =>
 
 @Injectable()
 export class PasswordRecoveryService {
+  private readonly logger = new Logger(PasswordRecoveryService.name)
+
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
   // Sets the password through the admin API, so a recovery session works with or without MFA enrolled.
   async complete(authorization: string | undefined, password: string) {
     const token = bearerPattern.exec(authorization ?? '')?.[1]
@@ -24,9 +31,28 @@ export class PasswordRecoveryService {
     const client = this.client()
     const userId = await this.recoveryUserId(client, token)
 
+    await this.applyPassword(client, userId, password)
+
+    await this.recordReset(userId)
+
+    let sessionsClosed = false
+    try {
+      sessionsClosed = !(await client.auth.admin.signOut(token, 'global')).error
+    } catch {
+      // The password change is committed even when ending the sessions is unconfirmed.
+    }
+    return { ok: true as const, sessionsClosed }
+  }
+
+  // Sets the password of an Auth user through the admin client; the caller proves who the user is.
+  async setPassword(authUserId: string, password: string): Promise<void> {
+    await this.applyPassword(this.client(), authUserId, password)
+  }
+
+  private async applyPassword(client: SupabaseClient, authUserId: string, password: string) {
     let updateError: { status?: unknown } | null
     try {
-      ;({ error: updateError } = await client.auth.admin.updateUserById(userId, { password }))
+      ;({ error: updateError } = await client.auth.admin.updateUserById(authUserId, { password }))
     } catch {
       throw unconfirmed()
     }
@@ -37,14 +63,16 @@ export class PasswordRecoveryService {
       }
       throw unconfirmed()
     }
+  }
 
-    let sessionsClosed = false
+  // Writes PASSWORD_RESET_COMPLETED through the definer; the password change is already committed.
+  private async recordReset(authSubject: string) {
     try {
-      sessionsClosed = !(await client.auth.admin.signOut(token, 'global')).error
+      await this.prisma
+        .$queryRaw`SELECT 0 AS s FROM (SELECT pathways.p90_record_password_reset(${authSubject}::uuid)) r`
     } catch {
-      // The password change is committed even when ending the sessions is unconfirmed.
+      this.logger.warn({ event: 'PATHWAYS_PASSWORD_RESET_AUDIT_FAILED' })
     }
-    return { ok: true as const, sessionsClosed }
   }
 
   private client() {

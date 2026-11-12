@@ -11,7 +11,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { AsyncState, SectionCard } from '@/components/pathways'
+import { AsyncState, ConfirmationDialog, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -26,7 +26,7 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
-import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
+import { createdSince, fingerprintOf, isPossibleDuplicate } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 import type { ProjectDetail, ProjectSummary, UserRecord } from '@/types/pathways'
 
@@ -115,6 +115,10 @@ const ProjectSetupFormContent = ({
   const [usersLoadError, setUsersLoadError] = useState<string | null>(null)
   const [usersLoadAttempt, setUsersLoadAttempt] = useState(0)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [duplicate, setDuplicate] = useState<{
+    values: ProjectSetupSchema
+    message: string
+  } | null>(null)
   const [projectLoadFailed, setProjectLoadFailed] = useState(false)
   const pendingCreate = usePendingCreate<ProjectSummary>({
     profile,
@@ -249,7 +253,7 @@ const ProjectSetupFormContent = ({
     return () => subscription.unsubscribe()
   }, [draftHydrated, form, projectId, projectDraftStorageKey, scope.isCurrent, scope.generation])
 
-  const onSubmit = async (values: ProjectSetupSchema) => {
+  const save = async (values: ProjectSetupSchema, confirmDuplicate: boolean) => {
     if (!scope.isCurrent()) return
     setSaveError(null)
     if (projectId && !existingProject) {
@@ -274,6 +278,7 @@ const ProjectSetupFormContent = ({
               ...toCreateProjectInput(values),
               ...toProjectTeamInput(values, users),
               ...budget,
+              ...(confirmDuplicate ? { confirmDuplicate: true as const } : {}),
             }),
           )
       if (!project) return
@@ -297,6 +302,10 @@ const ProjectSetupFormContent = ({
       )
     } catch (error) {
       if (!scope.isCurrent()) return
+      if (isPossibleDuplicate(error)) {
+        setDuplicate({ values, message: (error as Error).message })
+        return
+      }
       const message =
         error instanceof PathwaysClientError || error instanceof Error
           ? error.message
@@ -304,6 +313,7 @@ const ProjectSetupFormContent = ({
       setSaveError(message)
     }
   }
+  const onSubmit = (values: ProjectSetupSchema) => save(values, false)
 
   return (
     <>
@@ -404,6 +414,21 @@ const ProjectSetupFormContent = ({
           </form>
         </Form>
       </SectionCard>
+      <ConfirmationDialog
+        confirmLabel="Create anyway"
+        confirmVariant="default"
+        description={duplicate?.message ?? ''}
+        onConfirm={() => {
+          if (!duplicate) return
+          setDuplicate(null)
+          void save(duplicate.values, true)
+        }}
+        onOpenChange={(open) => {
+          if (!open) setDuplicate(null)
+        }}
+        open={Boolean(duplicate)}
+        title="Possible duplicate project"
+      />
     </>
   )
 }

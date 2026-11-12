@@ -187,6 +187,36 @@ describe('Project creation contract', () => {
     tx.project.findFirst.mockResolvedValue(project)
   })
 
+  it('warns before creating a project whose title matches an existing one', async () => {
+    tx.$queryRaw.mockResolvedValueOnce([{ id: projectId }])
+    const error = await service
+      .create(manager, { title: '  community RESILIENCE ', status: 'PLANNED' } as never)
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ConflictException)
+    expect((error as ConflictException).getResponse()).toEqual({
+      message: 'A project with this title already exists in your organization.',
+      code: 'POSSIBLE_DUPLICATE',
+    })
+    expect((tx.$queryRaw.mock.calls[0][0] as string[]).join('?')).toContain('lower(btrim(title))')
+    expect(tx.project.create).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('creates anyway once the duplicate is confirmed, without the title check', async () => {
+    await service.create(manager, {
+      title: project.title,
+      status: 'PLANNED',
+      confirmDuplicate: true,
+    } as never)
+    expect(
+      tx.$queryRaw.mock.calls.some(([q]) =>
+        (q as string[]).join('?').includes('lower(btrim(title))'),
+      ),
+    ).toBe(false)
+    expect(tx.project.create).toHaveBeenCalledTimes(1)
+    expect(tx.project.create.mock.calls[0][0].data).not.toHaveProperty('confirmDuplicate')
+  })
+
   it('generates a readable code when none is sent and skips taken ones', async () => {
     tx.project.findMany.mockResolvedValueOnce([{ code: 'CRL-NS-2026' }])
     await service.create(manager, {

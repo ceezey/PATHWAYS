@@ -1,5 +1,6 @@
 'use client'
 
+import { DIRECT_ENTRY_FORM_TYPES } from '@pathways/shared'
 import { Database, FileSpreadsheet, FolderSearch, ListPlus, Plus, Send } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useState } from 'react'
@@ -21,6 +22,8 @@ import {
 } from '@/components/ui/select'
 
 import { type SavedForm, formatSavedAt, savedFormStatus } from '../../collection.utils'
+import { formDefinitionExportFormats } from '../form-definition-export'
+import type { ExportFormat } from '../forms.utils'
 
 // Groups the forms under their project, in the order the projects were loaded.
 const groupByProject = (forms: SavedForm[]) => {
@@ -35,6 +38,8 @@ const checkboxClass =
 
 export const FormsGeneratorView = ({
   canCreate,
+  canExport,
+  canFillIn,
   canImport,
   canPublish,
   errorState,
@@ -47,19 +52,22 @@ export const FormsGeneratorView = ({
   status,
 }: {
   canCreate: boolean
+  canExport: boolean
+  canFillIn: boolean
   canImport: boolean
   canPublish: boolean
   errorState: ReactNode
   initialProjectId: string
   onOpen: (form: SavedForm) => void
   onCreate: () => void
-  onDownload: (form: SavedForm) => void
+  onDownload: (form: SavedForm, format: ExportFormat) => void
   onPublish: (ids: string[]) => Promise<void>
   savedForms: SavedForm[]
   status: 'loading' | 'error' | 'ready'
 }) => {
   // Seeded from the workspace so returning from the builder keeps the project last worked in.
   const [projectId, setProjectId] = useState(initialProjectId)
+  const [format, setFormat] = useState<ExportFormat>('csv')
   const groups = groupByProject(savedForms)
   // One project is chosen for the person; a chosen project whose forms are gone returns to the placeholder.
   const selected =
@@ -112,6 +120,24 @@ export const FormsGeneratorView = ({
               </SelectContent>
             </Select>
           </div>
+          {canExport ? (
+            <Select value={format} onValueChange={(next) => setFormat(next as ExportFormat)}>
+              <SelectTrigger
+                aria-label="Download format"
+                className="sm:w-32"
+                id="collection-forms-format"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {formDefinitionExportFormats.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {f.toUpperCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
           {drafts.length ? (
             <Button
               className="shrink-0"
@@ -222,12 +248,29 @@ export const FormsGeneratorView = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {canFillIn &&
+                      form.type === 'PUBLISHED' &&
+                      (DIRECT_ENTRY_FORM_TYPES as readonly string[]).includes(form.formType) ? (
+                        <Button asChild size="sm">
+                          <Link
+                            href={`/collection/projects/${encodeURIComponent(form.projectId)}/forms/${encodeURIComponent(form.id)}/entries/new`}
+                          >
+                            Fill in form
+                          </Link>
+                        </Button>
+                      ) : null}
                       <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
                         Open form
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
-                        Export form
-                      </Button>
+                      {canExport ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onDownload(form, format)}
+                        >
+                          Export form
+                        </Button>
+                      ) : null}
                     </div>
                   </li>
                 )

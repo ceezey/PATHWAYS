@@ -101,6 +101,7 @@ export const indicatorTrendsSchema = z
   .strict()
 export type IndicatorTrends = z.infer<typeof indicatorTrendsSchema>
 
+/** Utilization is approved spending against the project total budget; awaiting approval is shown apart and never counted. */
 export const budgetSummarySchema = z
   .object({
     projectId: z.guid(),
@@ -109,12 +110,16 @@ export const budgetSummarySchema = z
         z
           .object({
             currency: z.string().length(3),
-            planned: amount,
+            planned: amount.nullable(),
             approved: amount,
             pending: amount,
             utilizationPercent: amount.nullable(),
           })
-          .strict(),
+          .strict()
+          .refine(
+            (row) => row.planned !== null || row.utilizationPercent === null,
+            'Utilization needs a total budget.',
+          ),
       )
       .max(50)
       .refine((rows) => unique(rows, (row) => row.currency), 'Currencies must be unique.'),

@@ -491,22 +491,48 @@ describe('SADDD analysis panel data', () => {
     sadddOngoing: true,
   }
 
-  it('lists the sex, age and disability rows in that order with the metric cell text', () => {
+  const tableRows = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('details table tr'), (tr) =>
+      Array.from(tr.children, (node) => node.textContent),
+    )
+
+  it('charts Sex by default and switches the chart and table to the picked dimension', () => {
     const { container } = render(<SadddAnalysisPanel {...props} />)
     expect(screen.getByText('SADDD analysis loaded.')).toBeTruthy()
     expect(screen.getByText('Accessible SADDD data table')).toBeTruthy()
-    const rows = Array.from(container.querySelectorAll('details table tr'), (tr) =>
-      Array.from(tr.children, (node) => node.textContent),
-    )
-    expect(rows).toEqual([
+    const group = screen.getByRole('radiogroup', { name: 'SADDD dimension' })
+    expect(
+      within(group)
+        .getAllByRole('radio')
+        .map((r) => r.getAttribute('value')),
+    ).toEqual(['Sex', 'Age group', 'Disability'])
+    expect((screen.getByRole('radio', { name: 'Sex' }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByText('Sex values')).toBeTruthy()
+    expect(tableRows(container)).toEqual([
       ['Dimension', 'Category', 'Count'],
       ['Sex', 'Female', '12'],
       ['Sex', 'Male', '9'],
-      ['Age', '18 to 24', '7'],
-      ['Age', '25 to 59', 'Suppressed'],
+    ])
+    fireEvent.click(screen.getByRole('radio', { name: 'Age group' }))
+    expect(screen.getByText('Age group values')).toBeTruthy()
+    expect(tableRows(container)).toEqual([
+      ['Dimension', 'Category', 'Count'],
+      ['Age group', '18 to 24', '7'],
+      ['Age group', '25 to 59', 'Suppressed'],
+    ])
+    fireEvent.click(screen.getByRole('radio', { name: 'Disability' }))
+    expect(tableRows(container)).toEqual([
+      ['Dimension', 'Category', 'Count'],
       ['Disability', 'With disability', '6'],
       ['Disability', 'Not stated', '0'],
     ])
+  })
+
+  it('shows no picker while loading or on error', () => {
+    const { rerender } = render(<SadddAnalysisPanel {...props} saddd={null} sadddLoading />)
+    expect(screen.queryByRole('radiogroup', { name: 'SADDD dimension' })).toBeNull()
+    rerender(<SadddAnalysisPanel {...props} saddd={null} sadddError="Failed" />)
+    expect(screen.queryByRole('radiogroup', { name: 'SADDD dimension' })).toBeNull()
   })
 
   it('never offers Add to public page', () => {
@@ -521,6 +547,34 @@ describe('SADDD analysis panel data', () => {
     rerender(<SadddAnalysisPanel {...props} sadddOngoing={false} />)
     expect(screen.queryByText(caption)).toBeNull()
     expect(screen.getByTestId('saddd-chart')).toBeTruthy()
+  })
+
+  const notice =
+    'Some beneficiaries did not disclose their sex, age or disability, so this breakdown may be incomplete.'
+  it.each([
+    ['an Unknown age band', { age: [bucket('Unknown', 'Unknown', cell('2'))] }],
+    ['undisclosed sex', { sex: [bucket('NOT_SPECIFIED', 'Unknown', cell('1'))] }],
+    ['sex withheld', { sex: [bucket('PREFER_NOT_TO_SAY', 'Prefer not to say', cell('3'))] }],
+    ['undisclosed disability', { disability: [bucket('NOT_SPECIFIED', 'Unknown', cell('4'))] }],
+  ])('warns that the breakdown may be incomplete for %s', (_name, patch) => {
+    render(<SadddAnalysisPanel {...props} saddd={{ ...saddd, ...patch } as SadddDashboard} />)
+    expect(screen.getByRole('note').textContent).toBe(notice)
+    fireEvent.click(screen.getByRole('radio', { name: 'Disability' }))
+    expect(screen.getByText(notice)).toBeTruthy()
+  })
+
+  it('shows no notice when every undisclosed bucket is zero or absent', () => {
+    const zeros = {
+      age: [bucket('Unknown', 'Unknown', zero)],
+      sex: [bucket('NOT_SPECIFIED', 'Unknown', zero)],
+      disability: [bucket('NOT_SPECIFIED', 'Unknown', gap('MISSING'))],
+    }
+    const { rerender } = render(
+      <SadddAnalysisPanel {...props} saddd={{ ...saddd, ...zeros } as SadddDashboard} />,
+    )
+    expect(screen.queryByText(notice)).toBeNull()
+    rerender(<SadddAnalysisPanel {...props} />)
+    expect(screen.queryByText(notice)).toBeNull()
   })
 })
 

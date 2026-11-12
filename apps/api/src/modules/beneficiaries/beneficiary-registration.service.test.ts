@@ -127,6 +127,7 @@ describe('P04 beneficiary registration service', () => {
     beneficiary: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       createMany: vi.fn(),
       updateMany: vi.fn(),
     },
@@ -161,6 +162,7 @@ describe('P04 beneficiary registration service', () => {
     tx.formSubmission.findFirst.mockResolvedValue(null)
     tx.beneficiary.findUnique.mockResolvedValue(null)
     tx.beneficiary.findFirst.mockResolvedValue(null)
+    tx.beneficiary.findMany.mockResolvedValue([])
     tx.beneficiaryIdentifier.findUnique.mockResolvedValue(null)
     tx.beneficiary.createMany.mockResolvedValue({ count: 1 })
     tx.beneficiaryProjectEnrollment.findUnique.mockResolvedValue(null)
@@ -1121,5 +1123,79 @@ describe('P04 beneficiary registration service', () => {
     await expect(promote()).rejects.toThrow('synthetic transaction rollback')
     expect(tx.formSubmission.create).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  describe('same name and birth date (cr-pathways-test-case-gap-closure)', () => {
+    const direct = (
+      patch: Record<string, unknown> = {},
+      extra: { confirmDuplicate?: boolean } = {},
+    ) =>
+      service.promoteRegistration(tx as never, actor, {
+        projectId,
+        formId,
+        clientRegistrationId: registrationId,
+        values: values(patch),
+        source: 'DIRECT_ENTRY',
+        validatedById: actorId,
+        ...extra,
+      })
+
+    it('warns a direct entry before writing anything', async () => {
+      tx.beneficiary.findMany.mockResolvedValue([
+        { firstName: ' SYNTHETIC ', lastName: 'person', displayName: 'Other' },
+      ])
+      await expect(direct()).resolves.toEqual({ kind: 'REVIEW', code: 'POSSIBLE_DUPLICATE' })
+      expect(tx.beneficiary.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            organizationId,
+            archivedAt: null,
+            birthDate: new Date('2000-01-01T00:00:00.000Z'),
+          },
+        }),
+      )
+      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
+    })
+
+    it('registers once the user confirms the warning', async () => {
+      tx.beneficiary.findMany.mockResolvedValue([
+        { firstName: 'Synthetic', lastName: 'Person', displayName: null },
+      ])
+      await expect(direct({}, { confirmDuplicate: true })).resolves.toMatchObject({
+        kind: 'PROCESSED',
+      })
+      expect(tx.beneficiary.findMany).not.toHaveBeenCalled()
+      expect(tx.beneficiary.createMany).toHaveBeenCalledTimes(1)
+    })
+
+    it('ignores the middle name and uses the display name of a profile without a first name', async () => {
+      tx.beneficiary.findMany.mockResolvedValue([
+        { firstName: null, lastName: null, displayName: 'synthetic person' },
+      ])
+      await expect(direct({ middle_name: 'Middle' })).resolves.toEqual({
+        kind: 'REVIEW',
+        code: 'POSSIBLE_DUPLICATE',
+      })
+    })
+
+    it('registers a different name on the same birth date', async () => {
+      tx.beneficiary.findMany.mockResolvedValue([
+        { firstName: 'Another', lastName: 'Person', displayName: null },
+      ])
+      await expect(direct()).resolves.toMatchObject({ kind: 'PROCESSED' })
+    })
+
+    it('never checks imported rows or an entry without a birth date', async () => {
+      await promote(values(), 'IMPORTED_DATASET')
+      await direct({ birth_date: null })
+      expect(tx.beneficiary.findMany).not.toHaveBeenCalled()
+    })
+
+    it('keeps the code match ahead of the name match', async () => {
+      tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
+      await expect(direct()).resolves.toEqual({ kind: 'REVIEW', code: 'DUPLICATE_IDENTITY' })
+      expect(tx.beneficiary.findMany).not.toHaveBeenCalled()
+    })
   })
 })
