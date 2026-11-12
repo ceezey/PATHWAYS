@@ -141,7 +141,11 @@ export const useBeneficiaryDetailView = ({
       ? requestedReturnTo
       : '/beneficiaries'
 
+  const initialTab: 'journey' | 'participation' =
+    searchParams?.get('tab') === 'participation' ? 'participation' : 'journey'
+
   return {
+    initialTab,
     currentStage,
     progress,
     stageState,
