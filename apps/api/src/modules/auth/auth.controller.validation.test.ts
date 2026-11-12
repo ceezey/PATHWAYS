@@ -9,6 +9,7 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService } from './beneficiary-step-up-pin.service'
+import { OwnAccountService } from './own-account.service'
 import { PasswordRecoveryService } from './password-recovery.service'
 import { SignInLockoutService } from './signin-lockout.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
@@ -20,6 +21,7 @@ const pinActor = { auth, profile, sessionId }
 const signIns = { signIn: vi.fn() }
 const pins = { verify: vi.fn(), setup: vi.fn(), change: vi.fn() }
 const recovery = { complete: vi.fn() }
+const account = { recordSignOut: vi.fn(), changePassword: vi.fn() }
 let app: INestApplication
 let base: string
 
@@ -32,6 +34,7 @@ beforeAll(async () => {
       { provide: BeneficiaryStepUpPinService, useValue: pins },
       { provide: SignInLockoutService, useValue: signIns },
       { provide: PasswordRecoveryService, useValue: recovery },
+      { provide: OwnAccountService, useValue: account },
     ],
   }).compile()
   app = module.createNestApplication({ logger: false })
@@ -58,6 +61,8 @@ beforeEach(() => {
   signIns.signIn.mockReset().mockResolvedValue({ accessToken: 'a', refreshToken: 'r' })
   for (const fn of Object.values(pins)) fn.mockReset().mockResolvedValue({ pinState: 'SET' })
   recovery.complete.mockReset().mockResolvedValue({ ok: true, sessionsClosed: true })
+  account.recordSignOut.mockReset().mockResolvedValue(undefined)
+  account.changePassword.mockReset()
 })
 afterAll(async () => app?.close())
 
@@ -124,6 +129,12 @@ describe('auth routes body validation', () => {
     },
   )
 
+  it('records the sign-out of the verified profile with 204 and no body', async () => {
+    const result = await post('/sign-out', '')
+    expect(result).toEqual({ status: 204, text: '' })
+    expect(account.recordSignOut).toHaveBeenCalledWith(profile)
+  })
+
   it.each(['/step-up/pin', '/step-up/pin/setup'])(
     '%s answers 400 for a numeric PIN without echoing it',
     async (path) => {
@@ -184,6 +195,7 @@ describe('auth controller verified values', () => {
       pins as unknown as BeneficiaryStepUpPinService,
       signIns as unknown as SignInLockoutService,
       recovery as unknown as PasswordRecoveryService,
+      account as unknown as OwnAccountService,
     )
     const request = { headers: {}, ...values } as unknown as AuthenticatedRequest
     for (const call of [
@@ -192,10 +204,12 @@ describe('auth controller verified values', () => {
       () => controller.setupStepUpPin(request, { pin: '482915' }),
       () => controller.changeStepUpPin(request, { newPin: '529317' }),
       () => controller.unlockStepUpPin(request),
+      () => controller.recordSignOut(request),
     ]) {
       expect(call).toThrow(ForbiddenException)
       expect(call).toThrow('Verified profile required.')
     }
     for (const fn of Object.values(pins)) expect(fn).not.toHaveBeenCalled()
+    expect(account.recordSignOut).not.toHaveBeenCalled()
   })
 })

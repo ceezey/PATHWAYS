@@ -13,7 +13,7 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common'
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger'
+import { ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
 import {
   type ChangeStepUpPinRequest,
@@ -32,6 +32,7 @@ import { ZodPipe } from '../../common/validation/zod-pipe'
 import { signInBody } from './auth.helpers'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'
+import { OwnAccountService } from './own-account.service'
 import { PasswordRecoveryService } from './password-recovery.service'
 import { SignInLockoutService } from './signin-lockout.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
@@ -53,6 +54,7 @@ export class AuthController {
     @Inject(BeneficiaryStepUpPinService) private readonly pins: BeneficiaryStepUpPinService,
     @Inject(SignInLockoutService) private readonly signIns: SignInLockoutService,
     @Inject(PasswordRecoveryService) private readonly recovery: PasswordRecoveryService,
+    @Inject(OwnAccountService) private readonly account: OwnAccountService,
   ) {}
 
   @Post('sign-in')
@@ -78,6 +80,18 @@ export class AuthController {
     @Body(new ZodPipe(passwordRecoveryCompleteRequest)) body: PasswordRecoveryCompleteRequest,
   ) {
     return this.recovery.complete(authorization, body.password)
+  }
+
+  @Post('sign-out')
+  @AuthBoundary('profile')
+  @HttpCode(204)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiNoContentResponse({
+    description:
+      'Records the sign-out of the verified session; the browser then ends the Supabase session.',
+  })
+  recordSignOut(@Req() request: AuthenticatedRequest) {
+    return this.account.recordSignOut(pinActor(request).profile)
   }
 
   @Get('workspaces')

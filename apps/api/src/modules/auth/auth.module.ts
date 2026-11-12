@@ -7,6 +7,7 @@ import { AuthorizedDataController } from './authorized-data.controller'
 import { AuthorizedDataService } from './authorized-data.service'
 import { BeneficiaryStepUpPinService } from './beneficiary-step-up-pin.service'
 import { BeneficiaryStepUpService } from './beneficiary-step-up.service'
+import { OwnAccountService } from './own-account.service'
 import { PasswordRecoveryService } from './password-recovery.service'
 import { RouteAccessController } from './route-access.controller'
 import { RouteAccessService } from './route-access.service'
@@ -29,6 +30,7 @@ import { WorkspaceResolutionService } from './workspace-resolution.service'
     BeneficiaryStepUpPinService,
     SignInLockoutService,
     PasswordRecoveryService,
+    OwnAccountService,
   ],
   exports: [
     AuthService,
