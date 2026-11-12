@@ -420,7 +420,7 @@ describe('collection form definition export', () => {
     ],
   }
 
-  it('exports the form as CSV through the audited server export without a format control', async () => {
+  it('exports the form as CSV by default through the audited server export', async () => {
     api.getDigitalForms.mockResolvedValue([exportForm])
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn() })
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
@@ -432,7 +432,7 @@ describe('collection form definition export', () => {
     )
 
     await waitFor(() => expect(screen.getByText('Activity Entry - v2')).toBeTruthy())
-    expect(screen.queryByText('Download format')).toBeNull()
+    expect(screen.getByRole('combobox', { name: 'Download format' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
     await waitFor(() =>
       expect(core.downloadCoreArtifact).toHaveBeenLastCalledWith(
@@ -476,8 +476,6 @@ describe('collection form definition export', () => {
   it.each([
     ['extend import', 'import', 'extend'],
     ['plain import', 'import', 'import'],
-    ['Forms', 'forms', 'scratch'],
-    ['Home', 'home', 'scratch'],
     ['Builder', 'builder', 'scratch'],
   ] as const)(
     'does not show the Download format control on the %s view',
@@ -495,6 +493,19 @@ describe('collection form definition export', () => {
     },
   )
 
+  it.each([
+    ['Forms', 'forms'],
+    ['Home', 'home'],
+  ] as const)('shows the Download format control on the %s view', async (_name, view) => {
+    api.getDigitalForms.mockResolvedValue([exportForm])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView={view} initialMode="scratch" />
+      </DisplayLabelsProvider>,
+    )
+    expect(await screen.findByRole('combobox', { name: 'Download format' })).toBeTruthy()
+  })
+
   it('does not request an export without forms.export', async () => {
     currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
       (permission) => permission !== 'forms.export',
@@ -506,8 +517,8 @@ describe('collection form definition export', () => {
       </DisplayLabelsProvider>,
     )
     await waitFor(() => expect(screen.getByText('Activity Entry - v2')).toBeTruthy())
-    const button = screen.queryByRole('button', { name: 'Export form' })
-    if (button) fireEvent.click(button)
+    expect(screen.queryByRole('button', { name: 'Export form' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Download format' })).toBeNull()
     expect(core.downloadCoreArtifact).not.toHaveBeenCalled()
   })
 })

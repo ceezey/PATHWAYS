@@ -61,18 +61,24 @@ const form = (id: string, projectId: string, project: string, title: string): Sa
 const view = (
   savedForms: SavedForm[],
   initialProjectId = '',
-  { canPublish = false, onPublish = vi.fn(async () => {}) } = {},
+  {
+    canPublish = false,
+    canExport = false,
+    onPublish = vi.fn(async () => {}),
+    onDownload = vi.fn(),
+  } = {},
 ) =>
   render(
     <FormsGeneratorView
       canCreate
+      canExport={canExport}
       canImport={false}
       canPublish={canPublish}
       errorState={null}
       initialProjectId={initialProjectId}
       onOpen={vi.fn()}
       onCreate={vi.fn()}
-      onDownload={vi.fn()}
+      onDownload={onDownload}
       onPublish={onPublish}
       savedForms={savedForms}
       status="ready"
@@ -81,6 +87,33 @@ const view = (
 const draft = (id: string, title: string): SavedForm => ({
   ...form(id, 'p1', 'Northern Samar', title),
   type: 'DRAFT',
+})
+
+describe('FormsGeneratorView export format', () => {
+  it('offers the four export formats and exports the chosen one', () => {
+    const onDownload = vi.fn()
+    view([form('f1', 'p1', 'Northern Samar', 'Coaching Attendance')], '', {
+      canExport: true,
+      onDownload,
+    })
+    const select = screen.getByLabelText('Download format') as HTMLSelectElement
+    expect(select.value).toBe('csv')
+    expect([...select.options].map((o) => o.textContent).slice(1)).toEqual([
+      'CSV',
+      'XLSX',
+      'XLS',
+      'PDF',
+    ])
+    fireEvent.change(select, { target: { value: 'xlsx' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
+    expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }), 'xlsx')
+  })
+
+  it('shows no format or export without forms.export', () => {
+    view([form('f1', 'p1', 'Northern Samar', 'Coaching Attendance')])
+    expect(screen.queryByLabelText('Download format')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Export form' })).toBeNull()
+  })
 })
 
 describe('FormsGeneratorView project picker', () => {
