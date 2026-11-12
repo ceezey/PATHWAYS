@@ -1,3 +1,4 @@
+import { auditClient } from '@/lib/api/audit'
 /* @vitest-environment jsdom */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +16,7 @@ const state = vi.hoisted(() => ({
   actorUserId: '20000000-0000-4000-8000-000000000002' as string | null,
   reads: vi.fn(),
   refetch: vi.fn(),
+  read: (_signal: AbortSignal) => undefined as unknown,
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({ profile: { userId: state.user } }),
@@ -23,10 +25,23 @@ vi.mock('@/lib/auth/sensitive-drafts', () => ({
   useSensitiveDraftOwner: () =>
     state.authorized ? { key: state.user, generation: state.generation } : null,
 }))
-vi.mock('@/lib/api/audit', () => ({ auditClient: { list: vi.fn() } }))
+vi.mock('@/lib/api/audit', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api/audit')>()),
+  auditClient: { list: vi.fn() },
+}))
+vi.mock('@/components/ui/select', async () =>
+  (await import('@/test/fixtures/beneficiary-form-fixtures')).selectMock(),
+)
 vi.mock('@/hooks/use-authorized-read', () => ({
-  useAuthorizedRead: (key: string) => {
-    state.reads(key)
+  useAuthorizedRead: (
+    key: string,
+    _projectId: unknown,
+    _permission: string,
+    read: (signal: AbortSignal) => unknown,
+    enabled = true,
+  ) => {
+    state.reads(key, enabled)
+    state.read = read
     return {
       data: state.authorized
         ? {
@@ -53,7 +68,7 @@ vi.mock('@/hooks/use-authorized-read', () => ({
   },
 }))
 
-describe('audit screen current access and business date', () => {
+describe('audit screen current access and server filters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.user = 'reviewer-1'
@@ -67,15 +82,55 @@ describe('audit screen current access and business date', () => {
     state.actorUserId = '20000000-0000-4000-8000-000000000002'
   })
   afterEach(cleanup)
-  it('filters the next Manila business date rather than the UTC calendar date', () => {
+  it('offers readable module names and labels rows with them', () => {
     render(<AuditLogWorkspace />)
+    expect(screen.getByRole('option', { name: 'Projects' })).toBeTruthy()
+    expect(screen.queryByRole('option', { name: 'Project' })).toBeNull()
+    expect(screen.getByRole('cell', { name: 'Projects' })).toBeTruthy()
+  })
+  it('sends module and dates to the server and resets the cursor', () => {
+    render(<AuditLogWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Load older events' }))
+    fireEvent.change(screen.getByLabelText('Module'), { target: { value: 'projects' } })
+    expect(state.reads).toHaveBeenLastCalledWith('audit-events:module=projects', true)
     fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-28' } })
     fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-09-28' } })
-    expect(screen.getByText('PROJECT_UPDATED')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-27' } })
-    fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-09-27' } })
+    expect(state.reads).toHaveBeenLastCalledWith(
+      'audit-events:module=projects&from=2026-09-28&to=2026-09-28',
+      true,
+    )
+    const signal = new AbortController().signal
+    state.read(signal)
+    expect(auditClient.list).toHaveBeenLastCalledWith(
+      { module: 'projects', from: '2026-09-28', to: '2026-09-28', q: undefined },
+      undefined,
+      signal,
+    )
+  })
+  it('applies the keyword only on search', () => {
+    render(<AuditLogWorkspace />)
+    fireEvent.change(screen.getByLabelText('Actor, action, target, or event ID'), {
+      target: { value: 'UNIQUE_EVENT' },
+    })
+    expect(state.reads).toHaveBeenLastCalledWith('audit-events:first', true)
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(state.reads).toHaveBeenLastCalledWith('audit-events:q=UNIQUE_EVENT', true)
+  })
+  it('blocks a reversed date range without reading', () => {
+    render(<AuditLogWorkspace />)
+    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-29' } })
+    fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-09-28' } })
+    expect(state.reads.mock.lastCall?.[1]).toBe(false)
+    expect(screen.getByText('Choose a From date on or before the To date.')).toBeTruthy()
     expect(screen.queryByText('PROJECT_UPDATED')).toBeNull()
-    expect(screen.getByText('No matching audit records')).toBeTruthy()
+  })
+  it('a filter change returns to the first table page', () => {
+    state.many = true
+    render(<AuditLogWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(screen.getByText('Page 2 of 2')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Module'), { target: { value: 'projects' } })
+    expect(screen.getByText('Page 1 of 2')).toBeTruthy()
   })
   it('announces loading politely without an error alert, retry or unavailable state', () => {
     state.pending = true
@@ -110,7 +165,7 @@ describe('audit screen current access and business date', () => {
     view.rerender(<AuditLogWorkspace />)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByText('PROJECT_UPDATED')).toBeNull()
-    expect(screen.getByLabelText('Module').textContent).toBe('All')
+    expect((screen.getByLabelText('Module') as HTMLSelectElement).value).toBe('All')
     expect(screen.getByRole('button', { name: 'Load older events' }).hasAttribute('disabled')).toBe(
       true,
     )
@@ -130,7 +185,8 @@ describe('audit screen current access and business date', () => {
       fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-28' } })
       fireEvent.click(screen.getByRole('button', { name: 'Load older events' }))
       expect(state.reads).toHaveBeenLastCalledWith(
-        'audit-events:2026-09-27T16:30:00.123Z|10000000-0000-4000-8000-000000000001',
+        `audit-events:from=2026-09-28&cursor=${encodeURIComponent('2026-09-27T16:30:00.123Z|10000000-0000-4000-8000-000000000001')}`,
+        true,
       )
       fireEvent.click(screen.getByRole('button', { name: /View PROJECT_UPDATED for/ }))
       expect(screen.getByRole('dialog')).toBeTruthy()
@@ -145,22 +201,9 @@ describe('audit screen current access and business date', () => {
       expect(
         (screen.getByLabelText('Actor, action, target, or event ID') as HTMLInputElement).value,
       ).toBe('')
-      expect(state.reads).toHaveBeenLastCalledWith('audit-events:first')
+      expect(state.reads).toHaveBeenLastCalledWith('audit-events:first', true)
     },
   )
-  it('identifies each row action and resets pagination when search narrows a later page', () => {
-    state.many = true
-    render(<AuditLogWorkspace />)
-    expect(screen.getAllByRole('button', { name: /View PROJECT_UPDATED for/ })).toHaveLength(10)
-    fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
-    expect(screen.getByText('Page 2 of 2')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /View UNIQUE_EVENT for/ })).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Actor, action, target, or event ID'), {
-      target: { value: 'UNIQUE_EVENT' },
-    })
-    expect(screen.getByText('Page 1 of 1')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /View UNIQUE_EVENT for/ })).toBeTruthy()
-  })
   it('shows the resolved actor name', () => {
     render(<AuditLogWorkspace />)
     expect(screen.getByText('Fictional Reviewer')).toBeTruthy()
@@ -176,13 +219,5 @@ describe('audit screen current access and business date', () => {
     state.actorUserId = null
     render(<AuditLogWorkspace />)
     expect(screen.getByText('System')).toBeTruthy()
-  })
-  it('matches search against the actor id as well as the resolved name', () => {
-    state.actorName = null
-    render(<AuditLogWorkspace />)
-    fireEvent.change(screen.getByLabelText('Actor, action, target, or event ID'), {
-      target: { value: state.actorUserId as string },
-    })
-    expect(screen.getByText('PROJECT_UPDATED')).toBeTruthy()
   })
 })

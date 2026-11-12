@@ -1,5 +1,6 @@
 'use client'
 
+import { AUDIT_MODULES, auditModuleOf } from '@pathways/shared'
 import { FilterX, ScrollText, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -24,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
-import { auditClient } from '@/lib/api/audit'
+import { type AuditFilters, auditClient, auditSearch } from '@/lib/api/audit'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 
 type AuditEvent = {
@@ -60,77 +61,59 @@ export const AuditLogWorkspace = () => {
     />
   )
 }
-const businessDate = (timestamp: string) => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(timestamp))
-  const part = (type: string) => parts.find((value) => value.type === type)?.value ?? ''
-  return `${part('year')}-${part('month')}-${part('day')}`
-}
 const AuditContent = ({ authorized }: { authorized: boolean }) => {
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  const [filters, setFilters] = useState<AuditFilters>({})
+  const [draft, setDraft] = useState('')
   const [page, setPage] = useState(0)
   const [cursor, setCursor] = useState<string | undefined>()
+  const [outcomeFilter, setOutcomeFilter] = useState('All')
+  const [selected, setSelected] = useState<AuditEvent | null>(null)
+  const { from, to } = filters
+  const rangeReversed = Boolean(from && to && from > to)
   const read = useAuthorizedRead(
-    `audit-events:${cursor ?? 'first'}`,
+    `audit-events:${auditSearch(filters, cursor) || 'first'}`,
     null,
     'audit.read',
-    (signal) => auditClient.list(cursor, signal),
+    (signal) => auditClient.list(filters, cursor, signal),
+    !rangeReversed,
   )
+  // Every applied filter change returns to the first server page and first table page.
+  const apply = (patch: AuditFilters) => {
+    setFilters({ ...filters, ...patch })
+    setCursor(undefined)
+    setPage(0)
+    setSelected(null)
+  }
   const accessError = read.isError ? 'Current audit access could not be verified.' : ''
-  const loading = !read.isError && read.isPending
-  const currentData = authorized && !read.isError && !read.isPending ? read.data : undefined
+  const loading = !rangeReversed && !read.isError && read.isPending
+  const currentData =
+    authorized && !rangeReversed && !read.isError && !read.isPending ? read.data : undefined
   const events: AuditEvent[] = (currentData?.rows ?? []).map((row) => ({
     id: row.id,
     at: row.occurredAt,
     actor: row.actorName ?? (row.actorUserId ? 'Unknown user' : 'System'),
     actorId: row.actorUserId,
     action: row.action,
-    module: row.entityType,
+    module: auditModuleOf(row.entityType).label,
     target: row.entityId ?? 'No record ID',
     outcome: 'Recorded',
     summary: `${row.action} recorded for ${row.entityType}.`,
     details: row.details,
   }))
 
-  const [query, setQuery] = useState('')
-  const [moduleFilter, setModuleFilter] = useState('All')
-  const [outcomeFilter, setOutcomeFilter] = useState('All')
-  const [selected, setSelected] = useState<AuditEvent | null>(null)
   const selectedCurrent = Boolean(currentData?.rows.some((row) => row.id === selected?.id))
   useEffect(() => {
     if (!selectedCurrent) setSelected(null)
   }, [selectedCurrent])
 
-  const visibleEvents = (() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase()
-    return events.filter((event) => {
-      const matchesQuery =
-        !normalizedQuery ||
-        [event.actor, event.actorId, event.action, event.target, event.id]
-          .filter((value): value is string => Boolean(value))
-          .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
-      return (
-        matchesQuery &&
-        (!from || businessDate(event.at) >= from) &&
-        (!to || businessDate(event.at) <= to) &&
-        (moduleFilter === 'All' || event.module === moduleFilter) &&
-        (outcomeFilter === 'All' || event.outcome === outcomeFilter)
-      )
-    })
-  })()
+  const visibleEvents = events.filter(
+    (event) => outcomeFilter === 'All' || event.outcome === outcomeFilter,
+  )
 
   const clearFilters = () => {
-    setQuery('')
-    setFrom('')
-    setTo('')
-    setPage(0)
-    setModuleFilter('All')
+    setDraft('')
     setOutcomeFilter('All')
+    apply({ module: undefined, from: undefined, to: undefined, q: undefined })
   }
 
   return (
@@ -155,39 +138,47 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="audit-search">Actor, action, target, or event ID</Label>
-            <span className="relative block">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <Input
-                id="audit-search"
-                className="pl-9"
-                type="search"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value)
-                  setPage(0)
-                }}
-              />
-            </span>
+            <form
+              className="flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault()
+                apply({ q: draft.trim() || undefined })
+              }}
+            >
+              <span className="relative block flex-1">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  id="audit-search"
+                  className="pl-9"
+                  type="search"
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                />
+              </span>
+              <Button type="submit" variant="outline">
+                Search
+              </Button>
+            </form>
           </div>
           <div className="space-y-2">
             <Label htmlFor="audit-module">Module</Label>
             <Select
-              value={currentData ? moduleFilter : 'All'}
-              onValueChange={(value) => {
-                setModuleFilter(value)
-                setPage(0)
-              }}
+              value={filters.module ?? 'All'}
+              onValueChange={(value) =>
+                apply({ module: value === 'All' ? undefined : (value as AuditFilters['module']) })
+              }
             >
               <SelectTrigger id="audit-module">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {['All', ...new Set(events.map((e) => e.module))].map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
+                <SelectItem value="All">All</SelectItem>
+                {AUDIT_MODULES.map((item) => (
+                  <SelectItem key={item.key} value={item.key}>
+                    {item.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -221,11 +212,8 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
             <Input
               id="audit-from-date"
               type="date"
-              value={from}
-              onChange={(e) => {
-                setFrom(e.target.value)
-                setPage(0)
-              }}
+              value={from ?? ''}
+              onChange={(e) => apply({ from: e.target.value || undefined })}
             />
           </div>
           <div className="space-y-2">
@@ -233,14 +221,16 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
             <Input
               id="audit-to-date"
               type="date"
-              value={to}
-              onChange={(e) => {
-                setTo(e.target.value)
-                setPage(0)
-              }}
+              value={to ?? ''}
+              onChange={(e) => apply({ to: e.target.value || undefined })}
             />
           </div>
         </div>
+        {rangeReversed ? (
+          <p className="mt-2 text-sm text-destructive">
+            Choose a From date on or before the To date.
+          </p>
+        ) : null}
       </SectionCard>
 
       <SectionCard title="Significant events" description={accessError}>
@@ -302,7 +292,7 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
           <EmptyState
             icon={ScrollText}
             title={accessError ? 'Audit records unavailable' : 'No matching audit records'}
-            description={accessError || 'No recorded events match the filters on this page.'}
+            description={accessError || 'No recorded events match these filters.'}
           />
         )}
       </SectionCard>
