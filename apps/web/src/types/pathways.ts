@@ -96,9 +96,11 @@ export interface CreateProjectInput {
   monitoringOfficerId?: string | null
   projectOfficerIds?: string[]
   programId?: string
+  confirmDuplicate?: true
 }
 
-export interface UpdateProjectInput extends Omit<CreateProjectInput, 'code' | 'status'> {
+export interface UpdateProjectInput
+  extends Omit<CreateProjectInput, 'code' | 'status' | 'confirmDuplicate'> {
   code?: string
   status: ProjectStatus | StoredProjectStatus
 
