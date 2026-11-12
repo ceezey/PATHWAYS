@@ -464,6 +464,42 @@ RESET SESSION AUTHORIZATION;
 DELETE FROM pathways.recovery_points WHERE id=pg_temp.u(202);
 SELECT pg_temp.ok('no point is left CREATING after the job checks', NOT EXISTS(SELECT FROM pathways.recovery_points WHERE status='CREATING'));
 
+-- table_list: the ordered list holds every organization table except the excluded ones, parents before children
+-- apart from the two cycle edges the restore drops and re-adds.
+CREATE FUNCTION pg_temp.qname(rel oid) RETURNS text LANGUAGE sql STABLE AS $$
+ SELECT n.nspname||'.'||c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid=rel $$;
+SELECT pg_temp.same('backup table list is complete',
+ (SELECT jsonb_agg(x ORDER BY x) FROM (
+   SELECT pg_temp.qname(c.oid) AS x FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+   WHERE c.relkind IN ('r','p') AND n.nspname IN ('pathways','pathways_rules_internal')
+    AND EXISTS(SELECT FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attname='organization_id' AND NOT a.attisdropped)
+   EXCEPT SELECT unnest(ARRAY['pathways.system_users','pathways.user_step_up_pins','pathways.beneficiary_step_up_grants',
+    'pathways.recovery_points',
+    -- Rules context tables hold transaction-scoped operation context, valid only inside the writing transaction.
+    'pathways_rules_internal.configuration_context','pathways_rules_internal.projection_context',
+    'pathways_rules_internal.feature_operation_context','pathways_rules_internal.source_operation_context',
+    'pathways_rules_internal.runtime_mutation_intents'])) s),
+ (SELECT jsonb_agg(table_name ORDER BY table_name) FROM pathways.p91_backup_tables()));
+SELECT pg_temp.ok('positions are 1..n and names unique', (SELECT count(*)=74 AND count(DISTINCT table_name)=74
+ AND min(table_order)=1 AND max(table_order)=74 FROM pathways.p91_backup_tables()));
+SELECT pg_temp.ok('backup list is in foreign key order', NOT EXISTS(SELECT FROM pg_constraint k
+ JOIN pathways.p91_backup_tables() ch ON ch.table_name=pg_temp.qname(k.conrelid)
+ JOIN pathways.p91_backup_tables() pa ON pa.table_name=pg_temp.qname(k.confrelid)
+ WHERE k.contype='f' AND k.conrelid<>k.confrelid AND pa.table_order>=ch.table_order
+  AND k.conname NOT IN ('budget_expense_entries_receipt_evidence_fkey','f10_private_review_scope')));
+SELECT pg_temp.same('only audit history skips restore', (SELECT jsonb_agg(table_name) FROM pathways.p91_backup_tables() WHERE NOT restore), '["pathways.audit_logs"]');
+SELECT pg_temp.ok('the backup owner manages every listed table', NOT EXISTS(SELECT FROM pathways.p91_backup_tables() t
+ JOIN pg_class c ON c.oid=to_regclass(t.table_name) WHERE NOT pg_has_role('pathways_backup_owner', c.relowner, 'USAGE'))
+ AND NOT EXISTS(SELECT FROM pathways.p91_backup_tables() t WHERE to_regclass(t.table_name) IS NULL));
+SELECT pg_temp.ok('cycle edges exist', (SELECT count(*)=2 FROM pg_constraint WHERE contype='f' AND convalidated AND
+ ((conrelid='pathways.budget_expense_entries'::regclass AND conname='budget_expense_entries_receipt_evidence_fkey')
+  OR (conrelid='pathways.decision_recommendations'::regclass AND conname='f10_private_review_scope'))));
+SELECT pg_temp.ok('table list function ACL', (SELECT pg_get_userbyid(proowner)='pathways_backup_owner' AND prosecdef
+ AND has_function_privilege('pathways_runtime',oid,'EXECUTE') AND NOT has_function_privilege('anon',oid,'EXECUTE')
+ AND NOT has_function_privilege('authenticated',oid,'EXECUTE') AND NOT has_function_privilege('service_role',oid,'EXECUTE')
+ AND NOT has_function_privilege('pathways_backup_job',oid,'EXECUTE')
+ FROM pg_proc WHERE oid='pathways.p91_backup_tables()'::regprocedure));
+
 SELECT 'BACKUP_RECOVERY_RUNTIME=PASS ('||current_setting('p91.passed')||')' AS result \gset
 ROLLBACK;
 \echo :result

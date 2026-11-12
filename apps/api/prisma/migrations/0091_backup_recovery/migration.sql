@@ -10,6 +10,7 @@
 -- afterwards, also after a failure; until the cleanup runs, both assertions and the backup functions fail closed.
 -- It then adds pathways.recovery_points with its row security and the two actor checks p91_backup_actor and p91_backup_job_actor.
 -- It then adds p91_current_migration for the runtime and the six p91_job_* functions, the only entry of the daily job login.
+-- It then adds p91_backup_tables, the ordered organization table list, owned by the backup owner.
 BEGIN;
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='60s';
@@ -395,6 +396,48 @@ GRANT EXECUTE ON FUNCTION pathways.p91_job_organizations(), pathways.p91_job_beg
  pathways.p91_job_retention_points(uuid), pathways.p91_job_delete_point(uuid,uuid)
  TO pathways_backup_job;
 
+-- 9. The ordered organization tables, parents before children, which capture walks forward and restore walks both ways.
+-- Two foreign keys point back up the list and are dropped and re-added by restore: budget_expense_entries_receipt_evidence_fkey
+-- and f10_private_review_scope. Audit history is captured but never restored. The backup owner reaches every table through
+-- prisma, rules_store_owner and report_projection_owner, which the runtime suite asserts. The owner sets its own ACL, so it
+-- borrows USAGE as well as CREATE on the schema to name the function, and returns both.
+GRANT USAGE, CREATE ON SCHEMA pathways TO pathways_backup_owner;
+SET LOCAL ROLE pathways_backup_owner;
+CREATE FUNCTION pathways.p91_backup_tables() RETURNS TABLE(table_order integer, table_name text, restore boolean)
+ LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path TO '' SET lock_timeout TO '5s' AS $$
+ SELECT v.n, v.t, v.t <> 'pathways.audit_logs' FROM (VALUES
+   (1,'pathways.audit_logs'),(2,'pathways.beneficiaries'),(3,'pathways.implementing_partners'),
+   (4,'pathways.indicator_library_entries'),(5,'pathways.programs'),(6,'pathways_rules_internal.project_state'),
+   (7,'pathways.beneficiary_identifiers'),(8,'pathways.projects'),(9,'pathways.alert_rules'),
+   (10,'pathways.alert_rule_conditions'),(11,'pathways.alert_rule_recommendations'),(12,'pathways_rules_internal.configuration_receipts'),
+   (13,'pathways_rules_internal.jobs'),(14,'pathways_rules_internal.source_request_abandonments'),(15,'pathways_rules_internal.work_items'),
+   (16,'pathways_rules_internal.source_operation_receipts'),(17,'pathways.beneficiary_project_enrollments'),(18,'pathways.journey_stages'),
+   (19,'pathways.project_activities'),(20,'pathways.project_evaluation_criteria'),(21,'pathways.project_evaluations'),
+   (22,'pathways.project_implementing_partners'),(23,'pathways.project_indicators'),(24,'pathways.project_map_pins'),
+   (25,'pathways.project_milestones'),(26,'pathways.project_publications'),(27,'pathways.sensitive_aggregate_releases'),
+   (28,'pathways.survey_period_releases'),(29,'pathways.user_project_assignments'),(30,'pathways_rules_internal.snapshots'),
+   (31,'pathways.activity_escalations'),(32,'pathways.activity_extension_requests'),(33,'pathways.activity_indicator_links'),
+   (34,'pathways.activity_journey_stage_mappings'),(35,'pathways.activity_overdue_explanations'),(36,'pathways.activity_updates'),
+   (37,'pathways.digital_forms'),(38,'pathways.project_activity_assignments'),(39,'pathways.project_budget_records'),
+   (40,'pathways.project_evaluation_scores'),(41,'pathways.project_indicator_measurements'),(42,'pathways.publication_requests'),
+   (43,'pathways_rules_internal.acknowledgements'),(44,'pathways_rules_internal.eligibility'),(45,'pathways_rules_internal.evaluations'),
+   (46,'pathways.budget_expense_entries'),(47,'pathways.data_import_batches'),(48,'pathways.form_fields'),
+   (49,'pathways.reports'),(50,'pathways.rule_based_alerts'),(51,'pathways.survey_aggregate_releases'),
+   (52,'pathways_rules_internal.rule_bindings'),(53,'pathways_rules_internal.work_coverage'),(54,'pathways.data_import_rows'),
+   (55,'pathways.decision_recommendations'),(56,'pathways.expense_signoffs'),(57,'pathways.import_value_rejections'),
+   (58,'pathways.metadata_mappings'),(59,'pathways.project_indicator_bindings'),(60,'pathways_rules_internal.episode_cursors'),
+   (61,'pathways.form_submissions'),(62,'pathways_rules_internal.feature_operation_receipts'),(63,'pathways_rules_internal.recommendation_reviews'),
+   (64,'pathways.assessment_results'),(65,'pathways.beneficiary_activity_participations'),(66,'pathways.beneficiary_consent_records'),
+   (67,'pathways.evidence_media'),(68,'pathways.form_response_values'),(69,'pathways_rules_internal.alert_reviews'),
+   (70,'pathways_rules_internal.decisions'),(71,'pathways_rules_internal.lifecycle_events'),(72,'pathways.beneficiary_journey_events'),
+   (73,'pathways_rules_internal.notifications'),(74,'pathways_rules_internal.outcome_previews')
+ ) v(n,t)
+$$;
+REVOKE ALL ON FUNCTION pathways.p91_backup_tables() FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION pathways.p91_backup_tables() TO pathways_runtime;
+RESET ROLE;
+REVOKE USAGE, CREATE ON SCHEMA pathways FROM pathways_backup_owner;
+
 -- Postconditions: the widened bodies, owners, invoker mode, volatility, empty search_path, the saved ACLs and no lent CREATE.
 DO $$ DECLARE fn record; BEGIN
  FOR fn IN SELECT w.n, w.nsp, w.name, w.owner, w.md5, p.prosrc, p.proowner, p.prosecdef, p.provolatile, p.proconfig, p.proacl
@@ -442,6 +485,15 @@ DO $$ DECLARE fn record; BEGIN
     IS DISTINCT FROM ARRAY[fn.caller||':EXECUTE:false','prisma:EXECUTE:false']
   THEN RAISE EXCEPTION '0091 % postcondition failed',fn.sig; END IF;
  END LOOP;
+ -- The table list is a backup owner definer with an empty search_path and a 5s lock timeout, executable by the runtime alone.
+ IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure('pathways.p91_backup_tables()')
+   AND pg_catalog.pg_get_userbyid(p.proowner)='pathways_backup_owner' AND p.prosecdef AND p.provolatile='i'
+   AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""','lock_timeout=5s']
+   AND (SELECT pg_catalog.array_agg(s.e ORDER BY s.e) FROM (SELECT pg_catalog.pg_get_userbyid(a.grantee)||':'||a.privilege_type
+     ||':'||a.is_grantable::text AS e FROM pg_catalog.aclexplode(p.proacl) a) s)
+    IS NOT DISTINCT FROM ARRAY['pathways_backup_owner:EXECUTE:false','pathways_runtime:EXECUTE:false'])
+  OR pg_catalog.has_schema_privilege('pathways_backup_owner','pathways','CREATE')
+ THEN RAISE EXCEPTION '0091 pathways.p91_backup_tables() postcondition failed'; END IF;
  IF NOT pg_catalog.has_schema_privilege('pathways_backup_job','pathways','USAGE')
   OR pg_catalog.has_schema_privilege('pathways_backup_job','pathways','CREATE')
   OR EXISTS(SELECT FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
