@@ -184,6 +184,9 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           activities={availableBindings?.activities ?? []}
           period={period}
           existingCodes={(data ?? []).map((item) => item.code)}
+          existingNames={(data ?? [])
+            .filter((item) => item.status === 'ACTIVE')
+            .map((item) => item.name)}
           busy={creating}
           message={message ?? pendingCreate.notice}
           onSave={(input) =>
