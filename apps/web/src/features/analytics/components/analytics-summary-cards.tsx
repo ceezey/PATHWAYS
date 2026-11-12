@@ -41,8 +41,8 @@ export const AnalyticsSummaryCards = ({
 }) => {
   const openAlertCount = openAlerts ? openAlerts.count : null
   const budgetCurrencies = budgetRead.data?.currencies ?? []
-  const budgetUtilizationPercent =
-    budgetCurrencies.length === 1 ? budgetCurrencies[0].utilizationPercent : null
+  const singleBudget = budgetCurrencies.length === 1 ? budgetCurrencies[0] : null
+  const budgetUtilizationPercent = singleBudget?.utilizationPercent ?? null
   const completedActivities = activities.filter(
     (activity) => activity.status === 'Completed',
   ).length
@@ -75,7 +75,7 @@ export const AnalyticsSummaryCards = ({
                 ? 'Budget utilization could not be loaded.'
                 : budgetCurrencies.length > 1
                   ? 'Several currencies are recorded; see the Budget utilization panel.'
-                  : 'Approved expenses against planned budget allocations; pending is not counted.'
+                  : 'Approved spending over the whole project against its total budget; awaiting approval is not counted.'
           }
           icon={PhilippinePeso}
           label="Budget utilization"
@@ -95,10 +95,12 @@ export const AnalyticsSummaryCards = ({
               'Loading...'
             ) : budgetCurrencies.length > 1 ? (
               'Multiple currencies'
+            ) : !singleBudget || singleBudget.planned === null ? (
+              'No total budget set'
             ) : budgetUtilizationPercent !== null ? (
               <CappedPercent value={budgetUtilizationPercent} overrun="budget" />
             ) : (
-              'No budget'
+              'Not available'
             )
           }
         />

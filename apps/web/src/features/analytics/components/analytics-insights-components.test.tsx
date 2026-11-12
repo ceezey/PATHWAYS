@@ -95,32 +95,34 @@ describe('indicator trends', () => {
 })
 
 describe('budget summary card', () => {
-  it('shows "No budget" for a null utilization and one row per currency', () => {
+  it('shows the total budget, approved, awaiting approval and the whole-project note', () => {
     render(
       <BudgetSummaryCard
         data={{
           projectId: uuid,
           currencies: [
             { currency: 'PHP', planned: 1000, approved: 450, pending: 900, utilizationPercent: 45 },
-            { currency: 'USD', planned: 0, approved: 10, pending: 0, utilizationPercent: null },
+            { currency: 'USD', planned: null, approved: 10, pending: 0, utilizationPercent: null },
           ],
         }}
       />,
     )
     expect(screen.getByText('45%')).toBeTruthy()
-    expect(screen.getByText('No budget')).toBeTruthy()
-    expect(screen.getByText('PHP')).toBeTruthy()
-    expect(screen.getByText('USD')).toBeTruthy()
-    expect(screen.getByText('Pending or verified (not counted)')).toBeTruthy()
+    expect(screen.getByText('Total budget')).toBeTruthy()
+    expect(screen.getByText('Awaiting approval (not counted)')).toBeTruthy()
+    expect(screen.getByText('No total budget set')).toBeTruthy()
+    expect(screen.getByText('Not available')).toBeTruthy()
     expect(
       screen.getByText(
-        'Utilization = approved expenses / planned budget; pending and verified amounts are not counted.',
+        'Approved spending over the whole project against its total budget; the selected period does not apply.',
       ),
     ).toBeTruthy()
+    expect(screen.queryByText('Pending or verified (not counted)')).toBeNull()
   })
 
-  it('shows "No budget" when no currency rows exist', () => {
+  it('shows "No total budget set" when no currency rows exist', () => {
     render(<BudgetSummaryCard data={{ projectId: uuid, currencies: [] }} />)
-    expect(screen.getByText('No budget')).toBeTruthy()
+    expect(screen.getByText('No total budget set')).toBeTruthy()
+    expect(screen.getByText('This project has no total budget yet.')).toBeTruthy()
   })
 })
