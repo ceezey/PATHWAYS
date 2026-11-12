@@ -3,6 +3,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
+import { recordSignOut } from '@/lib/auth/record-sign-out'
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { clearAllProofFilePreviews } from '@/lib/files/proof-file-previews'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
@@ -50,12 +51,17 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   }, [supabase])
 
   const signOut = async () => {
+    // Started before the state is cleared; the local sign-out below revokes the token, so it waits for this.
+    const recorded = session
+      ? recordSignOut(session.access_token, session.user.id)
+      : Promise.resolve()
     ++revision.current
     invalidateSensitiveState()
     validatedAccessToken.current = null
     validatedSubject.current = null
     setSession(null)
     setStatus('unauthenticated')
+    await recorded
     if (supabase) {
       const { error } = await supabase.auth.signOut({ scope: 'local' })
       if (error)
