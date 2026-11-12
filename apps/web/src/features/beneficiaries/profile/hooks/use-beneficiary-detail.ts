@@ -54,7 +54,7 @@ export const useBeneficiaryDetail = ({
     outcomes: loadedBeneficiary.outcomes ?? [],
     correctionTargets: loadedBeneficiary.correctionTargets ?? [],
   }))
-  const { participation, notes, outcomes } = journey
+  const { participation, notes, outcomes, correctionTargets } = journey
   // The server journey summary and enrollment status change with every journey write.
   const [summary, setSummary] = useState({
     progress: loadedBeneficiary.progress,
@@ -127,6 +127,7 @@ export const useBeneficiaryDetail = ({
     activities,
     participation,
     notes,
+    correctionTargets,
     selectedStage,
     participationForms,
     projectId,
@@ -144,7 +145,11 @@ export const useBeneficiaryDetail = ({
       }),
     [participation, beneficiary.assessments, outcomes, activities, stages],
   )
-  const { selectedStageParticipationActivities, transferDestinationOptions, correctableNote } = view
+  const {
+    selectedStageParticipationActivities,
+    transferDestinationOptions,
+    selectedStageCorrectionTargets,
+  } = view
 
   const openParticipationForSelectedStage = () => {
     if (
@@ -178,15 +183,28 @@ export const useBeneficiaryDetail = ({
   }
 
   const openNoteForSelectedStage = () => {
-    if (!canCorrectJourney || !correctableNote) return
+    const latest = selectedStageCorrectionTargets.at(-1)
+    if (!canCorrectJourney || !latest) return
     setNoteDraft({
-      eventId: correctableNote.id,
+      eventId: latest.id,
       eventDate: todayIso(),
-      description: correctableNote.note,
-      note: correctableNote.journeyNote ?? '',
+      description: latest.description,
+      note: latest.note,
       reason: '',
     })
     setNoteOpen(true)
+  }
+
+  // Switching the target swaps the prefilled text and keeps the reason and date already typed.
+  const chooseCorrectionTarget = (eventId: string) => {
+    const target = selectedStageCorrectionTargets.find((candidate) => candidate.id === eventId)
+    if (!target) return
+    setNoteDraft((current) => ({
+      ...current,
+      eventId: target.id,
+      description: target.description,
+      note: target.note,
+    }))
   }
 
   const recordParticipation = async () => {
@@ -310,7 +328,7 @@ export const useBeneficiaryDetail = ({
 
   const correctJourneyNote = async () => {
     if (!noteDraft.eventId) {
-      toast.error('Select a note to correct.')
+      toast.error('Select an entry to correct.')
       return
     }
     if (!noteDraft.description.trim() || !noteDraft.reason.trim() || !noteDraft.eventDate) {
@@ -334,9 +352,9 @@ export const useBeneficiaryDetail = ({
       )
       await refreshJourneyHistory()
       setNoteOpen(false)
-      toast.success('Journey note added and reloaded from the project history.')
+      toast.success('Correction saved and reloaded from the project history.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'The note could not be added.')
+      toast.error(error instanceof Error ? error.message : 'The correction could not be saved.')
     } finally {
       setSavingNote(false)
     }
@@ -386,6 +404,7 @@ export const useBeneficiaryDetail = ({
     openParticipationForSelectedStage,
     openJourneyTransition,
     openNoteForSelectedStage,
+    chooseCorrectionTarget,
     recordParticipation,
     transitionJourney,
     correctJourneyNote,

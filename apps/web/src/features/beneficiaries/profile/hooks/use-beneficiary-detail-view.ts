@@ -7,6 +7,7 @@ import type {
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,
   DigitalFormDefinition,
+  JourneyCorrectionTarget,
   JourneyStageConfig,
 } from '@/types/pathways'
 
@@ -23,6 +24,7 @@ export const useBeneficiaryDetailView = ({
   activities,
   participation,
   notes,
+  correctionTargets,
   selectedStage,
   participationForms,
   projectId,
@@ -34,6 +36,7 @@ export const useBeneficiaryDetailView = ({
   activities: ActivitySummary[]
   participation: BeneficiaryParticipationRecord[]
   notes: BeneficiaryNoteRecord[]
+  correctionTargets: JourneyCorrectionTarget[]
   selectedStage: JourneyStageConfig | null
   participationForms: DigitalFormDefinition[]
   projectId: string
@@ -133,7 +136,9 @@ export const useBeneficiaryDetailView = ({
   const transferDestinationOptions = beneficiary.enrollments.filter(
     (enrollment) => enrollment.projectId !== projectId && enrollment.status === 'Active',
   )
-  const correctableNote = selectedStageNotes[selectedStageNotes.length - 1] ?? null
+  const selectedStageCorrectionTargets = selectedStage
+    ? correctionTargets.filter((target) => target.stageId === selectedStage.id)
+    : []
   const requestedReturnTo = searchParams?.get('returnTo')
   const directoryHref =
     requestedReturnTo &&
@@ -163,7 +168,7 @@ export const useBeneficiaryDetailView = ({
     selectedStageNotes,
     unlinkedNotes,
     transferDestinationOptions,
-    correctableNote,
+    selectedStageCorrectionTargets,
     directoryHref,
   }
 }

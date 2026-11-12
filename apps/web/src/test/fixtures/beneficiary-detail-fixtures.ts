@@ -125,4 +125,14 @@ export const beneficiaryWithNote: BeneficiaryRecord = {
       note: 'Existing journey note.',
     },
   ],
+  correctionTargets: [
+    {
+      id: 'note-a',
+      stageId: stage.id,
+      eventDate: '2026-06-10',
+      label: 'Jun 10, 2026 · Follow-up · Existing journey note.',
+      description: 'Existing journey note.',
+      note: '',
+    },
+  ],
 }
