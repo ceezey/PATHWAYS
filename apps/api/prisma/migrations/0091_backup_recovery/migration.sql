@@ -9,6 +9,7 @@
 -- membership from prisma to the backup, rules store, rules context and report owners) and hosted-backup-cleanup.sql
 -- afterwards, also after a failure; until the cleanup runs, both assertions and the backup functions fail closed.
 -- It then adds pathways.recovery_points with its row security and the two actor checks p91_backup_actor and p91_backup_job_actor.
+-- It then adds p91_current_migration for the runtime and the six p91_job_* functions, the only entry of the daily job login.
 BEGIN;
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='60s';
@@ -297,6 +298,103 @@ GRANT SELECT, INSERT, DELETE ON TABLE pathways.recovery_points TO pathways_runti
 GRANT UPDATE (status, captured_at, completed_at, migration_name, size_bytes, manifest_sha256, failure_reason)
  ON TABLE pathways.recovery_points TO pathways_runtime;
 
+-- 7. The latest applied migration, which capture stamps on a point and restore compares.
+CREATE FUNCTION pathways.p91_current_migration() RETURNS text
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+ SELECT max(migration_name) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+$$;
+ALTER FUNCTION pathways.p91_current_migration() OWNER TO prisma;
+REVOKE ALL ON FUNCTION pathways.p91_current_migration() FROM PUBLIC,anon,authenticated,service_role,pathways_backup_job;
+GRANT EXECUTE ON FUNCTION pathways.p91_current_migration() TO pathways_runtime;
+
+-- 8. The daily job: only the job login runs these, and the job policies keep their writes on AUTOMATIC rows.
+GRANT USAGE ON SCHEMA pathways TO pathways_backup_job;
+CREATE FUNCTION pathways.p91_job_organizations() RETURNS SETOF uuid
+ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+BEGIN
+ IF session_user <> 'pathways_backup_job' OR coalesce(current_setting('app.user_id',true),'') <> ''
+  OR coalesce(current_setting('request.jwt.claim.sub',true),'') <> ''
+ THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ RETURN QUERY SELECT o.id FROM pathways.organizations o WHERE o.status = 'ACTIVE' AND o.archived_at IS NULL ORDER BY o.id;
+END $$;
+-- Stale automatic points fail first; a point started in the last 10 minutes makes the job busy, which is audited.
+CREATE FUNCTION pathways.p91_job_begin_point(wanted_org uuid, wanted_file_mode text) RETURNS uuid
+ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE point_id uuid;
+BEGIN
+ IF NOT pathways.p91_backup_job_actor(wanted_org) THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ UPDATE pathways.recovery_points SET status = 'FAILED', completed_at = now(), failure_reason = 'The backup did not finish.'
+  WHERE organization_id = wanted_org AND point_type = 'AUTOMATIC' AND status = 'CREATING' AND started_at < now() - interval '10 minutes';
+ IF EXISTS(SELECT FROM pathways.recovery_points WHERE organization_id = wanted_org AND status = 'CREATING'
+  AND started_at >= now() - interval '10 minutes') THEN
+  INSERT INTO pathways.audit_logs(organization_id,actor_user_id,action,entity_type,entity_id,changes)
+  VALUES (wanted_org,NULL,'BACKUP_FAILED','RECOVERY_POINT',NULL,'{"pointType":"AUTOMATIC","code":"BUSY"}');
+  RETURN NULL;
+ END IF;
+ INSERT INTO pathways.recovery_points(organization_id,point_type,file_mode) VALUES (wanted_org,'AUTOMATIC',wanted_file_mode)
+  RETURNING id INTO point_id;
+ RETURN point_id;
+END $$;
+CREATE FUNCTION pathways.p91_job_finish_point(wanted_org uuid, point_id uuid, outcome jsonb) RETURNS void
+ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '' AS $$
+BEGIN
+ IF NOT pathways.p91_backup_job_actor(wanted_org) THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ IF jsonb_typeof(outcome) IS DISTINCT FROM 'object'
+  OR NOT outcome ?& ARRAY['capturedAt','migration','sizeBytes','manifestSha256','changes']
+  OR (SELECT count(*) FROM jsonb_object_keys(outcome)) <> 5
+ THEN RAISE EXCEPTION 'Invalid backup outcome' USING ERRCODE='22023'; END IF;
+ UPDATE pathways.recovery_points SET status = 'READY', captured_at = (outcome->>'capturedAt')::timestamptz, completed_at = now(),
+  migration_name = outcome->>'migration', size_bytes = (outcome->>'sizeBytes')::bigint, manifest_sha256 = outcome->>'manifestSha256'
+  WHERE id = point_id AND organization_id = wanted_org AND point_type = 'AUTOMATIC' AND status = 'CREATING';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ INSERT INTO pathways.audit_logs(organization_id,actor_user_id,action,entity_type,entity_id,changes)
+ VALUES (wanted_org,NULL,'BACKUP_CREATED','RECOVERY_POINT',point_id::text,outcome->'changes');
+END $$;
+-- The parameters are qualified because failure_reason is also a column name.
+CREATE FUNCTION pathways.p91_job_fail_point(wanted_org uuid, point_id uuid, failure_reason text, changes jsonb) RETURNS void
+ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '' AS $$
+BEGIN
+ IF NOT pathways.p91_backup_job_actor(wanted_org) THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ UPDATE pathways.recovery_points SET status = 'FAILED', completed_at = now(), failure_reason = p91_job_fail_point.failure_reason
+  WHERE id = point_id AND organization_id = wanted_org AND point_type = 'AUTOMATIC' AND status = 'CREATING';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ INSERT INTO pathways.audit_logs(organization_id,actor_user_id,action,entity_type,entity_id,changes)
+ VALUES (wanted_org,NULL,'BACKUP_FAILED','RECOVERY_POINT',point_id::text,p91_job_fail_point.changes);
+END $$;
+-- Finished automatic points older than the 7th newest READY one, oldest first; 7 equals BACKUP_RETENTION.AUTOMATIC.
+CREATE FUNCTION pathways.p91_job_retention_points(wanted_org uuid) RETURNS SETOF uuid
+ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+BEGIN
+ IF NOT pathways.p91_backup_job_actor(wanted_org) THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ RETURN QUERY SELECT r.id FROM pathways.recovery_points r
+  WHERE r.organization_id = wanted_org AND r.point_type = 'AUTOMATIC' AND r.status <> 'CREATING'
+   AND r.started_at < (SELECT k.started_at FROM pathways.recovery_points k WHERE k.organization_id = wanted_org
+    AND k.point_type = 'AUTOMATIC' AND k.status = 'READY' ORDER BY k.started_at DESC, k.id DESC OFFSET 6 LIMIT 1)
+  ORDER BY r.started_at, r.id;
+END $$;
+CREATE FUNCTION pathways.p91_job_delete_point(wanted_org uuid, point_id uuid) RETURNS boolean
+ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '' AS $$
+BEGIN
+ IF NOT pathways.p91_backup_job_actor(wanted_org) THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ DELETE FROM pathways.recovery_points WHERE id = point_id AND organization_id = wanted_org
+  AND point_id IN (SELECT pathways.p91_job_retention_points(wanted_org));
+ RETURN FOUND;
+END $$;
+ALTER FUNCTION pathways.p91_job_organizations() OWNER TO prisma;
+ALTER FUNCTION pathways.p91_job_begin_point(uuid,text) OWNER TO prisma;
+ALTER FUNCTION pathways.p91_job_finish_point(uuid,uuid,jsonb) OWNER TO prisma;
+ALTER FUNCTION pathways.p91_job_fail_point(uuid,uuid,text,jsonb) OWNER TO prisma;
+ALTER FUNCTION pathways.p91_job_retention_points(uuid) OWNER TO prisma;
+ALTER FUNCTION pathways.p91_job_delete_point(uuid,uuid) OWNER TO prisma;
+REVOKE ALL ON FUNCTION pathways.p91_job_organizations(), pathways.p91_job_begin_point(uuid,text),
+ pathways.p91_job_finish_point(uuid,uuid,jsonb), pathways.p91_job_fail_point(uuid,uuid,text,jsonb),
+ pathways.p91_job_retention_points(uuid), pathways.p91_job_delete_point(uuid,uuid)
+ FROM PUBLIC,anon,authenticated,service_role,pathways_runtime;
+GRANT EXECUTE ON FUNCTION pathways.p91_job_organizations(), pathways.p91_job_begin_point(uuid,text),
+ pathways.p91_job_finish_point(uuid,uuid,jsonb), pathways.p91_job_fail_point(uuid,uuid,text,jsonb),
+ pathways.p91_job_retention_points(uuid), pathways.p91_job_delete_point(uuid,uuid)
+ TO pathways_backup_job;
+
 -- Postconditions: the widened bodies, owners, invoker mode, volatility, empty search_path, the saved ACLs and no lent CREATE.
 DO $$ DECLARE fn record; BEGIN
  FOR fn IN SELECT w.n, w.nsp, w.name, w.owner, w.md5, p.prosrc, p.proowner, p.prosecdef, p.provolatile, p.proconfig, p.proacl
@@ -327,5 +425,29 @@ DO $$ DECLARE fn record; BEGIN
   OR pg_catalog.has_function_privilege('pathways_runtime','pathways.p91_backup_job_actor(uuid)','EXECUTE')
   OR pg_catalog.has_function_privilege('pathways_backup_job','pathways.p91_backup_job_actor(uuid)','EXECUTE')
  THEN RAISE EXCEPTION '0091 recovery points postcondition failed'; END IF;
+ -- Each helper is a prisma definer with an empty search_path whose only EXECUTE grants are the owner's and its one caller's.
+ FOR fn IN SELECT w.sig, w.vol, w.caller, p.oid, p.proowner, p.prosecdef, p.provolatile, p.proconfig, p.proacl
+  FROM (VALUES ('pathways.p91_current_migration()','s','pathways_runtime'),
+   ('pathways.p91_job_organizations()','s','pathways_backup_job'),
+   ('pathways.p91_job_begin_point(uuid,text)','v','pathways_backup_job'),
+   ('pathways.p91_job_finish_point(uuid,uuid,jsonb)','v','pathways_backup_job'),
+   ('pathways.p91_job_fail_point(uuid,uuid,text,jsonb)','v','pathways_backup_job'),
+   ('pathways.p91_job_retention_points(uuid)','s','pathways_backup_job'),
+   ('pathways.p91_job_delete_point(uuid,uuid)','v','pathways_backup_job')) w(sig,vol,caller)
+  LEFT JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig) LOOP
+  IF fn.oid IS NULL OR pg_catalog.pg_get_userbyid(fn.proowner)<>'prisma' OR NOT fn.prosecdef OR fn.provolatile<>fn.vol
+   OR fn.proconfig IS DISTINCT FROM ARRAY['search_path=""']
+   OR (SELECT pg_catalog.array_agg(s.e ORDER BY s.e) FROM (SELECT pg_catalog.pg_get_userbyid(a.grantee)||':'||a.privilege_type
+     ||':'||a.is_grantable::text AS e FROM pg_catalog.aclexplode(fn.proacl) a) s)
+    IS DISTINCT FROM ARRAY[fn.caller||':EXECUTE:false','prisma:EXECUTE:false']
+  THEN RAISE EXCEPTION '0091 % postcondition failed',fn.sig; END IF;
+ END LOOP;
+ IF NOT pg_catalog.has_schema_privilege('pathways_backup_job','pathways','USAGE')
+  OR pg_catalog.has_schema_privilege('pathways_backup_job','pathways','CREATE')
+  OR EXISTS(SELECT FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+   WHERE n.nspname IN ('pathways','pathways_rules_internal') AND c.relkind IN ('r','p','v','m','f')
+    AND (pg_catalog.has_table_privilege('pathways_backup_job',c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+     OR pg_catalog.has_any_column_privilege('pathways_backup_job',c.oid,'SELECT,INSERT,UPDATE,REFERENCES')))
+ THEN RAISE EXCEPTION '0091 backup job privilege postcondition failed'; END IF;
 END $$;
 COMMIT;

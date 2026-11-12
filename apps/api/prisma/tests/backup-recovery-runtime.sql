@@ -11,6 +11,9 @@ DO $$ BEGIN
   RAISE EXCEPTION 'Backup recovery checks require a disposable local database'; END IF;
 END $$;
 
+-- Hosted prisma has no BYPASSRLS, so the suite drops it for this transaction to meet the forced job policies as hosted does.
+ALTER ROLE prisma NOBYPASSRLS;
+
 CREATE FUNCTION pg_temp.u(n integer) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$
  SELECT ('a9100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
 $$;
@@ -268,6 +271,198 @@ SELECT pg_temp.ok('a creating point becomes FAILED', pg_temp.changed($u$UPDATE p
  failure_reason='Synthetic fixture closed' WHERE status='CREATING'$u$)=1);
 RESET SESSION AUTHORIZATION;
 SELECT pg_temp.ok('no point is left CREATING', NOT EXISTS(SELECT FROM pathways.recovery_points WHERE status='CREATING'));
+
+-- job_helpers: the runtime reads the latest migration; only the job login runs the six job functions, only for an active
+-- unarchived organization and only on AUTOMATIC rows, writing their audit rows inside the definers.
+INSERT INTO pathways.organizations(id,code,name,status,archived_at)
+VALUES (pg_temp.u(3),'P91_C','Synthetic backup organization C','ARCHIVED',now());
+SELECT pg_temp.refused('an archived organization cannot be ACTIVE', format($u$UPDATE pathways.organizations SET status='ACTIVE' WHERE id=%L$u$,
+ pg_temp.u(3)),'23514','organizations_archival_state_check');
+-- Recovery point audit rows of organization A with no actor, matching action, entity and changes, for delta checks.
+CREATE FUNCTION pg_temp.job_audits(wanted_action text, wanted_entity uuid, wanted_changes jsonb) RETURNS integer LANGUAGE sql AS $$
+ SELECT count(*)::integer FROM pathways.audit_logs WHERE organization_id=pg_temp.u(1) AND actor_user_id IS NULL
+  AND entity_type='RECOVERY_POINT' AND action=wanted_action AND entity_id IS NOT DISTINCT FROM wanted_entity::text AND changes=wanted_changes
+$$;
+-- A valid finish outcome for the job.
+CREATE FUNCTION pg_temp.outcome() RETURNS jsonb LANGUAGE sql AS $$
+ SELECT jsonb_build_object('capturedAt','2026-11-12T01:02:03.456Z','migration','0091_backup_recovery','sizeBytes',2048,
+  'manifestSha256',repeat('b',64),'changes',jsonb_build_object('pointType','AUTOMATIC','fileMode','manifest'))
+$$;
+SELECT set_config('p91.migration',(SELECT max(migration_name) FROM public._prisma_migrations
+ WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL),true);
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.act_as(21);
+SELECT pg_temp.ok('current migration is the latest applied one', pathways.p91_current_migration()=current_setting('p91.migration'));
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('job helper definitions', (SELECT count(*)=7 AND bool_and(pg_get_userbyid(proowner)='prisma' AND prosecdef
+ AND proconfig=ARRAY['search_path=""'] AND proacl IS NOT NULL) FROM pg_proc
+ WHERE pronamespace='pathways'::regnamespace AND (proname LIKE 'p91\_job\_%' OR proname='p91_current_migration')));
+SELECT pg_temp.same('job helper volatility and execute', (SELECT jsonb_object_agg(proname,jsonb_build_array(provolatile,pg_temp.grants(proacl)))
+ FROM pg_proc WHERE pronamespace='pathways'::regnamespace AND (proname LIKE 'p91\_job\_%' OR proname='p91_current_migration')),
+ '{"p91_current_migration":["s",["pathways_runtime:EXECUTE"]],"p91_job_organizations":["s",["pathways_backup_job:EXECUTE"]],
+  "p91_job_begin_point":["v",["pathways_backup_job:EXECUTE"]],"p91_job_finish_point":["v",["pathways_backup_job:EXECUTE"]],
+  "p91_job_fail_point":["v",["pathways_backup_job:EXECUTE"]],"p91_job_retention_points":["s",["pathways_backup_job:EXECUTE"]],
+  "p91_job_delete_point":["v",["pathways_backup_job:EXECUTE"]]}');
+
+-- The job lists every active unarchived organization, and every job function refuses an archived one.
+SELECT pg_temp.act_as_job();
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT set_config('p91.job_orgs',(SELECT coalesce(jsonb_agg(id ORDER BY n),'[]')::text
+ FROM pathways.p91_job_organizations() WITH ORDINALITY j(id,n)),true);
+SELECT pg_temp.ok('job lists organizations A and B but not C', current_setting('p91.job_orgs')::jsonb @> jsonb_build_array(pg_temp.u(1),pg_temp.u(2))
+ AND NOT current_setting('p91.job_orgs')::jsonb @> jsonb_build_array(pg_temp.u(3)));
+SELECT pg_temp.ok('job login is not the job for an archived organization', NOT pg_temp.job_actor(3));
+SELECT pg_temp.refused('job cannot begin a point of an archived organization', format('SELECT pathways.p91_job_begin_point(%L,%L)',
+ pg_temp.u(3),'manifest'),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot finish a point of an archived organization', format('SELECT pathways.p91_job_finish_point(%L,%L,%L)',
+ pg_temp.u(3),pg_temp.u(101),pg_temp.outcome()),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot fail a point of an archived organization', format('SELECT pathways.p91_job_fail_point(%L,%L,%L,%L)',
+ pg_temp.u(3),pg_temp.u(101),'x','{}'),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot list retention of an archived organization', format('SELECT pathways.p91_job_retention_points(%L)',
+ pg_temp.u(3)),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot delete a point of an archived organization', format('SELECT pathways.p91_job_delete_point(%L,%L)',
+ pg_temp.u(3),pg_temp.u(101)),'42501','Backup access denied');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.same('job lists exactly the active unarchived organizations in id order', current_setting('p91.job_orgs')::jsonb,
+ (SELECT jsonb_agg(id ORDER BY id) FROM pathways.organizations WHERE status='ACTIVE' AND archived_at IS NULL));
+
+-- Fixtures: a stale AUTOMATIC point of organization A and an open AUTOMATIC point of organization B; the rows the job must
+-- never change are saved first.
+INSERT INTO pathways.recovery_points(id,organization_id,point_type,file_mode,started_at)
+VALUES (pg_temp.u(201),pg_temp.u(1),'AUTOMATIC','manifest',now()-interval '30 days'),
+ (pg_temp.u(202),pg_temp.u(2),'AUTOMATIC','manifest',now());
+SELECT set_config('p91.untouched',(SELECT jsonb_agg(to_jsonb(r) ORDER BY id)::text FROM pathways.recovery_points r
+ WHERE point_type<>'AUTOMATIC' OR organization_id<>pg_temp.u(1)),true);
+SELECT set_config('p91.busy_before',pg_temp.job_audits('BACKUP_FAILED',NULL,'{"pointType":"AUTOMATIC","code":"BUSY"}')::text,true);
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT set_config('p91.job_point',coalesce(pathways.p91_job_begin_point(pg_temp.u(1),'manifest')::text,''),true);
+SELECT pg_temp.ok('the job opens a point', current_setting('p91.job_point')<>'');
+SELECT pg_temp.ok('a second begin is busy', pathways.p91_job_begin_point(pg_temp.u(1),'manifest') IS NULL);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('the stale automatic point is FAILED', (SELECT status='FAILED' AND completed_at IS NOT NULL
+ AND failure_reason='The backup did not finish.' FROM pathways.recovery_points WHERE id=pg_temp.u(201)));
+SELECT pg_temp.ok('the job point is AUTOMATIC and CREATING with no creator', (SELECT organization_id=pg_temp.u(1) AND point_type='AUTOMATIC'
+ AND status='CREATING' AND file_mode='manifest' AND created_by_id IS NULL FROM pathways.recovery_points WHERE id=current_setting('p91.job_point')::uuid));
+SELECT pg_temp.ok('a busy begin opens no second point', (SELECT count(*)=1 FROM pathways.recovery_points
+ WHERE organization_id=pg_temp.u(1) AND status='CREATING'));
+SELECT pg_temp.ok('a busy begin leaves one BACKUP_FAILED row', pg_temp.job_audits('BACKUP_FAILED',NULL,
+ '{"pointType":"AUTOMATIC","code":"BUSY"}')=current_setting('p91.busy_before')::integer+1);
+
+-- Finish takes exactly the five outcome keys and audits BACKUP_CREATED; MANUAL, PRE_RESTORE and other-organization ids are refused.
+SELECT set_config('p91.created_before',pg_temp.job_audits('BACKUP_CREATED',current_setting('p91.job_point')::uuid,
+ pg_temp.outcome()->'changes')::text,true);
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT pg_temp.refused('finish needs every outcome key', format('SELECT pathways.p91_job_finish_point(%L,%L,%L)',
+ pg_temp.u(1),current_setting('p91.job_point'),pg_temp.outcome()-'changes'),'22023','Invalid backup outcome');
+SELECT pg_temp.refused('finish takes no other outcome key', format('SELECT pathways.p91_job_finish_point(%L,%L,%L)',
+ pg_temp.u(1),current_setting('p91.job_point'),pg_temp.outcome()||'{"status":"READY"}'),'22023','Invalid backup outcome');
+SELECT pathways.p91_job_finish_point(pg_temp.u(1),current_setting('p91.job_point')::uuid,pg_temp.outcome());
+SELECT pg_temp.refused('a READY point cannot be failed', format('SELECT pathways.p91_job_fail_point(%L,%L,%L,%L)',
+ pg_temp.u(1),current_setting('p91.job_point'),'x','{}'),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot finish a manual point', format('SELECT pathways.p91_job_finish_point(%L,%L,%L)',
+ pg_temp.u(1),pg_temp.u(101),pg_temp.outcome()),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot fail a manual point', format('SELECT pathways.p91_job_fail_point(%L,%L,%L,%L)',
+ pg_temp.u(1),pg_temp.u(101),'x','{}'),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot finish a pre-restore point', format('SELECT pathways.p91_job_finish_point(%L,%L,%L)',
+ pg_temp.u(1),pg_temp.u(102),pg_temp.outcome()),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot fail a pre-restore point', format('SELECT pathways.p91_job_fail_point(%L,%L,%L,%L)',
+ pg_temp.u(1),pg_temp.u(102),'x','{}'),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot finish a point of another organization', format('SELECT pathways.p91_job_finish_point(%L,%L,%L)',
+ pg_temp.u(1),pg_temp.u(202),pg_temp.outcome()),'42501','Backup access denied');
+SELECT pg_temp.refused('job cannot fail a point of another organization', format('SELECT pathways.p91_job_fail_point(%L,%L,%L,%L)',
+ pg_temp.u(1),pg_temp.u(202),'x','{}'),'42501','Backup access denied');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('finish makes the job point READY', (SELECT status='READY' AND captured_at='2026-11-12T01:02:03.456Z'::timestamptz
+ AND completed_at IS NOT NULL AND migration_name='0091_backup_recovery' AND size_bytes=2048 AND manifest_sha256=repeat('b',64)
+ AND failure_reason IS NULL FROM pathways.recovery_points WHERE id=current_setting('p91.job_point')::uuid));
+SELECT pg_temp.ok('finish leaves one BACKUP_CREATED row with no actor', pg_temp.job_audits('BACKUP_CREATED',
+ current_setting('p91.job_point')::uuid,pg_temp.outcome()->'changes')=current_setting('p91.created_before')::integer+1);
+
+-- Retention: 8 READY AUTOMATIC points (the job point plus 7 older ones) and the stale FAILED one, which is older than all;
+-- an old point still CREATING is never retired.
+INSERT INTO pathways.recovery_points(id,organization_id,point_type,status,file_mode,started_at,captured_at,completed_at,
+ migration_name,size_bytes,manifest_sha256)
+SELECT pg_temp.u(210+n),pg_temp.u(1),'AUTOMATIC','READY','manifest',now()-make_interval(days=>n),now()-make_interval(days=>n),
+ now()-make_interval(days=>n),'0091_backup_recovery',1024,repeat('c',64) FROM generate_series(1,7) n;
+INSERT INTO pathways.recovery_points(id,organization_id,point_type,file_mode,started_at)
+VALUES (pg_temp.u(218),pg_temp.u(1),'AUTOMATIC','manifest',now()-interval '20 days');
+SELECT pg_temp.ok('retention fixture has 8 READY and 1 FAILED automatic points', (SELECT count(*) FILTER (WHERE status='READY')=8
+ AND count(*) FILTER (WHERE status='FAILED')=1 FROM pathways.recovery_points WHERE organization_id=pg_temp.u(1) AND point_type='AUTOMATIC'));
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT pg_temp.same('retention returns the FAILED then the oldest READY point', (SELECT jsonb_agg(id ORDER BY n)
+ FROM pathways.p91_job_retention_points(pg_temp.u(1)) WITH ORDINALITY r(id,n)), jsonb_build_array(pg_temp.u(201),pg_temp.u(217)));
+SELECT pg_temp.ok('job cannot delete a kept point', NOT pathways.p91_job_delete_point(pg_temp.u(1),pg_temp.u(211)));
+SELECT pg_temp.ok('job cannot delete a creating point', NOT pathways.p91_job_delete_point(pg_temp.u(1),pg_temp.u(218)));
+SELECT pg_temp.ok('job cannot delete a manual point', NOT pathways.p91_job_delete_point(pg_temp.u(1),pg_temp.u(101)));
+SELECT pg_temp.ok('job cannot delete a pre-restore point', NOT pathways.p91_job_delete_point(pg_temp.u(1),pg_temp.u(102)));
+SELECT pg_temp.ok('job cannot delete a point of another organization', NOT pathways.p91_job_delete_point(pg_temp.u(1),pg_temp.u(202)));
+SELECT pg_temp.ok('job deletes the FAILED point', pathways.p91_job_delete_point(pg_temp.u(1),pg_temp.u(201)));
+SELECT pg_temp.ok('job deletes the oldest READY point', pathways.p91_job_delete_point(pg_temp.u(1),pg_temp.u(217)));
+SELECT pg_temp.same('retention is then empty', (SELECT coalesce(jsonb_agg(id),'[]') FROM pathways.p91_job_retention_points(pg_temp.u(1)) id), '[]');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('retention removed only the two points', NOT EXISTS(SELECT FROM pathways.recovery_points WHERE id IN (pg_temp.u(201),pg_temp.u(217)))
+ AND (SELECT count(*)=2 FROM pathways.recovery_points WHERE id IN (pg_temp.u(211),pg_temp.u(218))));
+DELETE FROM pathways.recovery_points WHERE id=pg_temp.u(218);
+
+-- Fail closes an open point with its reason and audits BACKUP_FAILED.
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT set_config('p91.job_point',coalesce(pathways.p91_job_begin_point(pg_temp.u(1),'copy')::text,''),true);
+RESET SESSION AUTHORIZATION;
+SELECT set_config('p91.failed_before',pg_temp.job_audits('BACKUP_FAILED',current_setting('p91.job_point')::uuid,
+ '{"pointType":"AUTOMATIC","code":"STORAGE_UNAVAILABLE"}')::text,true);
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT pathways.p91_job_fail_point(pg_temp.u(1),current_setting('p91.job_point')::uuid,'Backup storage was unavailable.',
+ '{"pointType":"AUTOMATIC","code":"STORAGE_UNAVAILABLE"}');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('fail makes the job point FAILED', (SELECT status='FAILED' AND file_mode='copy' AND completed_at IS NOT NULL
+ AND failure_reason='Backup storage was unavailable.' FROM pathways.recovery_points WHERE id=current_setting('p91.job_point')::uuid));
+SELECT pg_temp.ok('fail leaves one BACKUP_FAILED row with no actor', pg_temp.job_audits('BACKUP_FAILED',current_setting('p91.job_point')::uuid,
+ '{"pointType":"AUTOMATIC","code":"STORAGE_UNAVAILABLE"}')=current_setting('p91.failed_before')::integer+1);
+
+-- A prisma definer with no type filter, so the job policies alone keep the job off MANUAL and PRE_RESTORE rows.
+CREATE FUNCTION pg_temp.as_prisma(statement text) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE n integer;
+BEGIN
+ EXECUTE statement; GET DIAGNOSTICS n = ROW_COUNT; RETURN n;
+END $$;
+ALTER FUNCTION pg_temp.as_prisma(text) OWNER TO prisma;
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT pg_temp.ok('job policies let the job read its organization rows', pg_temp.as_prisma(format(
+ 'SELECT FROM pathways.recovery_points WHERE organization_id=%L',pg_temp.u(1)))>2);
+SELECT pg_temp.ok('job policies update no other point type', pg_temp.as_prisma($u$UPDATE pathways.recovery_points
+ SET failure_reason='x' WHERE point_type<>'AUTOMATIC'$u$)=0);
+SELECT pg_temp.ok('job policies delete no other point type', pg_temp.as_prisma($d$DELETE FROM pathways.recovery_points
+ WHERE point_type<>'AUTOMATIC'$d$)=0);
+SELECT pg_temp.refused('job policies insert no manual point', format($s$SELECT pg_temp.as_prisma(%L)$s$,format($i$INSERT INTO
+ pathways.recovery_points(organization_id,point_type,file_mode,created_by_id) VALUES(%L,'MANUAL','manifest',%L)$i$,pg_temp.u(1),pg_temp.u(21))),
+ '42501','row-level security');
+SELECT pg_temp.refused('job policies turn no automatic point into another type', format($s$SELECT pg_temp.as_prisma(%L)$s$,format(
+ $u$UPDATE pathways.recovery_points SET point_type='PRE_RESTORE',created_by_id=%L WHERE id=%L$u$,pg_temp.u(21),pg_temp.u(211))),
+ '42501','row-level security');
+SELECT pg_temp.refused('job policies insert no point of an archived organization', format($s$SELECT pg_temp.as_prisma(%L)$s$,format(
+ $i$INSERT INTO pathways.recovery_points(organization_id,point_type,file_mode) VALUES(%L,'AUTOMATIC','manifest')$i$,pg_temp.u(3))),
+ '42501','row-level security');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.same('the job changed no MANUAL, PRE_RESTORE or other-organization row', (SELECT jsonb_agg(to_jsonb(r) ORDER BY id)
+ FROM pathways.recovery_points r WHERE point_type<>'AUTOMATIC' OR organization_id<>pg_temp.u(1)), current_setting('p91.untouched')::jsonb);
+
+-- Neither the job login nor the no-user runtime can write an audit row directly, and the runtime cannot run the job functions.
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT pg_temp.refused('job cannot insert an audit row', $s$INSERT INTO pathways.audit_logs(organization_id,actor_user_id,action,entity_type,entity_id)
+ VALUES (pg_temp.u(1),NULL,'BACKUP_CREATED','RECOVERY_POINT',NULL)$s$,'42501','permission denied');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.act_as_job();
+SELECT set_config('app.organization_id',pg_temp.u(1)::text,true);
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.refused('no-user runtime cannot list organizations', 'SELECT pathways.p91_job_organizations()','42501','permission denied');
+SELECT pg_temp.refused('no-user runtime has no job audit path', $s$INSERT INTO pathways.audit_logs(organization_id,actor_user_id,action,entity_type,entity_id)
+ VALUES (pg_temp.u(1),NULL,'BACKUP_CREATED','RECOVERY_POINT',NULL)$s$,'42501','row-level security');
+SELECT pg_temp.act_as(21);
+SELECT pg_temp.refused('runtime cannot begin a job point', format('SELECT pathways.p91_job_begin_point(%L,%L)',pg_temp.u(1),'manifest'),
+ '42501','permission denied');
+RESET SESSION AUTHORIZATION;
+DELETE FROM pathways.recovery_points WHERE id=pg_temp.u(202);
+SELECT pg_temp.ok('no point is left CREATING after the job checks', NOT EXISTS(SELECT FROM pathways.recovery_points WHERE status='CREATING'));
 
 SELECT 'BACKUP_RECOVERY_RUNTIME=PASS ('||current_setting('p91.passed')||')' AS result \gset
 ROLLBACK;
