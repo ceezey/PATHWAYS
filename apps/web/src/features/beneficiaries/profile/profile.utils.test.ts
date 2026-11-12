@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { BeneficiaryJourneyHistory } from '@/types/pathways'
+import type { BeneficiaryJourneyEvent, BeneficiaryJourneyHistory } from '@/types/pathways'
 
 import { mapBeneficiaryJourneyHistory } from './profile.utils'
 
@@ -132,5 +132,102 @@ describe('beneficiary journey history adapter', () => {
       ],
     })
     expect(result.participation[0]?.attendanceStatus).toBe(label)
+  })
+
+  describe('outcomes and correction targets', () => {
+    const baseEvent = {
+      eventType: 'FOLLOW_UP',
+      eventDate: '2026-06-15',
+      description: null,
+      stageId: 'stage-1',
+      stageCodeSnapshot: null,
+      stageNameSnapshot: null,
+      activityId: null,
+      activityCodeSnapshot: null,
+      activityTitleSnapshot: null,
+      participationId: null,
+      participation: null,
+      correctsEventId: null,
+      correctionReason: null,
+      recordedAt: '2026-06-15T12:00:00.000Z',
+      recordedBy: 'officer-a',
+    } as const
+    const historyOf = (events: BeneficiaryJourneyEvent[]): BeneficiaryJourneyHistory => ({
+      projectId: 'project-a',
+      beneficiaryId: 'beneficiary-a',
+      enrollmentId: 'enrollment-a',
+      enrollmentStatus: 'ACTIVE',
+      events,
+    })
+
+    it('lists every original entry as a correction target, including undescribed and already corrected ones', () => {
+      const { correctionTargets } = mapBeneficiaryJourneyHistory(
+        historyOf([
+          {
+            ...baseEvent,
+            id: 'P1',
+            eventType: 'PARTICIPATION',
+            eventDate: '2026-06-14',
+            activityId: 'activity-a',
+            activityTitleSnapshot: 'Orientation',
+            participationId: 'part-1',
+            participation: { attendanceStatus: 'PRESENT', progressStatus: 'IN_PROGRESS' },
+          },
+          { ...baseEvent, id: 'N1', description: 'Checked in' },
+          {
+            ...baseEvent,
+            id: 'C1',
+            description: 'Checked in again',
+            correctsEventId: 'N1',
+            correctionReason: 'Wrong date',
+            recordedAt: '2026-06-16T00:00:00.000Z',
+          },
+          { ...baseEvent, id: 'X1', stageId: null, description: 'No stage' },
+        ]),
+      )
+      expect(correctionTargets.map((t) => t.id)).toEqual(['P1', 'N1'])
+      expect(correctionTargets[0]).toMatchObject({ stageId: 'stage-1', description: '', note: '' })
+      expect(correctionTargets[0]?.label).toContain('Participation · Orientation')
+      expect(correctionTargets[1]?.label).toContain('Follow-up · Checked in')
+    })
+
+    it('returns enrollment outcomes and the participation outcome label', () => {
+      const { participation, outcomes } = mapBeneficiaryJourneyHistory(
+        historyOf([
+          {
+            ...baseEvent,
+            id: 'P1',
+            eventType: 'PARTICIPATION',
+            eventDate: '2026-06-10',
+            activityId: 'activity-a',
+            participationId: 'part-1',
+            participation: { attendanceStatus: 'PRESENT', progressStatus: 'IN_PROGRESS' },
+          },
+          { ...baseEvent, id: 'D1', eventType: 'DROPOUT', description: 'Moved away' },
+          {
+            ...baseEvent,
+            id: 'D2',
+            eventType: 'DROPOUT',
+            description: 'Moved abroad',
+            correctsEventId: 'D1',
+            correctionReason: 'Detail',
+            recordedAt: '2026-06-16T00:00:00.000Z',
+          },
+          {
+            ...baseEvent,
+            id: 'F1',
+            eventType: 'COMPLETION',
+            eventDate: '2026-06-20',
+            participationId: 'part-2',
+          },
+        ]),
+      )
+      expect(participation[0]?.outcome).toBe('In progress')
+      expect(outcomes.map((o) => [o.id, o.eventType])).toEqual([
+        ['D1', 'DROPOUT'],
+        ['F1', 'COMPLETION'],
+      ])
+      expect(outcomes[0]).toMatchObject({ description: 'Moved away', stageId: 'stage-1' })
+    })
   })
 })

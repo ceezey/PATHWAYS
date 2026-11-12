@@ -1,8 +1,13 @@
 import type {
   BeneficiaryJourneyHistory,
   BeneficiaryNoteRecord,
+  BeneficiaryOutcomeRecord,
   BeneficiaryParticipationRecord,
+  JourneyCorrectionTarget,
+  JourneyEventType,
 } from '@/types/pathways'
+
+import { formatDate } from '../beneficiaries.utils'
 
 const attendanceLabels: Record<string, BeneficiaryParticipationRecord['attendanceStatus']> = {
   PRESENT: 'Present',
@@ -14,6 +19,26 @@ const attendanceLabels: Record<string, BeneficiaryParticipationRecord['attendanc
 
 const attendanceStatus = (value: string): BeneficiaryParticipationRecord['attendanceStatus'] =>
   attendanceLabels[value] ?? 'Present'
+
+const progressLabels: Record<string, string> = {
+  NOT_STARTED: 'Not started',
+  IN_PROGRESS: 'In progress',
+  COMPLETED: 'Completed',
+  NEEDS_FOLLOW_UP: 'Needs follow-up',
+}
+
+/** One source of label copy for journey event types. */
+export const eventTypeLabels: Record<JourneyEventType, string> = {
+  ENROLLMENT: 'Enrollment',
+  PARTICIPATION: 'Participation',
+  PROGRESS_UPDATE: 'Progress update',
+  COMPLETION: 'Completed',
+  FOLLOW_UP: 'Follow-up',
+  DROPOUT: 'Dropped out',
+  TRANSFER: 'Transferred',
+}
+
+const outcomeTypes = new Set<string>(['COMPLETION', 'FOLLOW_UP', 'DROPOUT', 'TRANSFER'])
 
 export const mapBeneficiaryJourneyHistory = (history: BeneficiaryJourneyHistory) => {
   const orderedEvents = history.events
@@ -41,6 +66,7 @@ export const mapBeneficiaryJourneyHistory = (history: BeneficiaryJourneyHistory)
       participatedAt: event.eventDate,
       attendanceStatus: attendanceStatus(event.participation?.attendanceStatus ?? ''),
       note: event.description ?? event.participation?.progressStatus ?? '',
+      outcome: progressLabels[event.participation?.progressStatus ?? ''],
     }))
 
   const notes: BeneficiaryNoteRecord[] = orderedEvents
@@ -59,5 +85,33 @@ export const mapBeneficiaryJourneyHistory = (history: BeneficiaryJourneyHistory)
         : (event.description as string),
     }))
 
-  return { notes, participation }
+  const outcomes: BeneficiaryOutcomeRecord[] = orderedEvents
+    .filter((event) => outcomeTypes.has(event.eventType) && event.correctsEventId === null)
+    .map((event) => ({
+      id: event.id,
+      eventType: event.eventType as BeneficiaryOutcomeRecord['eventType'],
+      occurredAt: event.eventDate,
+      stageId: event.stageId,
+      activityId: event.activityId,
+      description: event.description ?? '',
+    }))
+
+  const correctionTargets: JourneyCorrectionTarget[] = orderedEvents
+    .filter((event) => event.correctsEventId === null && event.stageId !== null)
+    .map((event) => ({
+      id: event.id,
+      stageId: event.stageId as string,
+      eventDate: event.eventDate,
+      label: [
+        formatDate(event.eventDate),
+        eventTypeLabels[event.eventType],
+        event.activityTitleSnapshot ?? event.description,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      description: event.description ?? '',
+      note: event.note ?? '',
+    }))
+
+  return { notes, participation, outcomes, correctionTargets }
 }

@@ -368,7 +368,7 @@ export interface JourneyStageConfig {
   updatedAt?: string
 }
 
-type JourneyEventType =
+export type JourneyEventType =
   | 'ENROLLMENT'
   | 'PARTICIPATION'
   | 'PROGRESS_UPDATE'
@@ -441,6 +441,7 @@ export interface BeneficiaryParticipationRecord {
   participatedAt: string
   attendanceStatus: 'Present' | 'Partial' | 'Absent' | 'Completed' | 'Not completed' | 'Excused'
   note: string
+  outcome?: string
 }
 
 export interface BeneficiaryAssessmentRecord {
@@ -467,6 +468,24 @@ export interface BeneficiaryNoteRecord {
   visibility: 'Internal' | 'Project team'
   note: string
   journeyNote?: string
+}
+
+export interface BeneficiaryOutcomeRecord {
+  id: string
+  eventType: 'COMPLETION' | 'FOLLOW_UP' | 'DROPOUT' | 'TRANSFER'
+  occurredAt: string
+  stageId: string | null
+  activityId: string | null
+  description: string
+}
+
+export interface JourneyCorrectionTarget {
+  id: string
+  stageId: string
+  eventDate: string
+  label: string
+  description: string
+  note: string
 }
 
 export interface BeneficiaryMediaItem {
@@ -525,6 +544,8 @@ export interface BeneficiaryRecord extends Beneficiary {
   progress?: BeneficiaryProgress
   assessments: BeneficiaryAssessmentRecord[]
   notes: BeneficiaryNoteRecord[]
+  outcomes?: BeneficiaryOutcomeRecord[]
+  correctionTargets?: JourneyCorrectionTarget[]
   updatedAt: string
   consentProvenance: Array<{
     kind: 'PARTICIPATION' | 'DATA_PROCESSING' | 'GUARDIAN'
