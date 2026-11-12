@@ -85,7 +85,11 @@ function IndicatorForm({
       }
       if (await onSave(input)) onDone()
     } catch {
-      setValidation('Check the name, target and recipe inputs, then save again.')
+      setValidation(
+        manual
+          ? 'Check the name, target, unit and source inputs, then save again.'
+          : 'Check the name, target and recipe inputs, then save again.',
+      )
     }
   }
   return (

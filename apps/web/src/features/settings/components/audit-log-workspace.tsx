@@ -1,6 +1,6 @@
 'use client'
 
-import { AUDIT_MODULES, auditModuleOf } from '@pathways/shared'
+import { AUDIT_MODULES, auditModuleOf, isCalendarDate } from '@pathways/shared'
 import { FilterX, ScrollText, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -50,6 +50,37 @@ const dateFormatter = new Intl.DateTimeFormat('en-PH', {
 })
 
 const outcomeTone = (_outcome: AuditEvent['outcome']) => 'neutral' as const
+
+// A typed year passes through partial values, so only an empty or full valid date is applied.
+const DateFilter = ({
+  id,
+  label,
+  value,
+  onApply,
+}: {
+  id: string
+  label: string
+  value: string | undefined
+  onApply: (value: string | undefined) => void
+}) => {
+  const [typed, setTyped] = useState(value ?? '')
+  useEffect(() => setTyped(value ?? ''), [value])
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="date"
+        value={typed}
+        onChange={(e) => {
+          setTyped(e.target.value)
+          if (!e.target.value || isCalendarDate(e.target.value))
+            onApply(e.target.value || undefined)
+        }}
+      />
+    </div>
+  )
+}
 
 export const AuditLogWorkspace = () => {
   const { profile } = useCurrentRole()
@@ -207,24 +238,18 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
           </div>
         </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="audit-from-date">From date</Label>
-            <Input
-              id="audit-from-date"
-              type="date"
-              value={from ?? ''}
-              onChange={(e) => apply({ from: e.target.value || undefined })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="audit-to-date">To date</Label>
-            <Input
-              id="audit-to-date"
-              type="date"
-              value={to ?? ''}
-              onChange={(e) => apply({ to: e.target.value || undefined })}
-            />
-          </div>
+          <DateFilter
+            id="audit-from-date"
+            label="From date"
+            value={from}
+            onApply={(value) => apply({ from: value })}
+          />
+          <DateFilter
+            id="audit-to-date"
+            label="To date"
+            value={to}
+            onApply={(value) => apply({ to: value })}
+          />
         </div>
         {rangeReversed ? (
           <p className="mt-2 text-sm text-destructive">

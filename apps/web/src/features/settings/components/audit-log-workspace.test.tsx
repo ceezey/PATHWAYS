@@ -107,6 +107,18 @@ describe('audit screen current access and server filters', () => {
       signal,
     )
   })
+  it('ignores a partial or out-of-range typed date and keeps the last filter', () => {
+    render(<AuditLogWorkspace />)
+    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-28' } })
+    const reads = state.reads.mock.calls.length
+    for (const typed of ['0002-11-12', '0202-11-12', '1899-12-31'])
+      fireEvent.change(screen.getByLabelText('From date'), { target: { value: typed } })
+    expect(state.reads.mock.calls.length).toBe(reads)
+    expect(state.reads).toHaveBeenLastCalledWith('audit-events:from=2026-09-28', true)
+    expect(screen.queryByText('Audit records unavailable')).toBeNull()
+    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '' } })
+    expect(state.reads).toHaveBeenLastCalledWith('audit-events:first', true)
+  })
   it('applies the keyword only on search', () => {
     render(<AuditLogWorkspace />)
     fireEvent.change(screen.getByLabelText('Actor, action, target, or event ID'), {

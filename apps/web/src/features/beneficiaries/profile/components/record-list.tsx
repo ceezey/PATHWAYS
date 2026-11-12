@@ -93,7 +93,9 @@ export const RecordList = ({
                   <div className="flex flex-wrap items-center gap-2">
                     {entry.result ? <StatusBadge tone="neutral">{entry.result}</StatusBadge> : null}
                     {stage ? (
-                      <StatusBadge tone={stageTypeTone(stage.type)}>{stage.code}</StatusBadge>
+                      <StatusBadge tone={stageTypeTone(stage.type)}>
+                        {stageDisplayCode(stage)}
+                      </StatusBadge>
                     ) : null}
                   </div>
                 </div>

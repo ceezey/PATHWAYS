@@ -331,6 +331,11 @@ describe('audit log viewing is itself recorded', () => {
     await service.list(identity, { projectId, module: 'projects' })
     expect(tx.auditLog.create.mock.calls[0][0].data.projectId).toBe(projectId)
   })
+  it('records the project filter only when the project is in the caller scope', async () => {
+    tx.project.findMany.mockResolvedValue([])
+    await service.list(identity, { projectId })
+    expect(tx.auditLog.create.mock.calls[0][0].data.projectId).toBeNull()
+  })
   it('writes nothing for Load older events, invalid filters or a revoked grant', async () => {
     await service.list(identity, {
       module: 'projects',

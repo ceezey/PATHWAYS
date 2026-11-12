@@ -109,6 +109,12 @@ describe('RecordList', () => {
     expect(screen.getByText('Outcome: Completed')).toBeTruthy()
   })
 
+  it('labels the row stage badge with the stage display code', () => {
+    renderList({ stageDisplayCode: (stage) => `S${stage.order}` })
+    expect(screen.getByText('S1')).toBeTruthy()
+    expect(screen.queryByText('J1')).toBeNull()
+  })
+
   it('filters by date range and stage', () => {
     renderList()
     fireEvent.change(screen.getByLabelText('History from'), { target: { value: '2026-06-12' } })

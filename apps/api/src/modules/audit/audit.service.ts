@@ -107,7 +107,8 @@ export class AuditService {
       // Opening the Audit Log is itself recorded; older pages are not.
       if (!query.cursor)
         await writeAuditLog(tx, actor, {
-          projectId: query.projectId ?? null,
+          // Only a project in the caller's scope is recorded; audit_logs.project_id has no foreign key.
+          projectId: query.projectId && projects?.length ? query.projectId : null,
           action: 'AUDIT_LOG_VIEWED',
           entityType: 'AuditLog',
         })

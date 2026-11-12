@@ -86,6 +86,30 @@ describe('IndicatorForm measurement type', () => {
   })
 })
 
+describe('IndicatorForm save error', () => {
+  const saveWithBadTarget = (mode: 'MANUAL' | 'DERIVED') => {
+    const onSave = open()
+    if (mode === 'MANUAL') {
+      fireEvent.change(screen.getByLabelText('Calculation'), { target: { value: 'MANUAL' } })
+      fireEvent.change(screen.getByLabelText('Unit label'), { target: { value: 'people' } })
+    }
+    fireEvent.change(screen.getByLabelText('Target'), { target: { value: 'abc' } })
+    fireEvent.change(screen.getByLabelText('Source description'), { target: { value: 'Sheet' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save indicator' }))
+    return onSave
+  }
+  it('names the unit and source in Manual mode', async () => {
+    const onSave = saveWithBadTarget('MANUAL')
+    await screen.findByText('Check the name, target, unit and source inputs, then save again.')
+    expect(onSave).not.toHaveBeenCalled()
+  })
+  it('names the recipe in Derived mode', async () => {
+    const onSave = saveWithBadTarget('DERIVED')
+    await screen.findByText('Check the name, target and recipe inputs, then save again.')
+    expect(onSave).not.toHaveBeenCalled()
+  })
+})
+
 describe('IndicatorForm duplicate name', () => {
   const saveWithName = (name: string) => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: name } })
