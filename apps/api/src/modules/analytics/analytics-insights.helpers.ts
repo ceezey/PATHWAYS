@@ -47,18 +47,18 @@ export function currentMeasurements(rows: MeasurementRow[]) {
 
 const cents = (value: Prisma.Decimal | number) => Math.round(Number(value) * 100)
 
-/** Per-currency planned, approved and pending totals; utilization counts approved spend only. */
+/** Per-currency envelope, approved and awaiting-approval totals; utilization counts approved spend against the envelope only. */
 export function summarizeBudget(
-  budgets: Array<{ currency: string; plannedBudget: Prisma.Decimal | number }>,
+  envelope: { currency: string; plannedBudget: Prisma.Decimal | number } | null,
   expenses: Array<{ currency: string; amount: Prisma.Decimal | number; status: string }>,
 ) {
-  const sums = new Map<string, { planned: number; approved: number; pending: number }>()
+  const sums = new Map<string, { planned: number | null; approved: number; pending: number }>()
   const slot = (currency: string) => {
-    const found = sums.get(currency) ?? { planned: 0, approved: 0, pending: 0 }
+    const found = sums.get(currency) ?? { planned: null, approved: 0, pending: 0 }
     sums.set(currency, found)
     return found
   }
-  for (const b of budgets) slot(b.currency).planned += cents(b.plannedBudget)
+  if (envelope) slot(envelope.currency).planned = cents(envelope.plannedBudget)
   for (const e of expenses) {
     if (e.status === 'APPROVED') slot(e.currency).approved += cents(e.amount)
     else if (e.status === 'PENDING' || e.status === 'VERIFIED')
@@ -68,9 +68,12 @@ export function summarizeBudget(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([currency, s]) => ({
       currency,
-      planned: s.planned / 100,
+      planned: s.planned === null ? null : s.planned / 100,
       approved: s.approved / 100,
       pending: s.pending / 100,
-      utilizationPercent: s.planned > 0 ? Math.round((s.approved / s.planned) * 1000) / 10 : null,
+      utilizationPercent:
+        s.planned !== null && s.planned > 0
+          ? Math.round((s.approved / s.planned) * 1000) / 10
+          : null,
     }))
 }
