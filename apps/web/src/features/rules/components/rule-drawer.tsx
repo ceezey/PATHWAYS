@@ -306,8 +306,9 @@ function AlertRuleDrawer({
     if (error instanceof PathwaysClientError && [400, 403, 404, 409].includes(error.status ?? 0)) {
       captured.current = null
       setLocked(false)
-      // The server states which check refused the write; the fallback alone hides it.
-      setNotice(error.message ? `${error.message} ${fallback}` : fallback)
+      // The server states which check refused the write; a 409 message is complete on its own.
+      if (error.status === 409 && error.message) setNotice(error.message)
+      else setNotice(error.message ? `${error.message} ${fallback}` : fallback)
     } else setNotice('A response was not confirmed. Retry the same operation.')
   }
   const run = async (task: () => Promise<unknown>, failure: string, outcome: RuleOutcome) => {
