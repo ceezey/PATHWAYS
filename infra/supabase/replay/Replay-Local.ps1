@@ -647,6 +647,8 @@ END $$;
       Write-Output 'PROJECT_MAP_PINS_RUNTIME=PASS'
       Measure-ReplayStep 'sql test-case-gap-closure-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/test-case-gap-closure-runtime.sql'))) $phase6Database }
       Write-Output 'TEST_CASE_GAP_CLOSURE_RUNTIME=PASS'
+      Measure-ReplayStep 'sql backup-recovery-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/backup-recovery-runtime.sql'))) $phase6Database }
+      Write-Output 'BACKUP_RECOVERY_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
