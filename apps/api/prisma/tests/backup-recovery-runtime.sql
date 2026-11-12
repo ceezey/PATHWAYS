@@ -637,6 +637,7 @@ SELECT pg_temp.ok('capture setting opens nothing to the runtime', (SELECT count(
 SELECT set_config('pathways.backup_capture_org', '', true);
 -- Refusals: a user without a backups permission, another organization's administrator, the wrong organization id, the
 -- no-user runtime and the job login for an archived organization.
+SELECT pg_temp.ok('replication role is origin before the capture refusals', current_setting('session_replication_role')='origin');
 SELECT pg_temp.act_as(22);
 SELECT pg_temp.refused('project manager cannot capture', format('SELECT pathways.p91_capture_organization(%L)',pg_temp.u(1)),'42501','Backup access denied');
 SELECT pg_temp.act_as(31,2);
@@ -649,6 +650,7 @@ RESET SESSION AUTHORIZATION;
 SELECT pg_temp.act_as_job();
 SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
 SELECT pg_temp.refused('job cannot capture an archived organization', format('SELECT pathways.p91_capture_organization(%L)',pg_temp.u(3)),'42501','Backup access denied');
+SELECT pg_temp.ok('replication role is origin before the job capture', current_setting('session_replication_role')='origin');
 SELECT set_config('p91.job_capture', pathways.p91_capture_organization(pg_temp.u(1))::text, true);
 RESET SESSION AUTHORIZATION;
 SELECT pg_temp.same('job capture counts the same rows', current_setting('p91.job_capture')::jsonb->'rowCounts', current_setting('p91.point')::jsonb->'rowCounts');
@@ -659,6 +661,212 @@ SELECT pg_temp.refused('a forced table without its capture policy stops capture'
  'Backup owner cannot manage pathways.project_publications');
 SELECT pg_temp.ok('the capture policy is back after the refusal', EXISTS(SELECT FROM pg_policy
  WHERE polrelid='pathways.project_publications'::regclass AND polname='p91_backup_capture_select'));
+
+-- rules_cycle: a REVIEWED f10 recommendation on project 41 closes the second foreign key cycle (f10_private_review_scope with
+-- its review), its rule keeps a 32-byte definition digest, and a human lifecycle event holds a DEFERRABLE key to the review
+-- receipt. Every row satisfies its foreign keys, because the restore checks them with referential triggers on.
+SET LOCAL session_replication_role = replica;
+INSERT INTO pathways.alert_rules(id,organization_id,project_id,code,version,name,type,match_mode,severity,status,created_by_id,
+ activated_by_id,activated_at,runtime_contract_version,logical_rule_id,display_code,conditions_json,definition_digest)
+VALUES (pg_temp.u(111),pg_temp.u(1),pg_temp.u(41),'F10P:'||pg_temp.u(41)||':'||pg_temp.u(112),1,'Synthetic backup rule',
+ 'BUDGET_CONCERN','ALL','HIGH','ACTIVE',pg_temp.u(21),pg_temp.u(21),now(),'f10.v1',pg_temp.u(112),'P91-RULE',
+ '{"all":[{"metric":"BUDGET_UTILIZATION","operator":"GTE","value":80}]}',sha256('p91-rule'));
+INSERT INTO pathways.alert_rule_recommendations(id,organization_id,rule_id,title,text,created_by_id)
+VALUES (pg_temp.u(113),pg_temp.u(1),pg_temp.u(111),'Synthetic rule recommendation','Synthetic rule recommendation text',pg_temp.u(21));
+INSERT INTO pathways_rules_internal.snapshots(id,job_id,organization_id,project_id,lease_hash,lease_session,required_generation,
+ source_watermark,calendar_version,as_of,reporting_date,zone,manifest,observations,source_inputs,canonical_payload,digest)
+VALUES (pg_temp.u(114),pg_temp.u(92),pg_temp.u(1),pg_temp.u(41),sha256('p91'),'pathways_rules_worker',0,0,1,
+ '2026-11-12 01:02:03.456789+00',current_date,'Asia/Manila','[]','{"budget":{"utilization":81.5}}','{}','{}',sha256('p91-snapshot'));
+INSERT INTO pathways_rules_internal.evaluations(id,snapshot_id,organization_id,project_id,rule_version_id,affected_kind,affected_id,
+ evaluation_sequence,result,evidence)
+VALUES (pg_temp.u(115),pg_temp.u(114),pg_temp.u(1),pg_temp.u(41),pg_temp.u(111),'PROJECT',pg_temp.u(41),1,'TRUE','{"value":81.5}');
+INSERT INTO pathways.rule_based_alerts(id,organization_id,project_id,rule_id,title,message,severity,observed_values,evaluated_snapshot,
+ runtime_contract_version,attribution,lifecycle,episode_number,affected_kind,affected_id,latest_evaluation_id,origin_snapshot_id)
+VALUES (pg_temp.u(116),pg_temp.u(1),pg_temp.u(41),pg_temp.u(111),'Synthetic backup alert','Synthetic backup alert message','HIGH',
+ '{"utilization":81.5}','{"snapshot":"p91"}','f10.v1','SYSTEM','REVIEWED',1,'PROJECT',pg_temp.u(41),pg_temp.u(115),pg_temp.u(114));
+INSERT INTO pathways.decision_recommendations(id,organization_id,project_id,alert_id,source_rule_recommendation_id,title,text,basis,
+ source_snapshot,proposed_at,status,reviewed_by_id,reviewed_at,attribution,runtime_contract_version,private_review_id)
+VALUES (pg_temp.u(117),pg_temp.u(1),pg_temp.u(41),pg_temp.u(116),pg_temp.u(113),'Synthetic recommendation','Synthetic recommendation text',
+ 'BUDGET','{"rule":"P91-RULE"}',now()-interval '1 hour','REVIEWED',pg_temp.u(21),now(),'SYSTEM','f10.v1',pg_temp.u(91));
+INSERT INTO pathways_rules_internal.feature_operation_receipts(id,organization_id,project_id,actor_id,client_operation_id,operation_code,
+ alert_id,recommendation_id,canonical_request_hash,safe_result,occurred_at)
+VALUES (pg_temp.u(118),pg_temp.u(1),pg_temp.u(41),pg_temp.u(21),pg_temp.u(119),'RECOMMENDATION_REVIEW',pg_temp.u(116),pg_temp.u(117),
+ sha256('p91-operation'),'{"status":"REVIEWED"}',now());
+INSERT INTO pathways_rules_internal.recommendation_reviews(id,organization_id,project_id,recommendation_id,actor_id,operation_receipt_id,note,occurred_at)
+VALUES (pg_temp.u(91),pg_temp.u(1),pg_temp.u(41),pg_temp.u(117),pg_temp.u(21),pg_temp.u(118),'Synthetic review note',now());
+INSERT INTO pathways_rules_internal.lifecycle_events(id,organization_id,project_id,alert_id,actor_kind,actor_id,state_before,state_after,
+ operation_receipt_id,occurred_at)
+VALUES (pg_temp.u(120),pg_temp.u(1),pg_temp.u(41),pg_temp.u(116),'HUMAN',pg_temp.u(21),'NEW','REVIEWED',pg_temp.u(118),now());
+RESET session_replication_role;
+SELECT pg_temp.ok('the f10 cycle is closed', (SELECT d.private_review_id=r.id FROM pathways.decision_recommendations d
+ JOIN pathways_rules_internal.recommendation_reviews r ON r.recommendation_id=d.id WHERE d.id=pg_temp.u(117)));
+
+-- restore: the point is captured again so it holds the f10 cycle, then organization A changes and is restored; organization B,
+-- staff, roles, organizations, recovery points and audit history stay as they were, and every guard comes back.
+CREATE FUNCTION pg_temp.point() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT current_setting('p91.point')::jsonb $$;
+CREATE FUNCTION pg_temp.restore_call(org_n integer, snapshot jsonb, counts jsonb) RETURNS text LANGUAGE sql STABLE AS $$
+ SELECT format('SELECT pathways.p91_restore_organization(%L,%L,%L)', pg_temp.u(org_n), snapshot, counts) $$;
+-- The rows a restore must never touch.
+CREATE FUNCTION pg_temp.kept() RETURNS jsonb LANGUAGE sql STABLE AS $$
+ SELECT jsonb_build_object(
+  'users',(SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM pathways.system_users u),
+  'pins',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p::text) FROM pathways.user_step_up_pins p),
+  'orgs',(SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM pathways.organizations o),
+  'roles',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM pathways.roles r),
+  'grants',(SELECT jsonb_agg(to_jsonb(g) ORDER BY g::text) FROM pathways.role_permissions g),
+  'points',(SELECT jsonb_agg(to_jsonb(q) ORDER BY q.id) FROM pathways.recovery_points q)) $$;
+-- Every user trigger in the database with its enabled state.
+CREATE FUNCTION pg_temp.triggers() RETURNS jsonb LANGUAGE sql STABLE AS $$
+ SELECT jsonb_agg(jsonb_build_array(tgrelid::regclass::text,tgname,tgenabled) ORDER BY tgrelid::regclass::text,tgname)
+ FROM pg_trigger WHERE NOT tgisinternal $$;
+-- Changes made after the point: project 44 with an assignment for 22, project 41 renamed and the f10 recommendation retitled
+-- (f10 rows keep review_note empty by their check).
+CREATE FUNCTION pg_temp.edit_after_point() RETURNS void LANGUAGE sql AS $$
+ INSERT INTO pathways.projects(id,organization_id,program_id,code,title,status,created_by_id)
+ VALUES (pg_temp.u(44),pg_temp.u(1),pg_temp.u(51),'P91-44','Synthetic backup project 44','PLANNED',pg_temp.u(21));
+ INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id)
+ VALUES (pg_temp.u(96),pg_temp.u(1),pg_temp.u(44),pg_temp.u(22),pg_temp.u(21));
+ UPDATE pathways.projects SET title='Synthetic backup project 41 renamed' WHERE id=pg_temp.u(41);
+ UPDATE pathways.decision_recommendations SET title='Synthetic recommendation retitled' WHERE id=pg_temp.u(117);
+$$;
+SELECT pg_temp.ok('replication role is origin before the second capture', current_setting('session_replication_role')='origin');
+SELECT pg_temp.act_as(21); SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT set_config('p91.point', pathways.p91_capture_organization(pg_temp.u(1))::text, true);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('point holds the f10 cycle', (pg_temp.point()->'rowCounts'->>'pathways_rules_internal.recommendation_reviews')::int=1
+ AND (pg_temp.point()->'rowCounts'->>'pathways_rules_internal.lifecycle_events')::int=1
+ AND (pg_temp.point()->'rowCounts'->>'pathways.alert_rules')::int=1);
+SELECT set_config('p91.b', pg_temp.org_rows(2)::text, true);
+SELECT set_config('p91.keep', pg_temp.kept()::text, true);
+SELECT set_config('p91.triggers', pg_temp.triggers()::text, true);
+SELECT set_config('p91.audit_before', (SELECT count(*) FROM pathways.audit_logs WHERE organization_id=pg_temp.u(1))::text, true);
+SET LOCAL session_replication_role = replica;
+SELECT pg_temp.edit_after_point();
+INSERT INTO pathways.audit_logs(id,organization_id,actor_user_id,project_id,action,entity_type,entity_id,changes)
+VALUES (pg_temp.u(97),pg_temp.u(1),pg_temp.u(21),pg_temp.u(44),'P91_FIXTURE','PROJECT',pg_temp.u(44)::text,'{}');
+RESET session_replication_role;
+SELECT pg_temp.ok('organization A changed after the point', (SELECT count(*)=3 FROM pathways.projects WHERE organization_id=pg_temp.u(1)));
+SELECT pg_temp.ok('replication role is origin before the restore', current_setting('session_replication_role')='origin');
+SELECT pg_temp.act_as(21); SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+-- A capture organization set by the caller must neither widen nor narrow what restore reads and writes.
+SELECT set_config('pathways.backup_capture_org', pg_temp.u(2)::text, true);
+SELECT pg_temp.same('restore returns the point counts', pathways.p91_restore_organization(pg_temp.u(1),
+ pg_temp.point(), pg_temp.point()->'rowCounts'), (pg_temp.point()->'rowCounts') - 'pathways.audit_logs');
+SELECT pg_temp.ok('restore clears the capture setting', coalesce(current_setting('pathways.backup_capture_org', true),'')='');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.same('organization A rows equal the point except audit history and job leases',
+ pg_temp.org_rows(1) - 'pathways.audit_logs' - 'pathways_rules_internal.jobs', (SELECT jsonb_object_agg(e.key,(SELECT coalesce(jsonb_agg(r ORDER BY r::text),'[]')
+ FROM jsonb_array_elements(e.value) r)) FROM jsonb_each(pg_temp.point()->'tables') e) - 'pathways.audit_logs' - 'pathways_rules_internal.jobs');
+SELECT pg_temp.same('jobs equal the point except the lease', (SELECT jsonb_agg(to_jsonb(j) - ARRAY['state','lease_hash','lease_session','lease_expires_at','claim_generation','claim_watermark','next_attempt_at'] ORDER BY j.id)
+ FROM pathways_rules_internal.jobs j WHERE organization_id=pg_temp.u(1)), (SELECT jsonb_agg(r - ARRAY['state','lease_hash','lease_session','lease_expires_at','claim_generation','claim_watermark','next_attempt_at'])
+ FROM jsonb_array_elements(pg_temp.point()->'tables'->'pathways_rules_internal.jobs') r));
+SELECT pg_temp.ok('bytea survives restore', (SELECT definition_digest=sha256('p91-rule') FROM pathways.alert_rules
+ WHERE organization_id=pg_temp.u(1) AND definition_digest IS NOT NULL));
+SELECT pg_temp.ok('microsecond timestamps survive restore', (SELECT as_of='2026-11-12 01:02:03.456789+00'::timestamptz
+ FROM pathways_rules_internal.snapshots WHERE id=pg_temp.u(114)));
+SELECT pg_temp.ok('changes after the point are gone', NOT EXISTS(SELECT FROM pathways.projects WHERE id=pg_temp.u(44))
+ AND NOT EXISTS(SELECT FROM pathways.user_project_assignments WHERE id=pg_temp.u(96))
+ AND (SELECT title='Synthetic backup project 41' FROM pathways.projects WHERE id=pg_temp.u(41))
+ AND (SELECT title='Synthetic recommendation' FROM pathways.decision_recommendations WHERE id=pg_temp.u(117)));
+SELECT pg_temp.same('organization B untouched', pg_temp.org_rows(2), current_setting('p91.b')::jsonb);
+SELECT pg_temp.ok('audit history kept, new row included', (SELECT count(*) FROM pathways.audit_logs WHERE organization_id=pg_temp.u(1))
+ =current_setting('p91.audit_before')::int+1 AND EXISTS(SELECT FROM pathways.audit_logs WHERE id=pg_temp.u(97)));
+SELECT pg_temp.same('staff, roles, organizations and recovery points untouched', pg_temp.kept(), current_setting('p91.keep')::jsonb);
+SELECT pg_temp.same('trigger states restored', pg_temp.triggers(), current_setting('p91.triggers')::jsonb);
+SELECT pg_temp.same('forced flags restored', pg_temp.forced_state(), current_setting('p91.forced')::jsonb);
+SELECT pg_temp.ok('sweep cursor stays forced', (SELECT relforcerowsecurity FROM pg_class WHERE oid='pathways_rules_internal.sweep_cursor'::regclass));
+SELECT pg_temp.ok('cycle constraints back and valid', (SELECT count(*)=2 FROM pg_constraint WHERE contype='f' AND convalidated AND
+ ((conrelid='pathways.budget_expense_entries'::regclass AND conname='budget_expense_entries_receipt_evidence_fkey')
+  OR (conrelid='pathways.decision_recommendations'::regclass AND conname='f10_private_review_scope'))));
+SELECT pg_temp.ok('lease cleared', (SELECT state='PENDING' AND lease_hash IS NULL AND lease_session IS NULL AND lease_expires_at IS NULL
+ AND claim_generation IS NULL AND claim_watermark IS NULL FROM pathways_rules_internal.jobs WHERE organization_id=pg_temp.u(1)));
+SELECT pg_temp.ok('sweep cursor reset', (SELECT last_organization_id IS NULL AND last_project_id IS NULL AND NOT exhausted
+ FROM pathways_rules_internal.sweep_cursor));
+SELECT pg_temp.ok('restore holds its table locks until the transaction ends', EXISTS(SELECT FROM pg_locks WHERE pid=pg_backend_pid()
+ AND relation='pathways.projects'::regclass AND mode='AccessExclusiveLock'));
+SELECT pg_temp.refused('guards are back on', format('DELETE FROM pathways.project_budget_records WHERE organization_id=%L', pg_temp.u(1)),
+ '23514', 'Preserve Phase 3 history; deletion is not permitted');
+-- A cursor in another organization is kept and an ALWAYS trigger comes back as ALWAYS; the savepoint undoes both, and the
+-- assertions inside it still stop the suite on failure although their count rolls back with it.
+SAVEPOINT s1;
+UPDATE pathways_rules_internal.sweep_cursor SET last_organization_id=pg_temp.u(2), last_project_id=pg_temp.u(43);
+ALTER TABLE pathways.project_budget_records ENABLE ALWAYS TRIGGER p3_no_delete;
+SELECT pg_temp.ok('replication role is origin before the savepoint restore', current_setting('session_replication_role')='origin');
+SELECT pg_temp.act_as(21); SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pathways.p91_restore_organization(pg_temp.u(1), pg_temp.point(), pg_temp.point()->'rowCounts');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('a cursor in another organization is kept', (SELECT last_organization_id=pg_temp.u(2) AND last_project_id=pg_temp.u(43)
+ FROM pathways_rules_internal.sweep_cursor));
+SELECT pg_temp.ok('an ALWAYS trigger stays ALWAYS', (SELECT tgenabled='A' FROM pg_trigger
+ WHERE tgrelid='pathways.project_budget_records'::regclass AND tgname='p3_no_delete'));
+ROLLBACK TO SAVEPOINT s1;
+SELECT pg_temp.same('the savepoint left trigger states as recorded', pg_temp.triggers(), current_setting('p91.triggers')::jsonb);
+
+-- restore_failure: a count mismatch undoes the whole restore, rows, triggers, forced flags and cycle keys included.
+SET LOCAL session_replication_role = replica;
+SELECT pg_temp.edit_after_point();
+RESET session_replication_role;
+SELECT set_config('p91.before_failure', pg_temp.org_rows(1)::text, true);
+SELECT pg_temp.ok('replication role is origin before the failing restore', current_setting('session_replication_role')='origin');
+SELECT pg_temp.act_as(21); SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.refused('a count mismatch undoes the restore', pg_temp.restore_call(1, pg_temp.point(), pg_temp.point()->'rowCounts'
+ || jsonb_build_object('pathways.projects', (pg_temp.point()->'rowCounts'->>'pathways.projects')::int+1)),
+ '23514', 'Restored row counts differ from the recovery point: pathways.projects');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.same('organization A rows are as before the failed restore', pg_temp.org_rows(1), current_setting('p91.before_failure')::jsonb);
+SELECT pg_temp.same('trigger states unchanged after the failure', pg_temp.triggers(), current_setting('p91.triggers')::jsonb);
+SELECT pg_temp.same('forced flags unchanged after the failure', pg_temp.forced_state(), current_setting('p91.forced')::jsonb);
+SELECT pg_temp.ok('cycle constraints unchanged after the failure', (SELECT count(*)=2 FROM pg_constraint WHERE contype='f' AND convalidated AND
+ ((conrelid='pathways.budget_expense_entries'::regclass AND conname='budget_expense_entries_receipt_evidence_fkey')
+  OR (conrelid='pathways.decision_recommendations'::regclass AND conname='f10_private_review_scope'))));
+
+-- restore_refusals: only an administrator of the organization restores it, the job login cannot call restore at all, and a
+-- point of another organization, migration or shape is incompatible.
+SELECT pg_temp.ok('replication role is origin before the refusals', current_setting('session_replication_role')='origin');
+SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.act_as(22);
+SELECT pg_temp.refused('project manager cannot restore', pg_temp.restore_call(1, pg_temp.point(), pg_temp.point()->'rowCounts'),
+ '42501', 'Backup access denied');
+SELECT pg_temp.act_as(31,2);
+SELECT pg_temp.refused('another organization administrator cannot restore', pg_temp.restore_call(1, pg_temp.point(), pg_temp.point()->'rowCounts'),
+ '42501', 'Backup access denied');
+SELECT pg_temp.act_as(21);
+SELECT pg_temp.refused('administrator cannot restore another organization', pg_temp.restore_call(2, pg_temp.point(), pg_temp.point()->'rowCounts'),
+ '42501', 'Backup access denied');
+SELECT pg_temp.act_as_job();
+SELECT pg_temp.refused('no-user runtime cannot restore', pg_temp.restore_call(1, pg_temp.point(), pg_temp.point()->'rowCounts'),
+ '42501', 'Backup access denied');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.act_as_job();
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT pg_temp.refused('job login cannot restore', pg_temp.restore_call(1, pg_temp.point(), pg_temp.point()->'rowCounts'),
+ '42501', 'permission denied');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.act_as(21); SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT pg_temp.refused('a point of another organization is incompatible', pg_temp.restore_call(1,
+ pg_temp.point() || jsonb_build_object('organizationId', pg_temp.u(2)), pg_temp.point()->'rowCounts'),
+ '22023', 'Recovery point is incompatible: organization');
+SELECT pg_temp.refused('a row of another organization is incompatible', pg_temp.restore_call(1,
+ jsonb_set(pg_temp.point(), '{tables,pathways.projects,0,organization_id}', to_jsonb(pg_temp.u(2))), pg_temp.point()->'rowCounts'),
+ '22023', 'Recovery point is incompatible: organization');
+SELECT pg_temp.refused('a point of another migration is incompatible', pg_temp.restore_call(1,
+ pg_temp.point() || '{"migration":"0088_smart_mapping_v5"}', pg_temp.point()->'rowCounts'),
+ '22023', 'Recovery point is incompatible: migration');
+SELECT pg_temp.refused('a point missing a table is incompatible', pg_temp.restore_call(1,
+ pg_temp.point() #- '{tables,pathways.projects}', pg_temp.point()->'rowCounts'),
+ '22023', 'Recovery point is incompatible: tables');
+SELECT pg_temp.refused('a point of another format is incompatible', pg_temp.restore_call(1,
+ pg_temp.point() || '{"format":"v0"}', pg_temp.point()->'rowCounts'),
+ '22023', 'Recovery point is incompatible: format');
+SELECT pg_temp.refused('counts missing a table are incompatible', pg_temp.restore_call(1,
+ pg_temp.point(), (pg_temp.point()->'rowCounts') - 'pathways.projects'),
+ '22023', 'Recovery point is incompatible: counts');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('restore function definition', (SELECT pg_get_userbyid(proowner)='pathways_backup_owner' AND prosecdef AND provolatile='v'
+ AND proconfig=ARRAY['search_path=""','lock_timeout=5s'] FROM pg_proc WHERE oid='pathways.p91_restore_organization(uuid,jsonb,jsonb)'::regprocedure));
+SELECT pg_temp.same('restore function execute', (SELECT pg_temp.grants(proacl) FROM pg_proc WHERE oid='pathways.p91_restore_organization(uuid,jsonb,jsonb)'::regprocedure),
+ '["pathways_backup_owner:EXECUTE","pathways_runtime:EXECUTE"]');
+SELECT pg_temp.ok('job login cannot execute restore', NOT has_function_privilege('pathways_backup_job','pathways.p91_restore_organization(uuid,jsonb,jsonb)','EXECUTE'));
 
 SELECT 'BACKUP_RECOVERY_RUNTIME=PASS ('||current_setting('p91.passed')||')' AS result \gset
 ROLLBACK;
