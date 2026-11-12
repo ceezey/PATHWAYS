@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { PrismaService } from '../../prisma/prisma.service'
 import { PasswordRecoveryService } from './password-recovery.service'
 
 const provider = vi.hoisted(() => ({
@@ -32,11 +34,14 @@ const claims = () => ({
   session_id: sessionId,
   sub: userId,
 })
+const db = { $queryRaw: vi.fn() }
+const service = () => new PasswordRecoveryService(db as unknown as PrismaService)
 const complete = (authorization: string | undefined = bearer) =>
-  new PasswordRecoveryService().complete(authorization, password)
+  service().complete(authorization, password)
 
 describe('PasswordRecoveryService', () => {
   beforeEach(() => {
+    db.$queryRaw.mockReset().mockResolvedValue([{ s: 0 }])
     vi.stubEnv('SUPABASE_URL', 'https://synthetic.supabase.co')
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'server-only-synthetic-key')
     provider.createClient.mockReset().mockReturnValue({
@@ -76,12 +81,43 @@ describe('PasswordRecoveryService', () => {
     await expect(complete()).resolves.toEqual({ ok: true, sessionsClosed: true })
   })
 
+  it('records the completed reset once for the token subject', async () => {
+    await expect(complete()).resolves.toEqual({ ok: true, sessionsClosed: true })
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1)
+    const [strings, ...values] = db.$queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]]
+    expect(strings.join('?')).toContain('pathways.p90_record_password_reset(?::uuid)')
+    expect(values).toEqual([userId])
+  })
+
+  it('records nothing when the password was not changed', async () => {
+    provider.updateUserById.mockResolvedValueOnce({ data: { user: null }, error: { status: 422 } })
+    await expect(complete()).rejects.toBeInstanceOf(BadRequestException)
+    expect(db.$queryRaw).not.toHaveBeenCalled()
+  })
+
+  it('still reports success when recording fails', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    db.$queryRaw.mockRejectedValueOnce(new Error('synthetic database failure'))
+    await expect(complete()).resolves.toEqual({ ok: true, sessionsClosed: true })
+    expect(warn).toHaveBeenCalledExactlyOnceWith({ event: 'PATHWAYS_PASSWORD_RESET_AUDIT_FAILED' })
+    warn.mockRestore()
+  })
+
+  it('records an invite first password the same way', async () => {
+    provider.getClaims.mockResolvedValueOnce({
+      data: { claims: { ...claims(), amr: [{ method: 'invite', timestamp: Date.now() / 1000 }] } },
+      error: null,
+    })
+    await expect(complete()).resolves.toEqual({ ok: true, sessionsClosed: true })
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1)
+  })
+
   it.each([undefined, '', token, 'Basic abc', 'Bearer not-a-jwt', `Bearer ${token} extra`])(
     'rejects a missing or malformed bearer token before Auth (%s)',
     async (authorization) => {
-      await expect(
-        new PasswordRecoveryService().complete(authorization, password),
-      ).rejects.toBeInstanceOf(UnauthorizedException)
+      await expect(service().complete(authorization, password)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      )
       expect(provider.createClient).not.toHaveBeenCalled()
     },
   )
