@@ -16,11 +16,8 @@ import { OwnPasswordDialog, type PasswordStep } from './own-password-dialog'
 
 const UNCERTAIN =
   'The password change could not be confirmed. Sign in with the new password before trying again.'
-const REAUTH_CODES = new Set([
-  'reauthentication_needed',
-  'reauthentication_not_valid',
-  'reauth_nonce_missing',
-])
+const STEP_UP_NEEDED = 'Verify your authenticator again, then choose a new password.'
+const REFUSED = 'The password was not changed. Choose a different password.'
 
 export function OwnPasswordForm() {
   const { session, signOut } = useSession()
@@ -126,23 +123,26 @@ export function OwnPasswordForm() {
       if (!session || !subject || !client) throw new Error('verification')
       const verified = await run(() => client.auth.getUser())
       if (verified.error || verified.data.user?.id !== subject) throw new Error('verification')
+      // The fresh AAL2 token lives only in the isolated verified client.
+      const token = (await run(() => client.auth.getSession())).data.session?.access_token
+      if (!token) throw new Error('verification')
       await run(() => ownProfileClient.read())
       assertCurrent()
       mutationStarted = true
-      const result = await client.auth.updateUser({ password: parsed.data.password })
-      if (!isCurrent()) return
-      if (result.error) {
-        close()
-        if (REAUTH_CODES.has(result.error.code ?? '')) {
-          // Auth definitely refused the change, so a retry after a fresh sign-in is safe.
-          setNotice('For security, sign out and sign in again, then change your password.')
+      try {
+        await ownProfileClient.changePassword(parsed.data.password, token, isCurrent)
+      } catch (error) {
+        if (!isCurrent()) return
+        const status = (error as { status?: number }).status
+        // A 400 or 403 is a definite refusal, so a retry is safe.
+        if (status === 403 || status === 400) {
+          close()
+          setNotice(status === 403 ? STEP_UP_NEEDED : REFUSED)
           return
         }
-        // Auth may have committed before a transport failure. Never invite a blind retry.
-        setUncertain(true)
-        setNotice(UNCERTAIN)
-        return
+        throw error
       }
+      if (!isCurrent()) return
       setUncertain(true)
       close()
       setNotice('Password changed. Signing out; sign in again with your new password.')
