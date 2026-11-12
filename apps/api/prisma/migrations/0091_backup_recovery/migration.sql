@@ -11,6 +11,7 @@
 -- It then adds pathways.recovery_points with its row security and the two actor checks p91_backup_actor and p91_backup_job_actor.
 -- It then adds p91_current_migration for the runtime and the six p91_job_* functions, the only entry of the daily job login.
 -- It then adds p91_backup_tables, the ordered organization table list, owned by the backup owner.
+-- It then adds p91_capture_organization, owned by the backup owner, and its capture select policies on the forced tables.
 BEGIN;
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='60s';
@@ -436,6 +437,61 @@ $$;
 REVOKE ALL ON FUNCTION pathways.p91_backup_tables() FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION pathways.p91_backup_tables() TO pathways_runtime;
 RESET ROLE;
+
+-- 10. Capture: one organization's rows of every listed table as JSON, read with ACCESS SHARE locks only. The backup owner
+-- reads unforced tables as their owner and forced ones through p91_backup_capture_select, which matches only the organization
+-- this function puts in a transaction-local setting; no other role is subject to those policies, so setting it gains nothing.
+SET LOCAL ROLE pathways_backup_owner;
+CREATE FUNCTION pathways.p91_capture_organization(wanted_org uuid) RETURNS jsonb
+ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '' SET lock_timeout TO '5s' AS $$
+DECLARE t record; blocked text; found_rows jsonb; tables jsonb := '{}'; counts jsonb := '{}';
+BEGIN
+ IF current_setting('transaction_isolation') NOT IN ('repeatable read','serializable') THEN
+  RAISE EXCEPTION 'Recovery point capture requires a repeatable read transaction' USING ERRCODE='25001'; END IF;
+ IF NOT coalesce((wanted_org = nullif(current_setting('app.organization_id',true),'')::uuid
+   AND pathways.p91_backup_actor(ARRAY['backups.create','backups.restore'])) OR pathways.p91_backup_job_actor(wanted_org), false)
+ THEN RAISE EXCEPTION 'Backup access denied' USING ERRCODE='42501'; END IF;
+ IF NOT pg_try_advisory_xact_lock(910091, hashtext(wanted_org::text)) THEN
+  RAISE EXCEPTION 'Backup or restore already running' USING ERRCODE='55P03'; END IF;
+ -- A forced table without its capture policy would read as empty, so it stops the capture like a missing table.
+ SELECT b.table_name INTO blocked FROM pathways.p91_backup_tables() b
+  LEFT JOIN pg_catalog.pg_class c ON c.oid = to_regclass(b.table_name)
+  WHERE c.oid IS NULL OR NOT pg_has_role(current_user, c.relowner, 'USAGE')
+   OR (c.relforcerowsecurity AND NOT EXISTS(SELECT FROM pg_catalog.pg_policy p
+    WHERE p.polrelid = c.oid AND p.polname = 'p91_backup_capture_select'))
+  ORDER BY b.table_order LIMIT 1;
+ IF blocked IS NOT NULL THEN RAISE EXCEPTION 'Backup owner cannot manage %', blocked USING ERRCODE='55000'; END IF;
+ PERFORM set_config('pathways.backup_capture_org', wanted_org::text, true);
+ FOR t IN SELECT b.table_name FROM pathways.p91_backup_tables() b ORDER BY b.table_order LOOP
+  EXECUTE format('SELECT coalesce(jsonb_agg(to_jsonb(r)), ''[]'') FROM %s r WHERE r.organization_id = $1', to_regclass(t.table_name))
+   INTO found_rows USING wanted_org;
+  tables := tables || jsonb_build_object(t.table_name, found_rows);
+  counts := counts || jsonb_build_object(t.table_name, jsonb_array_length(found_rows));
+ END LOOP;
+ PERFORM set_config('pathways.backup_capture_org', '', true);
+ RETURN jsonb_build_object('format', 'pathways.recovery-point.v1', 'organizationId', wanted_org,
+  'migration', pathways.p91_current_migration(), 'capturedAt', transaction_timestamp(), 'tables', tables, 'rowCounts', counts);
+END $$;
+REVOKE ALL ON FUNCTION pathways.p91_capture_organization(uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION pathways.p91_capture_organization(uuid) TO pathways_runtime, pathways_backup_job;
+RESET ROLE;
+-- Each forced listed table's owner adds its capture policy; the list is read as the backup owner and kept for the postcondition.
+DO $$ DECLARE listed text[]; forced record; BEGIN
+ EXECUTE 'SET LOCAL ROLE pathways_backup_owner';
+ listed := ARRAY(SELECT table_name FROM pathways.p91_backup_tables());
+ EXECUTE 'RESET ROLE';
+ PERFORM pg_catalog.set_config('pathways_0091.capture_tables', '', true);
+ FOR forced IN SELECT n.nspname, c.relname, pg_catalog.pg_get_userbyid(c.relowner) AS owner
+  FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname||'.'||c.relname = ANY(listed) AND c.relforcerowsecurity ORDER BY 1, 2 LOOP
+  EXECUTE pg_catalog.format('SET LOCAL ROLE %I', forced.owner);
+  EXECUTE pg_catalog.format('CREATE POLICY p91_backup_capture_select ON %I.%I AS PERMISSIVE FOR SELECT TO pathways_backup_owner'
+   ' USING (organization_id = nullif(current_setting(''pathways.backup_capture_org'', true), '''')::uuid)', forced.nspname, forced.relname);
+  EXECUTE 'RESET ROLE';
+  PERFORM pg_catalog.set_config('pathways_0091.capture_tables',
+   pg_catalog.concat_ws(',', nullif(pg_catalog.current_setting('pathways_0091.capture_tables'), ''), forced.nspname||'.'||forced.relname), true);
+ END LOOP;
+END $$;
 REVOKE USAGE, CREATE ON SCHEMA pathways FROM pathways_backup_owner;
 
 -- Postconditions: the widened bodies, owners, invoker mode, volatility, empty search_path, the saved ACLs and no lent CREATE.
@@ -493,13 +549,40 @@ DO $$ DECLARE fn record; BEGIN
      ||':'||a.is_grantable::text AS e FROM pg_catalog.aclexplode(p.proacl) a) s)
     IS NOT DISTINCT FROM ARRAY['pathways_backup_owner:EXECUTE:false','pathways_runtime:EXECUTE:false'])
   OR pg_catalog.has_schema_privilege('pathways_backup_owner','pathways','CREATE')
+  OR pg_catalog.has_schema_privilege('pathways_backup_owner','pathways','USAGE')
  THEN RAISE EXCEPTION '0091 pathways.p91_backup_tables() postcondition failed'; END IF;
+ -- Capture is a backup owner definer executable by the runtime and the job login alone.
+ IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure('pathways.p91_capture_organization(uuid)')
+   AND pg_catalog.pg_get_userbyid(p.proowner)='pathways_backup_owner' AND p.prosecdef AND p.provolatile='v'
+   AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""','lock_timeout=5s']
+   AND (SELECT pg_catalog.array_agg(s.e ORDER BY s.e) FROM (SELECT pg_catalog.pg_get_userbyid(a.grantee)||':'||a.privilege_type
+     ||':'||a.is_grantable::text AS e FROM pg_catalog.aclexplode(p.proacl) a) s)
+    IS NOT DISTINCT FROM ARRAY['pathways_backup_job:EXECUTE:false','pathways_backup_owner:EXECUTE:false','pathways_runtime:EXECUTE:false'])
+ THEN RAISE EXCEPTION '0091 pathways.p91_capture_organization(uuid) postcondition failed'; END IF;
+ -- Exactly one capture policy per forced listed table, permissive, SELECT only, for the backup owner, scoped by the setting.
+ IF pg_catalog.current_setting('pathways_0091.capture_tables')=''
+  OR (SELECT pg_catalog.array_agg(n.nspname||'.'||c.relname ORDER BY n.nspname||'.'||c.relname) FROM pg_catalog.pg_policy p
+   JOIN pg_catalog.pg_class c ON c.oid=p.polrelid JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+   WHERE p.polname='p91_backup_capture_select')
+   IS DISTINCT FROM (SELECT pg_catalog.array_agg(x ORDER BY x) FROM pg_catalog.unnest(
+    pg_catalog.string_to_array(pg_catalog.current_setting('pathways_0091.capture_tables'),',')) x)
+  OR EXISTS(SELECT FROM pg_catalog.pg_policy p JOIN pg_catalog.pg_class c ON c.oid=p.polrelid WHERE p.polname='p91_backup_capture_select'
+   AND NOT (c.relforcerowsecurity AND p.polcmd='r' AND p.polpermissive AND p.polwithcheck IS NULL
+    AND p.polroles=ARRAY['pathways_backup_owner'::pg_catalog.regrole::oid]
+    AND pg_catalog.pg_get_expr(p.polqual,p.polrelid)='(organization_id = (NULLIF(current_setting(''pathways.backup_capture_org''::text, true), ''''::text))::uuid)'))
+ THEN RAISE EXCEPTION '0091 capture policy postcondition failed'; END IF;
  IF NOT pg_catalog.has_schema_privilege('pathways_backup_job','pathways','USAGE')
   OR pg_catalog.has_schema_privilege('pathways_backup_job','pathways','CREATE')
   OR EXISTS(SELECT FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
-   WHERE n.nspname IN ('pathways','pathways_rules_internal') AND c.relkind IN ('r','p','v','m','f')
+   WHERE n.nspname IN ('pathways','pathways_rules_internal') AND c.relkind IN ('r','p','v','m','f','S')
     AND (pg_catalog.has_table_privilege('pathways_backup_job',c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-     OR pg_catalog.has_any_column_privilege('pathways_backup_job',c.oid,'SELECT,INSERT,UPDATE,REFERENCES')))
+     OR pg_catalog.has_any_column_privilege('pathways_backup_job',c.oid,'SELECT,INSERT,UPDATE,REFERENCES')
+     OR CASE WHEN c.relkind='S' THEN pg_catalog.has_sequence_privilege('pathways_backup_job',c.oid,'USAGE') ELSE false END))
+  -- The job login executes the six job functions and capture, and no other function in either schema.
+  OR EXISTS(SELECT FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname IN ('pathways','pathways_rules_internal') AND pg_catalog.has_function_privilege('pathways_backup_job',p.oid,'EXECUTE')
+    AND p.proname NOT IN ('p91_job_organizations','p91_job_begin_point','p91_job_finish_point','p91_job_fail_point',
+     'p91_job_retention_points','p91_job_delete_point','p91_capture_organization'))
  THEN RAISE EXCEPTION '0091 backup job privilege postcondition failed'; END IF;
 END $$;
 COMMIT;

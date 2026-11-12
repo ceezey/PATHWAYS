@@ -3,7 +3,7 @@
 -- against a disposable pathways_phase2_* or phase4/phase6 replay database that already has 0091 applied.
 -- Success prints BACKUP_RECOVERY_RUNTIME=PASS (n).
 \set ON_ERROR_STOP on
-BEGIN;
+BEGIN ISOLATION LEVEL REPEATABLE READ;
 
 DO $$ BEGIN
  IF current_database() !~ '^pathways_phase(2|4)_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
@@ -462,6 +462,14 @@ SELECT pg_temp.refused('runtime cannot begin a job point', format('SELECT pathwa
  '42501','permission denied');
 RESET SESSION AUTHORIZATION;
 DELETE FROM pathways.recovery_points WHERE id=pg_temp.u(202);
+-- Any open point of the organization makes the job busy, not only an automatic one.
+INSERT INTO pathways.recovery_points(id,organization_id,point_type,file_mode,created_by_id)
+VALUES (pg_temp.u(106),pg_temp.u(1),'MANUAL','manifest',pg_temp.u(21));
+SELECT pg_temp.act_as_job();
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT pg_temp.ok('an open manual point makes the job busy', pathways.p91_job_begin_point(pg_temp.u(1),'manifest') IS NULL);
+RESET SESSION AUTHORIZATION;
+DELETE FROM pathways.recovery_points WHERE id=pg_temp.u(106);
 SELECT pg_temp.ok('no point is left CREATING after the job checks', NOT EXISTS(SELECT FROM pathways.recovery_points WHERE status='CREATING'));
 
 -- table_list: the ordered list holds every organization table except the excluded ones, parents before children
@@ -486,7 +494,8 @@ SELECT pg_temp.ok('backup list is in foreign key order', NOT EXISTS(SELECT FROM 
  JOIN pathways.p91_backup_tables() ch ON ch.table_name=pg_temp.qname(k.conrelid)
  JOIN pathways.p91_backup_tables() pa ON pa.table_name=pg_temp.qname(k.confrelid)
  WHERE k.contype='f' AND k.conrelid<>k.confrelid AND pa.table_order>=ch.table_order
-  AND k.conname NOT IN ('budget_expense_entries_receipt_evidence_fkey','f10_private_review_scope')));
+  AND NOT ((k.conrelid='pathways.budget_expense_entries'::regclass AND k.conname='budget_expense_entries_receipt_evidence_fkey')
+   OR (k.conrelid='pathways.decision_recommendations'::regclass AND k.conname='f10_private_review_scope'))));
 SELECT pg_temp.same('only audit history skips restore', (SELECT jsonb_agg(table_name) FROM pathways.p91_backup_tables() WHERE NOT restore), '["pathways.audit_logs"]');
 SELECT pg_temp.ok('the backup owner manages every listed table', NOT EXISTS(SELECT FROM pathways.p91_backup_tables() t
  JOIN pg_class c ON c.oid=to_regclass(t.table_name) WHERE NOT pg_has_role('pathways_backup_owner', c.relowner, 'USAGE'))
@@ -499,6 +508,157 @@ SELECT pg_temp.ok('table list function ACL', (SELECT pg_get_userbyid(proowner)='
  AND NOT has_function_privilege('authenticated',oid,'EXECUTE') AND NOT has_function_privilege('service_role',oid,'EXECUTE')
  AND NOT has_function_privilege('pathways_backup_job',oid,'EXECUTE')
  FROM pg_proc WHERE oid='pathways.p91_backup_tables()'::regprocedure));
+
+-- fixtures: organization A holds every shape the round trip must keep (bytea, double precision, timestamp(3), enums, nested
+-- jsonb, a self reference and the first foreign key cycle); organization B holds a project, a pin and an audit row. Triggers
+-- are off while they load, so every row is written to satisfy its foreign keys by hand.
+SET LOCAL session_replication_role = replica;
+INSERT INTO pathways.programs(id,organization_id,code,name,status)
+VALUES (pg_temp.u(51),pg_temp.u(1),'P91-PROGRAM','Synthetic backup program','ONGOING');
+INSERT INTO pathways.projects(id,organization_id,program_id,code,title,status,created_by_id)
+VALUES (pg_temp.u(41),pg_temp.u(1),pg_temp.u(51),'P91-41','Synthetic backup project 41','ONGOING',pg_temp.u(21)),
+ (pg_temp.u(42),pg_temp.u(1),pg_temp.u(51),'P91-42','Synthetic backup project 42','PLANNED',pg_temp.u(21)),
+ (pg_temp.u(43),pg_temp.u(2),NULL,'P91-43','Synthetic backup project 43','PLANNED',pg_temp.u(31));
+INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id)
+VALUES (pg_temp.u(91),pg_temp.u(1),pg_temp.u(41),pg_temp.u(22),pg_temp.u(21));
+INSERT INTO pathways.beneficiaries(id,organization_id,code,display_name,created_by_id)
+VALUES (pg_temp.u(61),pg_temp.u(1),'P91-B61','Synthetic backup beneficiary',pg_temp.u(21));
+INSERT INTO pathways.journey_stages(id,organization_id,project_id,code,name,stage_order,parent_stage_id,created_by_id)
+VALUES (pg_temp.u(71),pg_temp.u(1),pg_temp.u(41),'P91-S71','Synthetic stage 71',1,NULL,pg_temp.u(21)),
+ (pg_temp.u(72),pg_temp.u(1),pg_temp.u(41),'P91-S72','Synthetic stage 72',2,pg_temp.u(71),pg_temp.u(21));
+INSERT INTO pathways.project_publications(organization_id,project_id,revision,state,last_operation,summary,snapshot,submitted_by_id,submitted_at)
+VALUES (pg_temp.u(1),pg_temp.u(41),1,'FOR_REVIEW','SUBMIT','Synthetic public summary',jsonb_build_object('id',pg_temp.u(41),
+ 'title','Synthetic backup project 41','code','P91-41','approvedSummary','Synthetic public summary','area','Synthetic area',
+ 'sector',NULL,'startDate',NULL,'endDate',NULL,'media','[]'::jsonb,'views',jsonb_build_array(jsonb_build_object('label','Reach',
+ 'values',jsonb_build_array(1,2.5,jsonb_build_object('nested',jsonb_build_array(true,NULL)))))),pg_temp.u(21),now());
+INSERT INTO pathways.project_map_pins(organization_id,project_id,place_name,province,longitude,latitude,updated_by_id)
+VALUES (pg_temp.u(1),pg_temp.u(41),'Synthetic place','Synthetic province',121.04371234567891,14.676041234567893,pg_temp.u(21)),
+ (pg_temp.u(2),pg_temp.u(43),'Synthetic place B','Synthetic province',123.5,10.25,pg_temp.u(31));
+INSERT INTO pathways.project_budget_records(id,organization_id,project_id,category,currency,planned_budget,recorded_by_id)
+VALUES (pg_temp.u(81),pg_temp.u(1),pg_temp.u(41),'OPERATIONS','PHP',1000.50,pg_temp.u(21));
+INSERT INTO pathways.budget_expense_entries(id,organization_id,project_id,budget_record_id,description,amount,expense_date,
+ receipt_evidence_id,submitted_by_id)
+VALUES (pg_temp.u(82),pg_temp.u(1),pg_temp.u(41),pg_temp.u(81),'Synthetic expense',100.25,current_date,pg_temp.u(83),pg_temp.u(21));
+INSERT INTO pathways.evidence_media(id,organization_id,project_id,expense_id,file_name,bucket,object_key,sha256,byte_size,
+ content_type,submitted_by_id)
+VALUES (pg_temp.u(83),pg_temp.u(1),pg_temp.u(41),pg_temp.u(82),'receipt.pdf','pathways-private',
+ format('organizations/%s/projects/%s/evidence/%s/receipt.pdf',pg_temp.u(1),pg_temp.u(41),pg_temp.u(83)),repeat('d',64),2048,
+ 'application/pdf',pg_temp.u(21));
+INSERT INTO pathways_rules_internal.project_state(organization_id,project_id) VALUES (pg_temp.u(1),pg_temp.u(41));
+INSERT INTO pathways_rules_internal.jobs(id,organization_id,project_id,pending_since,next_attempt_at,state,lease_hash,
+ lease_session,lease_expires_at,claim_generation,claim_watermark)
+VALUES (pg_temp.u(92),pg_temp.u(1),pg_temp.u(41),now(),now(),'LEASED',sha256('p91'::bytea),'pathways_rules_worker',
+ now()+interval '1 minute',0,0);
+INSERT INTO pathways.audit_logs(id,organization_id,actor_user_id,project_id,action,entity_type,entity_id,changes)
+VALUES (pg_temp.u(93),pg_temp.u(1),pg_temp.u(21),pg_temp.u(41),'P91_FIXTURE','PROJECT',pg_temp.u(41)::text,
+ '{"before":{"status":"PLANNED"},"after":{"status":"ONGOING","tags":["a","b"]}}'),
+ (pg_temp.u(94),pg_temp.u(1),NULL,NULL,'P91_FIXTURE','ORGANIZATION',NULL,NULL),
+ (pg_temp.u(95),pg_temp.u(2),pg_temp.u(31),pg_temp.u(43),'P91_FIXTURE','PROJECT',pg_temp.u(43)::text,'{}');
+INSERT INTO pathways.recovery_points(id,organization_id,point_type,status,file_mode,created_by_id,captured_at,completed_at,
+ migration_name,size_bytes,manifest_sha256)
+VALUES (pg_temp.u(105),pg_temp.u(1),'MANUAL','READY','manifest',pg_temp.u(21),now(),now(),current_setting('p91.migration'),
+ 4096,repeat('e',64));
+UPDATE pathways_rules_internal.sweep_cursor SET last_organization_id=pg_temp.u(1), last_project_id=pg_temp.u(41);
+RESET session_replication_role;
+-- Each listed table's FORCE ROW LEVEL SECURITY flag, keyed by table.
+CREATE FUNCTION pg_temp.forced_state() RETURNS jsonb LANGUAGE sql STABLE AS $$
+ SELECT jsonb_object_agg(t.table_name, c.relforcerowsecurity) FROM pathways.p91_backup_tables() t
+  JOIN pg_class c ON c.oid=to_regclass(t.table_name)
+$$;
+-- Every listed table with that organization's rows in a stable order, read as the superuser; empty tables give [].
+CREATE FUNCTION pg_temp.org_rows(org_n integer) RETURNS jsonb LANGUAGE plpgsql STABLE AS $$
+DECLARE t text; found_rows jsonb; result jsonb := '{}';
+BEGIN
+ FOR t IN SELECT table_name FROM pathways.p91_backup_tables() LOOP
+  EXECUTE format('SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),''[]'') FROM %s r WHERE r.organization_id=$1',t)
+   INTO found_rows USING pg_temp.u(org_n);
+  result := result || jsonb_build_object(t, found_rows);
+ END LOOP;
+ RETURN result;
+END $$;
+SELECT pg_temp.ok('fixtures load in organization A', (SELECT count(*)=2 FROM pathways.projects WHERE organization_id=pg_temp.u(1))
+ AND (SELECT count(*)=1 FROM pathways_rules_internal.jobs WHERE organization_id=pg_temp.u(1))
+ AND (SELECT last_project_id=pg_temp.u(41) FROM pathways_rules_internal.sweep_cursor));
+
+-- capture: an administrator captures organization A in full, forced tables included, without locking or unforcing a table;
+-- every other caller is refused, and the job login captures the same rows.
+SELECT set_config('p91.forced', pg_temp.forced_state()::text, true);
+SELECT set_config('p91.audit_count', (SELECT count(*) FROM pathways.audit_logs WHERE organization_id=pg_temp.u(1))::text, true);
+SELECT pg_temp.ok('triggers are on before capture', current_setting('session_replication_role')='origin');
+SELECT pg_temp.act_as(21); SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT set_config('p91.point', pathways.p91_capture_organization(pg_temp.u(1))::text, true);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.ok('point header', (SELECT p->>'format'='pathways.recovery-point.v1' AND p->>'organizationId'=pg_temp.u(1)::text
+ AND p->>'migration'=(SELECT max(migration_name) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL)
+ AND (p->>'capturedAt')::timestamptz=transaction_timestamp()
+ FROM (SELECT current_setting('p91.point')::jsonb p) x));
+SELECT pg_temp.same('point holds every listed table', (SELECT jsonb_agg(k ORDER BY k) FROM jsonb_object_keys(current_setting('p91.point')::jsonb->'tables') k),
+ (SELECT jsonb_agg(table_name ORDER BY table_name) FROM pathways.p91_backup_tables()));
+SELECT pg_temp.same('point counts every listed table', (SELECT jsonb_agg(k ORDER BY k) FROM jsonb_object_keys(current_setting('p91.point')::jsonb->'rowCounts') k),
+ (SELECT jsonb_agg(table_name ORDER BY table_name) FROM pathways.p91_backup_tables()));
+SELECT pg_temp.ok('counts match arrays', NOT EXISTS(SELECT FROM pathways.p91_backup_tables() t,
+ (SELECT current_setting('p91.point')::jsonb p) x WHERE (x.p->'rowCounts'->>t.table_name)::int <> jsonb_array_length(x.p->'tables'->t.table_name)));
+SELECT pg_temp.same('rows equal the database', (SELECT jsonb_object_agg(e.key,(SELECT coalesce(jsonb_agg(r ORDER BY r::text),'[]') FROM jsonb_array_elements(e.value) r))
+ FROM jsonb_each(current_setting('p91.point')::jsonb->'tables') e), pg_temp.org_rows(1));
+SELECT pg_temp.ok('no other organization row', NOT EXISTS(SELECT FROM jsonb_each(current_setting('p91.point')::jsonb->'tables') e,
+ jsonb_array_elements(e.value) r WHERE r->>'organization_id' <> pg_temp.u(1)::text));
+SELECT pg_temp.ok('forced tables read in full', (current_setting('p91.point')::jsonb->'rowCounts'->>'pathways.project_publications')::int=1
+ AND (current_setting('p91.point')::jsonb->'rowCounts'->>'pathways_rules_internal.jobs')::int=1
+ AND (current_setting('p91.point')::jsonb->'rowCounts'->>'pathways.project_map_pins')::int=1);
+SELECT pg_temp.ok('audit history captured', (current_setting('p91.point')::jsonb->'rowCounts'->>'pathways.audit_logs')::int
+ =current_setting('p91.audit_count')::int AND current_setting('p91.audit_count')::int>=2);
+SELECT pg_temp.ok('excluded tables absent', NOT (current_setting('p91.point')::jsonb->'tables' ?| ARRAY['pathways.system_users','pathways.recovery_points','pathways.user_step_up_pins']));
+SELECT pg_temp.ok('bytea and double precision kept exactly', (SELECT j->>'lease_hash'='\x'||encode(sha256('p91'::bytea),'hex')
+ FROM jsonb_array_elements(current_setting('p91.point')::jsonb->'tables'->'pathways_rules_internal.jobs') j)
+ AND (SELECT (m->>'longitude')::float8=121.04371234567891 AND (m->>'latitude')::float8=14.676041234567893
+ FROM jsonb_array_elements(current_setting('p91.point')::jsonb->'tables'->'pathways.project_map_pins') m));
+SELECT pg_temp.same('forced flags unchanged', pg_temp.forced_state(), current_setting('p91.forced')::jsonb);
+SELECT pg_temp.ok('capture takes no access exclusive lock', NOT EXISTS(SELECT FROM pg_locks l JOIN pathways.p91_backup_tables() t
+ ON l.relation=to_regclass(t.table_name) WHERE l.pid=pg_backend_pid() AND l.mode='AccessExclusiveLock'));
+SELECT pg_temp.ok('capture setting cleared', coalesce(current_setting('pathways.backup_capture_org', true),'')='');
+SELECT pg_temp.ok('every forced listed table has the capture policy', NOT EXISTS(SELECT FROM pathways.p91_backup_tables() t
+ JOIN pg_class c ON c.oid=to_regclass(t.table_name) WHERE c.relforcerowsecurity AND NOT EXISTS(SELECT FROM pg_policy p
+  WHERE p.polrelid=c.oid AND p.polname='p91_backup_capture_select' AND p.polcmd='r' AND p.polpermissive
+   AND p.polroles=ARRAY['pathways_backup_owner'::regrole::oid])));
+SELECT pg_temp.ok('capture policies only on forced listed tables', (SELECT count(*) FROM pg_policy WHERE polname='p91_backup_capture_select')
+ =(SELECT count(*) FROM pathways.p91_backup_tables() t JOIN pg_class c ON c.oid=to_regclass(t.table_name) WHERE c.relforcerowsecurity));
+SELECT pg_temp.ok('capture function definition', (SELECT pg_get_userbyid(proowner)='pathways_backup_owner' AND prosecdef AND provolatile='v'
+ AND proconfig=ARRAY['search_path=""','lock_timeout=5s'] FROM pg_proc WHERE oid='pathways.p91_capture_organization(uuid)'::regprocedure));
+SELECT pg_temp.same('capture function execute', (SELECT pg_temp.grants(proacl) FROM pg_proc WHERE oid='pathways.p91_capture_organization(uuid)'::regprocedure),
+ '["pathways_backup_job:EXECUTE","pathways_backup_owner:EXECUTE","pathways_runtime:EXECUTE"]');
+SELECT pg_temp.same('job login executes only the job functions and capture', (SELECT jsonb_agg(p.proname ORDER BY p.proname) FROM pg_proc p
+ JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('pathways','pathways_rules_internal')
+ AND has_function_privilege('pathways_backup_job',p.oid,'EXECUTE')),
+ '["p91_capture_organization","p91_job_begin_point","p91_job_delete_point","p91_job_fail_point","p91_job_finish_point","p91_job_organizations","p91_job_retention_points"]');
+-- The setting gives pathways_runtime nothing: only the backup owner is subject to the capture policies.
+SELECT pg_temp.act_as(31,2); SET LOCAL SESSION AUTHORIZATION pathways_runtime;
+SELECT set_config('pathways.backup_capture_org', pg_temp.u(1)::text, true);
+SELECT pg_temp.ok('capture setting opens nothing to the runtime', (SELECT count(*)=0 FROM pathways.project_publications WHERE organization_id=pg_temp.u(1)));
+SELECT set_config('pathways.backup_capture_org', '', true);
+-- Refusals: a user without a backups permission, another organization's administrator, the wrong organization id, the
+-- no-user runtime and the job login for an archived organization.
+SELECT pg_temp.act_as(22);
+SELECT pg_temp.refused('project manager cannot capture', format('SELECT pathways.p91_capture_organization(%L)',pg_temp.u(1)),'42501','Backup access denied');
+SELECT pg_temp.act_as(31,2);
+SELECT pg_temp.refused('another organization administrator cannot capture', format('SELECT pathways.p91_capture_organization(%L)',pg_temp.u(1)),'42501','Backup access denied');
+SELECT pg_temp.act_as(21);
+SELECT pg_temp.refused('administrator cannot capture another organization', format('SELECT pathways.p91_capture_organization(%L)',pg_temp.u(2)),'42501','Backup access denied');
+SELECT pg_temp.act_as_job();
+SELECT pg_temp.refused('no-user runtime cannot capture', format('SELECT pathways.p91_capture_organization(%L)',pg_temp.u(1)),'42501','Backup access denied');
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.act_as_job();
+SET LOCAL SESSION AUTHORIZATION pathways_backup_job;
+SELECT pg_temp.refused('job cannot capture an archived organization', format('SELECT pathways.p91_capture_organization(%L)',pg_temp.u(3)),'42501','Backup access denied');
+SELECT set_config('p91.job_capture', pathways.p91_capture_organization(pg_temp.u(1))::text, true);
+RESET SESSION AUTHORIZATION;
+SELECT pg_temp.same('job capture counts the same rows', current_setting('p91.job_capture')::jsonb->'rowCounts', current_setting('p91.point')::jsonb->'rowCounts');
+-- A forced table that lost its capture policy would read as empty, so capture stops; the refusal rolls the drop back.
+SELECT pg_temp.act_as(21);
+SELECT pg_temp.refused('a forced table without its capture policy stops capture', format($s$DROP POLICY p91_backup_capture_select
+ ON pathways.project_publications; SELECT pathways.p91_capture_organization(%L)$s$,pg_temp.u(1)),'55000',
+ 'Backup owner cannot manage pathways.project_publications');
+SELECT pg_temp.ok('the capture policy is back after the refusal', EXISTS(SELECT FROM pg_policy
+ WHERE polrelid='pathways.project_publications'::regclass AND polname='p91_backup_capture_select'));
 
 SELECT 'BACKUP_RECOVERY_RUNTIME=PASS ('||current_setting('p91.passed')||')' AS result \gset
 ROLLBACK;
