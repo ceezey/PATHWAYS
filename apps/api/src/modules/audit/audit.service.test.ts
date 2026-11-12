@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { BadRequestException, ForbiddenException } from '@nestjs/common'
-import { hasAtomicPermission } from '@pathways/shared'
+import { AUDIT_MODULES, hasAtomicPermission } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import type { PrismaService } from '../../prisma/prisma.service'
@@ -205,6 +205,100 @@ describe('audit projection and cursor boundary', () => {
     state.actor = { ...identity, permissions: [] }
     await expect(service.list(identity, {})).rejects.toThrow(ForbiddenException)
     expect(tx.project.findMany).not.toHaveBeenCalled()
+    expect(tx.auditLog.findMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('audit server filters', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.actor = identity
+    state.tx = tx
+    tx.project.findMany.mockResolvedValue([{ id: projectId }])
+    tx.auditLog.findMany.mockResolvedValue([])
+  })
+  it('narrows to a readable module on the server', async () => {
+    await service.list(identity, { module: 'projects' })
+    expect(tx.auditLog.findMany.mock.calls[0][0].where).toEqual({
+      organizationId: org,
+      entityType: {
+        in: ['Project', 'Program', 'ProjectMilestone', 'ProjectMapPin', 'ProjectPublication'],
+      },
+    })
+  })
+  it('Other means every entity type no module lists', async () => {
+    await service.list(identity, { module: 'other' })
+    const where = tx.auditLog.findMany.mock.calls[0][0].where
+    expect(where.entityType.notIn).toContain('Project')
+    expect(where.entityType.notIn).toHaveLength(
+      AUDIT_MODULES.flatMap((m) => [...m.entityTypes]).length,
+    )
+  })
+  it('turns Manila business dates into an inclusive day range', async () => {
+    await service.list(identity, { from: '2026-09-28', to: '2026-09-28' })
+    expect(tx.auditLog.findMany.mock.calls[0][0].where).toEqual({
+      organizationId: org,
+      occurredAt: {
+        gte: new Date('2026-09-27T16:00:00.000Z'),
+        lt: new Date('2026-09-28T16:00:00.000Z'),
+      },
+    })
+  })
+  it.each([
+    [{ from: '2026-09-28' }, { gte: new Date('2026-09-27T16:00:00.000Z') }],
+    [{ to: '2026-09-28' }, { lt: new Date('2026-09-28T16:00:00.000Z') }],
+  ])('applies a one-sided date range %o', async (input, occurredAt) => {
+    await service.list(identity, input)
+    expect(tx.auditLog.findMany.mock.calls[0][0].where).toEqual({
+      organizationId: org,
+      occurredAt,
+    })
+  })
+  it('searches action, target and actor name case-insensitively', async () => {
+    await service.list(identity, { q: ' project_upd ' })
+    const c = { contains: 'project_upd', mode: 'insensitive' }
+    expect(tx.auditLog.findMany.mock.calls[0][0].where).toEqual({
+      organizationId: org,
+      AND: [{ OR: [{ action: c }, { entityId: c }, { actor: { is: { fullName: c } } }] }],
+    })
+  })
+  it('matches an event or actor id exactly when the keyword is a UUID', async () => {
+    await service.list(identity, { q: userId.toUpperCase() })
+    const or = tx.auditLog.findMany.mock.calls[0][0].where.AND[0].OR
+    expect(or).toContainEqual({ id: userId })
+    expect(or).toContainEqual({ actorUserId: userId })
+  })
+  it('keeps cursor pagination when filters are set', async () => {
+    const cursor = `${instant.toISOString()}|${row('2').id}`
+    await service.list(identity, { module: 'projects', q: 'PROJECT', cursor, limit: 2 })
+    expect(tx.auditLog.findMany.mock.calls[0][0]).toMatchObject({
+      where: {
+        organizationId: org,
+        entityType: { in: expect.any(Array) },
+        AND: [{ OR: expect.any(Array) }],
+        OR: [{ occurredAt: { lt: instant } }, { occurredAt: instant, id: { lt: row('2').id } }],
+      },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: 3,
+    })
+  })
+  it('keeps a manager project scope under a module filter', async () => {
+    state.actor = { ...identity, roles: ['PROJECT_MANAGER'] }
+    await service.list(identity, { module: 'users' })
+    expect(tx.auditLog.findMany.mock.calls[0][0].where).toEqual({
+      organizationId: org,
+      projectId: { in: [projectId] },
+      entityType: { in: ['SystemUser', 'Authentication'] },
+    })
+  })
+  it.each([
+    { from: '2026-09-29', to: '2026-09-28' },
+    { module: 'Project' },
+    { q: '   ' },
+    { q: 'x'.repeat(101) },
+    { from: '2026-02-30' },
+  ])('rejects invalid filters %o before reading', async (input) => {
+    await expect(async () => service.list(identity, input)).rejects.toThrow(BadRequestException)
     expect(tx.auditLog.findMany).not.toHaveBeenCalled()
   })
 })

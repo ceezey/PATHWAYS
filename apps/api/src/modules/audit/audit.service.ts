@@ -1,21 +1,10 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common'
+import { AUDIT_MODULES, auditQuerySchema } from '@pathways/shared'
 import { z } from 'zod'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
 import { PrismaService } from '../../prisma/prisma.service'
-
-const auditQuerySchema = z
-  .object({
-    projectId: z.guid().optional(),
-    cursor: z
-      .string()
-      .max(80)
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[a-f0-9-]{36}$/i)
-      .optional(),
-    limit: z.coerce.number().int().min(1).max(100).default(50),
-  })
-  .strict()
 
 // Only these non-personal change keys leave the audit table; a new key needs a CR amendment.
 const detailKeys = new Map<string, readonly string[]>([
@@ -58,10 +47,39 @@ export class AuditService {
       const [at, afterId] = query.cursor?.split('|') ?? []
       if (at && (Number.isNaN(new Date(at).valueOf()) || !z.guid().safeParse(afterId).success))
         throw new BadRequestException('Invalid audit cursor.')
+      const listedTypes = AUDIT_MODULES.flatMap((m) => [...m.entityTypes])
+      const moduleTypes = AUDIT_MODULES.find((m) => m.key === query.module)?.entityTypes
+      // Asia/Manila is UTC+8 with no daylight saving time.
+      const manilaStart = (day: string) => Date.parse(`${day}T00:00:00.000+08:00`)
+      const range = {
+        ...(query.from ? { gte: new Date(manilaStart(query.from)) } : {}),
+        ...(query.to ? { lt: new Date(manilaStart(query.to) + 86_400_000) } : {}),
+      }
+      const text = (value: string) => ({ contains: value, mode: 'insensitive' as const })
       const rows = await tx.auditLog.findMany({
         where: {
           organizationId: actor.organizationId,
           ...(projects ? { projectId: { in: projects.map((project) => project.id) } } : {}),
+          ...(query.module === 'other' ? { entityType: { notIn: listedTypes } } : {}),
+          ...(moduleTypes?.length ? { entityType: { in: [...moduleTypes] } } : {}),
+          ...(query.from || query.to ? { occurredAt: range } : {}),
+          // The keyword sits under AND so the cursor's top-level OR is never replaced.
+          ...(query.q
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { action: text(query.q) },
+                      { entityId: text(query.q) },
+                      { actor: { is: { fullName: text(query.q) } } },
+                      ...(z.guid().safeParse(query.q).success
+                        ? [{ id: query.q.toLowerCase() }, { actorUserId: query.q.toLowerCase() }]
+                        : []),
+                    ],
+                  },
+                ],
+              }
+            : {}),
           ...(at
             ? {
                 OR: [
