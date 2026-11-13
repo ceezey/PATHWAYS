@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 import { BadRequestException, HttpException, ValidationPipe } from '@nestjs/common'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import type { PrismaService } from '../../prisma/prisma.service'
@@ -16,6 +16,10 @@ const pipe = new ValidationPipe({
 // The route path: the global pipe passes the zod-typed body through, then the zod pipe parses it.
 const validate = async (value: unknown) =>
   new ZodPipe(signInBody).transform(await pipe.transform(value, { type: 'body', metatype: Object }))
+
+const AUTH = '11111111-1111-4111-8111-111111111111'
+const ORG = '22222222-2222-4222-8222-222222222222'
+const USER = '33333333-3333-4333-8333-333333333333'
 
 // In-memory model of the 0046 functions: 5 failures lock, success resets.
 function harness(grants: PasswordGrant[]) {
@@ -37,17 +41,25 @@ function harness(grants: PasswordGrant[]) {
       return [{ s: null }]
     },
   }
-  const service = new SignInLockoutService(prisma as unknown as PrismaService)
+  const tx = { auditLog: { create: vi.fn() } }
+  const audit = {
+    discoverWorkspace: vi.fn().mockResolvedValue([{ userId: USER, organizationId: ORG }]),
+    withVerifiedContext: vi.fn((_ctx: unknown, work: (t: typeof tx) => unknown) => work(tx)),
+  }
+  const service = new SignInLockoutService({ ...prisma, ...audit } as unknown as PrismaService)
   const queue = [...grants]
   const grantCalls: string[] = []
   service.grant = async (email) => {
     grantCalls.push(email)
     return queue.shift() ?? { session: null, rejected: true }
   }
-  return { service, failures, locked, calls, grantCalls }
+  return { service, failures, locked, calls, grantCalls, prisma: audit, tx }
 }
 
-const ok: PasswordGrant = { session: { accessToken: 'a', refreshToken: 'r' }, rejected: false }
+const ok: PasswordGrant = {
+  session: { accessToken: 'a', refreshToken: 'r', authUserId: AUTH },
+  rejected: false,
+}
 const bad: PasswordGrant = { session: null, rejected: true }
 const status = async (promise: Promise<unknown>) =>
   promise.then(
@@ -110,6 +122,67 @@ describe('sign-in lockout (G-F1-10)', () => {
     const error = await service.signIn('secret@x.org', 'p').catch((e: unknown) => e)
     expect((error as HttpException).getStatus()).toBe(503)
     expect(JSON.stringify((error as HttpException).getResponse())).not.toContain('secret@x.org')
+  })
+})
+
+describe('SIGNED_IN audit', () => {
+  it('records SIGNED_IN once for the signed-in staff account and returns only the tokens', async () => {
+    const h = harness([ok])
+    await expect(h.service.signIn('a@x.org', 'right')).resolves.toEqual({
+      accessToken: 'a',
+      refreshToken: 'r',
+    })
+    expect(h.prisma.discoverWorkspace).toHaveBeenCalledWith(AUTH)
+    expect(h.prisma.withVerifiedContext).toHaveBeenCalledWith(
+      { authSubject: AUTH, organizationId: ORG, userId: USER },
+      expect.any(Function),
+    )
+    expect(h.tx.auditLog.create).toHaveBeenCalledTimes(1)
+    expect(h.tx.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        organizationId: ORG,
+        actorUserId: USER,
+        action: 'SIGNED_IN',
+        entityType: 'Authentication',
+        entityId: USER,
+      },
+    })
+  })
+
+  it('writes no row and still signs in when the account has no workspace', async () => {
+    const h = harness([ok])
+    h.prisma.discoverWorkspace.mockResolvedValue([])
+    await expect(h.service.signIn('a@x.org', 'right')).resolves.toEqual({
+      accessToken: 'a',
+      refreshToken: 'r',
+    })
+    expect(h.prisma.withVerifiedContext).not.toHaveBeenCalled()
+  })
+
+  it('writes no row when the account has several workspaces', async () => {
+    const h = harness([ok])
+    h.prisma.discoverWorkspace.mockResolvedValue([
+      { userId: USER, organizationId: ORG },
+      { userId: USER, organizationId: AUTH },
+    ])
+    await h.service.signIn('a@x.org', 'right')
+    expect(h.prisma.withVerifiedContext).not.toHaveBeenCalled()
+  })
+
+  it('a failed SIGNED_IN write still returns the session', async () => {
+    const h = harness([ok])
+    h.prisma.withVerifiedContext.mockRejectedValue(new Error('a@x.org leaked'))
+    await expect(h.service.signIn('a@x.org', 'right')).resolves.toEqual({
+      accessToken: 'a',
+      refreshToken: 'r',
+    })
+  })
+
+  it('wrong, locked and outage sign-ins write no SIGNED_IN row', async () => {
+    const h = harness([bad, { session: null, rejected: false }])
+    await status(h.service.signIn('a@x.org', 'wrong'))
+    await status(h.service.signIn('a@x.org', 'x'))
+    expect(h.prisma.discoverWorkspace).not.toHaveBeenCalled()
   })
 })
 

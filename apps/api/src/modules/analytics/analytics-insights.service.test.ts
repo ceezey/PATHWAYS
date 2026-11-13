@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common'
 import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { projectEnvelopeWhere, readProjectBudget } from '../projects/project-budget.service'
 import { AnalyticsInsightsController } from './analytics-insights.controller'
 import {
   currentMeasurements,
@@ -102,36 +103,58 @@ describe('currentMeasurements', () => {
 })
 
 describe('summarizeBudget', () => {
-  it('counts approved spend only and keeps pending separate', () => {
-    const [php] = summarizeBudget(
-      [{ currency: 'PHP', plannedBudget: 1000 }],
-      [
+  it('uses the envelope as planned, counts approved only and keeps awaiting approval apart', () => {
+    expect(
+      summarizeBudget({ currency: 'PHP', plannedBudget: 1000 }, [
         { currency: 'PHP', amount: 250.5, status: 'APPROVED' },
         { currency: 'PHP', amount: 100, status: 'PENDING' },
         { currency: 'PHP', amount: 40, status: 'VERIFIED' },
-      ],
-    )
-    expect(php).toEqual({
-      currency: 'PHP',
-      planned: 1000,
-      approved: 250.5,
-      pending: 140,
-      utilizationPercent: 25.1,
-    })
+      ]),
+    ).toEqual([
+      { currency: 'PHP', planned: 1000, approved: 250.5, pending: 140, utilizationPercent: 25.1 },
+    ])
   })
 
-  it('returns null utilization for a zero budget and splits currencies', () => {
-    const rows = summarizeBudget(
-      [{ currency: 'USD', plannedBudget: 0 }],
-      [
-        { currency: 'USD', amount: 10, status: 'APPROVED' },
-        { currency: 'PHP', amount: 5, status: 'APPROVED' },
-      ],
-    )
-    expect(rows.map((r) => r.currency)).toEqual(['PHP', 'USD'])
-    expect(rows.every((r) => r.utilizationPercent === null)).toBe(true)
+  it('reports planned null without an envelope', () => {
+    expect(summarizeBudget(null, [{ currency: 'PHP', amount: 5, status: 'APPROVED' }])).toEqual([
+      { currency: 'PHP', planned: null, approved: 5, pending: 0, utilizationPercent: null },
+    ])
+    expect(summarizeBudget(null, [])).toEqual([])
+  })
+
+  it('keeps an envelope row with no spending, nulls a zero envelope and splits currencies', () => {
+    expect(summarizeBudget({ currency: 'PHP', plannedBudget: 1000 }, [])[0]).toMatchObject({
+      approved: 0,
+      utilizationPercent: 0,
+    })
+    expect(
+      summarizeBudget({ currency: 'PHP', plannedBudget: 0 }, [])[0].utilizationPercent,
+    ).toBeNull()
+    const rows = summarizeBudget({ currency: 'PHP', plannedBudget: 100 }, [
+      { currency: 'USD', amount: 10, status: 'APPROVED' },
+    ])
+    expect(rows.map((r) => [r.currency, r.planned])).toEqual([
+      ['PHP', 100],
+      ['USD', null],
+    ])
   })
 })
+
+type ExpenseFixture = { amount: number; status: string; budgetRecord: { currency: string } }
+
+// Both the analytics read and the Budget tab read draw from this one list, so they cannot drift apart in a test.
+function expenseMocks(entries: ExpenseFixture[]) {
+  return {
+    findMany: vi.fn(async (_args: { where: Record<string, unknown> }) => entries),
+    aggregate: vi.fn(async ({ where }: { where: { status?: string } }) => ({
+      _sum: {
+        amount: entries
+          .filter((e) => e.status === where.status)
+          .reduce((sum, e) => sum + e.amount, 0),
+      },
+    })),
+  }
+}
 
 function harness(overrides: Record<string, unknown> = {}) {
   const tx = {
@@ -193,12 +216,15 @@ function harness(overrides: Record<string, unknown> = {}) {
         },
       ]),
     },
-    projectBudgetRecord: { findMany: vi.fn(async () => [{ currency: 'PHP', plannedBudget: 200 }]) },
-    budgetExpenseEntry: {
-      findMany: vi.fn(async () => [
-        { amount: 50, status: 'APPROVED', budgetRecord: { currency: 'PHP' } },
-      ]),
+    projectBudgetRecord: {
+      findFirst: vi.fn(async (_args: { where: Record<string, unknown> }) => ({
+        currency: 'PHP',
+        plannedBudget: 200,
+      })),
     },
+    budgetExpenseEntry: expenseMocks([
+      { amount: 50, status: 'APPROVED', budgetRecord: { currency: 'PHP' } },
+    ]),
     ...overrides,
   }
   vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, permission, work) => {
@@ -348,18 +374,64 @@ describe('AnalyticsInsightsService', () => {
     expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
   })
 
-  it('budget: reports approved-only utilization', async () => {
-    const { service } = harness()
+  it('budget: planned is the project envelope, never envelope plus allocations', async () => {
+    const { service, tx } = harness()
     const r = await service.budget(actor('PROJECT_MANAGER'), { projectId: projectA })
+    expect(tx.projectBudgetRecord.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: projectEnvelopeWhere(orgA, projectA) }),
+    )
     expect(r.currencies).toEqual([
       { currency: 'PHP', planned: 200, approved: 50, pending: 0, utilizationPercent: 25 },
     ])
   })
 
+  it('budget: counts spending over the whole project and ignores the period', async () => {
+    const { service, tx } = harness()
+    await service.budget(actor('PROJECT_MANAGER'), {
+      projectId: projectA,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+    })
+    expect(tx.budgetExpenseEntry.findMany.mock.calls[0][0].where).toEqual({
+      organizationId: orgA,
+      projectId: projectA,
+      status: { in: ['PENDING', 'VERIFIED', 'APPROVED'] },
+    })
+    expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
+    const [[audit]] = tx.auditLog.create.mock.calls as unknown as [[{ data: { changes: unknown } }]]
+    expect(JSON.stringify(audit.data.changes)).toContain('2026-01-01')
+  })
+
+  it('budget: reports planned null when the project has no total budget', async () => {
+    const { service } = harness({ projectBudgetRecord: { findFirst: vi.fn(async () => null) } })
+    const r = await service.budget(actor('PROJECT_MANAGER'), { projectId: projectA })
+    expect(r.currencies).toEqual([
+      { currency: 'PHP', planned: null, approved: 50, pending: 0, utilizationPercent: null },
+    ])
+  })
+
+  it('budget: planned and approved match the Budget tab (readProjectBudget)', async () => {
+    const { service, tx } = harness({
+      budgetExpenseEntry: expenseMocks([
+        { amount: 30, status: 'APPROVED', budgetRecord: { currency: 'PHP' } },
+        { amount: 20.5, status: 'APPROVED', budgetRecord: { currency: 'PHP' } },
+        { amount: 15, status: 'PENDING', budgetRecord: { currency: 'PHP' } },
+      ]),
+    })
+    const [row] = (await service.budget(actor('PROJECT_MANAGER'), { projectId: projectA }))
+      .currencies
+    const tab = await readProjectBudget(tx as never, orgA, projectA)
+    expect(row.planned).toBe(Number(tab.approvedBudget))
+    expect(row.approved).toBe(Number(tab.countableSpending))
+    expect(row.pending).toBe(15)
+    const [a, b] = tx.projectBudgetRecord.findFirst.mock.calls.map((c) => c[0].where)
+    expect(a).toEqual(b)
+  })
+
   it('maps a database fault to 503 and writes no audit row', async () => {
     const { service, tx } = harness({
       projectBudgetRecord: {
-        findMany: vi.fn(async () => {
+        findFirst: vi.fn(async () => {
           throw new Error('db down')
         }),
       },

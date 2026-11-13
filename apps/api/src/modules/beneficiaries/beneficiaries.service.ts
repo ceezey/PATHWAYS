@@ -15,6 +15,7 @@ import {
   type BeneficiaryResponse,
   type EnrollBeneficiaryRequest,
   type EnrollBeneficiaryResponse,
+  POSSIBLE_DUPLICATE,
   type RegisterBeneficiaryRequest,
   type RegistrationContextResponse,
   type UpdateBeneficiaryRequest,
@@ -29,7 +30,11 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { ageBandWhere, assertSubjectProfile } from './beneficiaries.helpers'
 import { mapBeneficiary, scopedIncludes } from './beneficiaries.mapper'
 import { canReadProgress, loadProgress } from './beneficiary-progress'
-import { businessToday, exactDate } from './beneficiary-registration.helpers'
+import {
+  businessToday,
+  exactDate,
+  possibleDuplicateBeneficiaryMessage,
+} from './beneficiary-registration.helpers'
 import { BeneficiaryRegistrationService } from './beneficiary-registration.service'
 import { loadRegistrationContext } from './registration-context.service'
 
@@ -224,10 +229,14 @@ export class BeneficiariesService {
           values: input.values,
           source: 'DIRECT_ENTRY',
           validatedById: actor.userId,
+          confirmDuplicate: input.confirmDuplicate === true,
         })
         if (outcome.kind === 'REVIEW') {
           throw new ConflictException({
-            message: 'Registration requires authorized identity review.',
+            message:
+              outcome.code === POSSIBLE_DUPLICATE
+                ? possibleDuplicateBeneficiaryMessage
+                : 'Registration requires authorized identity review.',
             code: outcome.code,
           })
         }

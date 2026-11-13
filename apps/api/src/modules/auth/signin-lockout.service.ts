@@ -3,12 +3,14 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
 import { createClient } from '@supabase/supabase-js'
 
 import { isApprovedServiceProtocol } from '@pathways/config'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { PrismaService } from '../../prisma/prisma.service'
 
 const SIGN_IN_LOCKED_CODE = 'SIGN_IN_LOCKED'
@@ -28,7 +30,8 @@ const signInLocked = (seconds: number) =>
   )
 
 export interface PasswordGrant {
-  session: { accessToken: string; refreshToken: string } | null
+  // authUserId stays inside the API; it is never returned to the caller.
+  session: { accessToken: string; refreshToken: string; authUserId: string } | null
   // True only for a definite credential rejection, never for an outage or provider rate limit.
   rejected: boolean
 }
@@ -64,6 +67,7 @@ export async function passwordGrant(email: string, password: string): Promise<Pa
         session: {
           accessToken: data.session.access_token,
           refreshToken: data.session.refresh_token,
+          authUserId: data.session.user.id,
         },
         rejected: false,
       }
@@ -96,7 +100,9 @@ export class SignInLockoutService {
         () => this.prisma.$queryRaw<Array<{ s: unknown }>>`
           SELECT 0 AS s FROM (SELECT pathways.signin_lockout_reset(${email}::text)) r`,
       )
-      return result.session
+      // Best effort: an unrecorded sign-in is logged, never a refused one.
+      await this.recordSignIn(result.session.authUserId)
+      return { accessToken: result.session.accessToken, refreshToken: result.session.refreshToken }
     }
     if (!result.rejected) throw new ServiceUnavailableException('Authentication is unavailable.')
     const locked = await this.db(
@@ -105,6 +111,29 @@ export class SignInLockoutService {
     )
     if (locked > 0) throw signInLocked(locked)
     throw new UnauthorizedException(INVALID_MESSAGE)
+  }
+
+  private async recordSignIn(authUserId: string): Promise<void> {
+    try {
+      const workspaces = await this.prisma.discoverWorkspace(authUserId)
+      const [selector] = workspaces
+      if (workspaces.length !== 1 || !selector) return
+      await this.prisma.withVerifiedContext(
+        {
+          authSubject: authUserId,
+          organizationId: selector.organizationId,
+          userId: selector.userId,
+        },
+        (tx) =>
+          writeAuditLog(tx, selector, {
+            action: 'SIGNED_IN',
+            entityType: 'Authentication',
+            entityId: selector.userId,
+          }),
+      )
+    } catch {
+      new Logger('SignInAudit').warn({ event: 'PATHWAYS_SIGN_IN_AUDIT_UNAVAILABLE' })
+    }
   }
 
   // Database errors can carry parameters, so they are collapsed to a fixed outage message.

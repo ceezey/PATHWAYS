@@ -89,6 +89,7 @@ TRUNCATE TABLE
   pathways.project_milestones,
   pathways.project_publications,
   pathways.projects,
+  pathways.public_project_views,
   pathways.publication_requests,
   pathways.reports,
   pathways.rule_based_alerts,

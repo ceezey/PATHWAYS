@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { strongPassword } from '../auth/auth-requests'
 import { lengthString, strictIsoDateString, trimmedInput } from '../common/field-schemas'
 
 const contactNumberPattern = /^(?:[+()\-\s0-9]{7,30})?$/
@@ -28,3 +29,7 @@ export const ownProfileResponse = z
   })
   .strict()
 export type OwnProfileResponse = z.infer<typeof ownProfileResponse>
+
+// Body of POST auth/password/change; the new password only, after a fresh authenticator check.
+export const changeOwnPasswordRequest = z.object({ password: strongPassword }).strict()
+export type ChangeOwnPasswordRequest = z.infer<typeof changeOwnPasswordRequest>

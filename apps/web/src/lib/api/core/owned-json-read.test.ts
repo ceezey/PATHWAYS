@@ -50,14 +50,14 @@ describe('Owned JSON read boundaries', () => {
   it('honors an already aborted read signal before dispatch', async () => {
     const controller = new AbortController()
     controller.abort()
-    await expect(auditClient.list(undefined, controller.signal)).rejects.toThrow(
+    await expect(auditClient.list({}, undefined, controller.signal)).rejects.toThrow(
       'Current workspace access',
     )
     expect(fetcher).not.toHaveBeenCalled()
   })
   it('refuses reads without a workspace cookie before dispatch', async () => {
     document.cookie = ''
-    await expect(auditClient.list()).rejects.toThrow('Current workspace access')
+    await expect(auditClient.list({})).rejects.toThrow('Current workspace access')
     expect(fetcher).not.toHaveBeenCalled()
   })
 
@@ -72,7 +72,7 @@ describe('Owned JSON read boundaries', () => {
         finish = resolve
       }),
     )
-    const rejection = expect(auditClient.list()).rejects.toThrow(
+    const rejection = expect(auditClient.list({})).rejects.toThrow(
       'Response ownership or format changed',
     )
     await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
@@ -90,14 +90,14 @@ describe('Owned JSON read boundaries', () => {
     const cancel = vi.spyOn(response.body, 'cancel')
     const read = vi.spyOn(response.body, 'getReader')
     fetcher.mockResolvedValueOnce(response)
-    await expect(auditClient.list()).rejects.toThrow('Response ownership or format changed')
+    await expect(auditClient.list({})).rejects.toThrow('Response ownership or format changed')
     expect(cancel).toHaveBeenCalledOnce()
     expect(read).not.toHaveBeenCalled()
   })
   it('drops a body that completes after logout and return to the same cookie owner', async () => {
     const delayed = delayedBody('application/json')
     fetcher.mockResolvedValueOnce(delayed.response)
-    const rejection = expect(auditClient.list()).rejects.toThrow('Response unavailable')
+    const rejection = expect(auditClient.list({})).rejects.toThrow('Response unavailable')
     await vi.waitFor(() => expect(delayed.read).toHaveBeenCalled())
     clearSensitiveDraftStorage()
     delayed.send(
@@ -110,7 +110,7 @@ describe('Owned JSON read boundaries', () => {
   it('cancels an oversized JSON body before parsing or accepting it', async () => {
     const delayed = delayedBody('application/json')
     fetcher.mockResolvedValueOnce(delayed.response)
-    const rejection = expect(auditClient.list()).rejects.toThrow('Response unavailable')
+    const rejection = expect(auditClient.list({})).rejects.toThrow('Response unavailable')
     await vi.waitFor(() => expect(delayed.read).toHaveBeenCalled())
     delayed.send(new Uint8Array(2_000_001))
     await rejection

@@ -1,4 +1,5 @@
 /* @vitest-environment jsdom */
+import { PathwaysClientError } from '@/lib/api/core/request'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,6 +7,7 @@ const state = vi.hoisted(() => ({
   signOut: vi.fn(),
   verify: vi.fn(),
   update: vi.fn(),
+  change: vi.fn(),
   reauthenticate: vi.fn(),
 }))
 const session = { user: { id: 'synthetic-a' } }
@@ -21,7 +23,7 @@ const role = {
 vi.mock('@/hooks/use-session', () => ({ useSession: () => ({ session, signOut: state.signOut }) }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => role }))
 vi.mock('@/lib/api/profile', () => ({
-  ownProfileClient: { read: vi.fn().mockResolvedValue({}) },
+  ownProfileClient: { read: vi.fn().mockResolvedValue({}), changePassword: state.change },
 }))
 vi.mock('../own-password-operation', async () => {
   const actual = await vi.importActual<typeof import('../own-password-operation')>(
@@ -34,6 +36,10 @@ vi.mock('../own-password-operation', async () => {
     createPasswordAuthClient: () => ({
       auth: {
         getUser: async () => user,
+        getSession: async () => ({
+          data: { session: { access_token: 'verified-token' } },
+          error: null,
+        }),
         reauthenticate: state.reauthenticate,
         mfa: {
           listFactors: async () => ({ data: { totp: [{ id: 'f1', status: 'verified' }] } }),
@@ -68,7 +74,7 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.clearAllMocks()
   state.verify.mockResolvedValue({ error: null })
-  state.update.mockResolvedValue({ error: null })
+  state.change.mockResolvedValue(undefined)
   state.signOut.mockResolvedValue(undefined)
 })
 
@@ -101,36 +107,41 @@ describe('Change password step-up modal', () => {
     await reachPasswordStep()
     fillPasswords(GOOD, `${GOOD}x`)
     expect(await screen.findByText('Passwords do not match.')).toBeTruthy()
-    expect(state.update).not.toHaveBeenCalled()
+    expect(state.change).not.toHaveBeenCalled()
   })
 
-  it('shows the sign-in-again message on reauthentication_needed without locking', async () => {
-    state.update.mockResolvedValue({ error: { code: 'reauthentication_needed', status: 401 } })
-    await reachPasswordStep()
-    fillPasswords(GOOD, GOOD)
-    expect(await screen.findByText(/sign out and sign in again/)).toBeTruthy()
-    expect(screen.queryByText(/could not be confirmed/)).toBeNull()
-    expect(state.signOut).not.toHaveBeenCalled()
-    expect(
-      (screen.getByRole('button', { name: 'Change password' }) as HTMLButtonElement).disabled,
-    ).toBe(false)
-  })
-
-  it('treats other update errors as uncertain and blocks retries', async () => {
-    state.update.mockResolvedValue({ error: { code: 'unexpected_failure', status: 500 } })
-    await reachPasswordStep()
-    fillPasswords(GOOD, GOOD)
-    expect(await screen.findByText(/could not be confirmed/)).toBeTruthy()
-    expect(
-      (screen.getByRole('button', { name: 'Change password' }) as HTMLButtonElement).disabled,
-    ).toBe(true)
-  })
-
-  it('updates the password and signs out on success', async () => {
+  it('changes the password through the API with the verified token, then signs out', async () => {
     await reachPasswordStep()
     fillPasswords(GOOD, GOOD)
     await waitFor(() => expect(state.signOut).toHaveBeenCalledTimes(1))
-    expect(state.update).toHaveBeenCalledWith({ password: GOOD })
+    expect(state.change).toHaveBeenCalledWith(GOOD, 'verified-token', expect.any(Function))
+    expect(state.update).not.toHaveBeenCalled()
     expect(await screen.findByText(/Password changed/)).toBeTruthy()
+  })
+
+  it.each([
+    [403, 'Verify your authenticator again, then choose a new password.'],
+    [400, 'The password was not changed. Choose a different password.'],
+  ])('a %s is a definite refusal that allows a retry', async (status, text) => {
+    state.change.mockRejectedValue(
+      new PathwaysClientError('x', status === 403 ? 'forbidden' : 'invalid', [], status),
+    )
+    await reachPasswordStep()
+    fillPasswords(GOOD, GOOD)
+    expect(await screen.findByText(text)).toBeTruthy()
+    expect(screen.queryByText(/could not be confirmed/)).toBeNull()
+    expect(state.signOut).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Change password' })).not.toHaveProperty(
+      'disabled',
+      true,
+    )
+  })
+
+  it('a 503 or network failure is uncertain and blocks retries', async () => {
+    state.change.mockRejectedValue(new PathwaysClientError('x', 'network', [], 503))
+    await reachPasswordStep()
+    fillPasswords(GOOD, GOOD)
+    expect(await screen.findByText(/could not be confirmed/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Change password' })).toHaveProperty('disabled', true)
   })
 })

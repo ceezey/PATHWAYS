@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common'
 import {
   type CreateProjectRequest,
+  POSSIBLE_DUPLICATE,
   type UpdateProjectRequest,
   hasAtomicPermission,
   projectCodeBase,
@@ -30,7 +31,7 @@ import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readProjectBudgets, saveProjectBudget } from './project-budget.service'
 import { replaceTeamAssignments } from './project-team.service'
-import { projectData } from './projects.helpers'
+import { duplicateProjectTitleMessage, projectData } from './projects.helpers'
 import { mapProject, projectSelection } from './projects.mapper'
 
 @Injectable()
@@ -135,6 +136,19 @@ export class ProjectsService {
     return withAuthorizedOperation(this.prisma, identity, 'projects.create', async (tx, actor) => {
       if (actor.roles[0] !== 'PROJECT_MANAGER') {
         throw new ForbiddenException('Project creation is outside your authority.')
+      }
+      if (input.confirmDuplicate !== true) {
+        const duplicate = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id::text FROM pathways.projects
+          WHERE organization_id = ${actor.organizationId}::uuid AND archived_at IS NULL
+            AND lower(btrim(title)) = lower(btrim(${input.title}))
+          LIMIT 1`
+        if (duplicate.length > 0) {
+          throw new ConflictException({
+            message: duplicateProjectTitleMessage,
+            code: POSSIBLE_DUPLICATE,
+          })
+        }
       }
       const id = randomUUID()
       const code = input.code ?? (await this.generateProjectCode(tx, actor.organizationId, input))

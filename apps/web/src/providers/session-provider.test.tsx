@@ -4,11 +4,12 @@ import type { Session } from '@supabase/supabase-js'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authState, validateRestoredSession } = vi.hoisted(() => ({
+const { authState, validateRestoredSession, recordSignOut } = vi.hoisted(() => ({
   authState: {
     callback: null as ((event: string, session: Session | null) => void) | null,
   },
   validateRestoredSession: vi.fn(),
+  recordSignOut: vi.fn().mockResolvedValue(undefined),
 }))
 
 const auth = {
@@ -24,6 +25,7 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => client,
 }))
 vi.mock('@/lib/supabase/session-restoration', () => ({ validateRestoredSession }))
+vi.mock('@/lib/auth/record-sign-out', () => ({ recordSignOut }))
 
 import { SessionProvider, useSessionContext } from './session-provider'
 
@@ -53,6 +55,8 @@ beforeEach(() => {
   window.sessionStorage.clear()
   window.localStorage.clear()
   validateRestoredSession.mockReset()
+  recordSignOut.mockClear()
+  recordSignOut.mockResolvedValue(undefined)
 })
 
 afterEach(() => cleanup())
@@ -73,6 +77,27 @@ describe('SessionProvider background validation', () => {
     expect(window.sessionStorage.getItem('pathways:sensitive-draft:v1:test')).toBeNull()
     expect(window.sessionStorage.getItem('unrelated')).toBe('keep')
     expect(screen.getByText('unauthenticated:none')).toBeTruthy()
+  })
+  it('records the sign-out with the current token before ending the Supabase session', async () => {
+    let finish = () => {}
+    recordSignOut.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve
+      }),
+    )
+    validateRestoredSession.mockResolvedValueOnce(session('token-1'))
+    render(
+      <SessionProvider>
+        <State />
+      </SessionProvider>,
+    )
+    await screen.findByText('authenticated:token-1')
+    fireEvent.click(screen.getByText('Sign out'))
+    expect(recordSignOut).toHaveBeenCalledWith('token-1', 'user-a')
+    expect(screen.getByText('unauthenticated:none')).toBeTruthy()
+    expect(auth.signOut).not.toHaveBeenCalled()
+    await act(async () => finish())
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' }))
   })
   it('keeps a verified same-subject session mounted until a refreshed token is validated', async () => {
     const initial = session('token-1')

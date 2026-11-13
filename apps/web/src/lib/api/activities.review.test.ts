@@ -181,4 +181,22 @@ describe('reviewActivityUpdate against the current API response shape', () => {
       expect(error).toMatchObject({ status, message })
     }
   })
+
+  it('keeps the API conflict code on a 409 as the error reason', async () => {
+    setup(
+      () =>
+        new Response(
+          JSON.stringify({ message: 'Possible duplicate.', code: 'POSSIBLE_DUPLICATE' }),
+          {
+            status: 409,
+          },
+        ),
+    )
+    const error = await review('RETURN').catch((caught: unknown) => caught)
+    expect(error).toMatchObject({
+      status: 409,
+      message: 'Possible duplicate.',
+      reason: 'POSSIBLE_DUPLICATE',
+    })
+  })
 })

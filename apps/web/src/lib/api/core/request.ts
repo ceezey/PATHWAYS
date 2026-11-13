@@ -26,6 +26,8 @@ export class PathwaysClientError extends Error {
     readonly status?: number,
     /** Set when the API requires a recent Beneficiary MFA step-up. */
     readonly stepUpRequired = false,
+    /** The API conflict code, such as POSSIBLE_DUPLICATE. */
+    readonly reason?: string,
   ) {
     super(message)
     this.name = 'PathwaysClientError'
@@ -88,6 +90,7 @@ export async function requestFoundationResponse(
   if (!response.ok) {
     let fieldErrors: FormValidationError[] = []
     let serverMessage: string | undefined
+    let reason: string | undefined
     if (
       response.status === 400 ||
       response.status === 403 ||
@@ -132,6 +135,7 @@ export async function requestFoundationResponse(
       if (typeof candidateMessage === 'string' && candidateMessage.length <= 300) {
         serverMessage = candidateMessage
       }
+      if (typeof body?.code === 'string' && body.code.length <= 64) reason = body.code
       if (Array.isArray(candidate) && candidate.length <= 100) {
         fieldErrors = candidate.filter(
           (item): item is FormValidationError =>
@@ -166,6 +170,8 @@ export async function requestFoundationResponse(
       code,
       fieldErrors,
       response.status,
+      false,
+      reason,
     )
     if (response.status === 401 || response.status === 403) announceAuthorizationDenied(failure)
     throw failure

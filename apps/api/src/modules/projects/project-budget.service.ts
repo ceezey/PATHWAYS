@@ -7,16 +7,20 @@ import type { Tx } from '../../common/prisma/transaction'
 
 const projectBudgetCategory = 'PROJECT_PROFILE_TOTAL'
 
+/** Filter for a project's live total-budget envelope row, shared by the Budget tab and Analytics. */
+export const projectEnvelopeWhere = (orgId: string, projectId: string) =>
+  ({
+    organizationId: orgId,
+    projectId,
+    activityId: null,
+    category: projectBudgetCategory,
+    archivedAt: null,
+  }) as const
+
 /** Planned project budget, approved spending and the utilization metric derived from them. */
 export async function readProjectBudget(tx: Tx, orgId: string, id: string) {
   const planned = await tx.projectBudgetRecord.findFirst({
-    where: {
-      organizationId: orgId,
-      projectId: id,
-      activityId: null,
-      category: projectBudgetCategory,
-      archivedAt: null,
-    },
+    where: projectEnvelopeWhere(orgId, id),
     select: { plannedBudget: true },
   })
   const spent = await tx.budgetExpenseEntry.aggregate({

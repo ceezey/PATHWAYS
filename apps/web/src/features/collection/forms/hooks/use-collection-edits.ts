@@ -92,6 +92,7 @@ export function useCollectionEdits(state: CollectionState) {
     // Same name and version label as the import form picker.
     title: `${f.name} - v${f.version}`,
     type: f.status,
+    formType: f.formType,
     projectId: f.projectId,
     project: projects.find((p) => p.id === f.projectId)?.title ?? f.projectId,
     fieldCount: f.fields.length,

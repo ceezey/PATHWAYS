@@ -10,9 +10,13 @@ type Props = ComponentProps<typeof AnalyticsSummaryCards>
 
 afterEach(cleanup)
 
-const currencyRow = (currency: string, utilizationPercent: number | null) => ({
+const currencyRow = (
+  currency: string,
+  utilizationPercent: number | null,
+  planned: number | null = 1000,
+) => ({
   currency,
-  planned: 1000,
+  planned,
   approved: 500,
   pending: 0,
   utilizationPercent,
@@ -70,13 +74,27 @@ describe('KPI achievement card', () => {
 })
 
 describe('Budget utilization card', () => {
-  const approved = 'Approved expenses against planned budget allocations; pending is not counted.'
+  const approved =
+    'Approved spending over the whole project against its total budget; awaiting approval is not counted.'
   const several = 'Several currencies are recorded; see the Budget utilization panel.'
   it.each([
     ['loading', budgetLoading, 'Loading...', 'info', approved],
     ['failed', budgetFailed, 'Unavailable', 'info', 'Budget utilization could not be loaded.'],
-    ['without allocations', budgetOf(), 'No budget', 'info', approved],
-    ['without a utilization', budgetOf(currencyRow('PHP', null)), 'No budget', 'info', approved],
+    ['without a total budget', budgetOf(), 'No total budget set', 'info', approved],
+    [
+      'with spending but no total budget',
+      budgetOf(currencyRow('PHP', null, null)),
+      'No total budget set',
+      'info',
+      approved,
+    ],
+    [
+      'with a zero total budget',
+      budgetOf(currencyRow('PHP', null, 0)),
+      'Not available',
+      'info',
+      approved,
+    ],
     [
       'in several currencies',
       budgetOf(currencyRow('PHP', 50), currencyRow('USD', 150)),

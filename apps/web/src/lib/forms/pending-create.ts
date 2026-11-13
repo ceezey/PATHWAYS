@@ -1,4 +1,5 @@
 import { browserDraftStorage, sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
+import { POSSIBLE_DUPLICATE } from '@pathways/shared'
 
 export type PendingCreateMarker = { startedAt: number; fingerprint: string }
 type PendingCreateScope = {
@@ -60,6 +61,11 @@ export function isDefinitiveClientError(error: unknown) {
   const { status, code } = (error ?? {}) as { status?: unknown; code?: unknown }
   if (typeof status === 'number') return status >= 400 && status < 500
   return typeof code === 'string' && code !== 'network'
+}
+
+/** True when the API answered a create with its possible-duplicate conflict code. */
+export function isPossibleDuplicate(error: unknown) {
+  return (error as { reason?: unknown } | null)?.reason === POSSIBLE_DUPLICATE
 }
 
 /** Joins non-identifying parts into a fingerprint; trims and lowercases for stable matching. */

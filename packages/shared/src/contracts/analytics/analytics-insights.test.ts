@@ -106,6 +106,10 @@ describe('budget summary schema', () => {
   it('accepts a null utilization and well-formed currencies', () => {
     expect(okBudget([currency('USD'), currency('EUR', { utilizationPercent: null })])).toBe(true)
   })
+  it('accepts a missing total budget only without a utilization', () => {
+    expect(okBudget([currency('PHP', { planned: null, utilizationPercent: null })])).toBe(true)
+    expect(okBudget([currency('PHP', { planned: null, utilizationPercent: 40 })])).toBe(false)
+  })
   it.each(['planned', 'approved', 'pending', 'utilizationPercent'])('rejects bad %s', (key) => {
     for (const bad of [-1, Number.NaN, Number.POSITIVE_INFINITY])
       expect(okBudget([currency('USD', { [key]: bad })])).toBe(false)

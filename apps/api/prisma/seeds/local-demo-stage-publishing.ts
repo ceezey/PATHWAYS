@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto'
 import type { PublicView } from '@pathways/shared'
+import { PRODUCTION_PROJECT_REF, hostedProjectRef } from './hosted-realistic-seed'
 import type { DemoContext } from './local-demo-seed'
 import { ensurePublicMedia } from './local-demo-stage-public-media'
 import { projectOf, step } from './local-demo-util'
 
 type State = 'FOR_REVIEW' | 'APPROVED' | 'PUBLISHED'
 
-// The map is left out because projects store no coordinates.
+// The base lists leave out the map; viewsFor adds it on production only.
 export const publications: Array<{
   project: 'EHK' | 'CRL' | 'ALS' | 'SSG'
   summary: string
@@ -42,6 +43,14 @@ export const publications: Array<{
       'Safe Schools for Girls strengthens school protection committees and life skills sessions for adolescent girls in Borongan City, Guiuan and Llorente, Eastern Samar.',
   },
 ]
+
+const productionMapProjects = new Set(['EHK', 'CRL'])
+
+/** A project's planned views, plus the map for the EHK and CRL public pages on production. */
+export const viewsFor = (plan: (typeof publications)[number]): PublicView[] =>
+  hostedProjectRef() === PRODUCTION_PROJECT_REF && productionMapProjects.has(plan.project)
+    ? [...plan.views, 'map']
+    : plan.views
 
 type Media = Array<{ id: string; caption: string }>
 
@@ -93,7 +102,7 @@ export async function stagePublishing(ctx: DemoContext) {
     const wanted: Wanted = {
       summary: plan.summary,
       state: plan.state,
-      selection: { media, views: plan.views },
+      selection: { media, views: viewsFor(plan) },
     }
     for (let guard = 0; guard < 4; guard += 1) {
       const current = (await service.get(actors.SUBMIT, projectId)) as Draft

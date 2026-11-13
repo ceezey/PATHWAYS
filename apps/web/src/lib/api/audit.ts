@@ -1,3 +1,4 @@
+import type { AuditQueryInput } from '@pathways/shared'
 import { z } from 'zod'
 
 import { ownedJsonRead } from '@/lib/api/core/owned-json-read'
@@ -18,11 +19,24 @@ const auditSchema = z
   })
   .strict()
 
+export type AuditFilters = Pick<AuditQueryInput, 'module' | 'from' | 'to' | 'q'>
+
+// Builds the audit query string in a fixed order and skips empty values.
+export const auditSearch = (filters: AuditFilters, cursor?: string) => {
+  const { module, from, to, q } = filters
+  return Object.entries({ module, from, to, q, cursor })
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+    .join('&')
+}
+
 export const auditClient = {
-  list: (cursor?: string, signal?: AbortSignal) =>
-    ownedJsonRead(
-      `/audit${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+  list: (filters: AuditFilters, cursor?: string, signal?: AbortSignal) => {
+    const search = auditSearch(filters, cursor)
+    return ownedJsonRead(
+      `/audit${search ? `?${search}` : ''}`,
       z.object({ rows: z.array(auditSchema).max(100), nextCursor: z.string().nullable() }).strict(),
       { signal },
-    ),
+    )
+  },
 }

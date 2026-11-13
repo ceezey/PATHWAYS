@@ -45,8 +45,6 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
     setView,
   } = state
   const { beginOperation, canManageForms, canPublishForms, editingReady } = guard
-  // Format selection is hidden (vault note deferred-features); exports use the default.
-  const exportFormat: ExportFormat = 'csv'
   const saveDraftToApi = async () => {
     if (!editingReady) {
       toast.error('The saved form must finish loading before it can be edited.')
@@ -190,7 +188,7 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       ticket.finish()
     }
   }
-  const downloadSavedForm = async (summary: SavedForm) => {
+  const downloadSavedForm = async (summary: SavedForm, format: ExportFormat) => {
     const listed = forms.find((form) => form.id === summary.id)
     if (!listed) {
       toast.error('The selected persisted form could not be found.')
@@ -203,12 +201,10 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
     }
     try {
       // The server applies forms.export, project scope, artifact bounds and the audit row.
-      const request = formDefinitionExportRequest(listed, exportFormat)
+      const request = formDefinitionExportRequest(listed, format)
       await downloadCoreArtifact(request.url, request.fileName, () => ticket.valid())
       if (!ticket.valid()) return
-      toast.success(
-        `Exported ${listed.code} version ${listed.version} as ${exportFormat.toUpperCase()}.`,
-      )
+      toast.success(`Exported ${listed.code} version ${listed.version} as ${format.toUpperCase()}.`)
     } catch (error) {
       if (ticket.valid())
         toast.error(error instanceof Error ? error.message : 'The form could not be exported.')

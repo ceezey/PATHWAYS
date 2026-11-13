@@ -11,6 +11,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 import type { BeneficiaryDetailState } from '../hooks/use-beneficiary-detail'
@@ -28,6 +35,8 @@ export const JourneyNoteDialog = ({
     | 'setNoteDraft'
     | 'savingNote'
     | 'correctJourneyNote'
+    | 'selectedStageCorrectionTargets'
+    | 'chooseCorrectionTarget'
   >
 }) => {
   const {
@@ -39,19 +48,32 @@ export const JourneyNoteDialog = ({
     setNoteDraft,
     savingNote,
     correctJourneyNote,
+    selectedStageCorrectionTargets,
+    chooseCorrectionTarget,
   } = detail
   return (
     <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add note</DialogTitle>
+          <DialogTitle>Correct entry</DialogTitle>
           <DialogDescription>
-            Add a provenance-tracked correction to the most recent journey record for{' '}
-            {selectedStage ? stageDisplayCode(selectedStage) : 'the selected'}
-            {' journey stage'}.
+            Choose the {selectedStage ? stageDisplayCode(selectedStage) : 'selected stage'} entry to
+            correct. The original entry is kept and the correction records your reason.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <Select value={noteDraft.eventId} onValueChange={chooseCorrectionTarget}>
+            <SelectTrigger aria-label="Entry to correct">
+              <SelectValue placeholder="Select an entry" />
+            </SelectTrigger>
+            <SelectContent>
+              {selectedStageCorrectionTargets.map((target) => (
+                <SelectItem key={target.id} value={target.id}>
+                  {target.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Label className="space-y-2">
             <span>Date</span>
             <Input
@@ -100,7 +122,7 @@ export const JourneyNoteDialog = ({
             Cancel
           </Button>
           <Button disabled={savingNote} onClick={() => void correctJourneyNote()} type="button">
-            {savingNote ? 'Saving...' : 'Save note'}
+            {savingNote ? 'Saving...' : 'Save correction'}
           </Button>
         </DialogFooter>
       </DialogContent>

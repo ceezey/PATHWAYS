@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common'
 import type { CreateProjectRequest, UpdateProjectRequest } from '@pathways/shared'
 
+export const duplicateProjectTitleMessage =
+  'A project with this title already exists in your organization.'
+
 export function projectData(input: CreateProjectRequest | UpdateProjectRequest, code: string) {
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new BadRequestException('End date must not precede start date.')
