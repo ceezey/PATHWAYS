@@ -91,4 +91,26 @@ describe('frontend route aliases', () => {
     }
     expect(authorizationPathForUiPath(`/projects/${projectId}/budget?review=x`)).toBeNull()
   })
+
+  it('opens participation history while preserving project authorization', () => {
+    const path = `/beneficiaries/${beneficiaryId}?projectId=${projectId}`
+    const checked = authorizationPathForUiPath(`${path}&tab=participation`)
+    expect(checked).toBe(path)
+    const principal = {
+      roles: ['PROJECT_OFFICER'],
+      permissions: ['beneficiaries.records.read'],
+      assignedProjectIds: [projectId],
+    }
+    expect(getVerifiedRouteAccess(principal, checked ?? '').allowed).toBe(true)
+    expect(
+      getVerifiedRouteAccess({ ...principal, assignedProjectIds: [] }, checked ?? '').allowed,
+    ).toBe(false)
+    expect(authorizationPathForUiPath(`${path}&tab=participation&role=PROJECT_MANAGER`)).toBeNull()
+    expect(authorizationPathForUiPath(`${path}&tab=participation&tab=profile`)).toBeNull()
+    expect(
+      authorizationPathForUiPath(
+        `/beneficiaries/${beneficiaryId}?projectId=invalid&tab=participation`,
+      ),
+    ).toBeNull()
+  })
 })
