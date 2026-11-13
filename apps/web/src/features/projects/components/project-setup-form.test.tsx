@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
@@ -169,6 +169,53 @@ describe('ProjectSetupForm', () => {
     )
     expect(testState.refreshAccess).toHaveBeenCalledTimes(1)
     expect(testState.callOrder).toEqual(['refreshAccess', 'routerPush'])
+  })
+
+  const fillRequiredFields = () => {
+    fireEvent.change(screen.getByLabelText(/Project title/), { target: { value: 'Core project' } })
+    fireEvent.change(screen.getByLabelText('Sector'), { target: { value: 'Education' } })
+    fireEvent.change(screen.getByLabelText(/Implementation area/), { target: { value: 'Navotas' } })
+    fireEvent.change(screen.getByLabelText(/Start date/), { target: { value: '2026-10-01' } })
+    fireEvent.change(screen.getByLabelText(/End date/), { target: { value: '2026-12-31' } })
+    fireEvent.change(screen.getByLabelText(/Description/), {
+      target: { value: 'A supported core project profile.' },
+    })
+  }
+  const duplicateMessage = 'A project with this title already exists in your organization.'
+  const duplicateError = () =>
+    Object.assign(new Error(duplicateMessage), { status: 409, reason: 'POSSIBLE_DUPLICATE' })
+
+  it('asks before creating a project whose title already exists, then creates it on confirm', async () => {
+    testState.createProject.mockRejectedValueOnce(duplicateError()).mockResolvedValueOnce(project)
+    render(<ProjectSetupForm />)
+    fillRequiredFields()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Project' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(duplicateMessage)).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create anyway' }))
+
+    await waitFor(() => expect(testState.createProject).toHaveBeenCalledTimes(2))
+    expect(testState.createProject.mock.calls[0][0]).not.toHaveProperty('confirmDuplicate')
+    expect(testState.createProject.mock.calls[1][0]).toMatchObject({ confirmDuplicate: true })
+    await waitFor(() =>
+      expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`),
+    )
+  })
+
+  it('cancelling the duplicate warning creates nothing', async () => {
+    testState.createProject.mockRejectedValueOnce(duplicateError())
+    render(<ProjectSetupForm />)
+    fillRequiredFields()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Project' }))
+
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(testState.createProject).toHaveBeenCalledTimes(1)
+    expect(testState.routerPush).not.toHaveBeenCalled()
   })
 
   it('loads and updates an existing project with its code and optimistic revision', async () => {

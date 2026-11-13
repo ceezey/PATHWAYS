@@ -13,7 +13,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { usePendingCreate } from '@/hooks/use-pending-create'
 import { beneficiariesClient } from '@/lib/api/beneficiaries'
 import { type SensitiveDraftOwner, removeSensitiveDraft } from '@/lib/auth/sensitive-drafts'
-import { createdSince, hashFingerprint } from '@/lib/forms/pending-create'
+import { createdSince, hashFingerprint, isPossibleDuplicate } from '@/lib/forms/pending-create'
 import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 import { useRegistrationContext } from '../hooks/use-registration-context'
 import { useRegistrationDraft } from '../hooks/use-registration-draft'
@@ -76,6 +76,7 @@ export const BeneficiaryRegistrationForm = ({
   })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
   const clientRegistrationId = useRef<string | null>(null)
   const {
     registrationContext,
@@ -112,6 +113,7 @@ export const BeneficiaryRegistrationForm = ({
     value: BeneficiaryDraft[Key],
   ) => {
     setConfirmOpen(false)
+    setDuplicateWarning(null)
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
@@ -279,16 +281,25 @@ export const BeneficiaryRegistrationForm = ({
             formId: registrationForm.id,
             clientRegistrationId: registrationId,
             values: result.values,
+            ...(duplicateWarning ? { confirmDuplicate: true as const } : {}),
           }),
       )
       if (!saved || !scope.isCurrent()) return
       removeSensitiveDraft(draftStorageKey)
       setConfirmOpen(false)
       clientRegistrationId.current = null
-      toast.success('Beneficiary registered.')
+      toast.success(
+        duplicateWarning
+          ? 'Beneficiary registered. The possible duplicate is listed for identity review.'
+          : 'Beneficiary registered.',
+      )
       router.push(`/beneficiaries/${saved.id}?projectId=${encodeURIComponent(draft.projectId)}`)
     } catch (error) {
       if (!scope.isCurrent()) return
+      if (isPossibleDuplicate(error)) {
+        setDuplicateWarning((error as Error).message)
+        return
+      }
       toast.error(error instanceof Error ? error.message : 'The beneficiary could not be saved.')
     } finally {
       if (scope.isCurrent()) setSaving(false)
@@ -407,12 +418,16 @@ export const BeneficiaryRegistrationForm = ({
 
       <ConfirmRegistrationDialog
         confirmOpen={confirmOpen}
-        setConfirmOpen={setConfirmOpen}
+        setConfirmOpen={(open) => {
+          setConfirmOpen(open)
+          if (!open) setDuplicateWarning(null)
+        }}
         beneficiary={beneficiary}
         draft={draft}
         supportsCode={supportsCode}
         saving={saving}
         pendingCreate={pendingCreate}
+        duplicateWarning={duplicateWarning}
         confirmSave={confirmSave}
       />
     </div>

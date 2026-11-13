@@ -32,7 +32,7 @@ import { approvedOrganization } from './developer-bootstrap'
  */
 
 const DEV_PROJECT_REF = 'klbtoqdalmcsfjqophty'
-const PRODUCTION_PROJECT_REF = 'mvzxitlbtkkyvubgbcmx'
+export const PRODUCTION_PROJECT_REF = 'mvzxitlbtkkyvubgbcmx'
 const SYSTEM_ADMIN_EMAIL = 'cianjake.francisco@gmail.com'
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
 

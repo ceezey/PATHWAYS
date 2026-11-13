@@ -33,7 +33,7 @@ export const JourneyTab = ({
     | 'setAssessmentOpen'
     | 'assessmentButtonTitle'
     | 'canCorrectJourney'
-    | 'correctableNote'
+    | 'selectedStageCorrectionTargets'
     | 'openNoteForSelectedStage'
     | 'selectedStageActivities'
     | 'participation'
@@ -58,7 +58,7 @@ export const JourneyTab = ({
     setAssessmentOpen,
     assessmentButtonTitle,
     canCorrectJourney,
-    correctableNote,
+    selectedStageCorrectionTargets,
     openNoteForSelectedStage,
     selectedStageActivities,
     participation,
@@ -145,14 +145,14 @@ export const JourneyTab = ({
                 ) : null}
                 {canCorrectJourney ? (
                   <Button
-                    aria-label="Add note"
-                    disabled={!correctableNote}
+                    aria-label="Correct entry"
+                    disabled={selectedStageCorrectionTargets.length === 0}
                     onClick={openNoteForSelectedStage}
                     size="icon"
                     title={
-                      correctableNote
-                        ? 'Add a provenance-tracked note to the most recent journey record'
-                        : 'A recorded journey event is required before a note can be added.'
+                      selectedStageCorrectionTargets.length > 0
+                        ? 'Correct a recorded journey entry'
+                        : 'A recorded journey entry is required before it can be corrected.'
                     }
                     type="button"
                     variant="outline"

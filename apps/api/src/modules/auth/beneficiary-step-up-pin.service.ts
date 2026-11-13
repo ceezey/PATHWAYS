@@ -65,7 +65,7 @@ const lockedPin = () =>
     'PIN locked. Use your authenticator to unlock it.',
   )
 const notSet = () => denial(HttpStatus.CONFLICT, STEP_UP_PIN_CODES.notSet, 'No PIN is set.')
-const totpRequired = () =>
+export const totpRequired = () =>
   denial(
     HttpStatus.FORBIDDEN,
     STEP_UP_PIN_CODES.totpRequired,

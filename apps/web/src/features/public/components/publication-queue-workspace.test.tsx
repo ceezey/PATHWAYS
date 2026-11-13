@@ -1,6 +1,6 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PublicationQueueWorkspace } from './publication-queue-workspace'
 
@@ -193,6 +193,51 @@ describe('publication current project and revision boundaries', () => {
     expect(screen.queryByText('Revision 1')).toBeNull()
     expect(screen.getByText('Publication unavailable')).toBeTruthy()
   })
+  const confirmPublish = () =>
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Publish this revision?' })).getByRole('button', {
+        name: 'Publish revision',
+      }),
+    )
+
+  it('asks for confirmation before publishing and publishes only on confirm (UC025 A3.2)', async () => {
+    state.publicationState = 'APPROVED'
+    state.transition.mockResolvedValue({ revision: 1, state: 'PUBLISHED' })
+    render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    const dialog = screen.getByRole('dialog', { name: 'Publish this revision?' })
+    expect(
+      within(dialog).getByText(
+        'Revision 1 goes live on the public tracker, where anyone can see it. You can withdraw it later.',
+      ),
+    ).toBeTruthy()
+    expect(state.transition).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(state.transition).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    confirmPublish()
+    await waitFor(() => expect(state.success).toHaveBeenCalledWith('Approved revision published.'))
+    expect(state.transition).toHaveBeenCalledOnce()
+    expect(state.transition.mock.calls[0][0]).toBe(projectId)
+    expect(state.transition.mock.calls[0][1]).toBe('publish')
+    expect(state.transition.mock.calls[0][2]).toMatchObject({ expectedRevision: 1 })
+  })
+
+  it('disables the confirm button when publish access is lost while the dialog is open', () => {
+    state.publicationState = 'APPROVED'
+    const view = render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    state.canPublish = false
+    view.rerender(<PublicationQueueWorkspace />)
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Publish revision',
+    }) as HTMLButtonElement
+    expect(confirm.disabled).toBe(true)
+    fireEvent.click(confirm)
+    expect(state.transition).not.toHaveBeenCalled()
+  })
+
   it.each(['approve', 'publish'] as const)(
     'drops a delayed %s completion when only that purpose grant is revoked',
     async (purpose) => {
@@ -209,6 +254,7 @@ describe('publication current project and revision boundaries', () => {
           name: purpose === 'approve' ? 'Approve revision' : 'Publish',
         }),
       )
+      if (purpose === 'publish') confirmPublish()
       if (purpose === 'approve') state.canApprove = false
       else state.canPublish = false
       view.rerender(<PublicationQueueWorkspace />)

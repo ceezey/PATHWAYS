@@ -5,6 +5,7 @@ import {
   createdSince,
   hashFingerprint,
   isDefinitiveClientError,
+  isPossibleDuplicate,
   pendingCreateKey,
   readPendingCreate,
   writePendingCreate,
@@ -35,6 +36,12 @@ describe('pending create markers', () => {
     expect(isDefinitiveClientError({ status: 503, code: 'network' })).toBe(false)
     expect(isDefinitiveClientError({ code: 'network' })).toBe(false)
     expect(isDefinitiveClientError(new TypeError('Failed to fetch'))).toBe(false)
+  })
+  it('recognizes only a possible-duplicate conflict', () => {
+    expect(isPossibleDuplicate({ status: 409, reason: 'POSSIBLE_DUPLICATE' })).toBe(true)
+    expect(isPossibleDuplicate({ status: 409, reason: 'IDENTITY_REVIEW_REQUIRED' })).toBe(false)
+    expect(isPossibleDuplicate(new Error('x'))).toBe(false)
+    expect(isPossibleDuplicate(null)).toBe(false)
   })
   it('hashes fingerprints without exposing the input', async () => {
     const hash = await hashFingerprint('Jane Doe', '2000-01-01')

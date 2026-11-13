@@ -5,6 +5,7 @@ import {
   beneficiaryAgeRuleMessages,
   businessCalendarDate,
   completedYearsAt,
+  duplicateNameKey,
   minimumBeneficiaryAge,
 } from '@pathways/shared'
 
@@ -33,6 +34,20 @@ export function canonicalIdentifierValue(value: unknown) {
   const normalized = value.normalize('NFKC').trim()
   return normalized.length >= 1 && normalized.length <= 160 ? normalized : null
 }
+
+// Name key shared by the registration warning and the review queue; the middle name is ignored.
+export function identityNameKey(row: {
+  firstName: string | null
+  lastName: string | null
+  displayName: string | null
+}) {
+  return row.firstName
+    ? `${duplicateNameKey(row.firstName)} ${duplicateNameKey(row.lastName)}`
+    : duplicateNameKey(row.displayName)
+}
+
+export const possibleDuplicateBeneficiaryMessage =
+  'A beneficiary with the same name and birth date is already registered. Register anyway to list both for identity review.'
 
 export type NormalizedValue = string | number | boolean | string[] | null
 

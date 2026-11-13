@@ -23,6 +23,17 @@ export const enabledRecipeOptions = enabledRecipes.map((value) => ({
   label: recipeNames[value],
 }))
 
+export const modeOptions = [
+  { value: 'DERIVED', label: 'Calculated automatically' },
+  { value: 'MANUAL', label: 'Manual measurement' },
+]
+// Numeric domains offered for a manual measurement.
+export const manualKindOptions = [
+  { value: 'COUNT', label: 'Count' },
+  { value: 'PERCENTAGE', label: 'Percentage' },
+  { value: 'NON_NEGATIVE', label: 'Number' },
+]
+
 // Hidden contract values per recipe; the database requires these numeric domains for each recipe.
 export const recipeContract: Record<Recipe, { kind: (typeof numericKinds)[number]; unit: string }> =
   {

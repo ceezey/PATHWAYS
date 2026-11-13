@@ -160,6 +160,14 @@ export class RulesHumanService {
       if (code === '22023') throw new BadRequestException('Invalid typed rules request.')
       if (code === '40001')
         throw new ConflictException('The resource changed. Reload before retrying.')
+      if (code === '42710' && operation === 'RULE_CREATE')
+        throw new ConflictException(
+          'Another rule already uses this code. Choose a different rule code.',
+        )
+      if (code === '54000' && operation === 'RULE_ACTIVATE')
+        throw new ConflictException(
+          'This project already has 20 active rules. Deactivate one before activating another.',
+        )
       if (code === '42501')
         throw new ForbiddenException(
           operation.startsWith('RULE_') ? configurationDenied : 'Resource access is unavailable.',

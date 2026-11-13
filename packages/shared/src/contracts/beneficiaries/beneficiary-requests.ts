@@ -46,6 +46,7 @@ export const registerBeneficiaryRequest = z
     formId: uuidString,
     clientRegistrationId: uuidString,
     values: z.record(z.string(), z.unknown()),
+    confirmDuplicate: z.literal(true).optional(),
   })
   .strict()
 export type RegisterBeneficiaryRequest = z.infer<typeof registerBeneficiaryRequest>

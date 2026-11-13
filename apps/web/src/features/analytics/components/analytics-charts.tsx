@@ -2,7 +2,7 @@
 
 import { chartPalette, chartSignal } from '@/lib/chart-palette'
 import { formatCappedPercent, roundPercent } from '@/lib/format/percent'
-import { type SadddDashboard, type SurveyGroup, formatMetricCell } from '@pathways/shared'
+import { type SurveyGroup, formatMetricCell } from '@pathways/shared'
 import ReactECharts from 'echarts-for-react'
 
 import type { ActivitySummary, AlertRecord, BudgetRecord, ProjectDetail } from '@/types/pathways'
@@ -157,13 +157,14 @@ const AggregateBucketChart = ({
   </div>
 )
 
-export const SadddChart = (
-  props: { dashboard: SadddDashboard } | { label: string; buckets: AggregateChartBucket[] },
-) => {
-  const buckets = 'dashboard' in props ? props.dashboard.sex : props.buckets
-  const label = 'dashboard' in props ? 'Sex' : props.label
-  return <AggregateBucketChart buckets={buckets} label={label} height="h-[280px]" />
-}
+export const SadddChart = ({
+  label,
+  buckets,
+}: {
+  label: string
+  buckets: AggregateChartBucket[]
+}) => <AggregateBucketChart buckets={buckets} label={label} height="h-[280px]" />
+
 /**
  * F9 survey improvement (analytics.descriptive.survey.v1): improved/same/declined
  * counts for one cohort group, reusing the same aggregate chart option and

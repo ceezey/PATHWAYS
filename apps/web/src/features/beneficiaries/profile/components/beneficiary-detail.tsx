@@ -19,9 +19,11 @@ export const BeneficiaryDetail = (props: BeneficiaryDetailProps) => {
   const {
     beneficiary,
     projectId,
-    activities,
+    projects,
     stages,
-    participation,
+    participationHistory,
+    openHistoryForProject,
+    stageDisplayCode,
     canViewMedia,
     canUploadMedia,
   } = detail
@@ -53,7 +55,7 @@ export const BeneficiaryDetail = (props: BeneficiaryDetailProps) => {
             </h2>
           </div>
 
-          <Tabs className="min-w-0" defaultValue="journey">
+          <Tabs className="min-w-0" defaultValue={detail.initialTab}>
             <TabsList className="flex w-full overflow-x-auto" aria-label="Beneficiary information">
               <TabsTrigger value="journey">Journey tracking</TabsTrigger>
               {canViewMedia ? <TabsTrigger value="media">Media proof</TabsTrigger> : null}
@@ -74,9 +76,12 @@ export const BeneficiaryDetail = (props: BeneficiaryDetailProps) => {
 
             <TabsContent value="participation">
               <RecordList
-                activities={activities}
-                participation={participation}
+                entries={participationHistory}
                 stages={stages}
+                stageDisplayCode={stageDisplayCode}
+                projects={projects}
+                projectId={projectId}
+                onProjectChange={(id) => void openHistoryForProject(id)}
                 title="Participation history"
               />
             </TabsContent>

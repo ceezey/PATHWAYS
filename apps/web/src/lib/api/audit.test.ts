@@ -8,7 +8,7 @@ vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
 }))
 
-import { auditClient } from './audit'
+import { auditClient, auditSearch } from './audit'
 
 const authUserId = '79100000-0000-4000-8000-000000000001'
 const organizationId = '79100000-0000-4000-8000-000000000002'
@@ -57,17 +57,28 @@ describe('auditClient audit read', () => {
   ])('requests the page %s and returns the parsed rows', async (_label, cursor, suffix) => {
     const controller = new AbortController()
     fetcher.mockResolvedValueOnce(json(page))
-    await expect(client.list(cursor, controller.signal)).resolves.toEqual(page)
+    await expect(client.list({}, cursor, controller.signal)).resolves.toEqual(page)
     const [url, init] = fetcher.mock.calls[0]
     expect(String(url)).toBe(`http://127.0.0.1:4000/api${suffix}`)
     expect(init?.method ?? 'GET').toBe('GET')
     expect(init?.signal).toBe(controller.signal)
   })
+  it('sends every filter to the server in a fixed order', async () => {
+    fetcher.mockResolvedValueOnce(json(page))
+    await client.list(
+      { module: 'projects', from: '2026-09-28', to: '2026-09-28', q: 'a b&c' },
+      'cur|x',
+    )
+    expect(String(fetcher.mock.calls[0][0])).toBe(
+      'http://127.0.0.1:4000/api/audit?module=projects&from=2026-09-28&to=2026-09-28&q=a%20b%26c&cursor=cur%7Cx',
+    )
+  })
+  it('omits empty filters', () => expect(auditSearch({ q: '', module: undefined })).toBe(''))
   it('accepts a full page of 100 rows with null optional fields and a next cursor', async () => {
     const empty = { ...row, entityId: null, projectId: null, actorUserId: null, actorName: null }
     const body = { rows: Array.from({ length: 100 }, () => empty), nextCursor: 'next' }
     fetcher.mockResolvedValueOnce(json(body))
-    await expect(client.list()).resolves.toEqual(body)
+    await expect(client.list({})).resolves.toEqual(body)
   })
   it('accepts scalar event details', async () => {
     const body = {
@@ -75,7 +86,7 @@ describe('auditClient audit read', () => {
       nextCursor: null,
     }
     fetcher.mockResolvedValueOnce(json(body))
-    await expect(client.list()).resolves.toEqual(body)
+    await expect(client.list({})).resolves.toEqual(body)
   })
   it.each([
     ['101 rows', { rows: Array.from({ length: 101 }, () => row), nextCursor: null }],
@@ -99,6 +110,6 @@ describe('auditClient audit read', () => {
     ['a null detail value', { rows: [{ ...row, details: { source: null } }], nextCursor: null }],
   ])('rejects %s', async (_label, body) => {
     fetcher.mockResolvedValueOnce(json(body))
-    await expect(client.list()).rejects.toThrow('could not be validated')
+    await expect(client.list({})).rejects.toThrow('could not be validated')
   })
 })

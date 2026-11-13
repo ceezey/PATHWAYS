@@ -54,6 +54,7 @@ const form = (id: string, projectId: string, project: string, title: string): Sa
   project,
   title,
   type: 'PUBLISHED',
+  formType: 'ACTIVITY_MONITORING',
   fieldCount: 2,
   savedAt: '2026-10-21T00:00:00.000Z',
 })
@@ -61,18 +62,26 @@ const form = (id: string, projectId: string, project: string, title: string): Sa
 const view = (
   savedForms: SavedForm[],
   initialProjectId = '',
-  { canPublish = false, onPublish = vi.fn(async () => {}) } = {},
+  {
+    canPublish = false,
+    canExport = false,
+    canFillIn = false,
+    onPublish = vi.fn(async () => {}),
+    onDownload = vi.fn(),
+  } = {},
 ) =>
   render(
     <FormsGeneratorView
       canCreate
+      canExport={canExport}
+      canFillIn={canFillIn}
       canImport={false}
       canPublish={canPublish}
       errorState={null}
       initialProjectId={initialProjectId}
       onOpen={vi.fn()}
       onCreate={vi.fn()}
-      onDownload={vi.fn()}
+      onDownload={onDownload}
       onPublish={onPublish}
       savedForms={savedForms}
       status="ready"
@@ -81,6 +90,58 @@ const view = (
 const draft = (id: string, title: string): SavedForm => ({
   ...form(id, 'p1', 'Northern Samar', title),
   type: 'DRAFT',
+})
+
+describe('FormsGeneratorView entry link', () => {
+  it('links a published direct-entry form to its entry page for roles that submit entries', () => {
+    view(
+      [
+        form('f1', 'p1', 'Northern Samar', 'Coaching Attendance'),
+        { ...draft('d1', 'LST Survey - v1') },
+        {
+          ...form('f2', 'p1', 'Northern Samar', 'Registration'),
+          formType: 'BENEFICIARY_REGISTRATION',
+        },
+        { ...form('f3', 'p1', 'Northern Samar', 'Old Survey'), type: 'ARCHIVED' },
+      ],
+      '',
+      { canFillIn: true },
+    )
+    const links = screen.getAllByRole('link', { name: 'Fill in form' })
+    expect(links).toHaveLength(1)
+    expect(links[0].getAttribute('href')).toBe('/collection/projects/p1/forms/f1/entries/new')
+  })
+  it('shows no entry link without submissions.write', () => {
+    view([form('f1', 'p1', 'Northern Samar', 'Coaching Attendance')])
+    expect(screen.queryByRole('link', { name: 'Fill in form' })).toBeNull()
+  })
+})
+
+describe('FormsGeneratorView export format', () => {
+  it('offers the four export formats and exports the chosen one', () => {
+    const onDownload = vi.fn()
+    view([form('f1', 'p1', 'Northern Samar', 'Coaching Attendance')], '', {
+      canExport: true,
+      onDownload,
+    })
+    const select = screen.getByLabelText('Download format') as HTMLSelectElement
+    expect(select.value).toBe('csv')
+    expect([...select.options].map((o) => o.textContent).slice(1)).toEqual([
+      'CSV',
+      'XLSX',
+      'XLS',
+      'PDF',
+    ])
+    fireEvent.change(select, { target: { value: 'xlsx' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
+    expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }), 'xlsx')
+  })
+
+  it('shows no format or export without forms.export', () => {
+    view([form('f1', 'p1', 'Northern Samar', 'Coaching Attendance')])
+    expect(screen.queryByLabelText('Download format')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Export form' })).toBeNull()
+  })
 })
 
 describe('FormsGeneratorView project picker', () => {

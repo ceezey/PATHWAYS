@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { type ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
@@ -217,6 +217,32 @@ describe('F3 scoped read and denial gates', () => {
     } as never)
     expect(vi.mocked(withAuthorizedOperation).mock.calls.at(-1)?.[4]).toEqual({
       transactionTimeoutMs: 20_000,
+    })
+  })
+
+  it('answers a same name and birth date warning with a conflict carrying its code', async () => {
+    const registration = new BeneficiaryRegistrationService()
+    const spy = vi
+      .spyOn(registration, 'promoteRegistration')
+      .mockResolvedValue({ kind: 'REVIEW', code: 'POSSIBLE_DUPLICATE' })
+    service = new BeneficiariesService({} as PrismaService, registration)
+    const error = await service
+      .register(actor, projectId, {
+        formId: '80000000-0000-4000-8000-000000000008',
+        clientRegistrationId: '80000000-0000-4000-8000-000000000009',
+        values: {},
+        confirmDuplicate: true,
+      } as never)
+      .catch((e: unknown) => e)
+    expect(spy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ confirmDuplicate: true }),
+    )
+    expect((error as ConflictException).getResponse()).toEqual({
+      message:
+        'A beneficiary with the same name and birth date is already registered. Register anyway to list both for identity review.',
+      code: 'POSSIBLE_DUPLICATE',
     })
   })
 

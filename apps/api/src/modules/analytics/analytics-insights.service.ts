@@ -23,6 +23,7 @@ import { withAuthorizedOperation } from '../../common/authz/authorized-operation
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
+import { projectEnvelopeWhere } from '../projects/project-budget.service'
 import {
   currentMeasurements,
   releaseBreakdown,
@@ -244,24 +245,23 @@ export class AnalyticsInsightsService {
 
   budget(identity: ApplicationIdentity, input: unknown) {
     const compute: Compute<BudgetSummary> = async (tx, actor, query) => {
-      const base = { organizationId: actor.organizationId, projectId: query.projectId }
-      const budgets = await tx.projectBudgetRecord.findMany({
-        where: { ...base, archivedAt: null },
+      const envelope = await tx.projectBudgetRecord.findFirst({
+        where: projectEnvelopeWhere(actor.organizationId, query.projectId),
         select: { currency: true, plannedBudget: true },
       })
+      // Spending covers the whole project; the period is recorded in the audit row but does not filter.
       const entries = await tx.budgetExpenseEntry.findMany({
         where: {
-          ...base,
+          organizationId: actor.organizationId,
+          projectId: query.projectId,
           status: { in: ['PENDING', 'VERIFIED', 'APPROVED'] },
-          expenseDate: range(query),
-          budgetRecord: { is: { archivedAt: null } },
         },
         select: { amount: true, status: true, budgetRecord: { select: { currency: true } } },
       })
       return {
         projectId: query.projectId,
         currencies: summarizeBudget(
-          budgets,
+          envelope,
           entries.map((e) => ({
             currency: e.budgetRecord.currency,
             amount: e.amount,

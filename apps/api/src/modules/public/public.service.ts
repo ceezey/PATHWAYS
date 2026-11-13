@@ -4,6 +4,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
@@ -52,6 +53,7 @@ const permissions = {
 const rowSelection = Prisma.sql`revision,state,summary,snapshot - 'pins' AS snapshot,live_revision AS "liveRevision",live_snapshot - 'pins' AS "liveSnapshot",
  live_published_at AS "livePublishedAt",submitted_by_id::text AS "submittedById",
  approved_by_id::text AS "approvedById",published_by_id::text AS "publishedById",updated_at AS "updatedAt"`
+const logger = new Logger('PublicService')
 
 @Injectable()
 export class PublicService {
@@ -77,8 +79,21 @@ export class PublicService {
       // Anonymous callers get a fixed outage response, never a database diagnostic.
       throw new ServiceUnavailableException('Public information is temporarily unavailable.')
     }
-    if (projectId && projects.length !== 1) throw new NotFoundException('Project unavailable.')
-    return projectId ? projects[0] : projects
+    if (!projectId) return projects
+    if (projects.length !== 1) throw new NotFoundException('Project unavailable.')
+    await this.countView(projectId)
+    return projects[0]
+  }
+
+  // A failed count is logged and never blocks the public page.
+  private async countView(projectId: string) {
+    try {
+      await this.prisma.$queryRaw(
+        Prisma.sql`SELECT 0 AS s FROM (SELECT pathways.p90_count_public_view(${projectId}::uuid)) r`,
+      )
+    } catch {
+      logger.warn({ event: 'PATHWAYS_PUBLIC_VIEW_COUNT_FAILED' })
+    }
   }
 
   get(identity: ApplicationIdentity, projectId: string) {

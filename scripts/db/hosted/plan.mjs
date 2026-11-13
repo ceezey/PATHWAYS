@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 64-row migration ledger (baseline plus 0027-0057 and 0058-0089) this script must produce, in order. This is
+// The exact 65-row migration ledger (baseline plus 0027-0057 and 0058-0090) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted/plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -73,6 +73,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0087_public_tracker_analytics',
   '0088_smart_mapping_v5',
   '0089_project_map_pins',
+  '0090_test_case_gap_closure',
 ])
 
 function range(from, to) {
@@ -262,6 +263,15 @@ export function buildPlan() {
     { type: 'deploy', migrations: range(88, 88) },
     // 0089 needs no preprovision: prisma owns project_publications and every replaced publication function.
     { type: 'deploy', migrations: range(89, 89) },
+    // 0090 replaces configuration_operation, owned by rules_config_owner, under a rules_store_owner schema loan,
+    // so it needs a temporary SET-only chain to those two roles.
+    {
+      type: 'preprovision',
+      name: 'test-case-gaps',
+      file: 'hosted-test-case-gaps-preprovision.sql',
+    },
+    { type: 'deploy', migrations: range(90, 90) },
+    { type: 'cleanup', name: 'test-case-gaps', file: 'hosted-test-case-gaps-cleanup.sql' },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -302,7 +312,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0089 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0090 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -311,7 +321,7 @@ export function assertResumablePrefix(ledgerRows) {
 // Maps a count of already-applied migrations (from assertResumablePrefix) to
 // the plan step index to resume at. Cleanup steps are not tracked by the
 // Prisma ledger, so when resuming right after a migration that has a
-// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073, 0075, 0076), that cleanup step is re-run;
+// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073, 0075, 0076, 0090), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
 //
@@ -348,6 +358,8 @@ export function assertResumablePrefix(ledgerRows) {
 //    revoked after 0076. A 0075 ledger with a residual chain resumes at the indicator-summary cleanup, whose own
 //    precondition rejects it when prisma still holds a rules owner membership (the 0076 chain); the operator then
 //    runs hosted-saddd-exact-cleanup.sql by hand and resumes at the saddd-exact preprovision.
+//  * 0089_project_map_pins and 0090_test_case_gap_closure follow the same two shapes for the test-case-gaps chain
+//    (temporary rules_store_owner and rules_config_owner SET chain) granted before and revoked after 0090.
 // The caller therefore checks live database state (whether prisma still holds a temporary
 // rules owner membership) and passes it in as `residualOwnerMemberships`.
 // 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a
@@ -372,6 +384,8 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0074_indicator_measurement_lookup',
   '0075_indicator_summary_measurement_lookup',
   '0076_saddd_exact_counts',
+  '0089_project_map_pins',
+  '0090_test_case_gap_closure',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -388,6 +402,7 @@ const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0073_rules_kpi_assessment_metrics': 'rules-metrics',
   '0075_indicator_summary_measurement_lookup': 'indicator-summary',
   '0076_saddd_exact_counts': 'saddd-exact',
+  '0090_test_case_gap_closure': 'test-case-gaps',
 })
 // Ledger counts at which the caller must read live owner-membership state.
 export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
@@ -409,6 +424,8 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0074_indicator_measurement_lookup',
   '0075_indicator_summary_measurement_lookup',
   '0076_saddd_exact_counts',
+  '0089_project_map_pins',
+  '0090_test_case_gap_closure',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {

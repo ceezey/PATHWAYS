@@ -16,11 +16,13 @@ export const selectMock = async () => {
     Select: ({
       children,
       disabled,
+      name,
       onValueChange,
       value,
     }: {
       children: ReactNode
       disabled?: boolean
+      name?: string
       onValueChange?: (value: string) => void
       value?: string
     }) => {
@@ -43,6 +45,7 @@ export const selectMock = async () => {
         {
           ...triggerProps,
           disabled,
+          name,
           value,
           onChange: (event: ChangeEvent<HTMLSelectElement>) => onValueChange?.(event.target.value),
         },

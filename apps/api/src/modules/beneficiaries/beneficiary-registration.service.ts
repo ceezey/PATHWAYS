@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client'
 
 import { deferredRequired } from '@pathways/imports/server'
 import {
+  POSSIBLE_DUPLICATE,
   beneficiaryRegistrationDefinitionErrors,
   hasAtomicPermission,
   validateAndNormalizeFormData,
@@ -24,6 +25,7 @@ import {
   businessToday,
   exactDate,
   guardianConsentRequiredMessage,
+  identityNameKey,
   isMinorOn,
   normalizeIdentifier,
   parseRegistration,
@@ -84,6 +86,8 @@ export class BeneficiaryRegistrationService {
       validatedById: string
       importBatchId?: string
       importRowId?: string
+      // The user's answer to the same name and birth date warning.
+      confirmDuplicate?: boolean
       // The client's identifier finds the profile, so the participant code never does.
       matchByIdentifier?: boolean
       // A project officer's guardian approval, the only way an imported row gets guardian consent.
@@ -268,6 +272,28 @@ export class BeneficiaryRegistrationService {
     }
     if (registration.operation !== 'CREATE' && !candidateId) {
       return { kind: 'REVIEW', code: 'UNKNOWN_IDENTITY' }
+    }
+    if (
+      input.source === 'DIRECT_ENTRY' &&
+      registration.operation === 'CREATE' &&
+      !candidateId &&
+      input.confirmDuplicate !== true &&
+      registration.subjectType === 'INDIVIDUAL' &&
+      registration.birthDate
+    ) {
+      const sameBirthDate = await tx.beneficiary.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          archivedAt: null,
+          birthDate: registration.birthDate,
+        },
+        select: { firstName: true, lastName: true, displayName: true },
+        take: 200,
+      })
+      const key = identityNameKey(registration)
+      if (key.trim() && sameBirthDate.some((row) => identityNameKey(row) === key)) {
+        return { kind: 'REVIEW', code: POSSIBLE_DUPLICATE }
+      }
     }
 
     // The minor status and guardian flag the profile holds once this registration is written.

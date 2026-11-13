@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const request = vi.hoisted(() => ({ requestFoundation: vi.fn() }))
-vi.mock('@/lib/api/core/request', () => ({ requestFoundation: request.requestFoundation }))
+const request = vi.hoisted(() => ({
+  requestFoundation: vi.fn(),
+  requestFoundationResponse: vi.fn(),
+}))
+vi.mock('@/lib/api/core/request', () => ({
+  requestFoundation: request.requestFoundation,
+  requestFoundationResponse: request.requestFoundationResponse,
+}))
 
 import { ownProfileClient } from './profile'
 
@@ -11,7 +17,10 @@ const profile = {
   updatedAt: '2026-10-01T00:00:00.000Z',
 }
 
-beforeEach(() => request.requestFoundation.mockReset())
+beforeEach(() => {
+  request.requestFoundation.mockReset()
+  request.requestFoundationResponse.mockReset()
+})
 
 describe('own profile client', () => {
   it('reads the profile and parses the response', async () => {
@@ -34,6 +43,23 @@ describe('own profile client', () => {
       method: 'PATCH',
       body: JSON.stringify(input),
     })
+  })
+
+  it('posts only the password to the change route with the verified bearer', async () => {
+    request.requestFoundationResponse.mockResolvedValue(new Response(null, { status: 204 }))
+    const isCurrent = () => true
+    await expect(
+      ownProfileClient.changePassword('Str0ng!Passw0rd#1', 'verified-token', isCurrent),
+    ).resolves.toBeUndefined()
+    expect(request.requestFoundationResponse).toHaveBeenCalledWith(
+      '/auth/password/change',
+      {
+        method: 'POST',
+        body: JSON.stringify({ password: 'Str0ng!Passw0rd#1' }),
+        headers: { Authorization: 'Bearer verified-token' },
+      },
+      isCurrent,
+    )
   })
 
   it.each([

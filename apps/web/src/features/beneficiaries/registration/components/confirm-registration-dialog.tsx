@@ -20,6 +20,7 @@ export const ConfirmRegistrationDialog = ({
   supportsCode,
   saving,
   pendingCreate,
+  duplicateWarning,
   confirmSave,
 }: {
   confirmOpen: boolean
@@ -29,6 +30,7 @@ export const ConfirmRegistrationDialog = ({
   supportsCode: (code: string) => boolean
   saving: boolean
   pendingCreate: { confirming: boolean }
+  duplicateWarning: string | null
   confirmSave: () => Promise<void>
 }) => (
   <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -55,6 +57,11 @@ export const ConfirmRegistrationDialog = ({
             .join(' ')}
         </p>
       </div>
+      {duplicateWarning ? (
+        <p className="text-sm text-destructive" role="alert">
+          {duplicateWarning}
+        </p>
+      ) : null}
       <DialogFooter>
         <Button
           disabled={saving}
@@ -73,7 +80,9 @@ export const ConfirmRegistrationDialog = ({
             ? 'Saving...'
             : beneficiary
               ? 'Save changes'
-              : 'Save beneficiary'}
+              : duplicateWarning
+                ? 'Register anyway'
+                : 'Save beneficiary'}
         </Button>
       </DialogFooter>
     </DialogContent>

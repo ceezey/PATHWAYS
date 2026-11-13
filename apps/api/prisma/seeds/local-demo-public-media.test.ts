@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { PRODUCTION_PROJECT_REF } from './hosted-realistic-seed'
 import { demoActivities } from './local-demo-data'
 import { publicMediaBytes, publicMediaPlan } from './local-demo-public-media'
 import { type MediaRow, pickExisting } from './local-demo-stage-public-media'
@@ -9,6 +10,7 @@ import {
   nextPublicationStep,
   publications,
   selectionKey,
+  viewsFor,
 } from './local-demo-stage-publishing'
 
 const keys = ['EHK', 'ALS', 'CRL', 'SSG'] as const
@@ -139,6 +141,18 @@ describe('nextPublicationStep', () => {
       expect(p.views).not.toContain('map')
       expect(p.views.length).toBeGreaterThanOrEqual(2)
       expect(p.views.length).toBeLessThanOrEqual(5)
+    }
+  })
+  it('adds the map to EHK and CRL on production only', () => {
+    try {
+      vi.stubEnv('PATHWAYS_HOSTED_SEED_PROJECT_REF', 'klbtoqdalmcsfjqophty')
+      expect(publications.some((p) => viewsFor(p).includes('map'))).toBe(false)
+      vi.stubEnv('PATHWAYS_HOSTED_SEED_PROJECT_REF', PRODUCTION_PROJECT_REF)
+      const mapped = publications.filter((p) => viewsFor(p).includes('map')).map((p) => p.project)
+      expect(mapped).toEqual(['EHK', 'CRL'])
+      for (const p of publications) expect(viewsFor(p).length).toBeLessThanOrEqual(5)
+    } finally {
+      vi.unstubAllEnvs()
     }
   })
 })

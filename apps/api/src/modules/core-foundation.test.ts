@@ -131,6 +131,7 @@ describe('P01 workspace and project services', () => {
       updateMany: vi.fn(),
     },
     auditLog: { create: vi.fn() },
+    $queryRaw: vi.fn().mockResolvedValue([]),
   }
   const prisma = {} as PrismaService
   const authDirectory = { getExistingVerifiedIdentity: vi.fn() }

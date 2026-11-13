@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { ownProfileResponse, updateOwnProfileRequest } from './own-profile'
+import {
+  changeOwnPasswordRequest,
+  ownProfileResponse,
+  updateOwnProfileRequest,
+} from './own-profile'
 
 const body = {
   fullName: 'Synthetic User',
@@ -94,4 +98,19 @@ describe('own profile contracts', () => {
     }
     expect(ownProfileResponse.safeParse({ ...profile, ...change }).success).toBe(accepted)
   })
+})
+
+describe('change own password contract', () => {
+  const password = 'Str0ng!Passw0rd#1'
+
+  it('accepts a strong password', () => {
+    expect(changeOwnPasswordRequest.parse({ password })).toEqual({ password })
+  })
+
+  it.each([{ password: 'short' }, { password, confirmPassword: password }, {}])(
+    'rejects %j',
+    (value) => {
+      expect(changeOwnPasswordRequest.safeParse(value).success).toBe(false)
+    },
+  )
 })

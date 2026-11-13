@@ -7,11 +7,11 @@ import { withAuthorizedOperation } from '../../common/authz/authorized-operation
 import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
+import { identityNameKey } from './beneficiary-registration.helpers'
 
 const RESOLVED_ACTIONS = ['BENEFICIARY_IDENTITY_KEPT_DISTINCT', 'BENEFICIARY_IDENTITY_LINKED']
 const MAX_PROFILES = 500
 
-const norm = (value: string | null) => (value ?? '').trim().toLocaleLowerCase()
 const pairKey = (a: string, b: string) => (a < b ? `${a}:${b}` : `${b}:${a}`)
 
 @Injectable()
@@ -52,9 +52,7 @@ export class IdentityReviewService {
         const resolved = await this.resolvedPairs(tx, actor.organizationId, id)
         const groups = new Map<string, typeof rows>()
         for (const row of rows) {
-          const name = row.firstName
-            ? `${norm(row.firstName)} ${norm(row.lastName)}`
-            : norm(row.displayName)
+          const name = identityNameKey(row)
           if (!name.trim() || !row.birthDate) continue
           const key = `${name}|${row.birthDate.toISOString().slice(0, 10)}`
           groups.set(key, [...(groups.get(key) ?? []), row])
