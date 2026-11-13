@@ -54,6 +54,7 @@ describe('optimistic middleware; server page/API remain the secure boundaries', 
     '/auth/mfa',
     '/settings/profile',
     `/beneficiaries/${id}?projectId=${id}&returnTo=%2Fbeneficiaries%3Fq%3Dsample`,
+    `/beneficiaries/${id}?projectId=${id}&tab=participation`,
     `/beneficiaries/${id}/edit?projectId=${id}`,
   ])(
     'admits structurally valid %s to the server gate without duplicate authority RPCs',
@@ -145,5 +146,11 @@ describe('optimistic middleware; server page/API remain the secure boundaries', 
     const result = await updateSession(request('/dashboard?next=https://untrusted.invalid'))
     expect(result.headers.get('location')).toBe('http://127.0.0.1:3000/unauthorized')
     expect(result.cookies.get('pathways-context')).toBeUndefined()
+  })
+  it('rejects unexpected selectors alongside the participation tab', async () => {
+    const result = await updateSession(
+      request(`/beneficiaries/${id}?projectId=${id}&tab=participation&role=PROJECT_MANAGER`),
+    )
+    expect(result.headers.get('location')).toBe('http://127.0.0.1:3000/unauthorized')
   })
 })

@@ -10,7 +10,7 @@ export const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
   // The Analytics page reads only project ids the API already scoped for this person.
   analytics: ['project', 'view'],
   beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
-  beneficiary: ['returnTo'],
+  beneficiary: ['returnTo', 'tab'],
   budget: ['expense'],
   formEntry: ['submissionId'],
   // The import page opens a batch only if it is in the lists the server gave this person.
