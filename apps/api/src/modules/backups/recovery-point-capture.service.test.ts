@@ -308,7 +308,7 @@ describe('RecoveryPointCaptureService', () => {
     expect(tx.recoveryPoint.deleteMany).not.toHaveBeenCalled()
   })
 
-  it('pre-restore retention keeps 3 and never retires the point being restored', async () => {
+  it('pre-restore retention runs only when asked, keeps 3 and never retires the point being restored', async () => {
     const { tx, service } = setup()
     const at = (minutes: number) => new Date(Date.UTC(2026, 10, 15, 0, minutes))
     tx.recoveryPoint.findMany.mockResolvedValue(
@@ -318,7 +318,9 @@ describe('RecoveryPointCaptureService', () => {
         startedAt: at(60 - index),
       })),
     )
-    await service.capture(user, 'PRE_RESTORE', 'pre-4')
+    await service.capture(user, 'PRE_RESTORE')
+    expect(tx.recoveryPoint.deleteMany).not.toHaveBeenCalled()
+    await service.retainPreRestore(user, 'pre-4')
     expect(tx.recoveryPoint.deleteMany.mock.calls.map(([arg]) => arg.where.id)).toEqual(['pre-3'])
   })
 

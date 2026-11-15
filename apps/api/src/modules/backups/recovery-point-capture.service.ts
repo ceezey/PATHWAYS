@@ -106,16 +106,23 @@ export class RecoveryPointCaptureService {
     @Inject(BackupJobDatabase) private readonly jobDatabase: BackupJobDatabase,
   ) {}
 
-  /** A manual or pre-restore point; `keepPointId` stays out of retention (the point being restored). */
+  /** A manual or pre-restore point; a pre-restore point runs no retention until its restore commits. */
   async capture(
     identity: ApplicationIdentity,
     pointType: 'MANUAL' | 'PRE_RESTORE',
-    keepPointId?: string,
   ): Promise<RecoveryPointRow> {
-    const ledger = this.userLedger(identity, pointType, keepPointId)
-    const row = await this.run(ledger, identity.organizationId, pointType)
+    const ledger = this.userLedger(identity, pointType)
+    const row = await this.run(ledger, identity.organizationId, pointType, pointType === 'MANUAL')
     if (!row) throw new Error('The recovery point was not returned.')
     return row
+  }
+
+  /** Pre-restore retention after a committed restore, so failed attempts never evict an undo point; `keepPointId` is the point restored. */
+  async retainPreRestore(identity: ApplicationIdentity, keepPointId: string): Promise<void> {
+    await this.retain(
+      this.userLedger(identity, 'PRE_RESTORE', keepPointId),
+      identity.organizationId,
+    )
   }
 
   /** One automatic point on the job login. */
@@ -144,7 +151,12 @@ export class RecoveryPointCaptureService {
     return { state: 'COMPLETED', created, failed }
   }
 
-  private async run(ledger: PointLedger, organizationId: string, pointType: PointType) {
+  private async run(
+    ledger: PointLedger,
+    organizationId: string,
+    pointType: PointType,
+    retain = true,
+  ) {
     const pointId = await ledger.begin()
     if (!pointId) throw backupBusy()
     let row: RecoveryPointRow | null
@@ -161,7 +173,7 @@ export class RecoveryPointCaptureService {
     } catch (error) {
       throw await this.failed(ledger, organizationId, pointId, pointType, error)
     }
-    await this.retain(ledger, organizationId)
+    if (retain) await this.retain(ledger, organizationId)
     return row
   }
 

@@ -355,7 +355,7 @@ export class BackupsService {
 
     let pre: RecoveryPointRow
     try {
-      pre = await this.capture.capture(identity, 'PRE_RESTORE', row.id)
+      pre = await this.capture.capture(identity, 'PRE_RESTORE')
     } catch (error) {
       await this.auditOutcome(identity, 'BACKUP_RESTORE_FAILED', row.id, {
         code: 'PRE_RESTORE_FAILED',
@@ -463,6 +463,7 @@ export class BackupsService {
       if (error instanceof HttpException) throw error
       throw restoreFailed()
     }
+    await this.capture.retainPreRestore(identity, row.id)
 
     return {
       point: toRecoveryPointItem(row, migration, new Date()),

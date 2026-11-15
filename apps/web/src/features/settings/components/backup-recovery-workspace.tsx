@@ -179,7 +179,7 @@ const PointRow = ({
       </td>
       <td className="px-3 py-2">
         <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-        {point.status === 'FAILED' && point.failureReason ? (
+        {(point.status === 'FAILED' || point.status === 'UNAVAILABLE') && point.failureReason ? (
           <p className="mt-1 text-xs text-muted-foreground">{point.failureReason}</p>
         ) : null}
       </td>

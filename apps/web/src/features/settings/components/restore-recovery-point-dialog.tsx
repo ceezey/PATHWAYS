@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { formatRecoveryPointTime, recoveryPointKindLabels } from '../backup-recovery.utils'
 
 const REPLACES =
-  "This replaces your organization's projects, activities, beneficiaries, monitoring, finance, alert and public tracker data with the data saved at that time. Staff accounts, roles and the audit log are not changed. Files uploaded after that time stay in storage but are no longer linked. PATHWAYS saves a recovery point of the current data first, so you can undo this restore."
+  "This replaces your organization's projects, activities, beneficiaries, monitoring, finance, alert and public tracker data with the data saved at that time. Staff accounts, roles and the audit log are not changed. Project and activity assignments return to what they were then. Files uploaded after that time stay in storage but are no longer linked. PATHWAYS saves a recovery point of the current data first, so you can undo this restore."
 
 /** Asks the administrator to type the organization code before a restore replaces the data. */
 export const RestoreRecoveryPointDialog = ({

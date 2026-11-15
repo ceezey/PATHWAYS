@@ -85,7 +85,12 @@ describe('backup and recovery workspace', () => {
     state.pending = false
     state.points = [
       point(1),
-      point(2, { pointType: 'AUTOMATIC', createdBy: null, status: 'UNAVAILABLE' }),
+      point(2, {
+        pointType: 'AUTOMATIC',
+        createdBy: null,
+        status: 'UNAVAILABLE',
+        failureReason: "This recovery point's data file is missing.",
+      }),
       point(3, { status: 'INCOMPATIBLE', migrationName: '0090_x' }),
       point(4, { status: 'CREATING', capturedAt: null, completedAt: null, sizeBytes: null }),
       point(5, {
@@ -107,6 +112,9 @@ describe('backup and recovery workspace', () => {
     expect(within(ready).getByText('1.0 MB')).toBeTruthy()
     expect(within(ready).getByText('Ready')).toBeTruthy()
     expect(within(rowOf(point(2).id)).getByText('System')).toBeTruthy()
+    expect(
+      within(rowOf(point(2).id)).getByText("This recovery point's data file is missing."),
+    ).toBeTruthy()
     expect(within(rowOf(point(5).id)).getByText('Backup storage was unavailable.')).toBeTruthy()
     expect(within(rowOf(point(5).id)).getByText('Not recorded')).toBeTruthy()
   })

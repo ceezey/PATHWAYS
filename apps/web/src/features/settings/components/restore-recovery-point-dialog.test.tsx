@@ -48,6 +48,9 @@ describe('RestoreRecoveryPointDialog', () => {
     expect(
       screen.getByText(/Staff accounts, roles and the audit log are not changed\./),
     ).toBeTruthy()
+    expect(
+      screen.getByText(/Project and activity assignments return to what they were then\./),
+    ).toBeTruthy()
     expect(screen.queryByText(/copied back from the recovery point/)).toBeNull()
   })
 

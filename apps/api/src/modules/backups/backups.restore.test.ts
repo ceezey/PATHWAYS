@@ -112,6 +112,9 @@ function setup() {
       order.push('pre-restore')
       return pointRow({ id: preId, pointType: 'PRE_RESTORE' })
     }),
+    retainPreRestore: vi.fn(async () => {
+      order.push('retention')
+    }),
   }
   const service = new BackupsService(
     {} as PrismaService,
@@ -128,8 +131,9 @@ describe('BackupsService.restore', () => {
   it('restores: pre-restore point first, then the database function with the manifest counts, then one BACKUP_RESTORED row', async () => {
     const { tx, capture, service, audits, order } = setup()
     const result = await service.restore(admin, pointId, { organizationCode: 'DEMO' })
-    expect(order).toEqual(['pre-restore', 'restore'])
-    expect(capture.capture).toHaveBeenCalledWith(admin, 'PRE_RESTORE', pointId)
+    expect(order).toEqual(['pre-restore', 'restore', 'retention'])
+    expect(capture.capture).toHaveBeenCalledWith(admin, 'PRE_RESTORE')
+    expect(capture.retainPreRestore).toHaveBeenCalledWith(admin, pointId)
     const call = tx.$queryRaw.mock.calls.find(([query]) =>
       String(query).includes('p91_restore_organization'),
     ) as unknown[]
@@ -158,6 +162,22 @@ describe('BackupsService.restore', () => {
       .mocked(withAuthorizedOperation)
       .mock.calls.find(([, , , , options]) => options?.backupTimeout)?.[4]
     expect(restoreOptions).toEqual({ transactionTimeoutMs: 120_000, backupTimeout: true })
+  })
+
+  it('a failed restore runs no pre-restore retention, so retries never evict an undo point', async () => {
+    const { tx, capture, service } = setup()
+    tx.$queryRaw.mockImplementation(async (query: unknown) => {
+      const text = String(query)
+      if (text.includes('p91_current_migration')) return [{ migration: '0091_backup_recovery' }]
+      if (text.includes('transaction_isolation')) return [{ level: 'read committed' }]
+      if (text.includes('p91_restore_organization')) throw sqlError('55P03')
+      return []
+    })
+    await expect(
+      service.restore(admin, pointId, { organizationCode: 'DEMO' }),
+    ).rejects.toMatchObject({ status: 409 })
+    expect(capture.capture).toHaveBeenCalled()
+    expect(capture.retainPreRestore).not.toHaveBeenCalled()
   })
 
   it('refuses to restore outside a read committed transaction', async () => {
@@ -344,7 +364,7 @@ describe('BackupsService.restore', () => {
       'image/png',
     )
     expect(storage.removePoint).not.toHaveBeenCalled()
-    expect(order).toEqual(['pre-restore', 'copy', 'overwrite', 'restore'])
+    expect(order).toEqual(['pre-restore', 'copy', 'overwrite', 'restore', 'retention'])
     expect(result.filesRestored).toBe(2)
   })
 
