@@ -64,6 +64,7 @@ export const AUDIT_MODULES = [
   { key: 'dashboards', label: 'Dashboards', entityTypes: ['Dashboard'] },
   { key: 'users', label: 'Users and sign-in', entityTypes: ['SystemUser', 'Authentication'] },
   { key: 'audit', label: 'Audit Log', entityTypes: ['AuditLog'] },
+  { key: 'backups', label: 'Backup and recovery', entityTypes: ['RECOVERY_POINT'] },
   // On the server, any entity type not listed above counts as other.
   { key: 'other', label: 'Other', entityTypes: [] },
 ] as const
@@ -76,6 +77,13 @@ export const auditModuleOf = (entityType: string): { key: AuditModuleKey; label:
   const { key, label } = found ?? AUDIT_MODULES[AUDIT_MODULES.length - 1]
   return { key, label }
 }
+
+export const AUDIT_OUTCOMES = ['Recorded', 'Failed', 'Refused'] as const
+export type AuditOutcome = (typeof AUDIT_OUTCOMES)[number]
+
+// Failure and refusal actions are named by suffix; every other action, business rejections included, is Recorded.
+export const auditOutcomeOf = (action: string): AuditOutcome =>
+  action.endsWith('_FAILED') ? 'Failed' : action.endsWith('_REFUSED') ? 'Refused' : 'Recorded'
 
 const day = z.string().refine(isCalendarDate, 'Use a real YYYY-MM-DD date from 1900 through 2100.')
 const moduleKeys = AUDIT_MODULES.map((m) => m.key) as [AuditModuleKey, ...AuditModuleKey[]]

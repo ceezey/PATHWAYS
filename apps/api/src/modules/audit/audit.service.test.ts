@@ -123,6 +123,58 @@ describe('audit projection and cursor boundary', () => {
     ])
     expect(result.rows[0]).not.toHaveProperty('changes')
   })
+  it('returns exactly the allowlisted keys of each backup action and never rowCounts', async () => {
+    const point = '50000000-0000-4000-8000-000000000005'
+    const stored = {
+      pointType: 'MANUAL',
+      fileMode: 'copy',
+      fileCount: 2,
+      migration: '0091_backup_recovery',
+      capturedAt: '2026-11-16T01:00:00.000Z',
+      sizeBytes: 1024,
+      expiresInSeconds: 120,
+      preRestorePointId: point,
+      filesRestored: 1,
+      code: 'BUSY',
+      rowCounts: { projects: 3 },
+      fullName: 'Fictional participant',
+    }
+    const expected: Record<string, readonly string[]> = {
+      BACKUP_CREATED: [
+        'pointType',
+        'fileMode',
+        'fileCount',
+        'migration',
+        'capturedAt',
+        'sizeBytes',
+      ],
+      BACKUP_FAILED: ['pointType', 'code'],
+      BACKUP_DOWNLOADED: ['pointType', 'capturedAt', 'expiresInSeconds'],
+      BACKUP_RESTORED: [
+        'pointType',
+        'capturedAt',
+        'migration',
+        'fileMode',
+        'preRestorePointId',
+        'filesRestored',
+      ],
+      BACKUP_RESTORE_FAILED: ['code', 'filesRestored'],
+      BACKUP_RESTORE_REFUSED: ['code'],
+    }
+    tx.auditLog.findMany.mockResolvedValue(
+      Object.keys(expected).map((action, index) => ({
+        ...row(String(index)),
+        action,
+        entityType: 'RECOVERY_POINT',
+        changes: stored,
+      })),
+    )
+    const result = await service.list(identity, {})
+    for (const [index, keys] of Object.values(expected).entries())
+      expect(result.rows[index].details).toStrictEqual(
+        Object.fromEntries(keys.map((key) => [key, stored[key as keyof typeof stored]])),
+      )
+  })
   it('resolves the actor name from the same organization-scoped relation', async () => {
     tx.auditLog.findMany.mockResolvedValue([row('1')])
     const result = await service.list(identity, {})
@@ -224,6 +276,13 @@ describe('audit server filters', () => {
       entityType: {
         in: ['Project', 'Program', 'ProjectMilestone', 'ProjectMapPin', 'ProjectPublication'],
       },
+    })
+  })
+  it('narrows Backup and recovery to recovery point rows', async () => {
+    await service.list(identity, { module: 'backups' })
+    expect(tx.auditLog.findMany.mock.calls[0][0].where).toEqual({
+      organizationId: org,
+      entityType: { in: ['RECOVERY_POINT'] },
     })
   })
   it('Other means every entity type no module lists', async () => {

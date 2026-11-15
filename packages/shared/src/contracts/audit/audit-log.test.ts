@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AUDIT_MODULES, auditModuleOf, auditQuerySchema } from './audit-log'
+import { AUDIT_MODULES, auditModuleOf, auditOutcomeOf, auditQuerySchema } from './audit-log'
 
 describe('audit log contract', () => {
   it('puts every entity type in exactly one uniquely labelled module, ending with other', () => {
@@ -13,7 +13,18 @@ describe('audit log contract', () => {
     expect(auditModuleOf('Project')).toEqual({ key: 'projects', label: 'Projects' })
     expect(auditModuleOf('ProjectActivity')).toEqual({ key: 'activities', label: 'Activities' })
     expect(auditModuleOf('Authentication')).toEqual({ key: 'users', label: 'Users and sign-in' })
+    expect(auditModuleOf('RECOVERY_POINT')).toEqual({
+      key: 'backups',
+      label: 'Backup and recovery',
+    })
     expect(auditModuleOf('LegacyThing')).toEqual({ key: 'other', label: 'Other' })
+  })
+
+  it('derives the outcome from the action suffix and keeps business rejections Recorded', () => {
+    expect(auditOutcomeOf('BACKUP_RESTORE_FAILED')).toBe('Failed')
+    expect(auditOutcomeOf('BACKUP_RESTORE_REFUSED')).toBe('Refused')
+    expect(auditOutcomeOf('EXPENSE_REJECTED')).toBe('Recorded')
+    expect(auditOutcomeOf('PROJECT_UPDATED')).toBe('Recorded')
   })
 
   it('parses the server filters and trims the keyword', () => {
