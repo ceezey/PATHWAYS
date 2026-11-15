@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { recoveryPointProblemMessages } from '@pathways/shared'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -241,5 +242,86 @@ describe('backup and recovery workspace', () => {
     state.fileMode = 'copy'
     render(<BackupRecoveryWorkspace />)
     expect(screen.getByText('New recovery points also copy every uploaded file.')).toBeTruthy()
+  })
+
+  describe('restore', () => {
+    const pre = '79300000-0000-4000-8000-000000000098'
+    const openRestore = () => {
+      fireEvent.click(within(rowOf(point(1).id)).getByRole('button', { name: 'Restore' }))
+      fireEvent.change(screen.getByLabelText('Type ORG1 to confirm'), { target: { value: 'ORG1' } })
+      return within(screen.getByRole('dialog')).getByRole('button', { name: /^Restor/ })
+    }
+
+    it('restores after the typed code, closes, reports and refetches', async () => {
+      state.restore.mockResolvedValueOnce({
+        point: point(1),
+        preRestorePointId: pre,
+        rowCounts: {},
+        filesRestored: 2,
+      })
+      render(<BackupRecoveryWorkspace />)
+      fireEvent.click(openRestore())
+      await waitFor(() =>
+        expect(state.restore).toHaveBeenCalledWith(point(1).id, { organizationCode: 'ORG1' }),
+      )
+      expect(
+        await screen.findByText(
+          /A recovery point of the data before the restore was saved first\. 2 files copied back\./,
+        ),
+      ).toBeTruthy()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(state.refetch).toHaveBeenCalled()
+    })
+
+    it('restores once on a double click', async () => {
+      state.restore.mockReturnValue(new Promise(() => undefined))
+      render(<BackupRecoveryWorkspace />)
+      const confirm = openRestore()
+      fireEvent.click(confirm)
+      fireEvent.click(confirm)
+      await waitFor(() => expect(state.restore).toHaveBeenCalledTimes(1))
+    })
+
+    it('keeps the dialog open with the refusal and refetches', async () => {
+      state.restore.mockRejectedValueOnce(
+        new PathwaysClientError(recoveryPointProblemMessages.FILE_MISSING, 'network', [], 409),
+      )
+      render(<BackupRecoveryWorkspace />)
+      fireEvent.click(openRestore())
+      const dialog = await screen.findByRole('dialog')
+      expect(
+        await within(dialog).findByText(recoveryPointProblemMessages.FILE_MISSING),
+      ).toBeTruthy()
+      expect(state.refetch).toHaveBeenCalled()
+    })
+
+    it.each([
+      [
+        new PathwaysClientError('The organization code does not match.', 'invalid', [], 400),
+        'The organization code does not match.',
+      ],
+      [
+        new PathwaysClientError(generic, 'network', [], 500),
+        'The restore failed and your data was not changed. The failure is recorded in the audit log.',
+      ],
+      [new TypeError('fetch failed'), /could not be confirmed/],
+    ])('shows %s in the open dialog', async (error, text) => {
+      state.restore.mockRejectedValueOnce(error)
+      render(<BackupRecoveryWorkspace />)
+      fireEvent.click(openRestore())
+      const alert = await within(await screen.findByRole('dialog')).findByRole('alert')
+      expect(alert.textContent).toMatch(text)
+    })
+
+    it('clears the error when the dialog closes', async () => {
+      state.restore.mockRejectedValueOnce(new PathwaysClientError(generic, 'network', [], 500))
+      render(<BackupRecoveryWorkspace />)
+      fireEvent.click(openRestore())
+      await within(await screen.findByRole('dialog')).findByRole('alert')
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      fireEvent.click(within(rowOf(point(1).id)).getByRole('button', { name: 'Restore' }))
+      expect(within(screen.getByRole('dialog')).queryByRole('alert')).toBeNull()
+    })
   })
 })

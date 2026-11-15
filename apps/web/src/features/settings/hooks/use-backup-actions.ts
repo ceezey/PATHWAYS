@@ -8,7 +8,12 @@ import {
 import { useRef, useState } from 'react'
 
 import { backupsClient } from '@/lib/api/backups'
-import { type BackupAction, backupFailureMessage } from '../backup-recovery.utils'
+import { plural } from '@/lib/format/plural'
+import {
+  type BackupAction,
+  backupFailureMessage,
+  formatRecoveryPointTime,
+} from '../backup-recovery.utils'
 
 type Notice = { tone: 'success' | 'danger'; text: string }
 
@@ -21,6 +26,7 @@ export function useBackupActions(refetch: () => unknown) {
   )
   const [notice, setNotice] = useState<Notice | null>(null)
   const [links, setLinks] = useState<(RecoveryPointDownload & { pointId: string }) | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
 
   const run = async (
     action: BackupAction,
@@ -47,6 +53,32 @@ export function useBackupActions(refetch: () => unknown) {
     pending,
     notice,
     links,
+    restoreError,
+    clearRestoreError: () => setRestoreError(null),
+    /** True when the restore succeeded; a failure keeps its message in restoreError for the dialog. */
+    restore: async (point: RecoveryPointListItem, organizationCode: string) => {
+      if (busy.current) return false
+      busy.current = true
+      setPending({ action: 'restore', pointId: point.id })
+      setNotice(null)
+      setRestoreError(null)
+      try {
+        const { filesRestored } = await backupsClient.restore(point.id, { organizationCode })
+        const files = filesRestored > 0 ? ` ${plural(filesRestored, 'file')} copied back.` : ''
+        setNotice({
+          tone: 'success',
+          text: `Restored to the recovery point from ${formatRecoveryPointTime(point)}. A recovery point of the data before the restore was saved first.${files}`,
+        })
+        return true
+      } catch (caught) {
+        setRestoreError(backupFailureMessage('restore', caught))
+        return false
+      } finally {
+        busy.current = false
+        setPending(null)
+        refetch()
+      }
+    },
     create: () =>
       run(
         'create',

@@ -1,6 +1,7 @@
 'use client'
 
 import type { RecoveryPointListItem } from '@pathways/shared'
+import { useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState, LoadingSkeleton, SectionCard, StatusBadge } from '@/components/pathways'
@@ -19,6 +20,7 @@ import {
   recoveryPointStatusView,
 } from '../backup-recovery.utils'
 import { useBackupActions } from '../hooks/use-backup-actions'
+import { RestoreRecoveryPointDialog } from './restore-recovery-point-dialog'
 
 const fileModeNotes = {
   manifest:
@@ -35,6 +37,11 @@ export const BackupRecoveryWorkspace = () => {
   )
   const actions = useBackupActions(read.refetch)
   const busy = actions.pending !== null
+  const [restoring, setRestoring] = useState<RecoveryPointListItem | null>(null)
+  const closeRestore = () => {
+    setRestoring(null)
+    actions.clearRestoreError()
+  }
 
   return (
     <div className="space-y-6">
@@ -115,6 +122,7 @@ export const BackupRecoveryWorkspace = () => {
                       point={point}
                       busy={busy}
                       canRestore={canRestore}
+                      onRestore={() => setRestoring(point)}
                       onVerify={() => void actions.verify(point)}
                       onDownload={() => void actions.download(point)}
                     />
@@ -125,6 +133,21 @@ export const BackupRecoveryWorkspace = () => {
           )}
         </div>
       </SectionCard>
+      <RestoreRecoveryPointDialog
+        point={restoring}
+        organizationCode={read.data?.organizationCode ?? ''}
+        pending={actions.pending?.action === 'restore'}
+        error={actions.restoreError}
+        onOpenChange={(open) => {
+          if (!open) closeRestore()
+        }}
+        onConfirm={(organizationCode) => {
+          if (!restoring) return
+          void actions.restore(restoring, organizationCode).then((restored) => {
+            if (restored) closeRestore()
+          })
+        }}
+      />
     </div>
   )
 }
@@ -133,12 +156,14 @@ const PointRow = ({
   point,
   busy,
   canRestore,
+  onRestore,
   onVerify,
   onDownload,
 }: {
   point: RecoveryPointListItem
   busy: boolean
   canRestore: boolean
+  onRestore: () => void
   onVerify: () => void
   onDownload: () => void
 }) => {
@@ -161,7 +186,12 @@ const PointRow = ({
       <td className="px-3 py-2">
         <div className="flex flex-wrap gap-2">
           {canRestore ? (
-            <Button type="button" size="sm" disabled={busy || !canRestorePoint(point)}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy || !canRestorePoint(point)}
+              onClick={onRestore}
+            >
               Restore
             </Button>
           ) : null}
