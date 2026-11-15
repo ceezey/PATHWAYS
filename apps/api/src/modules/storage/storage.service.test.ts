@@ -6,11 +6,15 @@ const provider = vi.hoisted(() => ({
   upload: vi.fn(),
   download: vi.fn(),
   createSignedUploadUrl: vi.fn(),
+  list: vi.fn(),
+  copy: vi.fn(),
+  remove: vi.fn(),
+  createSignedUrl: vi.fn(),
 }))
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: provider.createClient }))
 
-import { StorageService } from './storage.service'
+import { StorageService, isMissingObjectError } from './storage.service'
 
 const originalUrl = process.env.SUPABASE_URL
 const originalServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -27,6 +31,10 @@ describe('private Storage adapter', () => {
           upload: provider.upload,
           download: provider.download,
           createSignedUploadUrl: provider.createSignedUploadUrl,
+          list: provider.list,
+          copy: provider.copy,
+          remove: provider.remove,
+          createSignedUrl: provider.createSignedUrl,
         }),
       },
     })
@@ -129,5 +137,75 @@ describe('private Storage adapter', () => {
       error: { statusCode: '500', message: 'Internal' },
     })
     await expect(service.createPrivateUploadUrls('pathways-private', ['a/3.pdf'])).rejects.toThrow()
+  })
+
+  it('lists one folder level across pages, marking folders and stripping eTag quotes', async () => {
+    provider.getBucket.mockResolvedValue({ data: { public: false }, error: null })
+    const file = {
+      id: 'x',
+      name: 'a.pdf',
+      metadata: { eTag: '"abc"', size: 5, mimetype: 'application/pdf' },
+    }
+    const page = [{ id: null, name: 'projects' }, ...Array.from({ length: 999 }, () => file)]
+    provider.list
+      .mockResolvedValueOnce({ data: page, error: null })
+      .mockResolvedValueOnce({ data: [file], error: null })
+    const objects = await new StorageService().listObjects('pathways-private', 'organizations/o')
+    expect(provider.getBucket).toHaveBeenCalledOnce()
+    expect(provider.list.mock.calls).toEqual([
+      ['organizations/o', { limit: 1000, offset: 0 }],
+      ['organizations/o', { limit: 1000, offset: 1000 }],
+    ])
+    expect(objects).toHaveLength(1001)
+    expect(objects[0]).toEqual({
+      name: 'organizations/o/projects',
+      folder: true,
+      size: 0,
+      checksum: '',
+      contentType: '',
+    })
+    expect(objects[1]).toEqual({
+      name: 'organizations/o/a.pdf',
+      folder: false,
+      size: 5,
+      checksum: 'abc',
+      contentType: 'application/pdf',
+    })
+  })
+
+  it('copies and removes only after confirming the bucket is private', async () => {
+    provider.getBucket.mockResolvedValue({ data: { public: true }, error: null })
+    const service = new StorageService()
+    await expect(service.copyObject('pathways-private', 'a', 'b')).rejects.toThrow(/not private/)
+    await expect(service.removeFiles('pathways-private', ['a'])).rejects.toThrow(/not private/)
+    expect(provider.copy).not.toHaveBeenCalled()
+    expect(provider.remove).not.toHaveBeenCalled()
+    provider.getBucket.mockResolvedValue({ data: { public: false }, error: null })
+    provider.copy.mockResolvedValue({ data: { path: 'b' }, error: null })
+    provider.remove.mockResolvedValue({ data: [], error: null })
+    await service.copyObject('pathways-private', 'a', 'b')
+    expect(provider.copy).toHaveBeenCalledWith('a', 'b')
+    await service.removeFiles(
+      'pathways-private',
+      Array.from({ length: 250 }, (_, index) => `p/${index}`),
+    )
+    expect(provider.remove.mock.calls.map(([paths]) => paths.length)).toEqual([100, 100, 50])
+  })
+
+  it('signs a download URL with the given file name', async () => {
+    provider.createSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://s/p' }, error: null })
+    const service = new StorageService()
+    await service.generateSignedUrl('pathways-private', 'p', 120, 'recovery-point-1.json.gz')
+    expect(provider.createSignedUrl).toHaveBeenCalledWith('p', 120, {
+      download: 'recovery-point-1.json.gz',
+    })
+  })
+
+  it('classifies a missing object', () => {
+    expect(isMissingObjectError({ statusCode: '404' })).toBe(true)
+    expect(isMissingObjectError({ status: 404 })).toBe(true)
+    expect(isMissingObjectError({ message: 'Object not found' })).toBe(true)
+    expect(isMissingObjectError({ statusCode: '500', message: 'Internal' })).toBe(false)
+    expect(isMissingObjectError(null)).toBe(false)
   })
 })
