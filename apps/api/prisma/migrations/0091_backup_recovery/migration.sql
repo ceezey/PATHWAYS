@@ -678,7 +678,7 @@ DO $$ DECLARE fn record; BEGIN
   OR (SELECT pg_catalog.array_agg(n.nspname||'.'||c.relname ORDER BY n.nspname||'.'||c.relname) FROM pg_catalog.pg_policy p
    JOIN pg_catalog.pg_class c ON c.oid=p.polrelid JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
    WHERE p.polname='p91_backup_capture_select')
-   IS DISTINCT FROM (SELECT pg_catalog.array_agg(x ORDER BY x) FROM pg_catalog.unnest(
+   IS DISTINCT FROM (SELECT pg_catalog.array_agg(x ORDER BY x COLLATE "C") FROM pg_catalog.unnest(
     pg_catalog.string_to_array(pg_catalog.current_setting('pathways_0091.capture_tables'),',')) x)
   OR EXISTS(SELECT FROM pg_catalog.pg_policy p JOIN pg_catalog.pg_class c ON c.oid=p.polrelid WHERE p.polname='p91_backup_capture_select'
    AND NOT (c.relforcerowsecurity AND p.polcmd='r' AND p.polpermissive AND p.polwithcheck IS NULL
