@@ -84,11 +84,7 @@ export class BackupStorage {
     await this.call(() => this.storage.uploadPrivateFile(this.bucket, path, body, contentType))
   }
 
-  async overwrite(
-    path: string,
-    body: Buffer,
-    contentType: 'application/gzip' | 'application/json',
-  ) {
+  async overwrite(path: string, body: Buffer, contentType: string) {
     await this.call(() => this.storage.uploadFile(this.bucket, path, body, contentType))
   }
 
