@@ -502,6 +502,7 @@ SET LOCAL ROLE pathways_backup_owner;
 CREATE FUNCTION pathways.p91_restore_organization(wanted_org uuid, snapshot jsonb, expected_counts jsonb) RETURNS jsonb
  LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '' SET lock_timeout TO '5s' AS $$
 DECLARE t record; i integer; blocked text; reason text; locked text; def text; restored bigint; counts jsonb := '{}';
+ cols text; vals text;
  trig_rel regclass[]; trig_name text[]; trig_state text[]; forced regclass[];
  cycle_rel text[] := ARRAY['pathways.budget_expense_entries','pathways.decision_recommendations'];
  cycle_name text[] := ARRAY['budget_expense_entries_receipt_evidence_fkey','f10_private_review_scope']; cycle_def text[];
@@ -566,7 +567,13 @@ BEGIN
   EXECUTE format('DELETE FROM %s WHERE organization_id = $1', t.rel) USING wanted_org;
  END LOOP;
  FOR t IN SELECT b.table_name, to_regclass(b.table_name) AS rel FROM pathways.p91_backup_tables() b WHERE b.restore ORDER BY b.table_order LOOP
-  EXECUTE format('INSERT INTO %1$s SELECT * FROM pg_catalog.jsonb_populate_recordset(NULL::%1$s, $1)', t.rel)
+  -- A JSON null in a NOT NULL jsonb column would populate as SQL NULL, so those columns take the element's own value.
+  SELECT string_agg(format('%I', a.attname), ', ' ORDER BY a.attnum),
+   string_agg(CASE WHEN a.attnotnull AND a.atttypid = 'pg_catalog.jsonb'::pg_catalog.regtype
+    THEN format('e.v -> %L', a.attname) ELSE format('r.%I', a.attname) END, ', ' ORDER BY a.attnum)
+   INTO cols, vals FROM pg_catalog.pg_attribute a WHERE a.attrelid = t.rel AND a.attnum > 0 AND NOT a.attisdropped;
+  EXECUTE format('INSERT INTO %1$s (%2$s) SELECT %3$s FROM pg_catalog.jsonb_array_elements($1) e(v),'
+   ' pg_catalog.jsonb_populate_record(NULL::%1$s, e.v) r', t.rel, cols, vals)
    USING snapshot->'tables'->t.table_name;
  END LOOP;
  -- A restored lease names a worker that no longer holds it, so the job waits for a new claim.
