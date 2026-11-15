@@ -1372,7 +1372,7 @@ SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity
  AND (SELECT count(*) FROM pg_catalog.pg_policy WHERE polname='p91_backup_capture_select')
   =(SELECT count(*) FROM pathways.p91_backup_tables() b JOIN pg_catalog.pg_class c ON c.oid=pg_catalog.to_regclass(b.table_name) WHERE c.relforcerowsecurity)
  AND (SELECT count(*) FROM (VALUES
-   ('pathways.p91_backup_tables()','pathways_backup_owner',true,'65b09531bccf0d8e126067fc634a75b9','{pathways_runtime}'),
+   ('pathways.p91_backup_tables()','pathways_backup_owner',true,'978337df9e7cf14c1d850048fe6d8eea','{pathways_runtime}'),
    ('pathways.p91_capture_organization(uuid)','pathways_backup_owner',true,'d20367285730e33e6d114a4bd872b7e1','{pathways_backup_job,pathways_runtime}'),
    ('pathways.p91_restore_organization(uuid,jsonb,jsonb)','pathways_backup_owner',true,'30c093ca525407a1cd92bfbf1b5c2c79','{pathways_runtime}'),
    ('pathways.p91_backup_actor(text[])','prisma',true,'1c19d8e7781b5d82bb69dc3cab4b7fa8','{pathways_runtime}'),

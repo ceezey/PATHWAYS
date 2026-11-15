@@ -488,8 +488,8 @@ SELECT pg_temp.same('backup table list is complete',
     'pathways_rules_internal.feature_operation_context','pathways_rules_internal.source_operation_context',
     'pathways_rules_internal.runtime_mutation_intents'])) s),
  (SELECT jsonb_agg(table_name ORDER BY table_name) FROM pathways.p91_backup_tables()));
-SELECT pg_temp.ok('positions are 1..n and names unique', (SELECT count(*)=74 AND count(DISTINCT table_name)=74
- AND min(table_order)=1 AND max(table_order)=74 FROM pathways.p91_backup_tables()));
+SELECT pg_temp.ok('positions are 1..n and names unique', (SELECT count(*)=75 AND count(DISTINCT table_name)=75
+ AND min(table_order)=1 AND max(table_order)=75 FROM pathways.p91_backup_tables()));
 SELECT pg_temp.ok('backup list is in foreign key order', NOT EXISTS(SELECT FROM pg_constraint k
  JOIN pathways.p91_backup_tables() ch ON ch.table_name=pg_temp.qname(k.conrelid)
  JOIN pathways.p91_backup_tables() pa ON pa.table_name=pg_temp.qname(k.confrelid)

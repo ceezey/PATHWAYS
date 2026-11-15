@@ -20,7 +20,7 @@ END $$;
 DO $$ BEGIN
  IF NOT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE rolname='prisma' AND rolcanlogin AND rolinherit AND NOT rolsuper
   AND NOT rolcreaterole AND NOT rolreplication)
- OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0089_project_map_pins'
+ OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0090_test_case_gap_closure'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
  OR EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0091_backup_recovery'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
@@ -30,7 +30,7 @@ DO $$ BEGIN
   WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma')
   AND (r.rolname LIKE 'rules\_%\_owner' OR r.rolname IN('public_projection_owner','report_projection_owner','finance_operation_owner','pathways_backup_owner')))
  OR (SELECT count(*) FROM pg_catalog.pg_roles WHERE rolname IN('report_projection_owner','rules_store_owner','rules_context_owner') AND NOT rolinherit AND NOT rolcanlogin AND NOT rolsuper)<>3
- THEN RAISE EXCEPTION 'Verified 0089 ledger without 0091, clean ledger and post-cleanup prisma role required'; END IF;
+ THEN RAISE EXCEPTION 'Verified 0090 ledger without 0091, clean ledger and post-cleanup prisma role required'; END IF;
 END $$;
 -- An existing role must have exactly its profile, no membership of its own and no member but the hosted bootstrap ADMIN row.
 DO $$ DECLARE role_name text;r record;job boolean; BEGIN

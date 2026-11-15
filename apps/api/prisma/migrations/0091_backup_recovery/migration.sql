@@ -17,9 +17,9 @@ BEGIN;
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='60s';
 DO $$ DECLARE fn record;postgres_oid oid;prisma_oid oid;bootstrap_oid oid;hosted boolean; BEGIN
- IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0089_project_map_pins'
+ IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0090_test_case_gap_closure'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
- THEN RAISE EXCEPTION '0091 requires the verified 0089 state and migration identity'; END IF;
+ THEN RAISE EXCEPTION '0091 requires the verified 0090 state and migration identity'; END IF;
  IF pg_catalog.to_regclass('pathways.recovery_points') IS NOT NULL
  THEN RAISE EXCEPTION '0091 requires the recovery points table to not already exist'; END IF;
  IF EXISTS(SELECT FROM unnest(ARRAY['pathways_backup_owner','rules_store_owner','rules_context_owner','report_projection_owner']) o
@@ -416,23 +416,23 @@ CREATE FUNCTION pathways.p91_backup_tables() RETURNS TABLE(table_order integer, 
    (16,'pathways_rules_internal.source_operation_receipts'),(17,'pathways.beneficiary_project_enrollments'),(18,'pathways.journey_stages'),
    (19,'pathways.project_activities'),(20,'pathways.project_evaluation_criteria'),(21,'pathways.project_evaluations'),
    (22,'pathways.project_implementing_partners'),(23,'pathways.project_indicators'),(24,'pathways.project_map_pins'),
-   (25,'pathways.project_milestones'),(26,'pathways.project_publications'),(27,'pathways.sensitive_aggregate_releases'),
-   (28,'pathways.survey_period_releases'),(29,'pathways.user_project_assignments'),(30,'pathways_rules_internal.snapshots'),
-   (31,'pathways.activity_escalations'),(32,'pathways.activity_extension_requests'),(33,'pathways.activity_indicator_links'),
-   (34,'pathways.activity_journey_stage_mappings'),(35,'pathways.activity_overdue_explanations'),(36,'pathways.activity_updates'),
-   (37,'pathways.digital_forms'),(38,'pathways.project_activity_assignments'),(39,'pathways.project_budget_records'),
-   (40,'pathways.project_evaluation_scores'),(41,'pathways.project_indicator_measurements'),(42,'pathways.publication_requests'),
-   (43,'pathways_rules_internal.acknowledgements'),(44,'pathways_rules_internal.eligibility'),(45,'pathways_rules_internal.evaluations'),
-   (46,'pathways.budget_expense_entries'),(47,'pathways.data_import_batches'),(48,'pathways.form_fields'),
-   (49,'pathways.reports'),(50,'pathways.rule_based_alerts'),(51,'pathways.survey_aggregate_releases'),
-   (52,'pathways_rules_internal.rule_bindings'),(53,'pathways_rules_internal.work_coverage'),(54,'pathways.data_import_rows'),
-   (55,'pathways.decision_recommendations'),(56,'pathways.expense_signoffs'),(57,'pathways.import_value_rejections'),
-   (58,'pathways.metadata_mappings'),(59,'pathways.project_indicator_bindings'),(60,'pathways_rules_internal.episode_cursors'),
-   (61,'pathways.form_submissions'),(62,'pathways_rules_internal.feature_operation_receipts'),(63,'pathways_rules_internal.recommendation_reviews'),
-   (64,'pathways.assessment_results'),(65,'pathways.beneficiary_activity_participations'),(66,'pathways.beneficiary_consent_records'),
-   (67,'pathways.evidence_media'),(68,'pathways.form_response_values'),(69,'pathways_rules_internal.alert_reviews'),
-   (70,'pathways_rules_internal.decisions'),(71,'pathways_rules_internal.lifecycle_events'),(72,'pathways.beneficiary_journey_events'),
-   (73,'pathways_rules_internal.notifications'),(74,'pathways_rules_internal.outcome_previews')
+   (25,'pathways.project_milestones'),(26,'pathways.project_publications'),(27,'pathways.public_project_views'),
+   (28,'pathways.sensitive_aggregate_releases'),(29,'pathways.survey_period_releases'),(30,'pathways.user_project_assignments'),
+   (31,'pathways_rules_internal.snapshots'),(32,'pathways.activity_escalations'),(33,'pathways.activity_extension_requests'),
+   (34,'pathways.activity_indicator_links'),(35,'pathways.activity_journey_stage_mappings'),(36,'pathways.activity_overdue_explanations'),
+   (37,'pathways.activity_updates'),(38,'pathways.digital_forms'),(39,'pathways.project_activity_assignments'),
+   (40,'pathways.project_budget_records'),(41,'pathways.project_evaluation_scores'),(42,'pathways.project_indicator_measurements'),
+   (43,'pathways.publication_requests'),(44,'pathways_rules_internal.acknowledgements'),(45,'pathways_rules_internal.eligibility'),
+   (46,'pathways_rules_internal.evaluations'),(47,'pathways.budget_expense_entries'),(48,'pathways.data_import_batches'),
+   (49,'pathways.form_fields'),(50,'pathways.reports'),(51,'pathways.rule_based_alerts'),
+   (52,'pathways.survey_aggregate_releases'),(53,'pathways_rules_internal.rule_bindings'),(54,'pathways_rules_internal.work_coverage'),
+   (55,'pathways.data_import_rows'),(56,'pathways.decision_recommendations'),(57,'pathways.expense_signoffs'),
+   (58,'pathways.import_value_rejections'),(59,'pathways.metadata_mappings'),(60,'pathways.project_indicator_bindings'),
+   (61,'pathways_rules_internal.episode_cursors'),(62,'pathways.form_submissions'),(63,'pathways_rules_internal.feature_operation_receipts'),
+   (64,'pathways_rules_internal.recommendation_reviews'),(65,'pathways.assessment_results'),(66,'pathways.beneficiary_activity_participations'),
+   (67,'pathways.beneficiary_consent_records'),(68,'pathways.evidence_media'),(69,'pathways.form_response_values'),
+   (70,'pathways_rules_internal.alert_reviews'),(71,'pathways_rules_internal.decisions'),(72,'pathways_rules_internal.lifecycle_events'),
+   (73,'pathways.beneficiary_journey_events'),(74,'pathways_rules_internal.notifications'),(75,'pathways_rules_internal.outcome_previews')
  ) v(n,t)
 $$;
 REVOKE ALL ON FUNCTION pathways.p91_backup_tables() FROM PUBLIC,anon,authenticated,service_role;
