@@ -1,0 +1,33 @@
+name: Backup daily
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    # Stays inert until a person finishes the setup in vault note runbook-backup-restore.
+    if: vars.BACKUP_DAILY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: backup-hosted
+    timeout-minutes: 6
+    concurrency:
+      group: backup-daily
+      cancel-in-progress: false
+    steps:
+      - name: Create the daily recovery points
+        env:
+          BASE_URL: ${{ vars.BACKUP_API_BASE_URL }}
+          TOKEN: ${{ secrets.BACKUP_JOB_TOKEN }}
+        run: |
+          set -euo pipefail
+          body=$(curl --silent --show-error --fail-with-body --proto '=https' --max-time 290 \
+            -X POST -H "Authorization: Bearer $TOKEN" "$BASE_URL/internal/backups/daily")
+          if ! printf '%s' "$body" | jq -e '.state == "COMPLETED" and .failed == 0' > /dev/null; then
+            echo "Daily backup reported a failure"; exit 1
+          fi
+          echo "Daily backup completed"
