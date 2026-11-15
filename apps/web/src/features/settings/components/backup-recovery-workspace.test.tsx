@@ -182,6 +182,8 @@ describe('backup and recovery workspace', () => {
     render(<BackupRecoveryWorkspace />)
     fireEvent.click(within(rowOf(point(1).id)).getByRole('button', { name: 'Verify' }))
     expect(await screen.findByText('This recovery point can be restored.')).toBeTruthy()
+    expect(rowOf(point(1).id).getAttribute('aria-current')).toBe('true')
+    expect(rowOf(point(1).id).className).toContain('bg-success-subtle')
     state.verify.mockResolvedValueOnce({
       point: point(1, { status: 'UNAVAILABLE' }),
       problem: 'CHECKSUM_MISMATCH',
@@ -190,6 +192,7 @@ describe('backup and recovery workspace', () => {
     expect(
       await screen.findByText("This recovery point's data file has changed and cannot be trusted."),
     ).toBeTruthy()
+    expect(rowOf(point(1).id).className).toContain('bg-danger-subtle')
     expect(state.refetch).toHaveBeenCalledTimes(2)
   })
 

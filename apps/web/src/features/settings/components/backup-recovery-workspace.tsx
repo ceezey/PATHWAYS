@@ -11,6 +11,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { backupsClient } from '@/lib/api/backups'
 import { formatBytes } from '@/lib/format/bytes'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
+import { cn } from '@/lib/utils'
 import {
   canCheckPoint,
   canRestorePoint,
@@ -38,6 +39,12 @@ export const BackupRecoveryWorkspace = () => {
   const actions = useBackupActions(read.refetch)
   const busy = actions.pending !== null
   const [restoring, setRestoring] = useState<RecoveryPointListItem | null>(null)
+  // The row the notice or the download links are about, tinted to match them.
+  const highlight = actions.notice
+    ? { pointId: actions.notice.pointId, tone: actions.notice.tone }
+    : actions.links
+      ? { pointId: actions.links.pointId, tone: 'muted' as const }
+      : null
   const closeRestore = () => {
     setRestoring(null)
     actions.clearRestoreError()
@@ -121,6 +128,7 @@ export const BackupRecoveryWorkspace = () => {
                       key={point.id}
                       point={point}
                       busy={busy}
+                      highlight={highlight?.pointId === point.id ? highlight.tone : null}
                       canRestore={canRestore}
                       onRestore={() => {
                         actions.clearRestoreError()
@@ -156,9 +164,16 @@ export const BackupRecoveryWorkspace = () => {
   )
 }
 
+const highlightClasses = {
+  success: 'bg-success-subtle',
+  danger: 'bg-danger-subtle',
+  muted: 'bg-muted/60',
+} as const
+
 const PointRow = ({
   point,
   busy,
+  highlight,
   canRestore,
   onRestore,
   onVerify,
@@ -166,6 +181,7 @@ const PointRow = ({
 }: {
   point: RecoveryPointListItem
   busy: boolean
+  highlight: keyof typeof highlightClasses | null
   canRestore: boolean
   onRestore: () => void
   onVerify: () => void
@@ -174,7 +190,14 @@ const PointRow = ({
   const status = recoveryPointStatusView[point.status]
   const checkable = canCheckPoint(point)
   return (
-    <tr className="border-t align-top" data-point-id={point.id}>
+    <tr
+      className={cn(
+        'border-t align-top transition-colors',
+        highlight ? highlightClasses[highlight] : null,
+      )}
+      aria-current={highlight ? 'true' : undefined}
+      data-point-id={point.id}
+    >
       <td className="px-3 py-2 whitespace-nowrap">{formatRecoveryPointTime(point)}</td>
       <td className="px-3 py-2">{recoveryPointCreator(point)}</td>
       <td className="px-3 py-2">{recoveryPointKindLabels[point.pointType]}</td>
