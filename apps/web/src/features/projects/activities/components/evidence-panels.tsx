@@ -2,6 +2,7 @@ import { FileCheck2, FileText, Image as ImageIcon, Lock } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import { formatBytes } from '@/lib/format/bytes'
 import { cn } from '@/lib/utils'
 import type { EvidenceRecord } from '@/types/pathways'
 import { formatDate } from '../activities.utils'
@@ -21,12 +22,6 @@ const tileTone: Record<Tone, string> = {
   warning: 'bg-warning-subtle text-warning',
   danger: 'bg-danger-subtle text-danger',
   neutral: 'bg-primary-subtle text-primary',
-}
-
-const formatBytes = (bytes: number) => {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 const evidenceIcon = (record: Pick<EvidenceRecord, 'contentType' | 'isIdentifying' | 'status'>) =>
