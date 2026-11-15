@@ -59,6 +59,17 @@ export const RESTORE_MESSAGES = {
 const logger = new Logger('BackupsService')
 const restoreFailed = (code = 'RESTORE_FAILED') =>
   new InternalServerErrorException({ message: RESTORE_MESSAGES.RESTORE_FAILED, code })
+// Any non-Http error inside the restore transaction answers RESTORE_FAILED instead of the wrapper's 403.
+const restoreWork =
+  <T>(work: (tx: Prisma.TransactionClient) => Promise<T>) =>
+  async (tx: Prisma.TransactionClient) => {
+    try {
+      return await work(tx)
+    } catch (error) {
+      if (error instanceof HttpException) throw error
+      throw restoreFailed()
+    }
+  }
 const responseCode = (error: unknown) =>
   error instanceof HttpException
     ? ((error.getResponse() as { code?: unknown }).code as string | undefined)
@@ -392,13 +403,16 @@ export class BackupsService {
         this.prisma,
         identity,
         'backups.restore',
-        async (tx) => {
+        restoreWork(async (tx) => {
           await tx.$queryRaw`SELECT set_config('statement_timeout', ${BACKUP_STATEMENT_TIMEOUT_MS}, true)`
           // Rows committed while the restore waits for its locks are visible to its delete only under read committed.
           const [isolation] = await tx.$queryRaw<
             { level: string }[]
           >`SELECT current_setting('transaction_isolation') AS level`
-          if (isolation?.level !== 'read committed') throw restoreFailed()
+          if (isolation?.level !== 'read committed') {
+            logger.error({ event: 'PATHWAYS_BACKUP_RESTORE_ISOLATION_REFUSED' })
+            throw restoreFailed()
+          }
           let restored: Record<string, number> | null
           try {
             const [result] = await tx.$queryRaw<{ counts: string }[]>`SELECT
@@ -432,7 +446,7 @@ export class BackupsService {
             },
           })
           return restored
-        },
+        }),
         { transactionTimeoutMs: BACKUP_TRANSACTION_TIMEOUT_MS, backupTimeout: true },
       )
     } catch (error) {

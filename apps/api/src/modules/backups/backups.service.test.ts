@@ -4,7 +4,6 @@ import type { ApplicationIdentity } from '@app/common/authz/application-identity
 import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { recoveryPointList } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeAuthorizedOperation } from './authorized-operation.harness'
 import { type BackupStorage, BackupStorageUnavailableError } from './backup-storage'
