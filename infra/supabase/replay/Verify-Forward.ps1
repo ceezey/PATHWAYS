@@ -1374,7 +1374,7 @@ SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity
  AND (SELECT count(*) FROM (VALUES
    ('pathways.p91_backup_tables()','pathways_backup_owner',true,'978337df9e7cf14c1d850048fe6d8eea','{pathways_runtime}'),
    ('pathways.p91_capture_organization(uuid)','pathways_backup_owner',true,'d20367285730e33e6d114a4bd872b7e1','{pathways_backup_job,pathways_runtime}'),
-   ('pathways.p91_restore_organization(uuid,jsonb,jsonb)','pathways_backup_owner',true,'30c093ca525407a1cd92bfbf1b5c2c79','{pathways_runtime}'),
+   ('pathways.p91_restore_organization(uuid,jsonb,jsonb)','pathways_backup_owner',true,'a669c77bdcb58221c75bb9392cd742d8','{pathways_runtime}'),
    ('pathways.p91_backup_actor(text[])','prisma',true,'1c19d8e7781b5d82bb69dc3cab4b7fa8','{pathways_runtime}'),
    ('pathways.p91_current_migration()','prisma',true,'7169fd50627fa84b7ea2685c306ea9e2','{pathways_runtime}'),
    ('pathways.p91_backup_job_actor(uuid)','prisma',true,'d20c32763851d75ef1dda7bb8b21637f','{}'),
