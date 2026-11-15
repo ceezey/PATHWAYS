@@ -47,6 +47,7 @@ export class BackupStorage {
     }
   }
 
+  // shortcut: one list call (plus a bucket check) per folder, in sequence; parallelize or check the bucket once per walk if devV2 capture times near the 300 s limit.
   private async walk(prefix: string, skip?: string): Promise<ManifestFile[]> {
     const entries = await this.call(() => this.storage.listObjects(this.bucket, prefix))
     const files: ManifestFile[] = []
