@@ -1,6 +1,13 @@
 'use client'
 
-import { AUDIT_MODULES, auditModuleOf, isCalendarDate } from '@pathways/shared'
+import {
+  AUDIT_MODULES,
+  AUDIT_OUTCOMES,
+  type AuditOutcome,
+  auditModuleOf,
+  auditOutcomeOf,
+  isCalendarDate,
+} from '@pathways/shared'
 import { FilterX, ScrollText, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -36,12 +43,25 @@ type AuditEvent = {
   action: string
   module: string
   target: string
-  outcome: 'Recorded'
+  outcome: AuditOutcome
   summary: string
   details: Record<string, string | number | boolean>
 }
 
-const detailLabels: Record<string, string> = { source: 'Source', rowNumber: 'Row number' }
+const detailLabels: Record<string, string> = {
+  source: 'Source',
+  rowNumber: 'Row number',
+  code: 'Reason',
+  pointType: 'Point type',
+  fileMode: 'File mode',
+  fileCount: 'Files',
+  migration: 'Database version',
+  capturedAt: 'Captured at',
+  sizeBytes: 'Size (bytes)',
+  expiresInSeconds: 'Link expires in (seconds)',
+  preRestorePointId: 'Undo point',
+  filesRestored: 'Files restored',
+}
 
 const dateFormatter = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
@@ -49,7 +69,8 @@ const dateFormatter = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
-const outcomeTone = (_outcome: AuditEvent['outcome']) => 'neutral' as const
+const outcomeTone = (outcome: AuditOutcome) =>
+  outcome === 'Failed' ? 'danger' : outcome === 'Refused' ? 'warning' : 'neutral'
 
 // A typed year passes through partial values, so only an empty or full valid date is applied.
 const DateFilter = ({
@@ -127,7 +148,7 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
     action: row.action,
     module: auditModuleOf(row.entityType).label,
     target: row.entityId ?? 'No record ID',
-    outcome: 'Recorded',
+    outcome: auditOutcomeOf(row.action),
     summary: `${row.action} recorded for ${row.entityType}.`,
     details: row.details,
   }))
@@ -228,7 +249,7 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {['All', 'Recorded'].map((item) => (
+                {['All', ...AUDIT_OUTCOMES].map((item) => (
                   <SelectItem key={item} value={item}>
                     {item}
                   </SelectItem>
