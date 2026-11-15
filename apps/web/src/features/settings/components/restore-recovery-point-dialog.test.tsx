@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import type { RecoveryPointListItem } from '@pathways/shared'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RestoreRecoveryPointDialog } from './restore-recovery-point-dialog'
 
@@ -45,12 +45,13 @@ describe('RestoreRecoveryPointDialog', () => {
     renderDialog()
     const title = screen.getByRole('heading', { name: /Restore the Manual recovery point from/ })
     expect(title.textContent).toMatch(/Nov 12, 2026, 2:00\sPM/)
-    expect(
-      screen.getByText(/Staff accounts, roles and the audit log are not changed\./),
-    ).toBeTruthy()
-    expect(
-      screen.getByText(/Project and activity assignments return to what they were then\./),
-    ).toBeTruthy()
+    expect(screen.getByText(/so you can undo this restore\./)).toBeTruthy()
+    const replaced = screen.getByRole('list', { name: 'Goes back to that time' })
+    expect(within(replaced).getAllByRole('listitem')).toHaveLength(8)
+    expect(within(replaced).getByText('Project and activity assignments')).toBeTruthy()
+    const kept = screen.getByRole('list', { name: 'Not changed' })
+    expect(within(kept).getByText('Staff accounts')).toBeTruthy()
+    expect(within(kept).getByText('Audit log')).toBeTruthy()
     expect(screen.queryByText(/copied back from the recovery point/)).toBeNull()
   })
 

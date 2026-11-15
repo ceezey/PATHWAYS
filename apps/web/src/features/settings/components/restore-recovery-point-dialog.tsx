@@ -8,8 +8,37 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatRecoveryPointTime, recoveryPointKindLabels } from '../backup-recovery.utils'
 
-const REPLACES =
-  "This replaces your organization's projects, activities, beneficiaries, monitoring, finance, alert and public tracker data with the data saved at that time. Staff accounts, roles and the audit log are not changed. Project and activity assignments return to what they were then. Files uploaded after that time stay in storage but are no longer linked. PATHWAYS saves a recovery point of the current data first, so you can undo this restore."
+const SUMMARY =
+  'PATHWAYS saves a recovery point of the current data first, so you can undo this restore.'
+const REPLACED = [
+  'Projects',
+  'Activities',
+  'Beneficiaries',
+  'Monitoring',
+  'Finance',
+  'Alerts',
+  'Public tracker',
+  'Project and activity assignments',
+]
+const KEPT = [
+  'Staff accounts',
+  'Roles',
+  'Audit log',
+  'Files uploaded after that time (kept, but no longer linked)',
+]
+
+const ChangeList = ({ id, title, items }: { id: string; title: string; items: string[] }) => (
+  <section>
+    <h3 id={id} className="font-semibold">
+      {title}
+    </h3>
+    <ul aria-labelledby={id} className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  </section>
+)
 
 /** Asks the administrator to type the organization code before a restore replaces the data. */
 export const RestoreRecoveryPointDialog = ({
@@ -41,15 +70,20 @@ export const RestoreRecoveryPointDialog = ({
           ? `Restore the ${recoveryPointKindLabels[point.pointType]} recovery point from ${formatRecoveryPointTime(point)}?`
           : 'Restore recovery point?'
       }
-      description={
-        point?.fileMode === 'copy'
-          ? `${REPLACES} Missing or changed files are copied back from the recovery point.`
-          : REPLACES
-      }
+      description={SUMMARY}
       confirmLabel={pending ? 'Restoring' : 'Restore'}
       confirmDisabled={pending || value === ''}
       onConfirm={() => onConfirm(value)}
     >
+      <div className="grid gap-4 text-sm sm:grid-cols-2">
+        <ChangeList id="restore-replaced" title="Goes back to that time" items={REPLACED} />
+        <ChangeList id="restore-kept" title="Not changed" items={KEPT} />
+      </div>
+      {point?.fileMode === 'copy' ? (
+        <p className="text-sm text-muted-foreground">
+          Missing or changed files are copied back from the recovery point.
+        </p>
+      ) : null}
       <div className="space-y-2">
         <Label htmlFor="restore-organization-code">{`Type ${organizationCode} to confirm`}</Label>
         <Input
