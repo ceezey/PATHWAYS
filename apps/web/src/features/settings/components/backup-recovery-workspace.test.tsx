@@ -321,6 +321,22 @@ describe('backup and recovery workspace', () => {
       expect(alert.textContent).toMatch(text)
     })
 
+    it('keeps the dialog open while a restore runs, so its error is never lost', async () => {
+      let reject: (reason: unknown) => void = () => undefined
+      state.restore.mockReturnValue(
+        new Promise((_, fail) => {
+          reject = fail
+        }),
+      )
+      render(<BackupRecoveryWorkspace />)
+      fireEvent.click(openRestore())
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+      expect(screen.getByRole('dialog')).toBeTruthy()
+      reject(new PathwaysClientError(generic, 'network', [], 500))
+      const alert = await within(screen.getByRole('dialog')).findByRole('alert')
+      expect(alert.textContent).toMatch(/restore failed and your data was not changed/)
+    })
+
     it('clears the error when the dialog closes', async () => {
       state.restore.mockRejectedValueOnce(new PathwaysClientError(generic, 'network', [], 500))
       render(<BackupRecoveryWorkspace />)
