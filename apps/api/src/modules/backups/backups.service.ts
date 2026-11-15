@@ -26,7 +26,7 @@ import {
   recoveryPointProblemMessages,
 } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
-import { prismaSqlState } from '../../prisma/transaction-diagnostic'
+import { faultCause, prismaSqlState } from '../../prisma/transaction-diagnostic'
 import {
   BACKUP_DATA_FILE,
   BACKUP_MANIFEST_FILE,
@@ -67,6 +67,7 @@ const restoreWork =
       return await work(tx)
     } catch (error) {
       if (error instanceof HttpException) throw error
+      logger.error({ event: 'PATHWAYS_BACKUP_RESTORE_FAILED', cause: faultCause(error) })
       throw restoreFailed()
     }
   }

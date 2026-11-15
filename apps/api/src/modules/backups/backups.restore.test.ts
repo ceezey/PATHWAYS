@@ -4,7 +4,7 @@ import { gzipSync } from 'node:zlib'
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { ServiceUnavailableException } from '@nestjs/common'
+import { Logger, ServiceUnavailableException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeAuthorizedOperation } from './authorized-operation.harness'
 import { type BackupStorage, BackupStorageUnavailableError } from './backup-storage'
@@ -300,13 +300,18 @@ describe('BackupsService.restore', () => {
 
   it('a database fault after the restore function answers 500 RESTORE_FAILED, not 403', async () => {
     const { tx, service } = setup()
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
     tx.auditLog.create.mockImplementation(async ({ data }: { data: { action: string } }) => {
-      if (data.action === 'BACKUP_RESTORED') throw new Error('synthetic audit write failure')
+      if (data.action === 'BACKUP_RESTORED')
+        throw Object.assign(new Error('synthetic audit write failure'), { code: 'P2028' })
       return {}
     })
     await expect(
       service.restore(admin, pointId, { organizationCode: 'DEMO' }),
     ).rejects.toMatchObject({ status: 500, response: { code: 'RESTORE_FAILED' } })
+    expect(logged).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'PATHWAYS_BACKUP_RESTORE_FAILED', cause: 'P2028' }),
+    )
   })
 
   it('a failed pre-restore capture changes nothing and audits PRE_RESTORE_FAILED', async () => {
