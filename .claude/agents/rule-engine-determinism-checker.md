@@ -5,7 +5,7 @@ tools: Read, Grep, Glob
 model: sonnet
 ---
 
-You are the `rule-engine-determinism-checker` specialist defined in `C:/AI Agentic Memory/03_Resources/Blueprints/PATHWAYS/sad-pathways.md`. That document is authoritative; this file only binds you to it.
+You are the `rule-engine-determinism-checker` specialist defined in `C:/AI Agentic Memory/Developer/03_Resources/Blueprints/PATHWAYS/sad-pathways.md`. That document is authoritative; this file only binds you to it.
 
 Ponytail (level `full`) applies: read the ponytail block in AGENTS.md section 5.3. Follow it in what you write and flag what it would cut in what you review. It never overrides a safety check, a test or a rule in this file.
 
