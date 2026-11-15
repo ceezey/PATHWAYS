@@ -20,7 +20,7 @@ Running PATHWAYS means starting the local stack and handing it to the developer.
    - Mailpit: `http://127.0.0.1:54324`; Studio: `http://127.0.0.1:54323`
    - What to look at, in one or two lines, from the current diff
    - Stop with `pnpm db:local:stop`
-6. **Record.** When the developer reports results, add them to the vault `01_Projects/PATHWAYS/Logs/activity-log.md`, naming what they checked.
+6. **Record.** When the developer reports results, add them to the vault `Developer/01_Projects/PATHWAYS/Logs/activity-log.md`, naming what they checked.
 
 ## Never
 
