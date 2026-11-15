@@ -506,6 +506,7 @@ DECLARE t record; i integer; blocked text; reason text; locked text; def text; r
  cycle_rel text[] := ARRAY['pathways.budget_expense_entries','pathways.decision_recommendations'];
  cycle_name text[] := ARRAY['budget_expense_entries_receipt_evidence_fkey','f10_private_review_scope']; cycle_def text[];
 BEGIN
+ -- Callers run this in its own READ COMMITTED transaction, since rows committed by others while it waits for its locks are otherwise invisible to its delete.
  IF NOT coalesce(nullif(current_setting('app.user_id',true),'') IS NOT NULL
    AND wanted_org = nullif(current_setting('app.organization_id',true),'')::uuid
    AND pathways.p91_backup_actor(ARRAY['backups.restore']), false)
