@@ -22,10 +22,10 @@ export const tooltipPosition = (trigger: Box, tip: Size, viewport: Size) => {
 }
 
 /** Hover, focus and Escape handling for a tip shown beside a button; spread triggerProps on the button and render tip. */
-export function useHoverTip(text: string | undefined) {
+export function useHoverTip<T extends HTMLElement = HTMLButtonElement>(text: string | undefined) {
   const tooltipId = useId()
   const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
+  const triggerRef = useRef<T>(null)
   const tipRef = useRef<HTMLSpanElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
 
