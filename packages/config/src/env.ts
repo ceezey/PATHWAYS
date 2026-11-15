@@ -37,6 +37,9 @@ export const apiEnvSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    BACKUP_FILE_MODE: z.enum(['manifest', 'copy']).default('manifest'),
+    BACKUP_JOB_TOKEN: optionalString,
+    BACKUP_JOB_DATABASE_URL: optionalString,
     DATABASE_URL: optionalString,
     DIRECT_URL: optionalString,
     SUPABASE_URL: optionalUrl,
@@ -64,10 +67,24 @@ export const apiEnvSchema = z
     ASSETS_BUCKET: z.string().default('assets'),
   })
   .superRefine((env, context) => {
-    if (!env.RULES_WORKER_ENABLED) return
     const issue = (path: string, message: string) =>
       context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message })
     const token = /^[a-f0-9]{64}$/
+    const backupToken = env.BACKUP_JOB_TOKEN
+    const backupUrl = env.BACKUP_JOB_DATABASE_URL
+    // Both empty turns the daily backup route off; one alone is a half-configured job.
+    if (
+      (backupToken &&
+        (!token.test(backupToken) ||
+          [env.RULES_DRAIN_TOKEN, env.RULES_SWEEP_TOKEN].includes(backupToken))) ||
+      (!backupToken && backupUrl)
+    )
+      issue('BACKUP_JOB_TOKEN', 'A dedicated backup job credential is required.')
+    if (backupUrl && !ruleDatabaseEndpoint(backupUrl, 'pathways_backup_job'))
+      issue('BACKUP_JOB_DATABASE_URL', 'Dedicated backup job database configuration is invalid.')
+    if (backupToken && !backupUrl)
+      issue('BACKUP_JOB_DATABASE_URL', 'A dedicated backup job credential is required.')
+    if (!env.RULES_WORKER_ENABLED) return
     if (!token.test(env.RULES_DRAIN_TOKEN))
       issue('RULES_DRAIN_TOKEN', 'A fixed dedicated drain credential is required.')
     if (!token.test(env.RULES_SWEEP_TOKEN) || env.RULES_SWEEP_TOKEN === env.RULES_DRAIN_TOKEN)

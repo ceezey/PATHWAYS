@@ -36,6 +36,8 @@ const apiEnv = {
   RULES_WORKER_ENABLED: 'false',
   RULES_WORKER_DATABASE_URL: '',
   RULES_SWEEPER_DATABASE_URL: '',
+  BACKUP_JOB_TOKEN: '',
+  BACKUP_JOB_DATABASE_URL: '',
 }
 
 const build = spawnSync('pnpm', ['--filter', '@pathways/api', 'run', 'build'], {
