@@ -122,7 +122,10 @@ export const BackupRecoveryWorkspace = () => {
                       point={point}
                       busy={busy}
                       canRestore={canRestore}
-                      onRestore={() => setRestoring(point)}
+                      onRestore={() => {
+                        actions.clearRestoreError()
+                        setRestoring(point)
+                      }}
                       onVerify={() => void actions.verify(point)}
                       onDownload={() => void actions.download(point)}
                     />
@@ -139,7 +142,8 @@ export const BackupRecoveryWorkspace = () => {
         pending={actions.pending?.action === 'restore'}
         error={actions.restoreError}
         onOpenChange={(open) => {
-          if (!open) closeRestore()
+          // A running restore keeps its dialog, so its outcome is never lost.
+          if (!open && actions.pending?.action !== 'restore') closeRestore()
         }}
         onConfirm={(organizationCode) => {
           if (!restoring) return
