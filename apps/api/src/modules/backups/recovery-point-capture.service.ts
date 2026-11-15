@@ -393,7 +393,10 @@ export class RecoveryPointCaptureService {
             .map((row) => row.id)
         }),
       retire: async (pointId) => {
-        await write((tx) => tx.recoveryPoint.deleteMany({ where: { id: pointId, organizationId } }))
+        const { count } = await write((tx) =>
+          tx.recoveryPoint.deleteMany({ where: { id: pointId, organizationId } }),
+        )
+        if (count !== 1) throw new Error('A retired recovery point row was not deleted.')
       },
     }
   }
@@ -437,10 +440,11 @@ export class RecoveryPointCaptureService {
           )
         ).map((row) => row.id),
       retire: async (pointId) => {
-        await job(
-          (tx) => tx.$queryRaw`SELECT pathways.p91_job_delete_point(${organizationId}::uuid,
-            ${pointId}::uuid) AS deleted`,
+        const [row] = await job(
+          (tx) => tx.$queryRaw<{ deleted: boolean }[]>`SELECT
+            pathways.p91_job_delete_point(${organizationId}::uuid, ${pointId}::uuid) AS deleted`,
         )
+        if (row?.deleted !== true) throw new Error('A retired recovery point row was not deleted.')
       },
     }
   }

@@ -6,6 +6,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import { recoveryPointList } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fakeAuthorizedOperation } from './authorized-operation.harness'
 import { type BackupStorage, BackupStorageUnavailableError } from './backup-storage'
 import { BackupsService } from './backups.service'
 import type { RecoveryPointCaptureService } from './recovery-point-capture.service'
@@ -61,8 +62,7 @@ function setup(row: Record<string, unknown> | null = pointRow()) {
     auditLog: { create: vi.fn().mockResolvedValue({}) },
     $queryRaw: vi.fn().mockResolvedValue([{ migration: '0091_backup_recovery' }]),
   }
-  vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, _perm, fn) =>
-    fn(tx as unknown as Prisma.TransactionClient, identity)) as typeof withAuthorizedOperation)
+  fakeAuthorizedOperation(tx)
   const storage = {
     signedUrl: vi.fn(
       async (path: string): Promise<string | null> => `https://storage.invalid/${path}`,

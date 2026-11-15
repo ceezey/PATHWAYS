@@ -7,6 +7,7 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import { ServiceUnavailableException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fakeAuthorizedOperation } from './authorized-operation.harness'
 import { type BackupStorage, BackupStorageUnavailableError } from './backup-storage'
 import { BackupsService } from './backups.service'
 import type { RecoveryPointCaptureService } from './recovery-point-capture.service'
@@ -89,8 +90,7 @@ function setup() {
       return []
     }),
   }
-  vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, _perm, fn) =>
-    fn(tx as unknown as Prisma.TransactionClient, identity)) as typeof withAuthorizedOperation)
+  fakeAuthorizedOperation(tx)
   vi.mocked(checkRecoveryPoint).mockResolvedValue(sound())
   const storage = {
     read: vi.fn(async (path: string) => {

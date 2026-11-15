@@ -5,6 +5,7 @@ import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { Prisma } from '@prisma/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fakeAuthorizedOperation } from './authorized-operation.harness'
 import type { BackupJobDatabase } from './backup-job-database'
 import { type BackupStorage, BackupStorageUnavailableError } from './backup-storage'
 import { RecoveryPointCaptureService } from './recovery-point-capture.service'
@@ -67,8 +68,7 @@ function setup(options: { fileMode?: 'manifest' | 'copy' } = {}) {
       sqlText(query).includes('p91_capture_organization') ? [snapshotRow] : [],
     ),
   }
-  vi.mocked(withAuthorizedOperation).mockImplementation((async (_p, identity, _perm, fn) =>
-    fn(tx as unknown as Prisma.TransactionClient, identity)) as typeof withAuthorizedOperation)
+  fakeAuthorizedOperation(tx)
   const written = new Map<string, Buffer>()
   const storage = {
     listOrganizationFiles: vi.fn().mockResolvedValue([listed]),
@@ -321,6 +321,40 @@ describe('RecoveryPointCaptureService', () => {
     )
     await service.capture(user, 'PRE_RESTORE', 'pre-4')
     expect(tx.recoveryPoint.deleteMany.mock.calls.map(([arg]) => arg.where.id)).toEqual(['pre-3'])
+  })
+
+  it('retention stops when a row delete removes nothing, after that point files only', async () => {
+    const { tx, storage, service } = setup()
+    const at = (minutes: number) => new Date(Date.UTC(2026, 10, 15, 0, minutes))
+    tx.recoveryPoint.findMany.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) => ({
+        id: `ready-${index}`,
+        status: 'READY',
+        startedAt: at(60 - index),
+      })),
+    )
+    tx.recoveryPoint.deleteMany.mockResolvedValue({ count: 0 })
+    await expect(service.capture(user, 'MANUAL')).resolves.toMatchObject({ status: 'READY' })
+    expect(tx.recoveryPoint.deleteMany).toHaveBeenCalledTimes(1)
+    expect(storage.removePoint.mock.calls.map(([, id]) => id)).toEqual(['ready-10'])
+  })
+
+  it('job retention stops when p91_job_delete_point deletes nothing', async () => {
+    const { jobTx, service } = setup()
+    const ids = ['b1300000-0000-4000-8000-000000000201', 'b1300000-0000-4000-8000-000000000202']
+    jobTx.$queryRaw.mockImplementation(async (query: unknown) => {
+      const text = sqlText(query)
+      if (text.includes('p91_job_begin_point')) return [{ id: pointId }]
+      if (text.includes('p91_capture_organization')) return [snapshotRow]
+      if (text.includes('p91_job_retention_points')) return ids.map((id) => ({ id }))
+      if (text.includes('p91_job_delete_point')) return [{ deleted: false }]
+      return []
+    })
+    await service.captureAutomatic(org)
+    const deletes = jobTx.$queryRaw.mock.calls.filter(([query]) =>
+      sqlText(query).includes('p91_job_delete_point'),
+    )
+    expect(deletes).toHaveLength(1)
   })
 
   it('a retention failure does not fail the backup', async () => {
