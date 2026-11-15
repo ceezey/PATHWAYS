@@ -310,7 +310,7 @@ describe('RecoveryPointCaptureService', () => {
 
   it('pre-restore retention runs only when asked, keeps 3 and never retires the point being restored', async () => {
     const { tx, service } = setup()
-    const at = (minutes: number) => new Date(Date.UTC(2026, 10, 15, 0, minutes))
+    const at = (minutes: number) => new Date(Date.now() - 10 * 86_400_000 + minutes * 60_000)
     tx.recoveryPoint.findMany.mockResolvedValue(
       Array.from({ length: 5 }, (_, index) => ({
         id: `pre-${index}`,
@@ -322,6 +322,42 @@ describe('RecoveryPointCaptureService', () => {
     expect(tx.recoveryPoint.deleteMany).not.toHaveBeenCalled()
     await service.retainPreRestore(user, 'pre-4')
     expect(tx.recoveryPoint.deleteMany.mock.calls.map(([arg]) => arg.where.id)).toEqual(['pre-3'])
+  })
+
+  it('never retires a pre-restore point younger than 7 days, even outside the 3 newest', async () => {
+    const { tx, service } = setup()
+    const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000)
+    tx.recoveryPoint.findMany.mockResolvedValue([
+      { id: 'pre-0', status: 'READY', startedAt: daysAgo(0.1) },
+      { id: 'pre-1', status: 'READY', startedAt: daysAgo(0.2) },
+      { id: 'pre-2', status: 'READY', startedAt: daysAgo(0.3) },
+      { id: 'pre-3', status: 'READY', startedAt: daysAgo(6.9) },
+      { id: 'pre-4', status: 'FAILED', startedAt: daysAgo(6.95) },
+      { id: 'pre-5', status: 'READY', startedAt: daysAgo(7.1) },
+      { id: 'pre-6', status: 'FAILED', startedAt: daysAgo(30) },
+    ])
+    await service.retainPreRestore(user, 'pre-0')
+    expect(tx.recoveryPoint.deleteMany.mock.calls.map(([arg]) => arg.where.id)).toEqual([
+      'pre-5',
+      'pre-6',
+    ])
+  })
+
+  it('the 7-day floor applies only to pre-restore points', async () => {
+    const { tx, service } = setup()
+    const at = (minutes: number) => new Date(Date.now() - minutes * 60_000)
+    tx.recoveryPoint.findMany.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) => ({
+        id: `manual-${index}`,
+        status: 'READY',
+        startedAt: at(index + 1),
+      })),
+    )
+    await service.capture(user, 'MANUAL')
+    expect(tx.recoveryPoint.deleteMany.mock.calls.map(([arg]) => arg.where.id)).toEqual([
+      'manual-10',
+      'manual-11',
+    ])
   })
 
   it('retention stops when a row delete removes nothing, after that point files only', async () => {

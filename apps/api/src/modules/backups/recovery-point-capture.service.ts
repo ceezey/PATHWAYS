@@ -34,6 +34,8 @@ export const BACKUP_STATEMENT_TIMEOUT_MS = '110000'
 export const BACKUP_STALE_AFTER_MS = 600_000
 // AUTOMATIC must equal the 7 in pathways.p91_job_retention_points.
 export const BACKUP_RETENTION = { AUTOMATIC: 7, PRE_RESTORE: 3, MANUAL: 10 } as const
+// A pre-restore point is the undo of a restore, so it is kept at least this long even beyond the 3 newest.
+export const PRE_RESTORE_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000
 export const BACKUP_MESSAGES = {
   STORAGE_UNAVAILABLE: 'Backup storage is unavailable. Try again later.',
   BUSY: 'A backup or restore is already running. Try again in a few minutes.',
@@ -397,10 +399,17 @@ export class RecoveryPointCaptureService {
             BACKUP_RETENTION[pointType] - 1
           ]?.startedAt
           if (!cutoff) return []
+          const floor =
+            pointType === 'PRE_RESTORE'
+              ? Date.now() - PRE_RESTORE_MIN_AGE_MS
+              : Number.POSITIVE_INFINITY
           return rows
             .filter(
               (row) =>
-                row.status !== 'CREATING' && row.startedAt < cutoff && row.id !== keepPointId,
+                row.status !== 'CREATING' &&
+                row.startedAt < cutoff &&
+                row.startedAt.getTime() < floor &&
+                row.id !== keepPointId,
             )
             .map((row) => row.id)
         }),
