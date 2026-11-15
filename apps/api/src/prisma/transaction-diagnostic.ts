@@ -46,17 +46,18 @@ function ownString(value: unknown, key: string, pattern: RegExp) {
   return typeof found === 'string' && pattern.test(found) ? found : ''
 }
 
+/** The SQLSTATE a raw query failed with, from its own meta data property, or an empty string. */
+export function prismaSqlState(error: unknown): string {
+  return ownString(ownValue(error, 'meta'), 'code', /^[0-9A-Z]{5}$/)
+}
+
 /** Allowlisted fault label (error name, Prisma code, SQL state) for logs; never the message. */
 export function faultCause(error: unknown) {
-  const meta =
-    error && typeof error === 'object'
-      ? Object.getOwnPropertyDescriptor(error, 'meta')?.value
-      : null
   return (
     [
       ownString(error, 'name', /^[A-Za-z]{1,64}$/),
       prismaDiagnosticCode(error),
-      ownString(meta, 'code', /^[0-9A-Z]{5}$/),
+      prismaSqlState(error),
     ]
       .filter(Boolean)
       .join(':') || 'UNKNOWN'
