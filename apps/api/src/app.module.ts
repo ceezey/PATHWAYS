@@ -15,6 +15,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { SupabaseAuthGuard } from './modules/auth/guards/supabase-auth.guard'
+import { BackupsModule } from './modules/backups/backups.module'
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module'
 import { BeneficiaryMediaModule } from './modules/beneficiary-media/beneficiary-media.module'
 import { DashboardsModule } from './modules/dashboards/dashboards.module'
@@ -201,6 +202,7 @@ export function usePathwaysLogger(app: INestApplication) {
     ReportsModule,
     PublicModule,
     AuditModule,
+    BackupsModule,
     StorageModule,
   ],
   providers: [

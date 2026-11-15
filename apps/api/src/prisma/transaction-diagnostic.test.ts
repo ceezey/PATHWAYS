@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { prismaDiagnosticCode, transactionDiagnostic } from './transaction-diagnostic'
+import {
+  prismaDiagnosticCode,
+  prismaSqlState,
+  transactionDiagnostic,
+} from './transaction-diagnostic'
 
 const acquisition = 'Unable to start a transaction in the given time.'
 const expired =
@@ -87,5 +91,13 @@ describe('bounded transaction diagnostics', () => {
     expect(prismaDiagnosticCode({ code: 'P2028' })).toBe('P2028')
     expect(prismaDiagnosticCode({ code: `P2028${canary}` })).toBe('')
     expect(stringify).not.toHaveBeenCalled()
+  })
+})
+
+describe('prisma SQL state', () => {
+  it('returns only a well-formed own SQLSTATE', () => {
+    expect(prismaSqlState({ code: 'P2010', meta: { code: '55P03' } })).toBe('55P03')
+    expect(prismaSqlState({ code: 'P2010', meta: { code: 'drop table' } })).toBe('')
+    expect(prismaSqlState(null)).toBe('')
   })
 })

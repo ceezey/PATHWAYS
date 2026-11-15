@@ -368,7 +368,7 @@ describe('PrismaService', () => {
     },
   )
 
-  it.each([999, 30_001, 1_000.5, Number.NaN, Number.POSITIVE_INFINITY])(
+  it.each([999, 30_001, 120_000, 1_000.5, Number.NaN, Number.POSITIVE_INFINITY])(
     'rejects invalid verified transaction timeout %s before opening a transaction',
     async (timeoutMs) => {
       const prisma = new PrismaService()
@@ -387,6 +387,35 @@ describe('PrismaService', () => {
       ).rejects.toThrow('integer from 1000 through 30000 ms')
       expect(transaction).not.toHaveBeenCalled()
       expect(work).not.toHaveBeenCalled()
+    },
+  )
+
+  const backupIdentity = {
+    authSubject: 'a5000000-0000-4000-8000-000000000001',
+    organizationId: 'a5000000-0000-4000-8000-000000000002',
+    userId: 'a5000000-0000-4000-8000-000000000003',
+  }
+  it.each([1_000, 120_000])('accepts a backup transaction timeout of %i ms', async (timeoutMs) => {
+    const prisma = new PrismaService()
+    const transaction = vi.spyOn(prisma, '$transaction').mockResolvedValue('fixture')
+    await expect(
+      prisma.withVerifiedContext(backupIdentity, vi.fn(), { timeoutMs, backupTimeout: true }),
+    ).resolves.toBe('fixture')
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 5_000,
+      timeout: timeoutMs,
+    })
+  })
+
+  it.each([999, 120_001, 1_000.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects invalid backup transaction timeout %s before opening a transaction',
+    async (timeoutMs) => {
+      const prisma = new PrismaService()
+      const transaction = vi.spyOn(prisma, '$transaction')
+      await expect(
+        prisma.withVerifiedContext(backupIdentity, vi.fn(), { timeoutMs, backupTimeout: true }),
+      ).rejects.toThrow('integer from 1000 through 120000 ms')
+      expect(transaction).not.toHaveBeenCalled()
     },
   )
 })

@@ -1,0 +1,69 @@
+import { describe, expect, it } from 'vitest'
+import {
+  backupErrorCodes,
+  recoveryPointListItem,
+  recoveryPointProblemMessages,
+  recoveryPointProblems,
+  recoveryPointStatuses,
+  restoreRecoveryPointRequest,
+} from './recovery-points'
+
+const item = {
+  id: 'b1000000-0000-4000-8000-000000000001',
+  pointType: 'MANUAL',
+  status: 'READY',
+  fileMode: 'manifest',
+  createdBy: { id: 'b1000000-0000-4000-8000-000000000002', name: 'Synthetic admin' },
+  startedAt: '2026-11-12T01:00:00.000Z',
+  capturedAt: '2026-11-12T01:00:01.000Z',
+  completedAt: '2026-11-12T01:00:03.000Z',
+  migrationName: '0091_backup_recovery',
+  sizeBytes: 2048,
+  failureReason: null,
+}
+
+describe('recovery point contracts', () => {
+  it('accepts a ready manual point and an automatic point with no creator', () => {
+    expect(recoveryPointListItem.safeParse(item).success).toBe(true)
+    expect(
+      recoveryPointListItem.safeParse({ ...item, pointType: 'AUTOMATIC', createdBy: null }).success,
+    ).toBe(true)
+  })
+
+  it.each([
+    ['an unknown status', { status: 'DELETED' }],
+    ['an unknown kind', { pointType: 'DAILY' }],
+    ['a negative size', { sizeBytes: -1 }],
+    ['an extra key', { path: 'organizations/x' }],
+  ])('rejects %s', (_label, patch) => {
+    expect(recoveryPointListItem.safeParse({ ...item, ...patch }).success).toBe(false)
+  })
+
+  it('trims the typed organization code and rejects blank or extra keys', () => {
+    expect(restoreRecoveryPointRequest.parse({ organizationCode: ' DEMO-ORG ' })).toEqual({
+      organizationCode: 'DEMO-ORG',
+    })
+    expect(restoreRecoveryPointRequest.safeParse({ organizationCode: '   ' }).success).toBe(false)
+    expect(
+      restoreRecoveryPointRequest.safeParse({ organizationCode: 'X', confirm: true }).success,
+    ).toBe(false)
+  })
+
+  it('lists INCOMPATIBLE as a status but not as a stored problem code', () => {
+    expect(recoveryPointStatuses).toContain('INCOMPATIBLE')
+    expect(backupErrorCodes).toEqual(
+      expect.arrayContaining([
+        ...recoveryPointProblems,
+        'BUSY',
+        'STORAGE_UNAVAILABLE',
+        'DATABASE_BUSY',
+      ]),
+    )
+  })
+
+  it('has one message per problem', () => {
+    expect(Object.keys(recoveryPointProblemMessages).sort()).toEqual(
+      [...recoveryPointProblems].sort(),
+    )
+  })
+})

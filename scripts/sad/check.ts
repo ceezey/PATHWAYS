@@ -105,6 +105,7 @@ export const roles = {
       'scripts/sad/**',
       '.github/workflows/ci.yml',
       '.github/workflows/rules-dispatch.yml',
+      '.github/workflows/backup-daily.yml',
       'infra/supabase/replay/*.ps1',
     ],
   },

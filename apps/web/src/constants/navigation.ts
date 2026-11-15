@@ -160,7 +160,7 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
             {
               href: '/settings/backups',
               label: fixedDashboardNavItemLabels.backupRecovery,
-              description: 'Review backup readiness and recovery safeguards.',
+              description: 'Create, download and restore recovery points.',
               icon: DatabaseBackup,
             },
           ]

@@ -199,6 +199,10 @@ describe('routing and digest', () => {
     const file = '.github/workflows/rules-dispatch.yml'
     expect(routing([change(file, 'new', 'old')])['design-qa-agent']).toContain(file)
   })
+  it('routes the daily backup workflow to design-qa-agent', () => {
+    const file = '.github/workflows/backup-daily.yml'
+    expect(routing([change(file, 'new', 'old')])['design-qa-agent']).toContain(file)
+  })
   it('binds final, base, rename and deletion bytes independent of input order', () => {
     const a = change('a.ts', 'new', 'old')
     const b = change('b.ts', null, 'old')

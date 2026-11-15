@@ -91,6 +91,7 @@ TRUNCATE TABLE
   pathways.projects,
   pathways.public_project_views,
   pathways.publication_requests,
+  pathways.recovery_points,
   pathways.reports,
   pathways.rule_based_alerts,
   pathways.sensitive_aggregate_releases,

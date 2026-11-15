@@ -17,6 +17,8 @@ import { databaseBusyError } from './database-busy'
 interface AuthorizedOperationOptions {
   transactionTimeoutMs?: number
   isolationLevel?: 'RepeatableRead'
+  // Backup services only: allows a transaction of up to 120 s.
+  backupTimeout?: true
   // Extra permissions that also satisfy the check.
   alsoAllow?: readonly AtomicPermission[]
 }
@@ -181,6 +183,7 @@ export async function withAuthorizedOperation<T>(
         ...(options?.isolationLevel !== undefined
           ? { isolationLevel: options.isolationLevel }
           : {}),
+        ...(options?.backupTimeout !== undefined ? { backupTimeout: options.backupTimeout } : {}),
         onTiming: (timing) => {
           databaseTiming = timing
         },
