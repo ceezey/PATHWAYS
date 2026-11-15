@@ -318,6 +318,27 @@ describe('BackupsService.restore', () => {
     },
   )
 
+  it('a fault inside the restore function logs its SQL state', async () => {
+    const { tx, service } = setup()
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+    tx.$queryRaw.mockImplementation(async (query: unknown) => {
+      const text = String(query)
+      if (text.includes('p91_current_migration')) return [{ migration: '0091_backup_recovery' }]
+      if (text.includes('transaction_isolation')) return [{ level: 'read committed' }]
+      if (text.includes('p91_restore_organization')) throw sqlError('23502')
+      return []
+    })
+    await expect(
+      service.restore(admin, pointId, { organizationCode: 'DEMO' }),
+    ).rejects.toMatchObject({ status: 500, response: { code: 'RESTORE_FAILED' } })
+    expect(logged).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'PATHWAYS_BACKUP_RESTORE_FAILED',
+        cause: expect.stringContaining('23502'),
+      }),
+    )
+  })
+
   it('a database fault after the restore function answers 500 RESTORE_FAILED, not 403', async () => {
     const { tx, service } = setup()
     const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)

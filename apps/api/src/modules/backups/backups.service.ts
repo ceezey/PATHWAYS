@@ -429,6 +429,7 @@ export class BackupsService {
                 message: RESTORE_MESSAGES.INCOMPATIBLE,
                 code: 'INCOMPATIBLE',
               })
+            logger.error({ event: 'PATHWAYS_BACKUP_RESTORE_FAILED', cause: faultCause(error) })
             throw restoreFailed(state === '23514' ? 'COUNT_MISMATCH' : 'RESTORE_FAILED')
           }
           if (!restored || typeof restored !== 'object') throw restoreFailed()
