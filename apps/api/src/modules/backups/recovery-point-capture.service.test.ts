@@ -3,6 +3,7 @@ import 'reflect-metadata'
 import type { ApplicationIdentity } from '@app/common/authz/application-identity'
 import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { Logger } from '@nestjs/common'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeAuthorizedOperation } from './authorized-operation.harness'
 import type { BackupJobDatabase } from './backup-job-database'
@@ -205,6 +206,19 @@ describe('RecoveryPointCaptureService', () => {
     })
   })
 
+  it('a failed create logs its code and allowlisted cause label, never its message', async () => {
+    const { storage, service } = setup()
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+    storage.write.mockRejectedValue(new BackupStorageUnavailableError())
+    await expect(service.capture(user, 'MANUAL')).rejects.toMatchObject({ status: 503 })
+    expect(logged).toHaveBeenCalledWith({
+      event: 'PATHWAYS_BACKUP_CREATE_FAILED',
+      code: 'STORAGE_UNAVAILABLE',
+      cause: 'BackupStorageUnavailableError',
+    })
+    expect(JSON.stringify(logged.mock.calls)).not.toContain('unavailable.')
+  })
+
   it('capture runs in a RepeatableRead transaction with a 120 s timeout', async () => {
     const { service } = setup()
     await service.capture(user, 'MANUAL')
@@ -402,7 +416,15 @@ describe('RecoveryPointCaptureService', () => {
 
   it('the daily job captures one AUTOMATIC point per organization on the job login and counts failures', async () => {
     const { tx, job, jobTx, service } = setup()
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
     await expect(service.runDaily()).resolves.toEqual({ state: 'COMPLETED', created: 1, failed: 1 })
+    expect(logged).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'PATHWAYS_BACKUP_JOB_FAILED',
+        organizationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        cause: expect.any(String),
+      }),
+    )
     expect(withAuthorizedOperation).not.toHaveBeenCalled()
     expect(tx.recoveryPoint.create).not.toHaveBeenCalled()
     expect(tx.recoveryPoint.update).not.toHaveBeenCalled()

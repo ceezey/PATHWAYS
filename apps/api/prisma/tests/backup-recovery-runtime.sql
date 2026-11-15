@@ -697,6 +697,15 @@ VALUES (pg_temp.u(91),pg_temp.u(1),pg_temp.u(41),pg_temp.u(117),pg_temp.u(21),pg
 INSERT INTO pathways_rules_internal.lifecycle_events(id,organization_id,project_id,alert_id,actor_kind,actor_id,state_before,state_after,
  operation_receipt_id,occurred_at)
 VALUES (pg_temp.u(120),pg_temp.u(1),pg_temp.u(41),pg_temp.u(116),'HUMAN',pg_temp.u(21),'NEW','REVIEWED',pg_temp.u(118),now());
+-- A blank answer is stored as the JSON null in a NOT NULL jsonb column and must come back as JSON null.
+INSERT INTO pathways.digital_forms(id,organization_id,project_id,code,name)
+VALUES (pg_temp.u(121),pg_temp.u(1),pg_temp.u(41),'P91-FORM','Synthetic backup form');
+INSERT INTO pathways.form_fields(id,organization_id,project_id,form_id,code,label,data_type,sequence_no)
+VALUES (pg_temp.u(122),pg_temp.u(1),pg_temp.u(41),pg_temp.u(121),'p91_note','Synthetic note','TEXT',1);
+INSERT INTO pathways.form_submissions(id,organization_id,project_id,form_id,submitted_by_id,form_version,client_submission_id)
+VALUES (pg_temp.u(123),pg_temp.u(1),pg_temp.u(41),pg_temp.u(121),pg_temp.u(21),1,pg_temp.u(124));
+INSERT INTO pathways.form_response_values(id,organization_id,project_id,form_id,submission_id,field_id,value)
+VALUES (pg_temp.u(125),pg_temp.u(1),pg_temp.u(41),pg_temp.u(121),pg_temp.u(123),pg_temp.u(122),'null');
 RESET session_replication_role;
 SELECT pg_temp.ok('the f10 cycle is closed', (SELECT d.private_review_id=r.id FROM pathways.decision_recommendations d
  JOIN pathways_rules_internal.recommendation_reviews r ON r.recommendation_id=d.id WHERE d.id=pg_temp.u(117)));
@@ -760,6 +769,8 @@ SELECT pg_temp.same('organization A rows equal the point except audit history an
 SELECT pg_temp.same('jobs equal the point except the lease', (SELECT jsonb_agg(to_jsonb(j) - ARRAY['state','lease_hash','lease_session','lease_expires_at','claim_generation','claim_watermark','next_attempt_at'] ORDER BY j.id)
  FROM pathways_rules_internal.jobs j WHERE organization_id=pg_temp.u(1)), (SELECT jsonb_agg(r - ARRAY['state','lease_hash','lease_session','lease_expires_at','claim_generation','claim_watermark','next_attempt_at'])
  FROM jsonb_array_elements(pg_temp.point()->'tables'->'pathways_rules_internal.jobs') r));
+SELECT pg_temp.ok('a JSON null answer survives restore', (SELECT value='null'::jsonb FROM pathways.form_response_values
+ WHERE id=pg_temp.u(125)));
 SELECT pg_temp.ok('bytea survives restore', (SELECT definition_digest=sha256('p91-rule') FROM pathways.alert_rules
  WHERE organization_id=pg_temp.u(1) AND definition_digest IS NOT NULL));
 SELECT pg_temp.ok('microsecond timestamps survive restore', (SELECT as_of='2026-11-12 01:02:03.456789+00'::timestamptz

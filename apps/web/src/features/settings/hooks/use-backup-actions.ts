@@ -15,7 +15,8 @@ import {
   formatRecoveryPointTime,
 } from '../backup-recovery.utils'
 
-type Notice = { tone: 'success' | 'danger'; text: string }
+// pointId names the row the notice is about, so the page can highlight it.
+type Notice = { tone: 'success' | 'danger'; text: string; pointId: string | null }
 
 /** The page's backup actions, one at a time; create and verify refetch the list afterwards. */
 export function useBackupActions(refetch: () => unknown) {
@@ -41,7 +42,7 @@ export function useBackupActions(refetch: () => unknown) {
     try {
       await work()
     } catch (caught) {
-      setNotice({ tone: 'danger', text: backupFailureMessage(action, caught) })
+      setNotice({ tone: 'danger', text: backupFailureMessage(action, caught), pointId })
     } finally {
       busy.current = false
       setPending(null)
@@ -68,6 +69,7 @@ export function useBackupActions(refetch: () => unknown) {
         setNotice({
           tone: 'success',
           text: `Restored to the recovery point from ${formatRecoveryPointTime(point)}. A recovery point of the data before the restore was saved first.${files}`,
+          pointId: point.id,
         })
         return true
       } catch (caught) {
@@ -84,8 +86,8 @@ export function useBackupActions(refetch: () => unknown) {
         'create',
         null,
         async () => {
-          await backupsClient.create()
-          setNotice({ tone: 'success', text: 'Recovery point saved.' })
+          const created = await backupsClient.create()
+          setNotice({ tone: 'success', text: 'Recovery point saved.', pointId: created.id })
         },
         true,
       ),
@@ -97,8 +99,12 @@ export function useBackupActions(refetch: () => unknown) {
           const { problem } = await backupsClient.verify(point.id)
           setNotice(
             problem
-              ? { tone: 'danger', text: recoveryPointProblemMessages[problem] }
-              : { tone: 'success', text: 'This recovery point can be restored.' },
+              ? { tone: 'danger', text: recoveryPointProblemMessages[problem], pointId: point.id }
+              : {
+                  tone: 'success',
+                  text: 'This recovery point can be restored.',
+                  pointId: point.id,
+                },
           )
         },
         true,

@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
-import { prismaSqlState } from '../../prisma/transaction-diagnostic'
+import { faultCause, prismaSqlState } from '../../prisma/transaction-diagnostic'
 import { BackupJobDatabase } from './backup-job-database'
 import {
   BACKUP_DATA_FILE,
@@ -145,9 +145,13 @@ export class RecoveryPointCaptureService {
       try {
         await this.captureAutomatic(id)
         created++
-      } catch {
+      } catch (error) {
         failed++
-        logger.error({ event: 'PATHWAYS_BACKUP_JOB_FAILED' })
+        logger.error({
+          event: 'PATHWAYS_BACKUP_JOB_FAILED',
+          organizationId: id,
+          cause: faultCause(error),
+        })
       }
     }
     return { state: 'COMPLETED', created, failed }
@@ -245,6 +249,9 @@ export class RecoveryPointCaptureService {
         : isBackupBusy(error)
           ? 'BUSY'
           : 'CREATE_FAILED'
+    // A busy refusal is expected contention; every real failure keeps its allowlisted cause.
+    if (code !== 'BUSY')
+      logger.error({ event: 'PATHWAYS_BACKUP_CREATE_FAILED', code, cause: faultCause(error) })
     try {
       const files = await this.storage.listPointFiles(organizationId, pointId)
       await this.storage.removePoint(

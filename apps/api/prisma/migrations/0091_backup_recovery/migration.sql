@@ -502,6 +502,7 @@ SET LOCAL ROLE pathways_backup_owner;
 CREATE FUNCTION pathways.p91_restore_organization(wanted_org uuid, snapshot jsonb, expected_counts jsonb) RETURNS jsonb
  LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '' SET lock_timeout TO '5s' AS $$
 DECLARE t record; i integer; blocked text; reason text; locked text; def text; restored bigint; counts jsonb := '{}';
+ cols text; vals text;
  trig_rel regclass[]; trig_name text[]; trig_state text[]; forced regclass[];
  cycle_rel text[] := ARRAY['pathways.budget_expense_entries','pathways.decision_recommendations'];
  cycle_name text[] := ARRAY['budget_expense_entries_receipt_evidence_fkey','f10_private_review_scope']; cycle_def text[];
@@ -566,7 +567,13 @@ BEGIN
   EXECUTE format('DELETE FROM %s WHERE organization_id = $1', t.rel) USING wanted_org;
  END LOOP;
  FOR t IN SELECT b.table_name, to_regclass(b.table_name) AS rel FROM pathways.p91_backup_tables() b WHERE b.restore ORDER BY b.table_order LOOP
-  EXECUTE format('INSERT INTO %1$s SELECT * FROM pg_catalog.jsonb_populate_recordset(NULL::%1$s, $1)', t.rel)
+  -- A JSON null in a NOT NULL jsonb column would populate as SQL NULL, so those columns take the element's own value.
+  SELECT string_agg(format('%I', a.attname), ', ' ORDER BY a.attnum),
+   string_agg(CASE WHEN a.attnotnull AND a.atttypid = 'pg_catalog.jsonb'::pg_catalog.regtype
+    THEN format('e.v -> %L', a.attname) ELSE format('r.%I', a.attname) END, ', ' ORDER BY a.attnum)
+   INTO cols, vals FROM pg_catalog.pg_attribute a WHERE a.attrelid = t.rel AND a.attnum > 0 AND NOT a.attisdropped;
+  EXECUTE format('INSERT INTO %1$s (%2$s) SELECT %3$s FROM pg_catalog.jsonb_array_elements($1) e(v),'
+   ' pg_catalog.jsonb_populate_record(NULL::%1$s, e.v) r', t.rel, cols, vals)
    USING snapshot->'tables'->t.table_name;
  END LOOP;
  -- A restored lease names a worker that no longer holds it, so the job waits for a new claim.
@@ -678,7 +685,7 @@ DO $$ DECLARE fn record; BEGIN
   OR (SELECT pg_catalog.array_agg(n.nspname||'.'||c.relname ORDER BY n.nspname||'.'||c.relname) FROM pg_catalog.pg_policy p
    JOIN pg_catalog.pg_class c ON c.oid=p.polrelid JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
    WHERE p.polname='p91_backup_capture_select')
-   IS DISTINCT FROM (SELECT pg_catalog.array_agg(x ORDER BY x) FROM pg_catalog.unnest(
+   IS DISTINCT FROM (SELECT pg_catalog.array_agg(x ORDER BY x COLLATE "C") FROM pg_catalog.unnest(
     pg_catalog.string_to_array(pg_catalog.current_setting('pathways_0091.capture_tables'),',')) x)
   OR EXISTS(SELECT FROM pg_catalog.pg_policy p JOIN pg_catalog.pg_class c ON c.oid=p.polrelid WHERE p.polname='p91_backup_capture_select'
    AND NOT (c.relforcerowsecurity AND p.polcmd='r' AND p.polpermissive AND p.polwithcheck IS NULL
