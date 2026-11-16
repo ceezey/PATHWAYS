@@ -1,8 +1,4 @@
 import { gunzipSync } from 'node:zlib'
-import { writeAuditLog } from '@app/common/audit/write-audit-log'
-import { type ApplicationIdentity, UUID_PATTERN } from '@app/common/authz/application-identity'
-import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
-import { PrismaService } from '@app/prisma/prisma.service'
 import {
   BadRequestException,
   ConflictException,
@@ -26,6 +22,10 @@ import {
   recoveryPointProblemMessages,
 } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import { PrismaService } from '../../prisma/prisma.service'
 import { faultCause, prismaSqlState } from '../../prisma/transaction-diagnostic'
 import {
   BACKUP_DATA_FILE,

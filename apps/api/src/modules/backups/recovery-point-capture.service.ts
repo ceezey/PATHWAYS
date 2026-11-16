@@ -1,8 +1,4 @@
 import { gzipSync } from 'node:zlib'
-import { writeAuditLog } from '@app/common/audit/write-audit-log'
-import type { ApplicationIdentity } from '@app/common/authz/application-identity'
-import { withAuthorizedOperation } from '@app/common/authz/authorized-operation'
-import { PrismaService } from '@app/prisma/prisma.service'
 import {
   ConflictException,
   Inject,
@@ -13,6 +9,10 @@ import {
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import type { Prisma } from '@prisma/client'
+import { writeAuditLog } from '../../common/audit/write-audit-log'
+import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import { PrismaService } from '../../prisma/prisma.service'
 import { faultCause, prismaSqlState } from '../../prisma/transaction-diagnostic'
 import { BackupJobDatabase } from './backup-job-database'
 import {
