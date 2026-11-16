@@ -52,14 +52,15 @@ DO $$ DECLARE backup_oid oid; BEGIN
   WHERE a.privilege_type='CREATE' AND ((n.nspname='pathways' AND a.grantee IN
    ((SELECT oid FROM pg_catalog.pg_roles WHERE rolname='report_projection_owner'),backup_oid))
    OR (n.nspname='pathways_rules_internal' AND a.grantee=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='rules_context_owner'))))
+ -- The backup owner membership check applies only once 0091 finished; a failed attempt leaves none.
  OR (EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0091_backup_recovery'
    AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
-  AND (SELECT pg_catalog.jsonb_agg(r.rolname ORDER BY r.rolname) FROM pg_catalog.pg_auth_members m
+  AND ((SELECT pg_catalog.jsonb_agg(r.rolname ORDER BY r.rolname) FROM pg_catalog.pg_auth_members m
    JOIN pg_catalog.pg_roles r ON r.oid=m.roleid WHERE m.member=backup_oid
    AND m.grantor=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='postgres')
    AND NOT m.admin_option AND m.inherit_option AND NOT m.set_option)
    IS DISTINCT FROM '["prisma","report_projection_owner","rules_store_owner"]'::jsonb
-  OR (SELECT count(*) FROM pg_catalog.pg_auth_members m WHERE m.member=backup_oid)<>3)
+  OR (SELECT count(*) FROM pg_catalog.pg_auth_members m WHERE m.member=backup_oid)<>3))
  THEN RAISE EXCEPTION 'Temporary 0091 membership or schema CREATE remains, or backup owner memberships differ'; END IF;
 END $$;
 COMMIT;
