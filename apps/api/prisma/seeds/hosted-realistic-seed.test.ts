@@ -244,6 +244,19 @@ describe('reconcileStorageBuckets', () => {
     }
   }
 
+  it('creates pathways-private with the backup data and manifest types', async () => {
+    const storage = fakeStorage([])
+    await reconcileStorageBuckets(storage)
+    const created = storage.created.find(
+      (bucket) => (bucket as { id: string }).id === 'pathways-private',
+    ) as {
+      options: { allowedMimeTypes: string[] }
+    }
+    expect(created.options.allowedMimeTypes).toEqual(
+      expect.arrayContaining(['application/gzip', 'application/json']),
+    )
+  })
+
   it('creates every bucket that does not exist yet', async () => {
     const storage = fakeStorage([])
     const outcomes = await reconcileStorageBuckets(storage, plans)

@@ -335,7 +335,7 @@ export async function resumePreflight(io, config) {
       config.adminUrl,
       `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
        JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
-       AND r.rolname IN ('rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','finance_operation_owner','rules_human_owner','rules_eligibility_owner','report_projection_owner','rules_projection_owner');`,
+       AND r.rolname IN ('rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','finance_operation_owner','rules_human_owner','rules_eligibility_owner','report_projection_owner','rules_projection_owner','pathways_backup_owner','rules_context_owner');`,
     )
     residualOwnerMemberships = residualRows[0] !== '0'
   }
@@ -391,7 +391,7 @@ export async function postconditions(io, config) {
     `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
      JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
      AND (r.rolname LIKE 'rules\\_%\\_owner' OR r.rolname IN
-       ('public_projection_owner','report_projection_owner','finance_operation_owner','rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','rules_projection_owner'));`,
+       ('public_projection_owner','report_projection_owner','finance_operation_owner','rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','rules_projection_owner','pathways_backup_owner'));`,
   )
   if (residualRows[0] !== '0') {
     throw new Error(

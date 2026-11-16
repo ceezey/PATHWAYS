@@ -10,6 +10,18 @@ import { PrismaService } from '../../prisma/prisma.service'
 // Only these non-personal change keys leave the audit table; a new key needs a CR amendment.
 const detailKeys = new Map<string, readonly string[]>([
   ['IMPORT_ENROLLMENT_DATE_CONFIRMED', ['source', 'rowNumber']],
+  [
+    'BACKUP_CREATED',
+    ['pointType', 'fileMode', 'fileCount', 'migration', 'capturedAt', 'sizeBytes'],
+  ],
+  ['BACKUP_FAILED', ['pointType', 'code']],
+  ['BACKUP_DOWNLOADED', ['pointType', 'capturedAt', 'expiresInSeconds']],
+  [
+    'BACKUP_RESTORED',
+    ['pointType', 'capturedAt', 'migration', 'fileMode', 'preRestorePointId', 'filesRestored'],
+  ],
+  ['BACKUP_RESTORE_FAILED', ['code', 'filesRestored']],
+  ['BACKUP_RESTORE_REFUSED', ['code']],
 ])
 const auditDetails = (action: string, changes: unknown) => {
   const stored =

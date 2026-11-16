@@ -114,3 +114,46 @@ describe('server-only machine readiness configuration', () => {
       expect(() => readApiEnv({ ...pooled, RULES_WORKER_DATABASE_URL: remote(user) })).toThrow()
   })
 })
+
+describe('backup settings', () => {
+  const jobUrl = 'postgresql://pathways_backup_job@127.0.0.1/local'
+
+  it('defaults backups to manifest mode with the job route off', () => {
+    expect(readApiEnv({})).toMatchObject({ BACKUP_FILE_MODE: 'manifest', BACKUP_JOB_TOKEN: '' })
+    expect(readApiEnv({ BACKUP_FILE_MODE: 'copy' }).BACKUP_FILE_MODE).toBe('copy')
+    expect(() => readApiEnv({ BACKUP_FILE_MODE: 'full' })).toThrow()
+  })
+
+  it('requires a distinct 64-hex backup job token when one is set', () => {
+    expect(
+      readApiEnv({ BACKUP_JOB_TOKEN: 'b'.repeat(64), BACKUP_JOB_DATABASE_URL: jobUrl })
+        .BACKUP_JOB_TOKEN,
+    ).toBe('b'.repeat(64))
+    for (const value of ['B'.repeat(64), 'b'.repeat(63), 'not-a-token'])
+      expect(() =>
+        readApiEnv({ BACKUP_JOB_TOKEN: value, BACKUP_JOB_DATABASE_URL: jobUrl }),
+      ).toThrow('backup job credential')
+    for (const key of ['RULES_DRAIN_TOKEN', 'RULES_SWEEP_TOKEN'])
+      expect(() =>
+        readApiEnv({
+          BACKUP_JOB_TOKEN: 'a'.repeat(64),
+          BACKUP_JOB_DATABASE_URL: jobUrl,
+          [key]: 'a'.repeat(64),
+        }),
+      ).toThrow('backup job credential')
+  })
+
+  it('requires the dedicated backup job login together with the token', () => {
+    expect(readApiEnv({}).BACKUP_JOB_DATABASE_URL).toBe('')
+    expect(() => readApiEnv({ BACKUP_JOB_TOKEN: 'b'.repeat(64) })).toThrow('backup job credential')
+    expect(() => readApiEnv({ BACKUP_JOB_DATABASE_URL: jobUrl })).toThrow('backup job credential')
+    for (const url of [
+      'postgresql://pathways_runtime@127.0.0.1/local',
+      'postgresql://pathways_backup_job@db.example.com/postgres',
+      'invalid',
+    ])
+      expect(() =>
+        readApiEnv({ BACKUP_JOB_TOKEN: 'b'.repeat(64), BACKUP_JOB_DATABASE_URL: url }),
+      ).toThrow('backup job database')
+  })
+})

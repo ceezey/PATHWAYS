@@ -3,6 +3,17 @@ import { type SupabaseClient, createClient } from '@supabase/supabase-js'
 
 import { readApiEnv } from '@pathways/config'
 
+export type StoredObject = {
+  name: string
+  folder: boolean
+  size: number
+  checksum: string
+  contentType: string
+}
+
+const LIST_PAGE = 1000
+const REMOVE_BATCH = 100
+
 @Injectable()
 export class StorageService {
   private readonly env = readApiEnv(process.env)
@@ -95,6 +106,47 @@ export class StorageService {
     return signed
   }
 
+  /** One folder level under a prefix of a confirmed private bucket; folders have no size or checksum. */
+  async listObjects(bucket: string, prefix: string): Promise<StoredObject[]> {
+    const client = this.getClient()
+    await this.requirePrivateBucket(client, bucket)
+    const files = client.storage.from(bucket)
+    const objects: StoredObject[] = []
+    for (let offset = 0; ; offset += LIST_PAGE) {
+      const { data, error } = await files.list(prefix, { limit: LIST_PAGE, offset })
+      if (error) throw error
+      for (const entry of data) {
+        const folder = entry.id === null
+        const metadata = (folder ? {} : (entry.metadata ?? {})) as Record<string, unknown>
+        objects.push({
+          name: `${prefix}/${entry.name}`,
+          folder,
+          size: typeof metadata.size === 'number' ? metadata.size : 0,
+          checksum: typeof metadata.eTag === 'string' ? metadata.eTag.replaceAll('"', '') : '',
+          contentType: typeof metadata.mimetype === 'string' ? metadata.mimetype : '',
+        })
+      }
+      if (data.length < LIST_PAGE) return objects
+    }
+  }
+
+  async copyObject(bucket: string, from: string, to: string): Promise<void> {
+    const client = this.getClient()
+    await this.requirePrivateBucket(client, bucket)
+    const { error } = await client.storage.from(bucket).copy(from, to)
+    if (error) throw error
+  }
+
+  async removeFiles(bucket: string, paths: readonly string[]): Promise<void> {
+    const client = this.getClient()
+    await this.requirePrivateBucket(client, bucket)
+    const files = client.storage.from(bucket)
+    for (let index = 0; index < paths.length; index += REMOVE_BATCH) {
+      const { error } = await files.remove(paths.slice(index, index + REMOVE_BATCH))
+      if (error) throw error
+    }
+  }
+
   async deleteFile(bucket: string, path: string) {
     const client = this.getClient()
     const { error } = await client.storage.from(bucket).remove([path])
@@ -106,9 +158,11 @@ export class StorageService {
     return true
   }
 
-  async generateSignedUrl(bucket: string, path: string, expiresIn = 60 * 15) {
+  async generateSignedUrl(bucket: string, path: string, expiresIn = 60 * 15, download?: string) {
     const client = this.getClient()
-    const { error, data } = await client.storage.from(bucket).createSignedUrl(path, expiresIn)
+    const { error, data } = await client.storage
+      .from(bucket)
+      .createSignedUrl(path, expiresIn, download === undefined ? undefined : { download })
 
     if (error) {
       throw error
@@ -121,4 +175,14 @@ export class StorageService {
 function isExistingObjectError(error: unknown) {
   const { statusCode, message } = (error ?? {}) as { statusCode?: unknown; message?: unknown }
   return String(statusCode) === '409' || message === 'The resource already exists'
+}
+
+export function isMissingObjectError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const own = (key: string) => Object.getOwnPropertyDescriptor(error, key)?.value
+  return (
+    String(own('statusCode')) === '404' ||
+    own('status') === 404 ||
+    own('message') === 'Object not found'
+  )
 }

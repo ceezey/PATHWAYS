@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { useHoverTip } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,6 +28,7 @@ export const ProjectArchiveDialog = ({
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const { triggerProps, tip } = useHoverTip('Archive Project')
 
   const confirm = async () => {
     setBusy(true)
@@ -45,11 +47,11 @@ export const ProjectArchiveDialog = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2" variant="outline">
+        <Button {...triggerProps} aria-label="Archive Project" size="icon" variant="outline">
           <Archive className="h-4 w-4" aria-hidden="true" />
-          Archive project
         </Button>
       </DialogTrigger>
+      {tip}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Archive this project?</DialogTitle>

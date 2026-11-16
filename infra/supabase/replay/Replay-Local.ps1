@@ -647,6 +647,8 @@ END $$;
       Write-Output 'PROJECT_MAP_PINS_RUNTIME=PASS'
       Measure-ReplayStep 'sql test-case-gap-closure-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/test-case-gap-closure-runtime.sql'))) $phase6Database }
       Write-Output 'TEST_CASE_GAP_CLOSURE_RUNTIME=PASS'
+      Measure-ReplayStep 'sql backup-recovery-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/backup-recovery-runtime.sql'))) $phase6Database }
+      Write-Output 'BACKUP_RECOVERY_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
@@ -657,8 +659,8 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count: 63 schema tables after 0090 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
-      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "64"
+      # Fixed pathways table count: 64 schema tables after 0091 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "65"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
       $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'

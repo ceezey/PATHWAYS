@@ -144,8 +144,8 @@ describe('project team editing authority', () => {
     access.profile.permissions = ['projects.read', 'projects.detail.read', 'assignments.manage']
     renderView()
     expect(await screen.findByText('Project team')).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Edit project profile' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Edit project profile' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Edit Project' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Edit Project' })).toBeNull()
   })
 
   it('shows profile editing to a projects.update holder', async () => {
@@ -153,8 +153,10 @@ describe('project team editing authority', () => {
     access.profile.roles = ['PROJECT_MANAGER']
     access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.update']
     renderView()
-    const link = await screen.findByRole('link', { name: 'Edit project profile' })
+    const link = await screen.findByRole('link', { name: 'Edit Project' })
     expect(link.getAttribute('href')).toBe(`/projects/${projectId}/edit`)
+    fireEvent.mouseEnter(link)
+    expect(screen.getByRole('tooltip').textContent).toBe('Edit Project')
   })
 
   it('shows structured partners only, never the deprecated free text', async () => {
@@ -179,7 +181,7 @@ describe('project team editing authority', () => {
     access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.archive']
     renderView()
     expect(await screen.findByText('Project team')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Archive project' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Archive Project' })).toBeNull()
   })
 
   it('archives after confirmation and returns to the project list', async () => {
@@ -188,7 +190,11 @@ describe('project team editing authority', () => {
     access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.archive']
     api.archiveProject.mockResolvedValue({ id: projectId, archivedAt: '2026-10-01T00:00:00.000Z' })
     renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Archive project' }))
+    const archive = await screen.findByRole('button', { name: 'Archive Project' })
+    expect(archive.textContent).toBe('')
+    fireEvent.mouseEnter(archive)
+    expect(screen.getByRole('tooltip').textContent).toBe('Archive Project')
+    fireEvent.click(archive)
     expect(api.archiveProject).not.toHaveBeenCalled()
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm archive' }))
     await waitFor(() => expect(api.archiveProject).toHaveBeenCalledWith(projectId))

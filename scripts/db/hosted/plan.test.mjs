@@ -26,8 +26,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 65 rows (baseline plus 0027-0057 and 0058-0090) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 65)
+  // ledger has 66 rows (baseline plus 0027-0057 and 0058-0091) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 66)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -129,6 +129,9 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'preprovision:test-case-gaps',
     'deploy:0090_test_case_gap_closure',
     'cleanup:test-case-gaps',
+    'preprovision:backup',
+    'deploy:0091_backup_recovery',
+    'cleanup:backup',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -324,17 +327,6 @@ test('planIndexForAppliedCount on a 0000-0048 ledger resumes at the 0049 deploy'
     MIGRATIONS_IN_ORDER.indexOf('0048_identity_review_grant') + 1,
   )
   assert.deepEqual(plan[index].migrations, ['0049_journey_event_note'])
-})
-
-test('planIndexForAppliedCount on a complete 0000-0090 ledger resumes at alter-runtime-role, or at the test-case-gaps cleanup with residual owner memberships', () => {
-  const plan = buildPlan()
-  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
-  assert.equal(plan[index].type, 'alter-runtime-role')
-  const residual = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length, {
-    residualOwnerMemberships: true,
-  })
-  assert.equal(plan[residual].type, 'cleanup')
-  assert.equal(plan[residual].name, 'test-case-gaps')
 })
 
 test('planIndexForAppliedCount on a 0000-0056 ledger resumes at the 0057 deploy', () => {
@@ -674,4 +666,28 @@ test('planIndexForAppliedCount on a 0000-0089 ledger resumes at the test-case-ga
   assert.equal(plan[fresh].name, 'test-case-gaps')
   const granted = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
   assert.deepEqual(plan[granted].migrations, ['0090_test_case_gap_closure'])
+})
+
+test('planIndexForAppliedCount on a 0000-0090 ledger resumes at the backup preprovision, or at the test-case-gaps cleanup with residual owner memberships', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0090_test_case_gap_closure') + 1
+  const fresh = planIndexForAppliedCount(applied)
+  assert.equal(plan[fresh].type, 'preprovision')
+  assert.equal(plan[fresh].name, 'backup')
+  const residual = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.equal(plan[residual].type, 'cleanup')
+  assert.equal(plan[residual].name, 'test-case-gaps')
+})
+
+test('planIndexForAppliedCount on a complete 0000-0091 ledger resumes at alter-runtime-role, or at the backup cleanup with residual owner memberships', () => {
+  const plan = buildPlan()
+  assert.equal(
+    plan[planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)].type,
+    'alter-runtime-role',
+  )
+  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length, {
+    residualOwnerMemberships: true,
+  })
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'backup')
 })
