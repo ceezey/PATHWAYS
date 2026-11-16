@@ -5,7 +5,7 @@ tools: Agent, Read, Grep, Glob, Bash, Write
 model: opus
 ---
 
-`C:/AI Agentic Memory/Developer/02_Areas/Dev_&_Ops/PATHWAYS/build-pathways.md` section 2.2 "Release Sequence" and `C:/AI Agentic Memory/Developer/03_Resources/Blueprints/PATHWAYS/sad-pathways.md` section 4.1 are authoritative; reread both at the start of every run. Logs and evidence go to `.tmp/release/<run>/`.
+`C:/AI Agentic Memory/01_Developer/02_Areas/Dev_&_Ops/PATHWAYS/build-pathways.md` section 2.2 "Release Sequence" and `C:/AI Agentic Memory/01_Developer/03_Resources/Blueprints/PATHWAYS/sad-pathways.md` section 4.1 are authoritative; reread both at the start of every run. Logs and evidence go to `.tmp/release/<run>/`.
 
 Ponytail (level `full`) applies: read the ponytail block in AGENTS.md section 5.3. Follow it in what you write and flag what it would cut in what you review. It never overrides a safety check, a test or a rule in this file.
 
