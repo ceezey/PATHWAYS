@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
+import { useHoverTip } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -44,11 +45,7 @@ export const ProjectWorkspaceFrame = ({
               </Link>
             </Button>
             {role && isUiActionAvailable(role, 'projects.profile.manage', profile) ? (
-              <Button asChild size="icon" variant="outline">
-                <Link aria-label="Edit project profile" href={`/projects/${project.id}/edit`}>
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
+              <EditProjectLink projectId={project.id} />
             ) : null}
             {role && isUiActionAvailable(role, 'projects.archive', profile) ? (
               <ProjectArchiveDialog projectId={project.id} title={project.title} />
@@ -58,6 +55,20 @@ export const ProjectWorkspaceFrame = ({
       />
       <ProjectWorkspaceHeader project={project} />
       {children}
+    </>
+  )
+}
+
+const EditProjectLink = ({ projectId }: { projectId: string }) => {
+  const { triggerProps, tip } = useHoverTip<HTMLAnchorElement>('Edit Project')
+  return (
+    <>
+      <Button asChild size="icon" variant="outline">
+        <Link {...triggerProps} aria-label="Edit Project" href={`/projects/${projectId}/edit`}>
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </Button>
+      {tip}
     </>
   )
 }

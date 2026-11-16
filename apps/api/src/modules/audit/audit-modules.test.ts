@@ -17,7 +17,7 @@ const sourceFiles = (dir: string): string[] =>
 const writtenEntityTypes = () => {
   const found = new Set<string>()
   for (const file of sourceFiles(path.join(api, 'src'))) {
-    for (const m of readFileSync(file, 'utf8').matchAll(/entityType:\s*'([A-Za-z]+)'/g))
+    for (const m of readFileSync(file, 'utf8').matchAll(/entityType:\s*'([A-Za-z_]+)'/g))
       found.add(m[1])
   }
   const migrations = path.join(api, 'prisma', 'migrations')

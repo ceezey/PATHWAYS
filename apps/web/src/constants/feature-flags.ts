@@ -28,11 +28,12 @@ export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = true
 export const MAPS_UI_ENABLED = true
 
 /**
- * Backup & Recovery is hidden for every role, System Administrator included (2026-10-07, developer
- * request): the sidebar entry is removed and /settings/backups returns not found. See
- * vault note deferred-features.
+ * Backup & Recovery was hidden on 2026-10-07 and is shown again (2026-11-12) now that recovery
+ * points work end to end (cr-pathways-backup-recovery). Set to `false` to hide the sidebar entry
+ * and return not found on /settings/backups; the API and migration 0091 stay in place. See vault
+ * note deferred-features.
  */
-export const BACKUP_RECOVERY_UI_ENABLED = false
+export const BACKUP_RECOVERY_UI_ENABLED = true
 
 /**
  * The project Target Indicators tab hides "Use from library" and the Indicator library link

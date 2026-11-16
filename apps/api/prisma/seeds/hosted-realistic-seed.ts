@@ -246,6 +246,9 @@ const privateBuckets: Array<{
       'text/csv',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      // Recovery point data and manifest files (cr-pathways-backup-recovery).
+      'application/gzip',
+      'application/json',
     ],
   },
   { id: 'uploads', fileSizeLimit: 52_428_800 },

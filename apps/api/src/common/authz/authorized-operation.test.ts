@@ -55,6 +55,20 @@ describe('authorized operation concurrency errors', () => {
       )
     },
   )
+  it('passes backupTimeout through to the verified transaction', async () => {
+    const client = prisma(new ConflictException('fixture'))
+    await expect(
+      withAuthorizedOperation(client, identity, 'backups.create', async () => true, {
+        transactionTimeoutMs: 120_000,
+        backupTimeout: true,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(client.withVerifiedContext).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Function),
+      expect.objectContaining({ timeoutMs: 120_000, backupTimeout: true }),
+    )
+  })
   it.each(['P2002', 'P2034'])('returns a safe conflict for %s', async (code) => {
     await expect(
       withAuthorizedOperation(

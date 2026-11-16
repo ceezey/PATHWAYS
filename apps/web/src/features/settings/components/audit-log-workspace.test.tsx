@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   pending: false,
   empty: false,
   many: false,
+  backup: false,
   actorName: 'Fictional Reviewer' as string | null,
   actorUserId: '20000000-0000-4000-8000-000000000002' as string | null,
   reads: vi.fn(),
@@ -47,17 +48,19 @@ vi.mock('@/hooks/use-authorized-read', () => ({
         ? {
             rows: state.empty
               ? []
-              : Array.from({ length: state.many ? 12 : 1 }, (_, index) => ({
-                  id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
-                  occurredAt: '2026-09-27T16:30:00.123Z',
-                  actorUserId: state.actorUserId,
-                  actorName: state.actorName,
-                  action: index === 11 ? 'UNIQUE_EVENT' : 'PROJECT_UPDATED',
-                  entityType: 'Project',
-                  entityId: '30000000-0000-4000-8000-000000000003',
-                  projectId: '30000000-0000-4000-8000-000000000003',
-                  details: index === 0 ? { source: 'TYPED', rowNumber: 5 } : {},
-                })),
+              : state.backup
+                ? backupRows
+                : Array.from({ length: state.many ? 12 : 1 }, (_, index) => ({
+                    id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+                    occurredAt: '2026-09-27T16:30:00.123Z',
+                    actorUserId: state.actorUserId,
+                    actorName: state.actorName,
+                    action: index === 11 ? 'UNIQUE_EVENT' : 'PROJECT_UPDATED',
+                    entityType: 'Project',
+                    entityId: '30000000-0000-4000-8000-000000000003',
+                    projectId: '30000000-0000-4000-8000-000000000003',
+                    details: index === 0 ? { source: 'TYPED', rowNumber: 5 } : {},
+                  })),
             nextCursor: '2026-09-27T16:30:00.123Z|10000000-0000-4000-8000-000000000001',
           }
         : undefined,
@@ -66,6 +69,24 @@ vi.mock('@/hooks/use-authorized-read', () => ({
       refetch: state.refetch,
     }
   },
+}))
+
+const backupRows = (
+  [
+    ['BACKUP_CREATED', { pointType: 'MANUAL' }],
+    ['BACKUP_FAILED', { pointType: 'MANUAL', code: 'BUSY' }],
+    ['BACKUP_RESTORE_REFUSED', { code: 'CODE_MISMATCH' }],
+  ] as const
+).map(([action, details], index) => ({
+  id: `60000000-0000-4000-8000-00000000000${index + 1}`,
+  occurredAt: '2026-11-16T01:00:00.000Z',
+  actorUserId: null,
+  actorName: null,
+  action,
+  entityType: 'RECOVERY_POINT',
+  entityId: '50000000-0000-4000-8000-000000000005',
+  projectId: null,
+  details,
 }))
 
 describe('audit screen current access and server filters', () => {
@@ -78,6 +99,7 @@ describe('audit screen current access and server filters', () => {
     state.pending = false
     state.empty = false
     state.many = false
+    state.backup = false
     state.actorName = 'Fictional Reviewer'
     state.actorUserId = '20000000-0000-4000-8000-000000000002'
   })
@@ -216,6 +238,36 @@ describe('audit screen current access and server filters', () => {
       expect(state.reads).toHaveBeenLastCalledWith('audit-events:first', true)
     },
   )
+  it('badges failed and refused backup events with their tones under the backup module', () => {
+    state.backup = true
+    render(<AuditLogWorkspace />)
+    const badge = (outcome: string) =>
+      screen.getAllByText(outcome).find((node) => node.closest('td')) as HTMLElement
+    expect(badge('Recorded').className).toContain('bg-muted')
+    expect(badge('Failed').className).toContain('text-danger')
+    expect(badge('Refused').className).toContain('text-warning')
+    expect(screen.getAllByRole('cell', { name: 'Backup and recovery' })).toHaveLength(3)
+    expect(screen.getByRole('option', { name: 'Backup and recovery' })).toBeTruthy()
+  })
+  it.each([
+    ['Recorded', 'BACKUP_CREATED'],
+    ['Failed', 'BACKUP_FAILED'],
+    ['Refused', 'BACKUP_RESTORE_REFUSED'],
+  ])('narrows the loaded page to %s outcomes', (outcome, action) => {
+    state.backup = true
+    render(<AuditLogWorkspace />)
+    fireEvent.change(screen.getByLabelText('Outcome'), { target: { value: outcome } })
+    const shown = screen.getAllByRole('button', { name: /^View / })
+    expect(shown).toHaveLength(1)
+    expect(shown[0].getAttribute('aria-label')).toContain(`View ${action} for`)
+  })
+  it('shows the reason of a refused restore in its detail dialog', () => {
+    state.backup = true
+    render(<AuditLogWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: /View BACKUP_RESTORE_REFUSED for/ }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('Reason').nextElementSibling?.textContent).toBe('CODE_MISMATCH')
+  })
   it('shows the resolved actor name', () => {
     render(<AuditLogWorkspace />)
     expect(screen.getByText('Fictional Reviewer')).toBeTruthy()

@@ -193,8 +193,8 @@ describe('RBAC matrix', () => {
     expect(pathsFor('Project Manager')).toContain('/transparency')
     expect(pathsFor('Grant Manager')).toContain('/transparency')
     expect(pathsFor('System Administrator')).toContain('/settings/audit')
-    // Backup & Recovery is hidden behind BACKUP_RECOVERY_UI_ENABLED.
-    expect(pathsFor('System Administrator')).not.toContain('/settings/backups')
+    expect(pathsFor('System Administrator')).toContain('/settings/backups')
+    expect(pathsFor('Program Manager')).not.toContain('/settings/backups')
     expect(pathsFor('Project Officer')).not.toEqual(
       expect.arrayContaining(['/settings/audit', '/settings/backups']),
     )

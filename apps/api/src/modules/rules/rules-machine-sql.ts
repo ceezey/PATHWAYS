@@ -39,7 +39,7 @@ const text = (v: unknown, expression: RegExp): v is string =>
   typeof v === 'string' && v.length <= 100 && expression.test(v)
 export function machineDatabaseUrl(
   value: string,
-  role: 'pathways_rules_worker' | 'pathways_rules_sweeper',
+  role: 'pathways_rules_worker' | 'pathways_rules_sweeper' | 'pathways_backup_job',
 ) {
   try {
     const url = new URL(value)

@@ -17,6 +17,7 @@ describe('shared barrel', () => {
       'projectMapSchema',
       'auditQuerySchema',
       'AUDIT_MODULES',
+      'recoveryPointListItem',
     ]
     for (const name of names) expect(shared, name).toHaveProperty(name)
   })

@@ -93,6 +93,7 @@ model Organization {
   activityEscalation_organization ActivityEscalation[] @relation("ActivityEscalation_organization")
   importValueRejection_organization ImportValueRejection[] @relation("ImportValueRejection_organization")
   projectMapPin_organization ProjectMapPin[] @relation("ProjectMapPin_organization")
+  recoveryPoint_organization RecoveryPoint[] @relation("RecoveryPoint_organization")
   indicatorLibraryEntry_organization            IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_organization")
 
   @@index([status], map: "organizations_status_idx")
@@ -213,6 +214,7 @@ model SystemUser {
   dataImportRow_resolvedBy DataImportRow[] @relation("DataImportRow_resolvedBy")
   importValueRejection_rejectedBy ImportValueRejection[] @relation("ImportValueRejection_rejectedBy")
   projectMapPin_updatedBy ProjectMapPin[] @relation("ProjectMapPin_updatedBy")
+  recoveryPoint_createdBy RecoveryPoint[] @relation("RecoveryPoint_createdBy")
   formSubmission_submittedBy                  FormSubmission[]                   @relation("FormSubmission_submittedBy")
   formSubmission_validatedBy                  FormSubmission[]                   @relation("FormSubmission_validatedBy")
   beneficiary_createdBy                       Beneficiary[]                      @relation("Beneficiary_createdBy")
@@ -1601,6 +1603,28 @@ model ProjectMapPin {
   @@id([organizationId, projectId, placeName, province])
   @@index([organizationId, updatedById], map: "project_map_pins_updated_by_idx")
   @@map("project_map_pins")
+  @@schema("pathways")
+}
+
+model RecoveryPoint {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  pointType      String       @map("point_type")
+  status         String       @default("CREATING")
+  fileMode       String       @map("file_mode")
+  createdById    String?      @map("created_by_id") @db.Uuid
+  startedAt      DateTime     @default(now()) @map("started_at") @db.Timestamptz(3)
+  capturedAt     DateTime?    @map("captured_at") @db.Timestamptz(3)
+  completedAt    DateTime?    @map("completed_at") @db.Timestamptz(3)
+  migrationName  String?      @map("migration_name")
+  sizeBytes      BigInt?      @map("size_bytes")
+  manifestSha256 String?      @map("manifest_sha256")
+  failureReason  String?      @map("failure_reason")
+  organization   Organization @relation("RecoveryPoint_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "recovery_points_organization_fk")
+  createdBy      SystemUser?  @relation("RecoveryPoint_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "recovery_points_created_by_fk")
+
+  @@index([organizationId, pointType, startedAt(sort: Desc)], map: "recovery_points_list_idx")
+  @@map("recovery_points")
   @@schema("pathways")
 }
 

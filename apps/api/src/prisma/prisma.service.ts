@@ -25,6 +25,8 @@ interface VerifiedTransactionOptions {
   timeoutMs?: number
   /** Internal aggregate/report callers only; never derived from an HTTP payload. */
   isolationLevel?: 'RepeatableRead'
+  /** Backup services only: allows a transaction of up to 120 s. */
+  backupTimeout?: true
   requestBudget?: InspectionRequestBudget
   onTiming?: (timing: VerifiedTransactionTiming) => void
 }
@@ -39,6 +41,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DEFAULT_VERIFIED_TRANSACTION_TIMEOUT_MS = 10_000
 const MIN_VERIFIED_TRANSACTION_TIMEOUT_MS = 1_000
 const MAX_VERIFIED_TRANSACTION_TIMEOUT_MS = 30_000
+export const BACKUP_VERIFIED_TRANSACTION_TIMEOUT_MS = 120_000
 const MAX_REPORTED_STAGE_MS = 30_000
 
 const boundedStageDuration = (startedAt: number) =>
@@ -60,12 +63,18 @@ export class InvalidVerifiedSessionResultError extends Error {
 
 function verifiedTransactionTimeout(options?: VerifiedTransactionOptions) {
   const timeout = options?.timeoutMs ?? DEFAULT_VERIFIED_TRANSACTION_TIMEOUT_MS
+  const backup = options?.backupTimeout === true
+  const max = backup ? BACKUP_VERIFIED_TRANSACTION_TIMEOUT_MS : MAX_VERIFIED_TRANSACTION_TIMEOUT_MS
   if (
     !Number.isInteger(timeout) ||
     timeout < MIN_VERIFIED_TRANSACTION_TIMEOUT_MS ||
-    timeout > MAX_VERIFIED_TRANSACTION_TIMEOUT_MS
+    timeout > max
   ) {
-    throw new Error('Verified transaction timeout must be an integer from 1000 through 30000 ms.')
+    throw new Error(
+      backup
+        ? 'Backup transaction timeout must be an integer from 1000 through 120000 ms.'
+        : 'Verified transaction timeout must be an integer from 1000 through 30000 ms.',
+    )
   }
   return timeout
 }

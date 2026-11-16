@@ -87,7 +87,8 @@ END $$;
 -- move a pin to another place or project.
 SELECT pg_temp.ok('catalog table', (SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity AND relforcerowsecurity
   FROM pg_catalog.pg_class WHERE oid='pathways.project_map_pins'::regclass)
- AND (SELECT count(*) FROM pg_catalog.pg_policy WHERE polrelid='pathways.project_map_pins'::regclass)=4
+ AND (SELECT count(*) FROM pg_catalog.pg_policy WHERE polrelid='pathways.project_map_pins'::regclass
+  AND polname<>'p91_backup_capture_select')=4
  AND (SELECT count(*) FROM pg_catalog.pg_constraint WHERE conrelid='pathways.project_map_pins'::regclass AND contype='f')=3
  AND (SELECT count(*) FROM pg_catalog.pg_constraint WHERE conrelid='pathways.project_map_pins'::regclass AND contype='c')=4
  AND has_table_privilege('pathways_runtime','pathways.project_map_pins','SELECT')
