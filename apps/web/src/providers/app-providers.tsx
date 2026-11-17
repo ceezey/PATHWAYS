@@ -1,6 +1,7 @@
 'use client'
 
 import { Toaster } from '@/components/ui/sonner'
+import { UatMissionWidget } from '@/features/uat-mission/uat-mission-widget'
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import { CurrentRoleProvider } from '@/providers/current-role-provider'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
@@ -14,6 +15,7 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => (
         <CurrentRoleProvider>
           <AuthorizedQueryProvider>{children}</AuthorizedQueryProvider>
           <Toaster richColors position="top-right" />
+          <UatMissionWidget />
         </CurrentRoleProvider>
       </DisplayLabelsProvider>
     </SessionProvider>
