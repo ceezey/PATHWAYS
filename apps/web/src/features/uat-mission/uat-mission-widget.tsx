@@ -1,11 +1,10 @@
 'use client'
 
 // Evaluation-only points tracker: renders only for a participant who arrived from the UAT start link with ?mission=.
-import { Check } from 'lucide-react'
+import { Check, Eye } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
 
-import { ProgressBar, SidePanel, StatusBadge } from '@/components/pathways'
+import { ProgressBar, SidePanel, StatusBadge, useHoverTip } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -16,6 +15,11 @@ const SERVICE = `${START}/api/progress`
 const KEY = 'pathways-uat-mission'
 const POLL_MS = 8000
 const FORM_DELAY_S = 15
+const CIRCLE_KEY = 'pathways-uat-circle'
+const CIRCLE_PX = 64
+const EDGE_PX = 8
+const KEY_STEP_PX = 24
+const POP_MS = 2800
 
 type Step = { id: string; title: string; hint: string; points: number; auto: boolean }
 type Ask = { id: string; step: string; at: string }
@@ -80,11 +84,63 @@ const store = (m: Mission | null) => {
 const firstOpen = (steps: Step[], credited: Record<string, string>) =>
   steps.find((s) => !credited[s.id])?.id ?? ''
 
+type Point = { x: number; y: number }
+type Pop = { key: string; points: number; title: string }
+/** Keeps the circle fully on screen. */
+const clampPoint = (p: Point): Point => ({
+  x: Math.min(Math.max(EDGE_PX, p.x), window.innerWidth - CIRCLE_PX - EDGE_PX),
+  y: Math.min(Math.max(EDGE_PX, p.y), window.innerHeight - CIRCLE_PX - EDGE_PX),
+})
+
+/** Eye marker for an automatic step; the tooltip says it ticks by itself. */
+const WatchingIcon = () => {
+  const { show, triggerProps, tip } = useHoverTip(
+    'Watching for this step. It ticks by itself a few seconds after PATHWAYS records it.',
+  )
+  return (
+    <>
+      <button
+        {...triggerProps}
+        aria-label="Watching for this step"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={show}
+        type="button"
+      >
+        <Eye aria-hidden="true" className="h-4 w-4" />
+      </button>
+      {tip}
+    </>
+  )
+}
+
+/** Manual tick; the tooltip says what it is for, since "Mark as done" can read as skipping the step. */
+const ManualTick = ({ auto, onClick }: { auto: boolean; onClick: () => void }) => {
+  const { triggerProps, tip } = useHoverTip(
+    auto
+      ? 'Use this only if you already did this step in PATHWAYS and it has not ticked after a minute. It does not do the step for you.'
+      : 'PATHWAYS does not record this step, so press this after you have done it.',
+  )
+  return (
+    <>
+      <Button {...triggerProps} onClick={onClick} size="sm" variant={auto ? 'ghost' : 'default'}>
+        {auto ? 'Mark as done' : 'I did this'}
+      </Button>
+      {tip}
+    </>
+  )
+}
+
 export const UatMissionWidget = () => {
   const [mission, setMission] = useState<Mission | null>(null)
   const [view, setView] = useState<View | null>(null)
   const [open, setOpen] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
+  const [pos, setPos] = useState<Point | null>(null)
+  const [pops, setPops] = useState<Pop[]>([])
+  const drag = useRef<{ dx: number; dy: number; x0: number; y0: number; moved: boolean } | null>(
+    null,
+  )
+  const dragged = useRef(false)
   const latest = useRef<Mission | null>(null)
   latest.current = mission
 
@@ -97,6 +153,30 @@ export const UatMissionWidget = () => {
     }
     const m = arrived ?? load()
     if (m) setMission(m)
+    try {
+      const saved = JSON.parse(localStorage.getItem(CIRCLE_KEY) ?? 'null') as Point | null
+      if (saved) setPos(clampPoint(saved))
+    } catch {
+      // No saved position: the circle starts in the lower right corner.
+    }
+    const keepOnScreen = () => setPos((p) => p && clampPoint(p))
+    window.addEventListener('resize', keepOnScreen)
+    return () => window.removeEventListener('resize', keepOnScreen)
+  }, [])
+
+  useEffect(() => {
+    try {
+      if (pos) localStorage.setItem(CIRCLE_KEY, JSON.stringify(pos))
+    } catch {
+      // Storage can be blocked; the position then lasts only for this page.
+    }
+  }, [pos])
+
+  // Each newly ticked step rises out of the circle for a moment.
+  const pop = useCallback((s: Step) => {
+    const key = `${s.id}-${Date.now()}`
+    setPops((list) => [...list, { key, points: s.points, title: s.title }])
+    setTimeout(() => setPops((list) => list.filter((x) => x.key !== key)), POP_MS)
   }, [])
 
   useEffect(() => store(mission), [mission])
@@ -141,7 +221,7 @@ export const UatMissionWidget = () => {
         )
         for (const [id] of fresh) {
           const s = d.steps.find((x) => x.id === id)
-          if (s) toast.success(`+${s.points} points`, { description: s.title })
+          if (s) pop(s)
         }
         setView({
           steps: d.steps,
@@ -173,7 +253,7 @@ export const UatMissionWidget = () => {
       stopped = true
       clearTimeout(timer)
     }
-  }, [pollKey, done])
+  }, [pollKey, done, pop])
 
   useEffect(() => {
     if (!done) return
@@ -217,39 +297,106 @@ export const UatMissionWidget = () => {
     window.location.href = START
   }
   const ring = 2 * Math.PI * 26
+  const at = pos ?? {
+    x: window.innerWidth - CIRCLE_PX - 24,
+    y: window.innerHeight - CIRCLE_PX - 24,
+  }
+  // Messages open toward the middle of the screen, so they never leave it.
+  const popSide = cn(
+    at.x + CIRCLE_PX / 2 > window.innerWidth / 2
+      ? 'right-0 items-end origin-bottom-right'
+      : 'left-0 items-start origin-bottom-left',
+    at.y < 160 ? 'top-full mt-3' : 'bottom-full mb-3',
+  )
+  const move = (to: Point) => setPos(clampPoint(to))
+  const arrows: Record<string, [number, number]> = {
+    ArrowLeft: [-1, 0],
+    ArrowRight: [1, 0],
+    ArrowUp: [0, -1],
+    ArrowDown: [0, 1],
+  }
 
   return (
     <>
-      <button
-        aria-label={`Evaluation mission: ${percent} percent complete. Open your steps.`}
-        className="fixed bottom-6 right-6 z-40 grid print:hidden h-16 w-16 place-items-center rounded-full border bg-card shadow-dialog transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        onClick={() => setOpen(true)}
-        type="button"
+      <div
+        className={cn('fixed z-40 print:hidden', !pos && 'bottom-6 right-6')}
+        style={pos ? { left: pos.x, top: pos.y } : undefined}
       >
-        <svg aria-hidden="true" className="absolute inset-0 -rotate-90" viewBox="0 0 64 64">
-          <circle className="stroke-muted" cx="32" cy="32" fill="none" r="26" strokeWidth="6" />
-          <circle
-            className="stroke-primary transition-[stroke-dashoffset] duration-500"
-            cx="32"
-            cy="32"
-            fill="none"
-            r="26"
-            strokeDasharray={ring}
-            strokeDashoffset={ring * (1 - percent / 100)}
-            strokeLinecap="round"
-            strokeWidth="6"
-          />
-        </svg>
-        <span className="relative text-sm font-semibold tabular-nums text-foreground">
-          {percent}%
-        </span>
-        {asks.length ? (
-          <span
-            aria-hidden
-            className="absolute right-0 top-0 h-4 w-4 animate-pulse rounded-full border-2 border-card bg-destructive"
-          />
-        ) : null}
-      </button>
+        <div
+          aria-live="polite"
+          className={cn('pointer-events-none absolute flex w-max flex-col gap-2', popSide)}
+        >
+          {pops.map((p) => (
+            <div
+              className="animate-in fade-in zoom-in-50 slide-in-from-bottom-2 rounded-full bg-success px-3 py-1.5 text-sm font-semibold text-success-foreground shadow-dialog duration-300 motion-reduce:animate-none"
+              key={p.key}
+            >
+              +{p.points} · {p.title}
+            </div>
+          ))}
+        </div>
+        <button
+          aria-label={`Evaluation mission: ${percent} percent complete. Open your steps. Drag or use the arrow keys to move it.`}
+          className="relative grid h-16 w-16 cursor-grab touch-none select-none place-items-center rounded-full border bg-card shadow-dialog transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:cursor-grabbing"
+          onClick={() => {
+            // The click that ends a drag only moves the circle.
+            if (dragged.current) dragged.current = false
+            else setOpen(true)
+          }}
+          onKeyDown={(e) => {
+            const d = arrows[e.key]
+            if (!d) return
+            e.preventDefault()
+            move({ x: at.x + d[0] * KEY_STEP_PX, y: at.y + d[1] * KEY_STEP_PX })
+          }}
+          onPointerDown={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            drag.current = {
+              dx: e.clientX - r.left,
+              dy: e.clientY - r.top,
+              x0: e.clientX,
+              y0: e.clientY,
+              moved: false,
+            }
+            e.currentTarget.setPointerCapture(e.pointerId)
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current
+            if (!d || (!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 5)) return
+            d.moved = true
+            move({ x: e.clientX - d.dx, y: e.clientY - d.dy })
+          }}
+          onPointerUp={() => {
+            dragged.current = Boolean(drag.current?.moved)
+            drag.current = null
+          }}
+          type="button"
+        >
+          <svg aria-hidden="true" className="absolute inset-0 -rotate-90" viewBox="0 0 64 64">
+            <circle className="stroke-muted" cx="32" cy="32" fill="none" r="26" strokeWidth="6" />
+            <circle
+              className="stroke-primary transition-[stroke-dashoffset] duration-500"
+              cx="32"
+              cy="32"
+              fill="none"
+              r="26"
+              strokeDasharray={ring}
+              strokeDashoffset={ring * (1 - percent / 100)}
+              strokeLinecap="round"
+              strokeWidth="6"
+            />
+          </svg>
+          <span className="relative text-sm font-semibold tabular-nums text-foreground">
+            {percent}%
+          </span>
+          {asks.length ? (
+            <span
+              aria-hidden
+              className="absolute right-0 top-0 h-4 w-4 animate-pulse rounded-full border-2 border-card bg-destructive"
+            />
+          ) : null}
+        </button>
+      </div>
 
       <Sheet onOpenChange={setOpen} open={open}>
         <SidePanel
@@ -342,16 +489,14 @@ export const UatMissionWidget = () => {
                       <p className="text-sm text-muted-foreground">{s.hint}</p>
                       {isCurrent ? (
                         <div className="flex flex-wrap items-center gap-2 pt-1">
-                          {s.auto ? (
-                            <span className="text-xs text-primary">Watching for this step…</span>
-                          ) : null}
-                          <Button
-                            onClick={() => credit(s.id, 'manual')}
-                            size="sm"
-                            variant={s.auto ? 'ghost' : 'default'}
-                          >
-                            {s.auto ? 'Mark as done' : 'I did this'}
-                          </Button>
+                          {s.auto ? <WatchingIcon /> : null}
+                          <ManualTick
+                            auto={s.auto}
+                            onClick={() => {
+                              credit(s.id, 'manual')
+                              pop(s)
+                            }}
+                          />
                         </div>
                       ) : null}
                     </div>
