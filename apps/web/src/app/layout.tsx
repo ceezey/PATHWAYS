@@ -3,7 +3,6 @@ import localFont from 'next/font/local'
 
 import { APP_DESCRIPTION, APP_NAME } from '@pathways/shared'
 
-import { UatMissionWidget } from '@/features/uat-mission/uat-mission-widget'
 import { initializeWebSentry } from '@/lib/sentry'
 import { AppProviders } from '@/providers/app-providers'
 
@@ -32,10 +31,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html className={momoTrustDisplay.variable} lang="en" suppressHydrationWarning>
       <body>
-        <AppProviders>
-          {children}
-          <UatMissionWidget />
-        </AppProviders>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   )
