@@ -896,10 +896,12 @@ SELECT pg_temp.reject(format('SELECT pathways.f10_recommendation_get(%L)',(SELEC
 COMMIT;
 
 -- 0092 (UC018): freshness follows the latest evaluation. P22 was re-evaluated after its end date moved, so it reads current;
--- a source change without a re-evaluation still reads SOURCE_CHANGED until the next drain.
+-- a source change without a re-evaluation still reads SOURCE_CHANGED until the next drain. The id is read as the owner,
+-- because the runtime role never sees f10 rows directly.
+INSERT INTO t_out SELECT 'p22_id',jsonb_build_object('id',(pg_temp.alert_of(322)).id);
 BEGIN;
 SELECT pg_temp.act(2);
-INSERT INTO t_out SELECT 'p22_fresh',pathways.f10_alert_get((pg_temp.alert_of(322)).id);
+INSERT INTO t_out SELECT 'p22_fresh',pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p22_id'));
 COMMIT;
 SELECT pg_temp.ok((SELECT doc->>'freshness' FROM t_out WHERE name='p22_fresh')='CURRENT'
  AND (SELECT a.origin_snapshot_id IS DISTINCT FROM e.snapshot_id FROM pg_temp.alert_of(322) a
@@ -910,12 +912,12 @@ SELECT pg_temp.set_project_end(322,9990,current_date-16);
 COMMIT;
 BEGIN;
 SELECT pg_temp.act(2);
-SELECT pg_temp.ok(pathways.f10_alert_get((pg_temp.alert_of(322)).id)->>'freshness'='SOURCE_CHANGED','a source change before the drain reads SOURCE_CHANGED');
+SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p22_id'))->>'freshness'='SOURCE_CHANGED','a source change before the drain reads SOURCE_CHANGED');
 COMMIT;
 CALL pg_temp.drain('p22_fresh');
 BEGIN;
 SELECT pg_temp.act(2);
-SELECT pg_temp.ok(pathways.f10_alert_get((pg_temp.alert_of(322)).id)->>'freshness'='CURRENT'
+SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p22_id'))->>'freshness'='CURRENT'
  AND pathways.f10_alert_list(jsonb_build_object('limit',50,'projectId',pg_temp.u(322)::text))->'items'->0->>'freshness'='CURRENT',
  'the drain makes it current again');
 COMMIT;
@@ -979,9 +981,8 @@ SELECT pg_temp.act(1);
 SELECT pg_temp.reject(format('SELECT pathways.f10_rule_dry_run_current(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='tpl')),'42501','a template has no current data');
 SELECT pg_temp.reject(format('SELECT pathways.f10_rule_dry_run_current(%L)',pg_temp.u(99999)),'42501','unknown rule');
 COMMIT;
-BEGIN;
-SET LOCAL SESSION AUTHORIZATION pathways_rules_worker;
-SELECT pg_temp.reject(format('SELECT pathways.f10_rule_dry_run_current(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='dry_act')),'42501','worker cannot call the dry run');
-COMMIT;
+SELECT pg_temp.ok(NOT EXISTS(SELECT FROM unnest(ARRAY['anon','authenticated','service_role','pathways_rules_worker','pathways_rules_sweeper']) r
+  WHERE has_function_privilege(r,'pathways.f10_rule_dry_run_current(uuid)','EXECUTE'))
+ AND has_function_privilege('pathways_runtime','pathways.f10_rule_dry_run_current(uuid)','EXECUTE'),'only the runtime role may call the dry run');
 
 DO $$ BEGIN RAISE NOTICE 'F10_F11_RULES_RUNTIME=PASS (% checks)',(SELECT count(*) FROM t_results); END $$;
