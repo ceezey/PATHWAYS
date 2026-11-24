@@ -66,12 +66,7 @@ describe('Analytics dashboard grants and date rules that stay in the shell', () 
     })
 
     it('reads the trends in the KPI view and the participation in its own view, for the chosen period', async () => {
-      grant(
-        'analytics.descriptive.read',
-        'journeys.read',
-        'beneficiaries.records.read',
-        'submissions.write',
-      )
+      grant('analytics.descriptive.read', 'beneficiaries.aggregates.read')
       const period = { periodStart: '2026-09-01', periodEnd: '2026-09-30' }
       render(<AnalyticsDashboard />)
       await ready()
@@ -228,12 +223,7 @@ describe('Analytics dashboard grants and date rules that stay in the shell', () 
       'analytics.descriptive.read',
       'reports.indicator.read',
     ]
-    const participationGrants = [
-      'analytics.descriptive.read',
-      'journeys.read',
-      'beneficiaries.records.read',
-      'assessments.detail.read',
-    ]
+    const participationGrants = ['analytics.descriptive.read', 'beneficiaries.aggregates.read']
     const emptyTitle = (description: string) =>
       screen.getByText(description).previousElementSibling?.textContent
 
@@ -271,7 +261,7 @@ describe('Analytics dashboard grants and date rules that stay in the shell', () 
       })
       expect(screen.queryByText('Participation patterns are restricted for your role.')).toBeNull()
 
-      withoutGrant('journeys.read')
+      withoutGrant('beneficiaries.aggregates.read')
       view.rerender(<AnalyticsDashboard />)
 
       expect(

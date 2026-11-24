@@ -351,9 +351,7 @@ describe('Analytics dashboard request dependencies', () => {
     currentAccess.profile.permissions = [
       ...currentAccess.profile.permissions,
       'analytics.descriptive.read',
-      'journeys.read',
-      'beneficiaries.records.read',
-      'assessments.detail.read',
+      'beneficiaries.aggregates.read',
     ]
     insights.participation = {
       data: {
@@ -379,21 +377,43 @@ describe('Analytics dashboard request dependencies', () => {
     expect((await screen.findByText(/Total participation/)).textContent).toContain('Suppressed')
   })
 
-  it('does not offer the participation view to an aggregate-only role', async () => {
+  it('shows participation over time to an aggregate-only role', async () => {
     currentAccess.role = 'Program Manager'
     currentAccess.profile.roles = ['PROGRAM_MANAGER']
     currentAccess.profile.permissions = [
       ...currentAccess.profile.permissions,
       'analytics.descriptive.read',
+      'beneficiaries.aggregates.read',
       'reports.indicator.read',
     ]
+    insights.participation = {
+      data: {
+        projectId: 'project-a',
+        total: 5,
+        totalSuppressed: false,
+        byActivity: [],
+        byMonth: [
+          { month: '2026-07', count: 2, suppressed: false },
+          { month: '2026-08', count: 3, suppressed: false },
+        ],
+        byAttendanceStatus: [],
+      },
+      isError: false,
+      isPending: false,
+      refetch: vi.fn(),
+    }
 
     render(<AnalyticsDashboard />)
 
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
-    expect(screen.queryByText('Participation patterns', { selector: 'option' })).toBeNull()
+    fireEvent.change(screen.getByLabelText('Analysis view'), {
+      target: { value: 'participation' },
+    })
+
+    const byMonth = await screen.findByRole('region', { name: 'By month' })
+    expect(byMonth.textContent).toContain('2026-07')
+    expect(byMonth.textContent).toContain('2026-08')
     expect(screen.queryByText('Participation patterns are restricted for your role.')).toBeNull()
-    expect(document.getElementById('pin-blocked-reason')).toBeNull()
   })
 
   it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {
