@@ -40,6 +40,7 @@ import { ActivityExtensionDialog } from './activity-extension-dialog'
 import { ActivityExtensionPanel } from './activity-extension-panel'
 import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
+import { ActivityStatusControl } from './activity-status-control'
 
 import { groupProofsByUpdate, proofTone } from '../activity-proof.utils'
 import { ActivityDetailActions } from './activity-detail-actions'
@@ -58,6 +59,7 @@ export const ActivityDetailContent = ({
   canReadExpenses = false,
   budgetReferences = [],
   budgetReferencesLoading = false,
+  canChangeStatus = false,
   canDecideProof,
   canDecideExtension = false,
   focusExtension = false,
@@ -88,6 +90,7 @@ export const ActivityDetailContent = ({
   canReadExpenses?: boolean
   budgetReferences?: ExpenseBudgetReference[]
   budgetReferencesLoading?: boolean
+  canChangeStatus?: boolean
   canDecideProof: boolean
   canDecideExtension?: boolean
   focusExtension?: boolean
@@ -157,7 +160,16 @@ export const ActivityDetailContent = ({
   return (
     <div className="space-y-5 pb-1">
       <div className="flex flex-wrap gap-2">
-        <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+        {canChangeStatus &&
+        (activity.storedStatus === 'NOT_STARTED' || activity.storedStatus === 'IN_PROGRESS') ? (
+          <ActivityStatusControl
+            activity={activity}
+            controlId={`activity-status-${activity.id}`}
+            onUpdated={onActivityChanged}
+          />
+        ) : (
+          <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+        )}
         {activity.overdueExplanationNeeded ? (
           <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
         ) : null}

@@ -19,6 +19,7 @@ export const ActivityDetailPanel = ({
   canReadExpenses = false,
   budgetReferences = [],
   budgetReferencesLoading = false,
+  canChangeStatus = false,
   canDecideProof,
   canDecideExtension = false,
   focusExtension = false,
@@ -52,6 +53,7 @@ export const ActivityDetailPanel = ({
   canReadExpenses?: boolean
   budgetReferences?: ExpenseBudgetReference[]
   budgetReferencesLoading?: boolean
+  canChangeStatus?: boolean
   canDecideProof: boolean
   canDecideExtension?: boolean
   focusExtension?: boolean
@@ -116,6 +118,7 @@ export const ActivityDetailPanel = ({
             canReadExpenses={canReadExpenses}
             budgetReferences={budgetReferences}
             budgetReferencesLoading={budgetReferencesLoading}
+            canChangeStatus={canChangeStatus}
             canDecideProof={canDecideProof}
             canDecideExtension={canDecideExtension}
             focusExtension={focusExtension}
