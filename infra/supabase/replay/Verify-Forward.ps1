@@ -1479,6 +1479,31 @@ SELECT ((SELECT pg_catalog.pg_get_userbyid(proowner)='rules_outcome_owner' AND p
     if ($alertNotesShape.Trim() -cne 'true') { throw "0093 alert outcome notes inventory differs in $db." }
   }
   Write-Output 'FORWARD_0093_ALERT_OUTCOME_NOTES_INVENTORY=PASS'
+  # 0094 inventory: the prisma-owned session table with row security on, no policy and no API-role grant, and the six app_session
+  # functions with their reviewed bodies; the five runtime definers are executable only by pathways_runtime, app_session_open by nobody.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $sessionShape = Read-ForwardSql $db @"
+SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity AND NOT relforcerowsecurity
+  FROM pg_catalog.pg_class WHERE oid='pathways.app_sessions'::pg_catalog.regclass)
+ AND NOT EXISTS(SELECT FROM pg_catalog.pg_policy WHERE polrelid='pathways.app_sessions'::pg_catalog.regclass)
+ AND NOT EXISTS(SELECT FROM pg_catalog.unnest(ARRAY['pathways_runtime','anon','authenticated','service_role']) r
+  WHERE has_table_privilege(r,'pathways.app_sessions','SELECT,INSERT,UPDATE,DELETE'))
+ AND (SELECT count(*) FROM (VALUES ('pathways.app_session_open(timestamptz,timestamptz,timestamptz)','38440fd81c5f296d553d4ac7e171ed47',false),
+   ('pathways.app_session_current(uuid,uuid)','80e1b5df676229b8726ef06acb60c245',true),
+   ('pathways.app_session_touch(uuid,uuid,text)','1a7859309d2555c86b1962c75d6c6922',true),
+   ('pathways.app_session_list(uuid,uuid)','ad5708ea29b3250828381accaab61398',true),
+   ('pathways.app_session_end(uuid,uuid,uuid,text)','2c798934db7d9d30576ae97c00ecc221',true),
+   ('pathways.app_session_end_user(uuid,text)','2a14032795d2b557238c4d5c559c8239',true)) w(sig,md5,secdef)
+  JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
+  WHERE pg_catalog.md5(p.prosrc)=w.md5 AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef=w.secdef
+   AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']
+   AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')=w.secdef
+   AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
+   AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))=6)::text;
+"@
+    if ($sessionShape.Trim() -cne 'true') { throw "0094 session management inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0094_SESSION_MANAGEMENT_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

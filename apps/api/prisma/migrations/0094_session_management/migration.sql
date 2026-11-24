@@ -13,9 +13,10 @@ DO $$ BEGIN
  THEN RAISE EXCEPTION '0094 requires the verified 0093 state and migration identity'; END IF;
  IF pg_catalog.to_regclass('pathways.app_sessions') IS NOT NULL
  THEN RAISE EXCEPTION '0094 requires the table to not already exist'; END IF;
- IF (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class
-   WHERE oid='pathways.system_users'::pg_catalog.regclass)<>'prisma'
- THEN RAISE EXCEPTION '0094 requires prisma ownership of system_users'; END IF;
+ IF (SELECT count(*) FROM pg_catalog.pg_class WHERE pg_catalog.pg_get_userbyid(relowner)='prisma'
+   AND oid IN ('pathways.system_users'::pg_catalog.regclass,'pathways.organizations'::pg_catalog.regclass,
+    'pathways.roles'::pg_catalog.regclass))<>3
+ THEN RAISE EXCEPTION '0094 requires prisma ownership of system_users, organizations and roles'; END IF;
 END $$;
 SELECT pg_catalog.pg_advisory_xact_lock(505005,94);
 
@@ -76,7 +77,7 @@ BEGIN
  -- Serializes new sessions of one identity so two sign-ins cannot both keep 3 others.
  PERFORM pg_catalog.pg_advisory_xact_lock(505094, pg_catalog.hashtext(p_subject::text));
  INSERT INTO pathways.app_sessions(session_id, auth_user_id, device, started_at, last_active_at)
- VALUES (p_session, p_subject, pg_catalog.left(pg_catalog.nullif(pg_catalog.btrim(p_device), ''), 200), now_ts, now_ts)
+ VALUES (p_session, p_subject, pg_catalog.left(nullif(pg_catalog.btrim(p_device), ''), 200), now_ts, now_ts)
  ON CONFLICT (session_id) DO NOTHING;
  IF NOT FOUND THEN RETURN 0; END IF;
  UPDATE pathways.app_sessions s SET ended_at = now_ts, end_reason = 'LIMIT'
@@ -116,16 +117,28 @@ BEGIN
 END $$;
 
 -- Ends every open session of a system user in the verified organization. Returns the number ended.
+-- The actor check is the runtime_context_organization predicate inlined over prisma-owned tables (as in 0037),
+-- because prisma cannot execute that postgres-owned helper.
 CREATE FUNCTION pathways.app_session_end_user(p_user uuid, p_reason text) RETURNS integer
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '' AS $$
-DECLARE subject uuid; ended integer;
+DECLARE org uuid; subject uuid; ended integer;
 BEGIN
  IF SESSION_USER <> 'pathways_runtime' OR p_user IS NULL
   OR p_reason IS NULL OR p_reason NOT IN ('ADMIN','ACCOUNT_CHANGED') THEN
   RAISE EXCEPTION 'app_session_end_user refused' USING ERRCODE = '42501';
  END IF;
- SELECT u.auth_user_id INTO subject FROM pathways.system_users u
- WHERE u.id = p_user AND u.organization_id = pathways.runtime_context_organization();
+ BEGIN
+  SELECT u.organization_id INTO org FROM pathways.system_users u
+  JOIN pathways.organizations o ON o.id = u.organization_id AND o.status = 'ACTIVE' AND o.archived_at IS NULL
+  JOIN pathways.roles r ON r.id = u.role_id AND r.is_active
+  WHERE u.organization_id = nullif(pg_catalog.current_setting('app.organization_id', true), '')::uuid
+   AND u.id = nullif(pg_catalog.current_setting('app.user_id', true), '')::uuid
+   AND u.auth_user_id = nullif(pg_catalog.current_setting('request.jwt.claim.sub', true), '')::uuid
+   AND u.account_status = 'ACTIVE' AND u.archived_at IS NULL;
+ EXCEPTION WHEN invalid_text_representation THEN org := NULL;
+ END;
+ IF org IS NULL THEN RAISE EXCEPTION 'app_session_end_user refused' USING ERRCODE = '42501'; END IF;
+ SELECT u.auth_user_id INTO subject FROM pathways.system_users u WHERE u.id = p_user AND u.organization_id = org;
  IF subject IS NULL THEN RETURN 0; END IF;
  UPDATE pathways.app_sessions s SET ended_at = pg_catalog.statement_timestamp(), end_reason = p_reason
  WHERE s.auth_user_id = subject AND pathways.app_session_open(s.started_at, s.last_active_at, s.ended_at);

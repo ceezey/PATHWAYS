@@ -6,7 +6,7 @@ import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
-import { AppSessionsService } from './app-sessions'
+import { AppSessionsService } from './app-sessions.service'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService } from './beneficiary-step-up-pin.service'
@@ -23,7 +23,13 @@ const pinActor = { auth, profile, sessionId }
 const signIns = { signIn: vi.fn() }
 const pins = { verify: vi.fn(), setup: vi.fn(), change: vi.fn() }
 const recovery = { complete: vi.fn() }
-const account = { recordSignOut: vi.fn(), changePassword: vi.fn() }
+const account = {
+  recordSignOut: vi.fn(),
+  changePassword: vi.fn(),
+  endSession: vi.fn(),
+  endOtherSessions: vi.fn(),
+}
+const sessions = { list: vi.fn(), touch: vi.fn() }
 let app: INestApplication
 let base: string
 
@@ -37,7 +43,7 @@ beforeAll(async () => {
       { provide: SignInLockoutService, useValue: signIns },
       { provide: PasswordRecoveryService, useValue: recovery },
       { provide: OwnAccountService, useValue: account },
-      { provide: AppSessionsService, useValue: {} },
+      { provide: AppSessionsService, useValue: sessions },
     ],
   }).compile()
   app = module.createNestApplication({ logger: false })
@@ -66,6 +72,10 @@ beforeEach(() => {
   recovery.complete.mockReset().mockResolvedValue({ ok: true, sessionsClosed: true })
   account.recordSignOut.mockReset().mockResolvedValue(undefined)
   account.changePassword.mockReset().mockResolvedValue(undefined)
+  account.endSession.mockReset().mockResolvedValue(undefined)
+  account.endOtherSessions.mockReset().mockResolvedValue({ sessionsEnded: 2 })
+  sessions.list.mockReset().mockResolvedValue([])
+  sessions.touch.mockReset().mockResolvedValue(undefined)
 })
 afterAll(async () => app?.close())
 
@@ -203,6 +213,33 @@ describe('auth routes body validation', () => {
   })
 })
 
+describe('session routes', () => {
+  it("lists only the verified caller's sessions", async () => {
+    const response = await fetch(`${base}/sessions`)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(sessions.list).toHaveBeenCalledWith(auth.id, sessionId)
+  })
+
+  it('records a heartbeat with the one-minute throttle bypassed and answers 204', async () => {
+    expect(await post('/sessions/activity', '')).toEqual({ status: 204, text: '' })
+    expect(sessions.touch).toHaveBeenCalledWith(auth.id, sessionId, undefined, true)
+  })
+
+  it('ends one own session by its path id and answers 204', async () => {
+    const target = '72000000-0000-4000-8000-000000000009'
+    expect(await post(`/sessions/${target}/end`, '')).toEqual({ status: 204, text: '' })
+    expect(account.endSession).toHaveBeenCalledWith(pinActor, target)
+  })
+
+  it('ends every other own session and returns the count', async () => {
+    const result = await post('/sessions/end-others', '')
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.text)).toEqual({ sessionsEnded: 2 })
+    expect(account.endOtherSessions).toHaveBeenCalledWith(pinActor)
+  })
+})
+
 describe('auth controller verified values', () => {
   it.each([
     ['no auth', { user: profile, authSessionId: sessionId }],
@@ -216,7 +253,7 @@ describe('auth controller verified values', () => {
       signIns as unknown as SignInLockoutService,
       recovery as unknown as PasswordRecoveryService,
       account as unknown as OwnAccountService,
-      {} as AppSessionsService,
+      sessions as unknown as AppSessionsService,
     )
     const request = { headers: {}, ...values } as unknown as AuthenticatedRequest
     for (const call of [
@@ -227,6 +264,9 @@ describe('auth controller verified values', () => {
       () => controller.unlockStepUpPin(request),
       () => controller.recordSignOut(request),
       () => controller.changeOwnPassword(request, { password: GOOD }),
+      () => controller.listSessions(request),
+      () => controller.endOtherSessions(request),
+      () => controller.endSession(request, sessionId),
     ]) {
       expect(call).toThrow(ForbiddenException)
       expect(call).toThrow('Verified profile required.')
@@ -234,5 +274,26 @@ describe('auth controller verified values', () => {
     for (const fn of Object.values(pins)) expect(fn).not.toHaveBeenCalled()
     expect(account.recordSignOut).not.toHaveBeenCalled()
     expect(account.changePassword).not.toHaveBeenCalled()
+    expect(sessions.list).not.toHaveBeenCalled()
+    expect(account.endSession).not.toHaveBeenCalled()
+    expect(account.endOtherSessions).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no auth', { user: profile, authSessionId: sessionId }],
+    ['no session', { auth, user: profile }],
+  ])('refuses a heartbeat with %s before any write', async (_label, values) => {
+    const controller = new AuthController(
+      {} as AuthService,
+      {} as WorkspaceResolutionService,
+      pins as unknown as BeneficiaryStepUpPinService,
+      signIns as unknown as SignInLockoutService,
+      recovery as unknown as PasswordRecoveryService,
+      account as unknown as OwnAccountService,
+      sessions as unknown as AppSessionsService,
+    )
+    const request = { headers: {}, ...values } as unknown as AuthenticatedRequest
+    await expect(controller.recordActivity(request)).rejects.toThrow('Verified profile required.')
+    expect(sessions.touch).not.toHaveBeenCalled()
   })
 })

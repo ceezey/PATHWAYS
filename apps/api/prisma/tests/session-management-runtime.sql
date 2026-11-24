@@ -35,7 +35,8 @@ BEGIN
   set_config('app.organization_id',pg_temp.u(org_n)::text,true),
   set_config('app.user_id',pg_temp.u(user_n)::text,true);
 END $$;
-CREATE FUNCTION pg_temp.state(session_n integer) RETURNS text LANGUAGE sql AS $$
+-- Runs as the suite's superuser, since pathways_runtime has no access to the table by design.
+CREATE FUNCTION pg_temp.state(session_n integer) RETURNS text LANGUAGE sql SECURITY DEFINER AS $$
  SELECT coalesce(end_reason,'OPEN') FROM pathways.app_sessions WHERE session_id=pg_temp.u(session_n)
 $$;
 
@@ -140,6 +141,13 @@ SELECT pg_temp.ok('same organization ends all', pathways.app_session_end_user(pg
  AND pg_temp.state(106)='ADMIN' AND pg_temp.state(111)='OPEN');
 SELECT pg_temp.refused('own reason refused for user end', format('SELECT pathways.app_session_end_user(%L,%L)',
  pg_temp.u(22),'USER'),'42501');
+-- A context whose verified subject does not match the actor is refused, not treated as an empty organization.
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(12)::text,true);
+SELECT pg_temp.refused('mismatched actor refused', format('SELECT pathways.app_session_end_user(%L,%L)',
+ pg_temp.u(22),'ADMIN'),'42501');
+SELECT set_config('app.user_id','',true);
+SELECT pg_temp.refused('missing actor refused', format('SELECT pathways.app_session_end_user(%L,%L)',
+ pg_temp.u(22),'ADMIN'),'42501');
 RESET SESSION AUTHORIZATION;
 
 SELECT 'SESSION_MANAGEMENT_RUNTIME=PASS ('||current_setting('sm.passed')||')' AS result \gset

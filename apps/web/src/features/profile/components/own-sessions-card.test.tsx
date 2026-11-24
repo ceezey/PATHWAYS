@@ -36,12 +36,13 @@ describe('signed-in devices', () => {
     expect(await screen.findByText('Chrome on Windows')).toBeTruthy()
     expect(screen.getByText('This device')).toBeTruthy()
     expect(screen.getByText('Chrome on Android')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Sign out' })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Sign out Chrome on Windows' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Sign out Chrome on Android' })).toBeTruthy()
   })
 
   it('signs out one other device and reloads the list', async () => {
     render(<OwnSessionsCard />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out Chrome on Android' }))
     await waitFor(() => expect(client.end).toHaveBeenCalledWith('s-2'))
     expect(await screen.findByText('That device was signed out.')).toBeTruthy()
     expect(client.list).toHaveBeenCalledTimes(2)

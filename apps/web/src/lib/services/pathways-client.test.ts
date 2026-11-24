@@ -1058,6 +1058,16 @@ describe('Beneficiary step-up denial', () => {
     ])
   })
 
+  it('treats a session heartbeat as no data write, so cached reads are kept', async () => {
+    const dispatchEvent = setup({}, 200)
+    await requestFoundationResponse('/auth/sessions/activity', { method: 'POST' })
+    expect(dispatchEvent).not.toHaveBeenCalled()
+    await requestFoundationResponse('/auth/sessions/end-others', { method: 'POST' })
+    expect(dispatchEvent.mock.calls.map(([event]) => event.type)).toEqual([
+      'pathways:write-committed',
+    ])
+  })
+
   it('keeps an ordinary 403 as a plain denial with no prompt', async () => {
     const dispatchEvent = setup({ statusCode: 403, message: 'Missing permission.' })
     const error = await requestFoundationResponse('/beneficiaries/projects/p').catch((e) => e)

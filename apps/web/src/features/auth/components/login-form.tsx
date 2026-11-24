@@ -58,9 +58,8 @@ export const LoginForm = () => {
 
   // Read once after mount, so the page needs no search-params suspense boundary.
   useEffect(() => {
-    setEndedNotice(
-      endedNotices[new URLSearchParams(window.location.search).get('ended') ?? ''] ?? '',
-    )
+    const reason = new URLSearchParams(window.location.search).get('ended') ?? ''
+    setEndedNotice(Object.hasOwn(endedNotices, reason) ? (endedNotices[reason] ?? '') : '')
   }, [])
 
   // Lockout is per identifier, so editing the email releases the local lock.

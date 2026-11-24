@@ -27,7 +27,7 @@ import {
   inspectionRequestBudget,
 } from '../../../common/network/inspection-request-budget'
 import type { VerifiedTransactionTiming } from '../../../prisma/prisma.service'
-import { AppSessionsService } from '../app-sessions'
+import { AppSessionsService } from '../app-sessions.service'
 import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
 import { TokenAuthService, type VerifiedAuthSession } from '../token-auth.service'
 import { WorkspaceResolutionService } from '../workspace-resolution.service'

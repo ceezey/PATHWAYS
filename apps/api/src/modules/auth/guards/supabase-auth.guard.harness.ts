@@ -27,7 +27,7 @@ import {
   type VerifiedDatabaseContext,
   type VerifiedTransactionTiming,
 } from '../../../prisma/prisma.service'
-import { AppSessionsService } from '../app-sessions'
+import { AppSessionsService } from '../app-sessions.service'
 import { ApplicationProfileService } from '../application-profile.service'
 import { AuthController } from '../auth.controller'
 import { AuthService } from '../auth.service'

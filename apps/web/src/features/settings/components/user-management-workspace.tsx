@@ -81,6 +81,7 @@ export const UserManagementWorkspace = ({
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('All')
   const [viewUserId, setViewUserId] = useState<string | null>(null)
   const [endSessionsUserId, setEndSessionsUserId] = useState<string | null>(null)
+  const [endingSessions, setEndingSessions] = useState(false)
   const [deactivateUserId, setDeactivateUserId] = useState<string | null>(null)
   const administrationSummary = actorRole
     ? getUserAdministrationSummary(actorRole)
@@ -116,7 +117,8 @@ export const UserManagementWorkspace = ({
     }
   }
   const endSessions = async () => {
-    if (!endSessionsUser) return
+    if (!endSessionsUser || endingSessions) return
+    setEndingSessions(true)
     try {
       const { sessionsEnded } = await usersClient.endUserSessions(endSessionsUser.id)
       setEndSessionsUserId(null)
@@ -125,6 +127,8 @@ export const UserManagementWorkspace = ({
       )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Sign-out failed.')
+    } finally {
+      setEndingSessions(false)
     }
   }
   const reactivate = async (user: UserRecord) => {
@@ -341,6 +345,7 @@ export const UserManagementWorkspace = ({
         user={viewUser}
       />
       <ConfirmationDialog
+        confirmDisabled={endingSessions}
         confirmLabel="Sign out everywhere"
         description={`${endSessionsUser?.name ?? 'This user'} will be signed out on every device right away. The account stays active.`}
         onConfirm={() => void endSessions()}

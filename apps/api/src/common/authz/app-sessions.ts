@@ -1,7 +1,7 @@
 import type { Tx } from '../prisma/transaction'
 import { UUID_PATTERN } from './application-identity'
 
-// Session rows of migration 0094 (app_session_open holds the limits: 12 hours, 30 idle minutes, 3 sessions).
+// Session rows of migration 0094: app_session_open holds the 12-hour and 30-minute limits, app_session_touch the 3-session limit.
 
 type Runner = Pick<Tx, '$queryRaw'>
 export type OwnEndReason = 'SIGNED_OUT' | 'USER' | 'PASSWORD_CHANGED'

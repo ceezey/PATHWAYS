@@ -32,7 +32,7 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
 import { Public } from '../../common/decorators/public.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
-import { AppSessionsService } from './app-sessions'
+import { AppSessionsService } from './app-sessions.service'
 import { signInBody } from './auth.helpers'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'

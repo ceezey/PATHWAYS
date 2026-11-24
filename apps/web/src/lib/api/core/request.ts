@@ -14,6 +14,9 @@ import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { FormValidationError } from '@/types/pathways'
 import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
 
+// POSTs that change no data, so cached reads must not refetch after them.
+const SIGNAL_ONLY_PATHS = new Set(['/auth/sessions/activity'])
+
 export class PathwaysClientError extends Error {
   constructor(
     message: string,
@@ -87,7 +90,11 @@ export async function requestFoundationResponse(
     redirect: 'error',
     referrerPolicy: 'no-referrer',
   })
-  if (response.ok && !['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase()))
+  if (
+    response.ok &&
+    !['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase()) &&
+    !SIGNAL_ONLY_PATHS.has(path)
+  )
     announceWriteCommitted()
   if (!response.ok) {
     let fieldErrors: FormValidationError[] = []

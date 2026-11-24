@@ -37,10 +37,11 @@ export const OwnSessionsCard = () => {
     try {
       await action()
       setNotice(done)
-      await load()
     } catch {
-      setNotice('That device could not be signed out. Try again.')
+      setNotice('Signing out could not be completed. Try again.')
     } finally {
+      // Reloaded either way: a device that already signed out leaves the list.
+      await load()
       setBusy(false)
     }
   }
@@ -69,6 +70,7 @@ export const OwnSessionsCard = () => {
               </div>
               {!session.current && (
                 <Button
+                  aria-label={`Sign out ${deviceLabel(session.device)}`}
                   disabled={busy}
                   size="sm"
                   type="button"

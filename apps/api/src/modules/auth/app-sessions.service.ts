@@ -18,6 +18,7 @@ export class AppSessionsService {
   async touch(subject: string, sessionId: string, device: string | undefined, force = false) {
     const now = Date.now()
     if (!force && (this.touched.get(sessionId) ?? 0) > now - TOUCH_INTERVAL_MS) return
+    // Marked only after the write: a parallel request that skipped it could read a new session before its row commits.
     try {
       await recordSessionActivity(this.prisma, subject, sessionId, device)
     } catch (error) {

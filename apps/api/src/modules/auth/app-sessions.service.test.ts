@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { sessionIdOf } from '../../common/authz/app-sessions'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { AppSessionsService } from './app-sessions'
+import { AppSessionsService } from './app-sessions.service'
 
 const SUBJECT = '50000000-0000-4000-8000-000000000001'
 const SESSION = '50000000-0000-4000-8000-000000000002'
