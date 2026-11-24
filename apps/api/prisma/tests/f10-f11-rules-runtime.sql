@@ -927,11 +927,11 @@ BEGIN;
 SET LOCAL session_replication_role = replica;
 INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,status,created_by_id)
 VALUES(pg_temp.u(340),pg_temp.u(1),'F10R-P40','F10 project 40',current_date-100,current_date+100,'ONGOING',pg_temp.u(101));
--- Activity 1 is unfinished past its planned end, activity 2 is completed, activity 3 ends next month.
+-- Activity 1 is unfinished past its planned end, activity 2 ends in ten days, activity 3 has not started and ends next month.
 INSERT INTO pathways.project_activities(id,organization_id,project_id,code,title,planned_start_date,planned_end_date,actual_start_date,status,created_by_id)
 SELECT pg_temp.u(12000+n),pg_temp.u(1),pg_temp.u(340),'F10R-ACT-'||n,'Activity '||n,current_date-60,
- CASE n WHEN 3 THEN current_date+30 ELSE current_date-n END,current_date-60,
- CASE n WHEN 2 THEN 'COMPLETED' ELSE 'IN_PROGRESS' END::pathways.activity_status,pg_temp.u(101) FROM generate_series(1,3) n;
+ current_date+CASE n WHEN 1 THEN -1 WHEN 2 THEN 10 ELSE 30 END,CASE WHEN n<3 THEN current_date-60 END,
+ CASE WHEN n<3 THEN 'IN_PROGRESS' ELSE 'NOT_STARTED' END::pathways.activity_status,pg_temp.u(101) FROM generate_series(1,3) n;
 COMMIT;
 BEGIN;
 SELECT pg_temp.act(1);
