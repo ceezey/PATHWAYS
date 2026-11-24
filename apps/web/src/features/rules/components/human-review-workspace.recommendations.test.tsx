@@ -58,6 +58,7 @@ const record = {
   revision: '2',
   proposedAt: '2026-09-27T00:00:00Z',
   reviewedAt: null,
+  latestOutcome: null,
 }
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -128,6 +129,33 @@ describe('direct current recommendation selection', () => {
     expect(screen.queryByRole('button', { name: 'Mark reviewed' })).toBeNull()
     if (status === 'AUTO_RESOLVED')
       expect(screen.getAllByText('Auto-resolved').length).toBeGreaterThan(0)
+  })
+  it('shows the resolved status with the latest outcome note, actor and time', async () => {
+    state.permissions = [...state.permissions, 'recommendations.outcome.record']
+    state.detail.mockResolvedValue({
+      ...record,
+      status: 'RESOLVED',
+      latestOutcome: {
+        outcome: 'PARTIALLY_ACCEPT',
+        note: 'Synthetic partial acceptance note',
+        actorName: 'Synthetic Officer',
+        recordedAt: '2026-11-24T02:30:00Z',
+      },
+    })
+    mount()
+    await screen.findByRole('heading', { name: record.title })
+    expect(screen.getAllByText('Resolved').length).toBeGreaterThan(0)
+    const outcome = screen.getByRole('region', { name: 'Latest outcome' })
+    expect(outcome.textContent).toContain('Partially accept by Synthetic Officer on')
+    expect(outcome.textContent).toContain('Synthetic partial acceptance note')
+    expect(screen.queryByRole('button', { name: 'Mark reviewed' })).toBeNull()
+  })
+  it('renders no outcome section when the server sends no latest outcome', async () => {
+    state.detail.mockResolvedValue({ ...record, status: 'DISMISSED', latestOutcome: null })
+    mount()
+    await screen.findByRole('heading', { name: record.title })
+    expect(screen.getAllByText('Dismissed').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('region', { name: 'Latest outcome' })).toBeNull()
   })
   it('keeps fresh scope or exposure denial authoritative and renders no record contents', async () => {
     state.detail.mockRejectedValue(Error('HTTP 403'))

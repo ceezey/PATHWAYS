@@ -36,9 +36,7 @@ const needs: Record<string, string[]> = {
   canReadParticipation: [
     'analytics.descriptive.read',
     'monitoring.read',
-    'journeys.read',
-    'beneficiaries.records.read',
-    'assessments.detail.read',
+    'beneficiaries.aggregates.read',
   ],
   canReadAlerts: ['alerts.read'],
   canReadSaddd: ['analytics.saddd.read'],
@@ -56,15 +54,6 @@ describe('analyticsAccess', () => {
     }
   })
 
-  it('reads the participation grants of a role that submits instead of assessing in detail', () => {
-    const grants = [
-      ...needs.canReadParticipation.filter((grant) => grant !== 'assessments.detail.read'),
-      'submissions.write',
-    ]
-
-    expect(analyticsAccess(profile(...grants)).canReadParticipation).toBe(true)
-  })
-
   it('freezes the survey release for a role without assessments.detail.read only', () => {
     expect(analyticsAccess(profile()).surveyFrozenOnly).toBe(true)
     expect(analyticsAccess(profile('assessments.detail.read')).surveyFrozenOnly).toBe(false)
@@ -78,7 +67,10 @@ describe('analyticsAccess', () => {
   })
 
   it('grants every flag to a role with every grant, and the survey is not frozen', () => {
-    const access = analyticsAccess(profile(...everything)) as Record<string, boolean>
+    const access = analyticsAccess(profile(...everything, 'assessments.detail.read')) as Record<
+      string,
+      boolean
+    >
 
     expect(Object.keys(access).sort()).toEqual([...Object.keys(needs), 'surveyFrozenOnly'].sort())
     expect(access.surveyFrozenOnly).toBe(false)

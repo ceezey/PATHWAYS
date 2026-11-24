@@ -1,4 +1,4 @@
--- PRD-F10/F11 gate closure (migrations 0058-0060, 0072, 0073): end-to-end rules runtime checks.
+-- PRD-F10/F11 gate closure (migrations 0058-0060, 0072, 0073, 0090, 0092): end-to-end rules runtime checks.
 -- Synthetic fixtures only. The machine phases run in separate transactions as the worker and sweeper logins and
 -- the human calls as pathways_runtime with the app.* context, so the data COMMITS: run only against a disposable
 -- pathways_phase2_* or pathways_phase4_* replay database that has 0060 applied and its cleanup run.
@@ -286,6 +286,7 @@ COMMIT;
 SELECT pg_temp.ok((SELECT status::text FROM pathways.decision_recommendations WHERE id=(SELECT (doc->'recs'->>0)::uuid FROM t_out WHERE name='p1_alert'))='REVIEWED'
  AND (SELECT doc->>'status' FROM t_out WHERE name='review')='REVIEWED','recommendation 1 reviewed');
 SELECT pg_temp.ok(EXISTS(SELECT FROM pathways_rules_internal.decisions d WHERE d.recommendation_id=(SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert') AND d.outcome='DECLINE'),'recommendation 2 declined with a decision row');
+SELECT pg_temp.ok((SELECT status::text||':'||revision FROM pathways.decision_recommendations WHERE id=(SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert'))='DISMISSED:2','0092: a decline dismisses the recommendation');
 
 -- (6) Clear the condition through a PROJECT_UPDATE source operation (the assigned PM holds projects.update), then drain.
 BEGIN;
@@ -307,7 +308,7 @@ CALL pg_temp.drain('p1_clear');
 SELECT pg_temp.ok((SELECT lifecycle='AUTO_RESOLVED' AND revision=3 FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(301)),'alert auto-resolved');
 SELECT pg_temp.ok((SELECT status::text||':'||revision FROM pathways.decision_recommendations WHERE id=(SELECT (doc->'recs'->>2)::uuid FROM t_out WHERE name='p1_alert'))='AUTO_RESOLVED:2','undecided recommendation auto-resolved with revision plus one');
 SELECT pg_temp.ok((SELECT status::text||':'||revision FROM pathways.decision_recommendations WHERE id=(SELECT (doc->'recs'->>0)::uuid FROM t_out WHERE name='p1_alert'))='AUTO_RESOLVED:3','reviewed recommendation without decision auto-resolved');
-SELECT pg_temp.ok((SELECT status::text||':'||revision FROM pathways.decision_recommendations WHERE id=(SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert'))='NEW:2','decided recommendation untouched by the cascade');
+SELECT pg_temp.ok((SELECT status::text||':'||revision FROM pathways.decision_recommendations WHERE id=(SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert'))='DISMISSED:2','decided recommendation untouched by the cascade');
 SELECT pg_temp.ok((SELECT count(*) FROM pathways.audit_logs WHERE action='rules.system.recommendation_auto_resolved' AND project_id=pg_temp.u(301)
   AND actor_user_id IS NULL AND changes->>'attribution'='SYSTEM' AND changes->>'alertId'=(SELECT doc->>'id' FROM t_out WHERE name='p1_alert')
   AND entity_id::text IN ((SELECT doc->'recs'->>0 FROM t_out WHERE name='p1_alert'),(SELECT doc->'recs'->>2 FROM t_out WHERE name='p1_alert')))=2
@@ -469,6 +470,8 @@ SELECT pg_temp.ok((SELECT lifecycle FROM pathways.rule_based_alerts WHERE projec
  AND (SELECT revision FROM pathways.rule_based_alerts WHERE project_id=pg_temp.u(315))=3
  AND EXISTS(SELECT FROM pathways_rules_internal.decisions WHERE recommendation_id=(SELECT (doc->>'rec')::uuid FROM t_out WHERE name='p15_alert') AND outcome='ACCEPT'),
  'combined recommendation outcome on a human-resolved alert succeeds and leaves the lifecycle');
+SELECT pg_temp.ok((SELECT status::text||':'||revision FROM pathways.decision_recommendations WHERE id=(SELECT (doc->>'rec')::uuid FROM t_out WHERE name='p15_alert'))='RESOLVED:2',
+ '0092: an accept resolves the recommendation');
 
 -- G-F10-4 lifecycle through the real functions: disposition on terminal alerts, review, accept and decline.
 BEGIN;
@@ -855,5 +858,131 @@ COMMIT;
 SELECT pg_temp.ok((SELECT doc->>'status' FROM t_out WHERE name='dup_other_scope')='DRAFT','same code in another project is allowed');
 SELECT pg_temp.ok((SELECT doc->>'id' FROM t_out WHERE name='expect_retry')=(SELECT doc->>'id' FROM t_out WHERE name='rule_expect'),'retry returns the stored receipt');
 SELECT pg_temp.ok((SELECT doc->>'status' FROM t_out WHERE name='reuse_again')='DRAFT','an archived rule code can be reused');
+
+-- 0092 (UC019): the latest recommendation outcome, with its note, actor name and time, is read only by outcome recorders.
+BEGIN;
+SELECT pg_temp.act(2);
+INSERT INTO t_out SELECT 'outcome_get',pathways.f10_recommendation_get((SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert'));
+INSERT INTO t_out SELECT 'outcome_list',pathways.f10_recommendation_list(jsonb_build_object('limit',50,'projectId',pg_temp.u(301)::text));
+INSERT INTO t_out SELECT 'outcome_none',pathways.f10_recommendation_get((SELECT (doc->'recs'->>2)::uuid FROM t_out WHERE name='p1_alert'));
+COMMIT;
+SELECT pg_temp.ok((SELECT doc->>'status'='DISMISSED' AND doc->'latestOutcome'->>'outcome'='DECLINE'
+  AND doc->'latestOutcome'->>'note'='Declined by PM' AND doc->'latestOutcome'->>'actorName'='F10 PM'
+  AND (doc->'latestOutcome'->>'recordedAt')::timestamptz=(SELECT d.created_at FROM pathways_rules_internal.decisions d
+   WHERE d.recommendation_id=(SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert'))
+  FROM t_out WHERE name='outcome_get'),'outcome recorder reads the latest outcome with note, actor and time');
+SELECT pg_temp.ok((SELECT count(*) FILTER(WHERE i->'latestOutcome'->>'note'='Declined by PM')=1
+  AND count(*) FILTER(WHERE i->'latestOutcome'='null'::jsonb)=2 FROM t_out,jsonb_array_elements(doc->'items') i WHERE name='outcome_list')
+ AND (SELECT doc->'latestOutcome'='null'::jsonb FROM t_out WHERE name='outcome_none'),'list shows the note only on the decided recommendation');
+BEGIN;
+SET LOCAL session_replication_role = replica;
+CREATE TEMP TABLE t_saved_outcome ON COMMIT DROP AS SELECT rp.* FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id
+ JOIN pathways.permissions p ON p.id=rp.permission_id WHERE r.code='PROJECT_MANAGER' AND p.code='recommendations.outcome.record';
+DELETE FROM pathways.role_permissions rp USING pathways.roles r,pathways.permissions p
+ WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='PROJECT_MANAGER' AND p.code='recommendations.outcome.record';
+SELECT pg_temp.act(2);
+SELECT pg_temp.ok((pathways.f10_recommendation_get((SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert'))->'latestOutcome')='null'::jsonb
+ AND NOT EXISTS(SELECT FROM jsonb_array_elements(pathways.f10_recommendation_list(jsonb_build_object('limit',50))->'items') i
+  WHERE i->'latestOutcome'<>'null'::jsonb),'reader without recommendations.outcome.record never sees an outcome note');
+SELECT pg_temp.reject(format('SELECT pathways_rules_internal.recommendation_outcome(%L)',(SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert')),
+ '42501','runtime cannot call the outcome read directly');
+SELECT pg_temp.reject('SELECT note FROM pathways_rules_internal.decisions','42501','runtime cannot read decision notes');
+RESET SESSION AUTHORIZATION;
+INSERT INTO pathways.role_permissions SELECT * FROM t_saved_outcome;
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(5);
+SELECT pg_temp.reject(format('SELECT pathways.f10_recommendation_get(%L)',(SELECT (doc->'recs'->>1)::uuid FROM t_out WHERE name='p1_alert')),'42501','other-org caller gets no outcome');
+COMMIT;
+
+-- 0092 (UC018): freshness follows the latest evaluation. P22 was re-evaluated after its end date moved, so it reads current;
+-- a source change without a re-evaluation still reads SOURCE_CHANGED until the next drain. The id is read as the owner,
+-- because the runtime role never sees f10 rows directly.
+INSERT INTO t_out SELECT 'p22_id',jsonb_build_object('id',(pg_temp.alert_of(322)).id);
+BEGIN;
+SELECT pg_temp.act(2);
+INSERT INTO t_out SELECT 'p22_fresh',pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p22_id'));
+COMMIT;
+SELECT pg_temp.ok((SELECT doc->>'freshness' FROM t_out WHERE name='p22_fresh')='CURRENT'
+ AND (SELECT a.origin_snapshot_id IS DISTINCT FROM e.snapshot_id FROM pg_temp.alert_of(322) a
+  JOIN pathways_rules_internal.evaluations e ON e.id=a.latest_evaluation_id),'re-evaluated alert reads CURRENT, not SOURCE_CHANGED');
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.set_project_end(322,9990,current_date-16);
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p22_id'))->>'freshness'='SOURCE_CHANGED','a source change before the drain reads SOURCE_CHANGED');
+COMMIT;
+CALL pg_temp.drain('p22_fresh');
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.ok(pathways.f10_alert_get((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p22_id'))->>'freshness'='CURRENT'
+ AND pathways.f10_alert_list(jsonb_build_object('limit',50,'projectId',pg_temp.u(322)::text))->'items'->0->>'freshness'='CURRENT',
+ 'the drain makes it current again');
+COMMIT;
+
+-- 0092 (UC023): the current-data dry run evaluates a project rule on today's project and activity metadata and writes nothing.
+BEGIN;
+SET LOCAL session_replication_role = replica;
+INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,status,created_by_id)
+VALUES(pg_temp.u(340),pg_temp.u(1),'F10R-P40','F10 project 40',current_date-100,current_date+100,'ONGOING',pg_temp.u(101));
+-- Activity 1 is unfinished past its planned end, activity 2 ends in ten days, activity 3 has not started and ends next month.
+INSERT INTO pathways.project_activities(id,organization_id,project_id,code,title,planned_start_date,planned_end_date,actual_start_date,status,created_by_id)
+SELECT pg_temp.u(12000+n),pg_temp.u(1),pg_temp.u(340),'F10R-ACT-'||n,'Activity '||n,current_date-60,
+ current_date+CASE n WHEN 1 THEN -1 WHEN 2 THEN 10 ELSE 30 END,CASE WHEN n<3 THEN current_date-60 END,
+ CASE WHEN n<3 THEN 'IN_PROGRESS' ELSE 'NOT_STARTED' END::pathways.activity_status,pg_temp.u(101) FROM generate_series(1,3) n;
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(1);
+INSERT INTO t_out SELECT 'dry_act',pathways.f10_rule_create(pg_temp.rule_input(
+ '{"kind":"CONDITION","id":"c1","metric":"ACTIVITY_OVERDUE_COUNT","operator":"GTE","threshold":"1"}',
+ jsonb_build_object('code','F10-DRY-ACT','projectId',pg_temp.u(340),'clientOperationId',pg_temp.u(20300))));
+INSERT INTO t_out SELECT 'dry_mixed',pathways.f10_rule_create(pg_temp.rule_input(
+ '{"kind":"GROUP","mode":"OR","children":[{"kind":"CONDITION","id":"a","metric":"PROJECT_OVERDUE_DAYS","operator":"GT","threshold":"0"},{"kind":"CONDITION","id":"b","metric":"BUDGET_UTILIZATION_PERCENT","operator":"GT","threshold":"80"}]}',
+ jsonb_build_object('code','F10-DRY-MIX','projectId',pg_temp.u(340),'clientOperationId',pg_temp.u(20302))));
+COMMIT;
+INSERT INTO t_out SELECT 'dry_before',jsonb_build_object('evaluations',(SELECT count(*) FROM pathways_rules_internal.evaluations),
+ 'alerts',(SELECT count(*) FROM pathways.rule_based_alerts),'snapshots',(SELECT count(*) FROM pathways_rules_internal.snapshots),
+ 'audit',(SELECT count(*) FROM pathways.audit_logs));
+BEGIN;
+SELECT pg_temp.act(1);
+INSERT INTO t_out SELECT 'dry_act_run',pathways.f10_rule_dry_run_current((SELECT (doc->>'id')::uuid FROM t_out WHERE name='dry_act'));
+INSERT INTO t_out SELECT 'dry_mixed_run',pathways.f10_rule_dry_run_current((SELECT (doc->>'id')::uuid FROM t_out WHERE name='dry_mixed'));
+INSERT INTO t_out SELECT 'dry_p22_run',pathways.f10_rule_dry_run_current((SELECT (doc->>'id')::uuid FROM t_out WHERE name='rule_p22'));
+COMMIT;
+SELECT pg_temp.ok((SELECT doc->>'result'='TRUE' AND doc->'conditions'->0->'cell'->>'value'='1' AND doc->'conditions'->0->>'unit'='COUNT'
+  AND doc->'severityBasis'->>'criteriaVersion'='severity-guide-v0.2'
+  AND doc->>'reportingDate'=(now() AT TIME ZONE 'Asia/Manila')::date::text
+  FROM t_out WHERE name='dry_act_run'),'one unfinished activity past its planned end triggers the activity rule');
+SELECT pg_temp.ok((SELECT doc->>'result'='UNAVAILABLE' AND doc->'severityBasis'='null'::jsonb
+  AND (SELECT i->'cell'->>'state' FROM jsonb_array_elements(doc->'conditions') i WHERE i->>'conditionId'='a')='ZERO'
+  AND (SELECT i->>'result' FROM jsonb_array_elements(doc->'conditions') i WHERE i->>'conditionId'='a')='FALSE'
+  AND (SELECT i->'cell'->>'reason' FROM jsonb_array_elements(doc->'conditions') i WHERE i->>'conditionId'='b')='UNSUPPORTED_SOURCE'
+  AND (SELECT i->>'result' FROM jsonb_array_elements(doc->'conditions') i WHERE i->>'conditionId'='b')='UNAVAILABLE'
+  FROM t_out WHERE name='dry_mixed_run'),'a project not overdue is FALSE and the budget leaf reports an unsupported source');
+SELECT pg_temp.ok((SELECT r.doc->'conditions'->0->'cell'=(e.evidence->'conditions'->0->'cell') AND r.doc->>'result'=e.result
+  AND r.doc->'severityBasis'=e.evidence->'severityBasis'
+  FROM t_out r,pg_temp.alert_of(322) a JOIN pathways_rules_internal.evaluations e ON e.id=a.latest_evaluation_id WHERE r.name='dry_p22_run'),
+ 'the dry run of an active rule equals the worker evaluation of the same data');
+SELECT pg_temp.ok((SELECT doc FROM t_out WHERE name='dry_before')=jsonb_build_object('evaluations',(SELECT count(*) FROM pathways_rules_internal.evaluations),
+ 'alerts',(SELECT count(*) FROM pathways.rule_based_alerts),'snapshots',(SELECT count(*) FROM pathways_rules_internal.snapshots),
+ 'audit',(SELECT count(*) FROM pathways.audit_logs)),'the dry run writes no evaluation, alert, snapshot or audit row');
+BEGIN;
+SELECT pg_temp.act(2);
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_dry_run_current(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='dry_act')),'42501','role without rules.read cannot dry run');
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(5);
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_dry_run_current(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='dry_act')),'42501','other-org caller cannot dry run');
+COMMIT;
+BEGIN;
+SELECT pg_temp.act(1);
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_dry_run_current(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='tpl')),'42501','a template has no current data');
+SELECT pg_temp.reject(format('SELECT pathways.f10_rule_dry_run_current(%L)',pg_temp.u(99999)),'42501','unknown rule');
+COMMIT;
+SELECT pg_temp.ok(NOT EXISTS(SELECT FROM unnest(ARRAY['anon','authenticated','service_role','pathways_rules_worker','pathways_rules_sweeper']) r
+  WHERE has_function_privilege(r,'pathways.f10_rule_dry_run_current(uuid)','EXECUTE'))
+ AND has_function_privilege('pathways_runtime','pathways.f10_rule_dry_run_current(uuid)','EXECUTE'),'only the runtime role may call the dry run');
 
 DO $$ BEGIN RAISE NOTICE 'F10_F11_RULES_RUNTIME=PASS (% checks)',(SELECT count(*) FROM t_results); END $$;

@@ -15,7 +15,7 @@ import {
 } from '@/lib/api/core/artifact-download'
 
 import { formatCurrency, formatDate } from '../../activities/activities.utils'
-import { categoryLabel, projectLevelKey, remaining } from '../budget.utils'
+import { categoryLabel, projectLevelKey, remaining, rowKeyOf } from '../budget.utils'
 import type { useBudgetModule } from '../hooks/use-budget-module'
 import { ExpenseReviewDrawer, type ReviewAction } from './expense-review-drawer'
 
@@ -74,16 +74,15 @@ export const BudgetLedger = ({
   }
 
   const budgetOf = (expense: Expense) => module.budgets.find((b) => b.id === expense.budgetRecordId)
-  const rows = module.expenses.filter(
-    (expense) => !activityKey || (budgetOf(expense)?.activityId ?? projectLevelKey) === activityKey,
-  )
+  const rows = module.expenses.filter((expense) => {
+    const budget = budgetOf(expense)
+    return !activityKey || (budget ? rowKeyOf(budget) : projectLevelKey) === activityKey
+  })
   const filterActivity = module.activities.find((a) => a.id === activityKey)
-  const filterLabel =
-    activityKey === projectLevelKey
-      ? 'Project-level budget'
-      : filterActivity
-        ? `${filterActivity.code} ${filterActivity.title}`
-        : 'this activity'
+  const filterRow = module.activityRows.find((row) => row.key === activityKey)
+  const filterLabel = filterActivity
+    ? `${filterActivity.code} ${filterActivity.title}`
+    : (filterRow?.title ?? 'this activity')
   const stepFor = (expense: Expense): ReviewAction | null => {
     if (expense.status === 'PENDING' && expense.receiptEvidenceId && can('expenses.verify'))
       return expense.submittedById === me ? null : 'VERIFY'
@@ -141,7 +140,7 @@ export const BudgetLedger = ({
             const budget = budgetOf(expense)
             const activity = module.activities.find((a) => a.id === budget?.activityId)
             const activityRow = module.activityRows.find(
-              (row) => row.key === (budget?.activityId ?? projectLevelKey),
+              (row) => row.key === (budget ? rowKeyOf(budget) : projectLevelKey),
             )
             const status = statusLabel[expense.status]
             const step = stepFor(expense)

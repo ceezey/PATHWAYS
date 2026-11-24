@@ -13,13 +13,22 @@ vi.mock('@/lib/api/activities', () => ({
   activitiesClient: { transitionActivity: state.transition },
 }))
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ onValueChange }: { onValueChange: (value: string) => void }) => (
-    <button type="button" onClick={() => onValueChange('Cancelled')}>
-      Choose cancellation
-    </button>
+  Select: ({
+    children,
+    onValueChange,
+  }: {
+    children: React.ReactNode
+    onValueChange: (value: string) => void
+  }) => (
+    <>
+      <button type="button" onClick={() => onValueChange('Cancelled')}>
+        Choose cancellation
+      </button>
+      {children}
+    </>
   ),
-  SelectContent: () => null,
-  SelectItem: () => null,
+  SelectContent: ({ children }: { children: React.ReactNode }) => <ul>{children}</ul>,
+  SelectItem: ({ value }: { value: string }) => <li>{value}</li>,
   SelectTrigger: () => null,
 }))
 import { ActivityStatusControl } from './activity-status-control'
@@ -35,6 +44,40 @@ beforeEach(() => {
   state.transition.mockReset().mockResolvedValue({ ...activity, status: 'Cancelled' })
 })
 afterEach(cleanup)
+describe('status options', () => {
+  const options = () => screen.getAllByRole('listitem').map((item) => item.textContent)
+  it('offers In Progress and Cancelled for a planned activity', () => {
+    render(
+      <ActivityStatusControl
+        activity={{ ...activity, storedStatus: 'NOT_STARTED' }}
+        controlId="synthetic-status"
+        onUpdated={vi.fn()}
+      />,
+    )
+    expect(options()).toEqual(['Planned', 'In Progress', 'Cancelled'])
+  })
+  it('offers only Cancelled once the activity is in progress', () => {
+    render(
+      <ActivityStatusControl
+        activity={{ ...activity, status: 'In Progress', storedStatus: 'IN_PROGRESS' }}
+        controlId="synthetic-status"
+        onUpdated={vi.fn()}
+      />,
+    )
+    expect(options()).toEqual(['In Progress', 'Cancelled'])
+  })
+  it('offers no change without the permission', () => {
+    state.permitted = false
+    render(
+      <ActivityStatusControl
+        activity={{ ...activity, storedStatus: 'NOT_STARTED' }}
+        controlId="synthetic-status"
+        onUpdated={vi.fn()}
+      />,
+    )
+    expect(options()).toEqual(['Planned'])
+  })
+})
 describe('explicit activity cancellation reason', () => {
   it('opens a labelled reason dialog without mutation, rejects whitespace, and submits only the entered bounded reason', async () => {
     const updated = vi.fn()

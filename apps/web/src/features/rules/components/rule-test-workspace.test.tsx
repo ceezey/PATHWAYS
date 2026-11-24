@@ -4,7 +4,7 @@ import { type HumanRule, type SeverityBasis, formatSeverityBasis } from '@pathwa
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RuleTestWorkspace } from './rule-test-workspace'
-const state = vi.hoisted(() => ({ permissions: ['rules.read'], call: vi.fn() }))
+const state = vi.hoisted(() => ({ permissions: ['rules.read'], call: vi.fn(), current: vi.fn() }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
     profile: {
@@ -18,7 +18,9 @@ vi.mock('@/hooks/use-current-role', () => ({
     access: 'ready',
   }),
 }))
-vi.mock('@/lib/api/rules', () => ({ rulesHumanClient: { dryRun: state.call } }))
+vi.mock('@/lib/api/rules', () => ({
+  rulesHumanClient: { dryRun: state.call, dryRunCurrent: state.current },
+}))
 const rule: HumanRule = {
   id: '30000000-0000-4000-8000-000000000001',
   projectId: '40000000-0000-4000-8000-000000000001',
@@ -320,5 +322,75 @@ describe('synthetic rule condition testing', () => {
     enter()
     await screen.findByRole('heading', { name: 'Test result' })
     expect(screen.queryByRole('heading', { name: 'Sample result' })).toBeNull()
+  })
+})
+describe('rule test on current project data', () => {
+  const leaf = (patch: Record<string, unknown>) => ({
+    conditionId: 'remaining',
+    metric: 'PROJECT_REMAINING_DAYS',
+    operator: 'LT',
+    threshold: '0',
+    thresholdMaximum: null,
+    cell: { state: 'AVAILABLE', value: '12', reason: null },
+    unit: 'DAYS',
+    result: 'FALSE',
+    ...patch,
+  })
+  const current = (patch: Record<string, unknown> = {}) => ({
+    ruleId: rule.id,
+    asOf: '2026-11-24T02:00:00.000Z',
+    reportingDate: '2026-11-24',
+    result: 'FALSE',
+    conditions: [leaf({})],
+    severityBasis: null,
+    ...patch,
+  })
+  it('runs the saved project rule on the server and shows the current evidence', async () => {
+    state.current.mockResolvedValueOnce(current())
+    render(<RuleTestWorkspace rule={rule} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Test on current data' }))
+    await screen.findByRole('heading', { name: 'Current data result for 2026-11-24' })
+    expect(state.current).toHaveBeenCalledWith(rule.id)
+    expect(state.call).not.toHaveBeenCalled()
+    expect(screen.getByText('Current project data')).toBeTruthy()
+    expect(screen.getByText('Not triggered')).toBeTruthy()
+    expect(screen.queryByText(/cannot be read from current data/)).toBeNull()
+  })
+  it('shows the severity and names conditions that need test values', async () => {
+    state.current.mockResolvedValueOnce(
+      current({
+        result: 'TRUE',
+        severityBasis: basis,
+        conditions: [
+          leaf({ result: 'TRUE', cell: { state: 'AVAILABLE', value: '-3', reason: null } }),
+          leaf({
+            conditionId: 'budget',
+            metric: 'BUDGET_UTILIZATION_PERCENT',
+            unit: 'PERCENT',
+            result: 'UNAVAILABLE',
+            cell: { state: 'MISSING', value: null, reason: 'UNSUPPORTED_SOURCE' },
+          }),
+        ],
+      }),
+    )
+    render(<RuleTestWorkspace rule={rule} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Test on current data' }))
+    await screen.findByRole('heading', { name: 'Current data result for 2026-11-24' })
+    expect(screen.getByText(formatSeverityBasis(basis).headline)).toBeTruthy()
+    expect(screen.getByText(/cannot be read from current data/)).toBeTruthy()
+  })
+  it('shows a notice when the server test fails or answers for another rule', async () => {
+    state.current.mockRejectedValueOnce(new Error('denied'))
+    render(<RuleTestWorkspace rule={rule} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Test on current data' }))
+    await screen.findByText(/current-data test could not be completed/)
+    state.current.mockResolvedValueOnce(current({ ruleId: '30000000-0000-4000-8000-000000000009' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Test on current data' }))
+    await screen.findByText(/current-data test could not be completed/)
+    expect(screen.queryByRole('heading', { name: /Current data result/ })).toBeNull()
+  })
+  it('offers no current-data test for an organization template', () => {
+    render(<RuleTestWorkspace rule={{ ...rule, projectId: null }} />)
+    expect(screen.queryByRole('button', { name: 'Test on current data' })).toBeNull()
   })
 })

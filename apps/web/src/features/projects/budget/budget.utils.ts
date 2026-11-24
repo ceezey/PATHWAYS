@@ -36,6 +36,10 @@ export type BudgetAlert = {
 
 export const projectLevelKey = 'project-level'
 const projectEnvelopeCategory = 'PROJECT_PROFILE_TOTAL'
+// The breakdown row a budget line belongs to: its activity, its project-level category, or the envelope row.
+export const rowKeyOf = (budget: Pick<BudgetRow, 'activityId' | 'category'>) =>
+  budget.activityId ??
+  (budget.category === projectEnvelopeCategory ? projectLevelKey : `category-${budget.category}`)
 // Stored envelope categories read as enum names, so the ledger shows these instead.
 const categoryLabels: Record<string, string> = {
   PROJECT_PROFILE_TOTAL: 'Project budget',
@@ -68,7 +72,7 @@ export const toneFor = (pct: number | null): SignalTone =>
 
 /**
  * Only APPROVED expenses count as spending; PENDING and VERIFIED are shown as pending.
- * With a project envelope, the project-level row is the envelope minus activity allocations (negative if over-allocated), so row allocations sum to the envelope.
+ * Each project-level category line has its own row; with a project envelope, the project-level row is the envelope minus every other allocation (negative if over-allocated), so row allocations sum to the envelope.
  */
 export const buildActivityRows = (
   budgets: BudgetRow[],
@@ -80,13 +84,17 @@ export const buildActivityRows = (
   let envelope = 0
   let hasEnvelope = false
   for (const budget of budgets) {
-    const key = budget.activityId ?? projectLevelKey
+    const key = rowKeyOf(budget)
     const activity = activities.find((item) => item.id === budget.activityId)
     const row = rows.get(key) ?? {
       key,
       activityId: budget.activityId,
       code: activity?.code ?? '-',
-      title: budget.activityId ? (activity?.title ?? 'Activity') : 'Project-level budget',
+      title: budget.activityId
+        ? (activity?.title ?? 'Activity')
+        : key === projectLevelKey
+          ? 'Project-level budget'
+          : categoryLabel(budget.category),
       allocated: 0,
       used: 0,
       pending: 0,
@@ -102,7 +110,7 @@ export const buildActivityRows = (
   const project = rows.get(projectLevelKey)
   if (hasEnvelope && project) {
     let sub = 0
-    for (const row of rows.values()) if (row.activityId) sub += row.allocated
+    for (const row of rows.values()) if (row !== project) sub += row.allocated
     project.allocated = envelope - sub
   }
   for (const expense of expenses) {

@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 66-row migration ledger (baseline plus 0027-0057 and 0058-0091) this script must produce, in order. This is
+// The exact 67-row migration ledger (baseline plus 0027-0057 and 0058-0092) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted/plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -75,6 +75,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0089_project_map_pins',
   '0090_test_case_gap_closure',
   '0091_backup_recovery',
+  '0092_rules_outcomes_freshness',
 ])
 
 function range(from, to) {
@@ -277,6 +278,15 @@ export function buildPlan() {
     { type: 'preprovision', name: 'backup', file: 'hosted-backup-preprovision.sql' },
     { type: 'deploy', migrations: range(91, 91) },
     { type: 'cleanup', name: 'backup', file: 'hosted-backup-cleanup.sql' },
+    // 0092 replaces functions owned by four rules owners and creates two more under rules_store_owner and prisma schema loans,
+    // so it needs a temporary SET-only chain to six rules owner roles.
+    {
+      type: 'preprovision',
+      name: 'rules-outcomes',
+      file: 'hosted-rules-outcomes-preprovision.sql',
+    },
+    { type: 'deploy', migrations: range(92, 92) },
+    { type: 'cleanup', name: 'rules-outcomes', file: 'hosted-rules-outcomes-cleanup.sql' },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -317,7 +327,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0091 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0092 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -326,7 +336,7 @@ export function assertResumablePrefix(ledgerRows) {
 // Maps a count of already-applied migrations (from assertResumablePrefix) to
 // the plan step index to resume at. Cleanup steps are not tracked by the
 // Prisma ledger, so when resuming right after a migration that has a
-// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073, 0075, 0076, 0090, 0091), that cleanup step is re-run;
+// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060, 0062, 0063, 0072, 0073, 0075, 0076, 0090, 0091, 0092), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
 //
@@ -367,7 +377,9 @@ export function assertResumablePrefix(ledgerRows) {
 //    (temporary rules_store_owner and rules_config_owner SET chain) granted before and revoked after 0090.
 //  * 0090_test_case_gap_closure and 0091_backup_recovery follow the same two shapes for the backup chain (temporary SET chain
 //    to the backup, rules store, rules context and report owners) granted before and revoked after 0091. A complete 0091
-//    ledger without the chain resumes at alter-runtime-role, since its cleanup already granted the permanent memberships.
+//    ledger without the chain resumes at the rules-outcomes preprovision, since its cleanup already granted the permanent memberships.
+//  * 0091_backup_recovery and 0092_rules_outcomes_freshness follow the same two shapes for the rules-outcomes chain
+//    (temporary SET chain to six rules owner roles) granted before and revoked after 0092.
 // The caller therefore checks live database state (whether prisma still holds a temporary
 // rules owner membership) and passes it in as `residualOwnerMemberships`.
 // 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a
@@ -395,6 +407,7 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0089_project_map_pins',
   '0090_test_case_gap_closure',
   '0091_backup_recovery',
+  '0092_rules_outcomes_freshness',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -413,6 +426,7 @@ const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0076_saddd_exact_counts': 'saddd-exact',
   '0090_test_case_gap_closure': 'test-case-gaps',
   '0091_backup_recovery': 'backup',
+  '0092_rules_outcomes_freshness': 'rules-outcomes',
 })
 // Ledger counts at which the caller must read live owner-membership state.
 export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
@@ -437,6 +451,7 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0089_project_map_pins',
   '0090_test_case_gap_closure',
   '0091_backup_recovery',
+  '0092_rules_outcomes_freshness',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {

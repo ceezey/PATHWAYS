@@ -1,18 +1,5 @@
 import type { Prisma } from '@prisma/client'
 
-type ReleasedCell = { count: number | null; suppressed: boolean }
-
-/** One breakdown released exactly; the suppression flags stay in the contract and are always false. */
-export function releaseBreakdown<T extends { count: number }>(total: number, items: T[]) {
-  return {
-    total,
-    totalSuppressed: false,
-    items: items.map((item) => ({ ...item, suppressed: false })) as Array<
-      Omit<T, 'count'> & ReleasedCell
-    >,
-  }
-}
-
 type MeasurementRow = {
   id: string
   indicatorId: string

@@ -330,9 +330,27 @@ SELECT pg_temp.ok((SELECT d#>>'{total,state}'='AVAILABLE' AND d#>>'{total,value}
 SELECT pg_temp.ok(NOT EXISTS(SELECT FROM pathways.sensitive_aggregate_releases WHERE project_id IN (pg_temp.u(312),pg_temp.u(313))),
   '39 ongoing SADDD is computed live and never frozen in the release registry');
 
+-- Participation for aggregate-only roles (UC016): no beneficiary identifier, and beneficiaries.aggregates.read is required.
+SELECT pg_temp.ok((SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(pg_temp.doc('pm_parts')) k)
+   =ARRAY['byActivity','byAttendanceStatus','byMonth','projectId','total','totalSuppressed']
+  AND NOT EXISTS(SELECT FROM jsonb_array_elements(pg_temp.doc('pm_parts')->'byActivity') x
+   WHERE (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(x) k)<>ARRAY['activityId','activityName','count','suppressed'])
+  AND NOT EXISTS(SELECT FROM pathways.beneficiaries b JOIN pathways.beneficiary_project_enrollments e ON e.beneficiary_id=b.id
+   WHERE b.organization_id=pg_temp.u(1) AND (pg_temp.doc('pm_parts')::text LIKE '%'||b.id||'%'
+    OR pg_temp.doc('pm_parts')::text LIKE '%'||e.id||'%' OR pg_temp.doc('pm_parts')::text LIKE '%'||b.code||'%'
+    OR pg_temp.doc('pm_parts')::text LIKE '%'||b.last_name||'%')),
+  '40 the Program Manager breakdown carries no beneficiary or enrollment id, code or name');
+DELETE FROM pathways.role_permissions rp USING pathways.roles r, pathways.permissions p
+ WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='PROGRAM_MANAGER' AND p.code='beneficiaries.aggregates.read';
+SET LOCAL ROLE pathways_runtime;
+SELECT pg_temp.act_as(1,1);
+SELECT pg_temp.reject(format('SELECT pathways.p06_participation_breakdown(%L::uuid,NULL,NULL)',pg_temp.u(301)),'42501',
+  '41 a role without beneficiaries.aggregates.read is refused the participation breakdown');
+RESET ROLE;
+
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM brk_results;
- IF total<>41 THEN RAISE EXCEPTION '0066 beneficiary-reach-kpi-values checks expected 41 assertions, recorded %',total; END IF;
+ IF total<>43 THEN RAISE EXCEPTION '0066 beneficiary-reach-kpi-values checks expected 43 assertions, recorded %',total; END IF;
  RAISE NOTICE 'BENEFICIARY_REACH_KPI_VALUES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

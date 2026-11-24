@@ -8,7 +8,7 @@ import { AnalyticsModule } from './analytics.module'
 import { AnalyticsService } from './analytics.service'
 
 describe('AnalyticsModule', () => {
-  it('resolves both services from its own imports, leaving only the global PrismaService to the mocker', async () => {
+  it('resolves both services from its own imports, leaving only global providers to the mocker', async () => {
     const mocked: string[] = []
     const moduleRef = await Test.createTestingModule({ imports: [AnalyticsModule] })
       .useMocker((token) => {
@@ -19,6 +19,7 @@ describe('AnalyticsModule', () => {
     expect(moduleRef.get(AnalyticsService)).toBeInstanceOf(AnalyticsService)
     expect(moduleRef.get(AnalyticsInsightsService)).toBeInstanceOf(AnalyticsInsightsService)
     expect(moduleRef.get(DashboardsService, { strict: false })).toBeInstanceOf(DashboardsService)
-    expect([...new Set(mocked)]).toEqual(['PrismaService'])
+    // The rules worker module registers the activation drain globally, like PrismaService.
+    expect([...new Set(mocked)]).toEqual(['PrismaService', 'Symbol(RULES_ACTIVATION_DRAIN)'])
   })
 })

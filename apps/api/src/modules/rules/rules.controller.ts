@@ -25,6 +25,16 @@ export class RulesController {
   dryRun(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
     return this.service.dryRun(requestIdentity(request), body)
   }
+  @Post(':id/dry-run-current')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('rules.read')
+  dryRunCurrent(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.service.dryRunCurrent(requestIdentity(request), id, body)
+  }
   @Get(':id')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('rules.read')

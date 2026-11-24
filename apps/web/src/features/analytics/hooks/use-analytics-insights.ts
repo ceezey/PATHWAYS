@@ -17,21 +17,12 @@ type Permission = Parameters<typeof principalHasAtomicPermission>[1]
 const required: Record<string, readonly Permission[]> = {
   trends: ['analytics.descriptive.read', 'monitoring.read', 'indicators.read'],
   budget: ['analytics.descriptive.read', 'monitoring.read', 'budgets.read', 'expenses.read'],
-  participation: [
-    'analytics.descriptive.read',
-    'monitoring.read',
-    'journeys.read',
-    'beneficiaries.records.read',
-  ],
+  // Participation is an exact aggregate, so aggregate-only roles read it with no record-level grant.
+  participation: ['analytics.descriptive.read', 'monitoring.read', 'beneficiaries.aggregates.read'],
 }
 
-/** Participation also needs a submission or assessment-detail grant; aggregate-only roles lack it. */
 export function canReadInsight(profile: Principal, kind: 'trends' | 'budget' | 'participation') {
-  const has = permissionChecker(profile)
-  return (
-    required[kind].every(has) &&
-    (kind !== 'participation' || has('submissions.write') || has('assessments.detail.read'))
-  )
+  return required[kind].every(permissionChecker(profile))
 }
 
 const resource = (name: string, { periodStart, periodEnd }: InsightsSelection) =>

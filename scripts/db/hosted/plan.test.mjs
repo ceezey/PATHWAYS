@@ -26,8 +26,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 66 rows (baseline plus 0027-0057 and 0058-0091) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 66)
+  // ledger has 67 rows (baseline plus 0027-0057 and 0058-0092) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 67)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -132,6 +132,9 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'preprovision:backup',
     'deploy:0091_backup_recovery',
     'cleanup:backup',
+    'preprovision:rules-outcomes',
+    'deploy:0092_rules_outcomes_freshness',
+    'cleanup:rules-outcomes',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -679,7 +682,18 @@ test('planIndexForAppliedCount on a 0000-0090 ledger resumes at the backup prepr
   assert.equal(plan[residual].name, 'test-case-gaps')
 })
 
-test('planIndexForAppliedCount on a complete 0000-0091 ledger resumes at alter-runtime-role, or at the backup cleanup with residual owner memberships', () => {
+test('planIndexForAppliedCount on a 0000-0091 ledger resumes at the rules-outcomes preprovision, or at the backup cleanup with residual owner memberships', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0091_backup_recovery') + 1
+  const fresh = planIndexForAppliedCount(applied)
+  assert.equal(plan[fresh].type, 'preprovision')
+  assert.equal(plan[fresh].name, 'rules-outcomes')
+  const residual = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.equal(plan[residual].type, 'cleanup')
+  assert.equal(plan[residual].name, 'backup')
+})
+
+test('planIndexForAppliedCount on a complete 0000-0092 ledger resumes at alter-runtime-role, or at the rules-outcomes cleanup with residual owner memberships', () => {
   const plan = buildPlan()
   assert.equal(
     plan[planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)].type,
@@ -689,5 +703,5 @@ test('planIndexForAppliedCount on a complete 0000-0091 ledger resumes at alter-r
     residualOwnerMemberships: true,
   })
   assert.equal(plan[index].type, 'cleanup')
-  assert.equal(plan[index].name, 'backup')
+  assert.equal(plan[index].name, 'rules-outcomes')
 })

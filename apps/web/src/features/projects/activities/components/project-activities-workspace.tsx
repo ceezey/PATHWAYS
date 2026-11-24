@@ -74,6 +74,8 @@ export const ProjectActivitiesWorkspace = ({
     inProjectScope && principalHasAtomicPermission(profile, 'activities.proof.submit')
   const canRecordProgress =
     inProjectScope && isUiActionAvailable(role, 'activities.progress.record', profile)
+  const canChangeStatus =
+    inProjectScope && isUiActionAvailable(role, 'activities.status.edit', profile)
   const canLogExpense = role === 'Project Officer' && inProjectScope
   const canValidateProof =
     role === 'Monitoring and Evaluation Officer' &&
@@ -460,6 +462,7 @@ export const ProjectActivitiesWorkspace = ({
         budgetReferences={budgetReferences}
         budgetReferencesLoading={budgetReferencesLoading}
         loading={Boolean(selectedActivityId) && detail.isPending}
+        canChangeStatus={canChangeStatus}
         canDecideProof={canDecideProof}
         canDecideExtension={role === 'Project Manager' && inProjectScope && canUpdate}
         canEdit={canUpdate}
