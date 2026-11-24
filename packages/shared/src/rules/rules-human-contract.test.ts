@@ -7,6 +7,7 @@ import {
   draftRuleSchema,
   dryRunInputSchema,
   dryRunOutputSchema,
+  historyOutputSchema,
   previewOutputSchema,
   recommendationOutputSchema,
   recommendationPreviewSchema,
@@ -189,6 +190,30 @@ describe('human rule and outcome contract', () => {
     expect(recommendationOutputSchema.safeParse({ ...output, status: 'ACCEPTED' }).success).toBe(
       false,
     )
+  })
+  it('carries an alert history outcome note only in its closed decision object', () => {
+    const entry = {
+      id,
+      occurredAt: '2026-11-24T12:06:00.000Z',
+      actorKind: 'HUMAN',
+      kind: 'OUTCOME',
+      lifecycle: null,
+      outcome: 'ACCEPT',
+      ruleVersion: 1,
+      explanation: 'A management outcome was recorded.',
+      result: null,
+      evidence: [],
+      decision: { note: 'Synthetic reschedule note', actorName: 'Synthetic Officer' },
+    }
+    expect(historyOutputSchema.safeParse(entry).success).toBe(true)
+    expect(historyOutputSchema.safeParse({ ...entry, decision: null }).success).toBe(true)
+    expect(historyOutputSchema.safeParse({ ...entry, decision: undefined }).success).toBe(false)
+    for (const injected of ['note', 'actorId', 'actorName'])
+      expect(historyOutputSchema.safeParse({ ...entry, [injected]: 'x' }).success).toBe(false)
+    expect(
+      historyOutputSchema.safeParse({ ...entry, decision: { ...entry.decision, actorId: id } })
+        .success,
+    ).toBe(false)
   })
   it('shows the latest outcome note only in its closed object and never as loose note fields', () => {
     const output = {

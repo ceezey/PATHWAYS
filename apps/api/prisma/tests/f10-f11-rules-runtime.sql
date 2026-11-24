@@ -1,4 +1,4 @@
--- PRD-F10/F11 gate closure (migrations 0058-0060, 0072, 0073, 0090, 0092): end-to-end rules runtime checks.
+-- PRD-F10/F11 gate closure (migrations 0058-0060, 0072, 0073, 0090, 0092, 0093): end-to-end rules runtime checks.
 -- Synthetic fixtures only. The machine phases run in separate transactions as the worker and sweeper logins and
 -- the human calls as pathways_runtime with the app.* context, so the data COMMITS: run only against a disposable
 -- pathways_phase2_* or pathways_phase4_* replay database that has 0060 applied and its cleanup run.
@@ -984,5 +984,32 @@ COMMIT;
 SELECT pg_temp.ok(NOT EXISTS(SELECT FROM unnest(ARRAY['anon','authenticated','service_role','pathways_rules_worker','pathways_rules_sweeper']) r
   WHERE has_function_privilege(r,'pathways.f10_rule_dry_run_current(uuid)','EXECUTE'))
  AND has_function_privilege('pathways_runtime','pathways.f10_rule_dry_run_current(uuid)','EXECUTE'),'only the runtime role may call the dry run');
+
+-- 0093 (UC018 18.5): alert history outcome entries carry the note and actor name only for alert outcome recorders.
+INSERT INTO t_out SELECT 'p17_decision',jsonb_build_object('id',(SELECT d.id FROM pathways_rules_internal.decisions d
+ WHERE d.alert_id=(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p17_alert')));
+BEGIN;
+SELECT pg_temp.act(2);
+INSERT INTO t_out SELECT 'p17_history',pathways.f10_alert_history((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p17_alert'),'{"limit":50}'::jsonb);
+COMMIT;
+SELECT pg_temp.ok((SELECT count(*) FILTER(WHERE i->>'kind'='OUTCOME' AND i->'decision'->>'note'='Accept' AND i->'decision'->>'actorName'='F10 PM')=1
+  AND count(*) FILTER(WHERE i->>'kind'<>'OUTCOME' AND i->'decision'='null'::jsonb)=count(*) FILTER(WHERE i->>'kind'<>'OUTCOME')
+  AND count(*) FILTER(WHERE i->>'kind'<>'OUTCOME')>0
+  FROM t_out,jsonb_array_elements(doc->'items') i WHERE name='p17_history'),'alert outcome recorder sees the outcome note and actor in the history');
+BEGIN;
+SET LOCAL session_replication_role = replica;
+CREATE TEMP TABLE t_saved_alert_outcome ON COMMIT DROP AS SELECT rp.* FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id
+ JOIN pathways.permissions p ON p.id=rp.permission_id WHERE r.code='PROJECT_MANAGER' AND p.code='alerts.outcome.record';
+DELETE FROM pathways.role_permissions rp USING pathways.roles r,pathways.permissions p
+ WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='PROJECT_MANAGER' AND p.code='alerts.outcome.record';
+SELECT pg_temp.act(2);
+SELECT pg_temp.ok(NOT EXISTS(SELECT FROM jsonb_array_elements(pathways.f10_alert_history((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p17_alert'),
+  '{"limit":50}'::jsonb)->'items') i WHERE i->'decision'<>'null'::jsonb)
+ AND EXISTS(SELECT FROM jsonb_array_elements(pathways.f10_alert_history((SELECT (doc->>'id')::uuid FROM t_out WHERE name='p17_alert'),
+  '{"limit":50}'::jsonb)->'items') i WHERE i->>'kind'='OUTCOME'),'alert reader without alerts.outcome.record sees the outcome but no note');
+SELECT pg_temp.reject(format('SELECT pathways_rules_internal.alert_decision_detail(%L)',(SELECT (doc->>'id')::uuid FROM t_out WHERE name='p17_decision')),'42501','runtime cannot call the alert decision detail directly');
+RESET SESSION AUTHORIZATION;
+INSERT INTO pathways.role_permissions SELECT * FROM t_saved_alert_outcome;
+COMMIT;
 
 DO $$ BEGIN RAISE NOTICE 'F10_F11_RULES_RUNTIME=PASS (% checks)',(SELECT count(*) FROM t_results); END $$;

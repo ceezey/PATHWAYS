@@ -192,6 +192,20 @@ describe('alert outcome controls', () => {
           explanation: 'Condition no longer holds.',
           result: 'FALSE',
           evidence: [],
+          decision: null,
+        },
+        {
+          id: '60000000-0000-4000-8000-000000000002',
+          occurredAt: '2026-09-27T12:06:00Z',
+          actorKind: 'HUMAN',
+          kind: 'OUTCOME',
+          lifecycle: null,
+          outcome: 'ACCEPT',
+          ruleVersion: 2,
+          explanation: 'A management outcome was recorded.',
+          result: null,
+          evidence: [],
+          decision: { note: 'Synthetic reschedule note', actorName: 'Synthetic Officer' },
         },
       ],
       nextCursor: null,
@@ -208,6 +222,9 @@ describe('alert outcome controls', () => {
     expect(screen.getByText('Condition no longer holds.')).toBeTruthy()
     expect(screen.getByText('9/28/2026 12:30 AM')).toBeTruthy()
     expect(screen.getByText('Rule version 2; result false')).toBeTruthy()
+    expect(screen.getByText('Recorded by Synthetic Officer')).toBeTruthy()
+    expect(screen.getByText('Synthetic reschedule note')).toBeTruthy()
+    expect(screen.getAllByText(/^Recorded by/)).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Hide history' })).toBeTruthy()
   })
   it('sorts the loaded queue most severe first on request', async () => {

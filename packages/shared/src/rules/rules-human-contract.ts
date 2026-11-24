@@ -141,8 +141,8 @@ export const historyListSchema = z
   .object({ cursor: z.string().max(512).optional(), limit })
   .strict()
 
-// Every output is an explicit allowlist. Notes and note-presence metadata are excluded, except that a
-// recommendation's latest outcome note is shown to callers holding recommendations.outcome.record (CR amendment 2026-11-24).
+// Every output is an explicit allowlist. Notes and note-presence metadata are excluded, except outcome notes: a recommendation's
+// latest one for recommendations.outcome.record and alert history ones for alerts.outcome.record (CR amendment 2026-11-24).
 const instant = z.string().datetime({ offset: true })
 // Stored rules and alerts may still hold the levels authors chose before severity-guide-v0.2.
 const storedSeverity = z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).nullable()
@@ -343,6 +343,14 @@ export const historyOutputSchema = z
     explanation: z.string().max(4000),
     result: z.enum(['TRUE', 'FALSE', 'UNAVAILABLE']).nullable(),
     evidence: z.array(alertEvidenceSchema).max(32),
+    // Set only on outcome entries for callers who may record alert outcomes.
+    decision: z
+      .object({
+        note: z.string().min(1).max(2000),
+        actorName: z.string().min(1).max(500).nullable(),
+      })
+      .strict()
+      .nullable(),
   })
   .strict()
 export const notificationOutputSchema = z

@@ -47,6 +47,8 @@ const preprovision = {
   '0091_backup_recovery': 'hosted-backup-preprovision.sql',
   // 0092 replaces and adds rules-owned functions through a SET-only chain to six rules owner roles.
   '0092_rules_outcomes_freshness': 'hosted-rules-outcomes-preprovision.sql',
+  // 0093 replaces and adds rules-owned functions through a SET-only chain to three rules owner roles.
+  '0093_alert_outcome_notes': 'hosted-alert-notes-preprovision.sql',
 }
 // Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034 (and the later pairs).
 // Local runs the same reviewed cleanups at the same points, so later migrations (0037's
@@ -86,6 +88,8 @@ const cleanup = {
   '0091_backup_recovery': ['hosted-backup-cleanup.sql', []],
   // 0092's temporary SET chain to six rules owner roles is revoked right after it.
   '0092_rules_outcomes_freshness': ['hosted-rules-outcomes-cleanup.sql', []],
+  // 0093's temporary SET chain to three rules owner roles is revoked right after it.
+  '0093_alert_outcome_notes': ['hosted-alert-notes-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {
