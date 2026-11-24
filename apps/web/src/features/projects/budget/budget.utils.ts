@@ -1,6 +1,8 @@
 import { formatCappedPercent } from '@/lib/format/percent'
 import type { SignalTone } from '@/lib/format/tone'
 
+import { formatCurrency } from '../activities/activities.utils'
+
 type BudgetRow = {
   id: string
   activityId: string | null
@@ -56,6 +58,9 @@ export const categoryLabel = (category: string | null | undefined, activityTitle
 const DANGER_PCT = 90
 const WARN_PCT = 70
 const LOW_REMAINING_PCT = 15
+// Allocation notice levels against the planned total; over-allocation stays allowed.
+const ALLOCATED_WARN_PCT = 80
+const ALLOCATED_DANGER_PCT = 90
 
 export const toNumber = (value: string | null | undefined) => {
   const parsed = Number(value)
@@ -121,6 +126,41 @@ export const buildActivityRows = (
   }
   for (const row of rows.values()) row.utilization = utilization(row.used, row.allocated)
   return [...rows.values()]
+}
+
+export type AllocationNotice = {
+  tone: 'info' | 'warning' | 'danger'
+  title: string
+  description: string
+}
+
+/** Total allocated against the planned total after an allocation of `amount`; null without a planned total. */
+export const allocationNotice = (
+  budgets: Pick<BudgetRow, 'category' | 'plannedBudget'>[],
+  amount: number,
+): AllocationNotice | null => {
+  let planned = 0
+  let allocated = 0
+  for (const budget of budgets)
+    if (budget.category === projectEnvelopeCategory) planned += toNumber(budget.plannedBudget)
+    else allocated += toNumber(budget.plannedBudget)
+  if (planned <= 0) return null
+  // Multiplying first keeps whole percentages exact, so the boundaries hold.
+  const pct = (allocated * 100) / planned
+  const status =
+    allocated > planned
+      ? `The project is over-allocated by ${formatCurrency(allocated - planned)}.`
+      : allocated === planned
+        ? 'The project is fully allocated.'
+        : pct >= ALLOCATED_WARN_PCT
+          ? 'The project is close to its planned budget.'
+          : 'The project is within its planned budget.'
+  return {
+    tone: pct >= ALLOCATED_DANGER_PCT ? 'danger' : pct >= ALLOCATED_WARN_PCT ? 'warning' : 'info',
+    // Rounded down so a shown percentage never claims a level the tone has not reached.
+    title: `Allocated ${formatCurrency(allocated)} of ${formatCurrency(planned)} (${Math.floor(pct)}%)`,
+    description: `This allocation is ${formatCurrency(amount)}. ${status}`,
+  }
 }
 
 // The project-level row has no activity code, so it is named by its title.

@@ -17,7 +17,8 @@ import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/policy'
 
-import { type ActivityLabel, categoryLabel } from '../budget.utils'
+import { notifyAllocation } from '../allocation-notice'
+import { type ActivityLabel, categoryLabel, toNumber } from '../budget.utils'
 
 const fail = (error: unknown, fallback: string) =>
   toast.error(error instanceof Error ? error.message : fallback)
@@ -56,6 +57,8 @@ const AllocationDialog = ({
       )
       if (!created) return
       toast.success('Budget allocation recorded.')
+      if (principalHasAtomicPermission(profile, 'budgets.read'))
+        void notifyAllocation(projectId, toNumber(planned))
       setOpen(false)
       setCategory('')
       setPlanned('')
