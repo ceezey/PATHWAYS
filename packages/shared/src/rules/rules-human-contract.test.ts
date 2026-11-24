@@ -183,11 +183,56 @@ describe('human rule and outcome contract', () => {
       revision: '1',
       proposedAt: '2026-10-01T00:00:00.000Z',
       reviewedAt: null,
+      latestOutcome: null,
     }
     expect(recommendationOutputSchema.safeParse(output).success).toBe(true)
     expect(recommendationOutputSchema.safeParse({ ...output, status: 'ACCEPTED' }).success).toBe(
       false,
     )
+  })
+  it('shows the latest outcome note only in its closed object and never as loose note fields', () => {
+    const output = {
+      id,
+      projectId: id,
+      alertId: id,
+      ruleId: id,
+      title: 'Review',
+      text: 'Review it.',
+      basis: 'Basis',
+      status: 'RESOLVED',
+      revision: '2',
+      proposedAt: '2026-10-01T00:00:00.000Z',
+      reviewedAt: null,
+      latestOutcome: {
+        outcome: 'PARTIALLY_ACCEPT',
+        note: 'Synthetic outcome note',
+        actorName: 'Synthetic Officer',
+        recordedAt: '2026-10-02T00:00:00.000Z',
+      },
+    }
+    expect(recommendationOutputSchema.safeParse(output).success).toBe(true)
+    expect(recommendationOutputSchema.safeParse({ ...output, latestOutcome: null }).success).toBe(
+      true,
+    )
+    expect(
+      recommendationOutputSchema.safeParse({ ...output, latestOutcome: undefined }).success,
+    ).toBe(false)
+    for (const injected of ['note', 'outcomeNote', 'reviewNote', 'actorId'])
+      expect(recommendationOutputSchema.safeParse({ ...output, [injected]: 'x' }).success).toBe(
+        false,
+      )
+    expect(
+      recommendationOutputSchema.safeParse({
+        ...output,
+        latestOutcome: { ...output.latestOutcome, actorId: id },
+      }).success,
+    ).toBe(false)
+    expect(
+      recommendationOutputSchema.safeParse({
+        ...output,
+        latestOutcome: { ...output.latestOutcome, note: '' },
+      }).success,
+    ).toBe(false)
   })
 })
 

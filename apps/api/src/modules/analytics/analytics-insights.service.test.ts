@@ -12,11 +12,7 @@ import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { projectEnvelopeWhere, readProjectBudget } from '../projects/project-budget.service'
 import { AnalyticsInsightsController } from './analytics-insights.controller'
-import {
-  currentMeasurements,
-  releaseBreakdown,
-  summarizeBudget,
-} from './analytics-insights.helpers'
+import { currentMeasurements, summarizeBudget } from './analytics-insights.helpers'
 import { AnalyticsInsightsService } from './analytics-insights.service'
 
 vi.mock('@app/common/authz/authorized-operation', () => ({ withAuthorizedOperation: vi.fn() }))
@@ -42,40 +38,28 @@ const actor = (role: Role): ApplicationIdentity =>
   }) as ApplicationIdentity
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`)
-const counts = (items: Array<{ count: number | null }>) => items.map((i) => i.count)
-
-describe('releaseBreakdown', () => {
-  it('releases counts of 1-4 exactly beside larger cells and zero', () => {
-    const r = releaseBreakdown(18, [{ count: 3 }, { count: 7 }, { count: 8 }, { count: 0 }])
-    expect(r.total).toBe(18)
-    expect(r.totalSuppressed).toBe(false)
-    expect(counts(r.items)).toEqual([3, 7, 8, 0])
-    expect(r.items.map((i) => i.suppressed)).toEqual([false, false, false, false])
-  })
-
-  it('leaves a breakdown alone when no cell is small', () => {
-    const r = releaseBreakdown(15, [{ count: 5 }, { count: 10 }, { count: 0 }])
-    expect(counts(r.items)).toEqual([5, 10, 0])
-  })
-
-  it('releases several small cells exactly', () => {
-    const r = releaseBreakdown(14, [{ count: 2 }, { count: 3 }, { count: 9 }])
-    expect(counts(r.items)).toEqual([2, 3, 9])
-  })
-
-  it('releases a total of 1-4 and every cell exactly', () => {
-    const r = releaseBreakdown(3, [{ count: 3 }, { count: 0 }])
-    expect(r.total).toBe(3)
-    expect(r.totalSuppressed).toBe(false)
-    expect(counts(r.items)).toEqual([3, 0])
-  })
-
-  it('shows an empty breakdown as zero', () => {
-    const r = releaseBreakdown(0, [{ count: 0 }])
-    expect(r.total).toBe(0)
-    expect(counts(r.items)).toEqual([0])
-  })
-})
+const cell = (count: number) => ({ count, suppressed: false })
+// The jsonb p06_participation_breakdown returns, counts exact.
+const participationFixture = {
+  projectId: projectA,
+  total: 17,
+  totalSuppressed: false,
+  byActivity: [
+    { activityId: act2, activityName: 'Visit', ...cell(9) },
+    { activityId: act1, activityName: 'Workshop', ...cell(8) },
+  ],
+  byMonth: [
+    { month: '2026-01', ...cell(6) },
+    { month: '2026-02', ...cell(11) },
+  ],
+  byAttendanceStatus: [
+    { status: 'PRESENT', ...cell(15) },
+    { status: 'ABSENT', ...cell(2) },
+    { status: 'COMPLETED', ...cell(0) },
+    { status: 'NOT_COMPLETED', ...cell(0) },
+    { status: 'EXCUSED', ...cell(0) },
+  ],
+}
 
 describe('currentMeasurements', () => {
   const row = (id: string, end: string, value: number, corrects: string | null = null, at = 1) => ({
@@ -164,34 +148,7 @@ function harness(overrides: Record<string, unknown> = {}) {
       ),
     },
     auditLog: { create: vi.fn(async () => ({})) },
-    beneficiaryActivityParticipation: {
-      groupBy: vi.fn(async () => [
-        {
-          activityId: act1,
-          participationDate: d('2026-01-10'),
-          attendanceStatus: 'PRESENT',
-          _count: { _all: 6 },
-        },
-        {
-          activityId: act1,
-          participationDate: d('2026-02-10'),
-          attendanceStatus: 'ABSENT',
-          _count: { _all: 2 },
-        },
-        {
-          activityId: act2,
-          participationDate: d('2026-02-11'),
-          attendanceStatus: 'PRESENT',
-          _count: { _all: 9 },
-        },
-      ]),
-    },
-    projectActivity: {
-      findMany: vi.fn(async () => [
-        { id: act1, title: 'Workshop' },
-        { id: act2, title: 'Visit' },
-      ]),
-    },
+    $queryRaw: vi.fn(async (..._args: unknown[]) => [{ data: participationFixture }]),
     projectIndicator: {
       findMany: vi.fn(async () => [
         {
@@ -257,6 +214,9 @@ describe('AnalyticsInsightsService', () => {
       { month: '2026-02', count: 11, suppressed: false },
     ])
     expect(r.byActivity.find((a) => a.activityId === act1)?.count).toBe(8)
+    const [sql, ...values] = tx.$queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]]
+    expect(sql.join('?')).toContain('pathways.p06_participation_breakdown(')
+    expect(values).toEqual([projectA, null, null])
     expect(r.byAttendanceStatus.find((s) => s.status === 'ABSENT')).toEqual({
       status: 'ABSENT',
       count: 2,
@@ -280,13 +240,47 @@ describe('AnalyticsInsightsService', () => {
     })
   })
 
-  it('participation: forbids aggregate-only roles before any query', async () => {
+  it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
+    'participation: %s reads the aggregate for a period with no record-level grant',
+    async (role) => {
+      const { service, tx } = harness()
+      expect(actor(role).permissions).not.toContain('beneficiaries.records.read')
+      const r = await service.participation(actor(role), {
+        projectId: projectA,
+        periodStart: '2026-01-01',
+        periodEnd: '2026-03-31',
+      })
+      expect(r.byMonth.map((m) => m.month)).toEqual(['2026-01', '2026-02'])
+      expect(tx.$queryRaw.mock.calls[0].slice(1)).toEqual([projectA, '2026-01-01', '2026-03-31'])
+      expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('participation: forbids a caller without beneficiaries.aggregates.read before any query', async () => {
     const { service, tx } = harness()
-    await expect(
-      service.participation(actor('GRANT_MANAGER'), { projectId: projectA }),
-    ).rejects.toBeInstanceOf(ForbiddenException)
-    expect(tx.beneficiaryActivityParticipation.groupBy).not.toHaveBeenCalled()
+    const pm = actor('PROGRAM_MANAGER')
+    pm.permissions = pm.permissions.filter((p) => p !== 'beneficiaries.aggregates.read')
+    await expect(service.participation(pm, { projectId: projectA })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    )
+    expect(tx.project.findFirst).not.toHaveBeenCalled()
+    expect(tx.$queryRaw).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('participation: maps a database refusal or an off-contract result to 503 with no audit row', async () => {
+    for (const $queryRaw of [
+      vi.fn(async () => {
+        throw new Error('Participation breakdown unavailable')
+      }),
+      vi.fn(async () => [{ data: { ...participationFixture, total: -1 } }]),
+    ]) {
+      const { service, tx } = harness({ $queryRaw })
+      await expect(
+        service.participation(actor('PROGRAM_MANAGER'), { projectId: projectA }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException)
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
+    }
   })
 
   it('returns 404 for an out-of-scope project and writes no audit row', async () => {
@@ -300,7 +294,6 @@ describe('AnalyticsInsightsService', () => {
   })
 
   it.each([
-    ['participation', 'GRANT_MANAGER'],
     ['indicatorTrends', 'GRANT_MANAGER'],
     ['budget', 'MONITORING_AND_EVALUATION_OFFICER'],
   ] as const)(
@@ -323,9 +316,8 @@ describe('AnalyticsInsightsService', () => {
       await expect(call).rejects.toBeInstanceOf(NotFoundException)
       await expect(call).rejects.toThrow('Project unavailable.')
       expect(tx.project.findFirst).toHaveBeenCalled()
+      expect(tx.$queryRaw).not.toHaveBeenCalled()
       for (const model of [
-        tx.beneficiaryActivityParticipation,
-        tx.projectActivity,
         tx.projectIndicator,
         tx.projectIndicatorMeasurement,
         tx.projectBudgetRecord,

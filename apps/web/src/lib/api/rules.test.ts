@@ -29,6 +29,7 @@ const record = {
   revision: '1',
   proposedAt: '2026-09-27T01:00:00Z',
   reviewedAt: null,
+  latestOutcome: null,
 }
 const response = (value: unknown) => ({
   headers: new Headers({ 'Content-Type': 'application/json' }),

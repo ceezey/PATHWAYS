@@ -25,7 +25,7 @@ import { activitiesClient } from '@/lib/api/activities'
 import { cn } from '@/lib/utils'
 import type { Activity, ActivityStatus } from '@/types/pathways'
 
-import { activityStatusTone, activityStatuses } from '../activities.utils'
+import { activityStatusTone } from '../activities.utils'
 
 const statusToneClasses: Record<ReturnType<typeof activityStatusTone>, string> = {
   danger: 'border-danger/30 bg-danger/10 text-danger',
@@ -63,6 +63,13 @@ export const ActivityStatusControl = ({
   const [pendingStatus, setPendingStatus] = useState<ActivityStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const pending = pendingStatus !== null
+  // Offers only the transitions the API accepts and the caller may make.
+  const open = activity.storedStatus === 'NOT_STARTED' || activity.storedStatus === 'IN_PROGRESS'
+  const options: ActivityStatus[] = [
+    activity.status,
+    ...(activity.storedStatus === 'NOT_STARTED' && startContext ? ['In Progress' as const] : []),
+    ...(open && cancellationContext ? ['Cancelled' as const] : []),
+  ]
 
   const updateStatus = async (status: ActivityStatus, reason?: string) => {
     const owner = status === 'Cancelled' ? cancellationContext : startContext
@@ -157,7 +164,7 @@ export const ActivityStatusControl = ({
           ) : null}
         </SelectTrigger>
         <SelectContent>
-          {activityStatuses.map((status) => (
+          {options.map((status) => (
             <SelectItem key={status} value={status}>
               {status}
             </SelectItem>

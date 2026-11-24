@@ -8,7 +8,6 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import {
-  ANALYTICS_INSIGHTS_ATTENDANCE_STATUSES,
   type AnalyticsInsightsQuery,
   type AtomicPermission,
   type BudgetSummary,
@@ -16,6 +15,7 @@ import {
   type ParticipationBreakdown,
   analyticsInsightsQuerySchema,
   hasAtomicPermission,
+  participationBreakdownSchema,
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
@@ -24,23 +24,17 @@ import { requireScopedProject } from '../../common/authz/scoped-project'
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { projectEnvelopeWhere } from '../projects/project-budget.service'
-import {
-  currentMeasurements,
-  releaseBreakdown,
-  summarizeBudget,
-} from './analytics-insights.helpers'
+import { currentMeasurements, summarizeBudget } from './analytics-insights.helpers'
 
 const logger = new Logger('AnalyticsInsightsService')
 const MAX_INDICATORS = 50
 const MAX_POINTS = 120
 
-// Participation reads join enrollments, beneficiaries and submissions, whose row policies need these.
+// Participation is the exact aggregate from p06_participation_breakdown, so aggregate-only roles read it too.
 const participationPermissions: AtomicPermission[] = [
   'monitoring.read',
-  'journeys.read',
-  'beneficiaries.records.read',
+  'beneficiaries.aggregates.read',
 ]
-const participationAnyOf: AtomicPermission[] = ['submissions.write', 'assessments.detail.read']
 
 function parseInsightsQuery(value: unknown): AnalyticsInsightsQuery {
   const parsed = analyticsInsightsQuerySchema.safeParse(value)
@@ -63,13 +57,9 @@ type Compute<T> = (tx: Tx, actor: ApplicationIdentity, query: AnalyticsInsightsQ
 export class AnalyticsInsightsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  private require(
-    actor: ApplicationIdentity,
-    permissions: AtomicPermission[],
-    anyOf?: AtomicPermission[],
-  ) {
+  private require(actor: ApplicationIdentity, permissions: AtomicPermission[]) {
     const has = (p: AtomicPermission) => hasAtomicPermission(actor.roles[0], actor.permissions, p)
-    if (!permissions.every(has) || (anyOf && !anyOf.some(has)))
+    if (!permissions.every(has))
       throw new ForbiddenException('Required application permission is missing.')
   }
 
@@ -80,7 +70,6 @@ export class AnalyticsInsightsService {
     view: string,
     permissions: AtomicPermission[],
     compute: Compute<T>,
-    anyOf?: AtomicPermission[],
   ) {
     const query = parseInsightsQuery(input)
     return withAuthorizedOperation(
@@ -89,7 +78,7 @@ export class AnalyticsInsightsService {
       'analytics.descriptive.read',
       async (tx, actor) => {
         try {
-          this.require(actor, permissions, anyOf)
+          this.require(actor, permissions)
           await requireScopedProject(tx, actor, query.projectId)
           const data = await compute(tx, actor, query)
           await writeAuditLog(tx, actor, {
@@ -119,73 +108,13 @@ export class AnalyticsInsightsService {
   }
 
   participation(identity: ApplicationIdentity, input: unknown) {
-    const compute: Compute<ParticipationBreakdown> = async (tx, actor, query) => {
-      const groups = await tx.beneficiaryActivityParticipation.groupBy({
-        by: ['activityId', 'participationDate', 'attendanceStatus'],
-        where: {
-          organizationId: actor.organizationId,
-          projectId: query.projectId,
-          participationDate: range(query),
-          enrollment: { is: { beneficiary: { is: { archivedAt: null, isDummyRecord: false } } } },
-          activity: { is: { archivedAt: null, status: { not: 'CANCELLED' } } },
-          sourceSubmission: { is: { status: 'VALIDATED', isDummyRecord: false } },
-        },
-        _count: { _all: true },
-      })
-      const activities = await tx.projectActivity.findMany({
-        where: {
-          organizationId: actor.organizationId,
-          projectId: query.projectId,
-          id: { in: [...new Set(groups.map((g) => g.activityId))] },
-        },
-        select: { id: true, title: true },
-      })
-      const names = new Map(activities.map((a) => [a.id, a.title]))
-      const tally = <K>(key: (g: (typeof groups)[number]) => K) => {
-        const out = new Map<K, number>()
-        for (const g of groups) out.set(key(g), (out.get(key(g)) ?? 0) + g._count._all)
-        return out
-      }
-      const total = groups.reduce((sum, g) => sum + g._count._all, 0)
-      const byActivity = releaseBreakdown(
-        total,
-        [...tally((g) => g.activityId)].map(([activityId, count]) => ({
-          activityId,
-          activityName: names.get(activityId) ?? 'Activity',
-          count,
-        })),
-      )
-      const byMonth = releaseBreakdown(
-        total,
-        [...tally((g) => g.participationDate.toISOString().slice(0, 7))]
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([month, count]) => ({ month, count })),
-      )
-      const statusCounts = tally((g) => g.attendanceStatus)
-      const byStatus = releaseBreakdown(
-        total,
-        ANALYTICS_INSIGHTS_ATTENDANCE_STATUSES.map((status) => ({
-          status,
-          count: statusCounts.get(status) ?? 0,
-        })),
-      )
-      return {
-        projectId: query.projectId,
-        total: byActivity.total,
-        totalSuppressed: byActivity.totalSuppressed,
-        byActivity: byActivity.items,
-        byMonth: byMonth.items,
-        byAttendanceStatus: byStatus.items,
-      }
+    const compute: Compute<ParticipationBreakdown> = async (tx, _actor, query) => {
+      const [row] = await tx.$queryRaw<Array<{ data: unknown }>>`
+        SELECT pathways.p06_participation_breakdown(${query.projectId}::uuid,
+          ${query.periodStart ?? null}::date, ${query.periodEnd ?? null}::date) AS data`
+      return participationBreakdownSchema.parse(row?.data)
     }
-    return this.run(
-      identity,
-      input,
-      'participation-breakdown',
-      participationPermissions,
-      compute,
-      participationAnyOf,
-    )
+    return this.run(identity, input, 'participation-breakdown', participationPermissions, compute)
   }
 
   indicatorTrends(identity: ApplicationIdentity, input: unknown) {

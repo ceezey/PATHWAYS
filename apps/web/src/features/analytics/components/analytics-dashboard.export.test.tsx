@@ -248,9 +248,7 @@ describe('Analytics dashboard request dependencies', () => {
     currentAccess.profile.permissions = [
       ...currentAccess.profile.permissions,
       'analytics.descriptive.read',
-      'journeys.read',
-      'beneficiaries.records.read',
-      'assessments.detail.read',
+      'beneficiaries.aggregates.read',
     ]
     vi.resetModules()
     vi.doMock('@/constants/feature-flags', () => ({

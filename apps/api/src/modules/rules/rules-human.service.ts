@@ -4,6 +4,8 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import {
@@ -13,6 +15,7 @@ import {
   alertPreviewSchema,
   confirmOutcomeSchema,
   confirmationOutputSchema,
+  currentDryRunOutputSchema,
   dispositionSchema,
   emptyBodySchema,
   escalatedAlertListSchema,
@@ -39,6 +42,7 @@ import { withAuthorizedOperation } from '../../common/authz/authorized-operation
 import type { Tx } from '../../common/prisma/transaction'
 import { PrismaService } from '../../prisma/prisma.service'
 import { evaluateRuleWithSeverity } from './rule-engine'
+import { RULES_ACTIVATION_DRAIN, type RulesActivationDrain } from './rules-machine-worker'
 
 type Operation =
   | 'RULE_LIST'
@@ -47,6 +51,7 @@ type Operation =
   | 'RULE_DRAFT'
   | 'RULE_ACTIVATE'
   | 'RULE_ARCHIVE'
+  | 'RULE_DRY_RUN_CURRENT'
   | 'ALERT_LIST'
   | 'ESCALATED_ALERT_LIST'
   | 'ALERT_GET'
@@ -80,6 +85,8 @@ function operationSql(operation: Operation, id: string | null, input: unknown): 
       return Prisma.sql`SELECT pathways.f10_rule_activate(${id}::uuid,${body}::jsonb) AS result`
     case 'RULE_ARCHIVE':
       return Prisma.sql`SELECT pathways.f10_rule_archive(${id}::uuid,${body}::jsonb) AS result`
+    case 'RULE_DRY_RUN_CURRENT':
+      return Prisma.sql`SELECT pathways.f10_rule_dry_run_current(${id}::uuid) AS result`
     case 'ALERT_LIST':
       return Prisma.sql`SELECT pathways.f10_alert_list(${body}::jsonb) AS result`
     case 'ESCALATED_ALERT_LIST':
@@ -114,6 +121,7 @@ function operationSql(operation: Operation, id: string | null, input: unknown): 
 }
 const configurationDenied =
   'Project rule configuration is unavailable under your current authority.'
+const logger = new Logger('RulesHumanService')
 function parse<T extends z.ZodTypeAny>(schema: T, value: unknown): z.output<T> {
   const result = schema.safeParse(value)
   if (!result.success) throw new BadRequestException('Invalid typed rules request.')
@@ -122,7 +130,12 @@ function parse<T extends z.ZodTypeAny>(schema: T, value: unknown): z.output<T> {
 
 @Injectable()
 export class RulesHumanService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(RULES_ACTIVATION_DRAIN)
+    private readonly activationDrain: RulesActivationDrain | null = null,
+  ) {}
   private execute<T extends z.ZodTypeAny>(
     identity: ApplicationIdentity,
     permission: AtomicPermission,
@@ -216,8 +229,21 @@ export class RulesHumanService {
   draftRule(identity: ApplicationIdentity, id: string, body: unknown) {
     return this.execute(identity, 'rules.update', 'RULE_DRAFT', id, body, ruleOutputSchema)
   }
-  activateRule(identity: ApplicationIdentity, id: string, body: unknown) {
-    return this.execute(identity, 'rules.activate', 'RULE_ACTIVATE', id, body, ruleOutputSchema)
+  async activateRule(identity: ApplicationIdentity, id: string, body: unknown) {
+    const rule = await this.execute(
+      identity,
+      'rules.activate',
+      'RULE_ACTIVATE',
+      id,
+      body,
+      ruleOutputSchema,
+    )
+    // Best effort: the scheduled drain still covers a failure, so it never fails the committed activation.
+    if (this.activationDrain)
+      await this.activationDrain().catch(() =>
+        logger.warn({ event: 'PATHWAYS_RULES_ACTIVATION_DRAIN_FAILED' }),
+      )
+    return rule
   }
   archiveRule(identity: ApplicationIdentity, id: string, body: unknown) {
     return this.execute(identity, 'rules.update', 'RULE_ARCHIVE', id, body, ruleOutputSchema)
@@ -230,6 +256,17 @@ export class RulesHumanService {
         throw new BadRequestException('Invalid synthetic typed evaluation.')
       }
     })
+  }
+  // Evaluates a project rule on current project data in SQL; it writes nothing and needs the same grant as the sample test.
+  dryRunCurrent(identity: ApplicationIdentity, id: string, body: unknown) {
+    return this.execute(
+      identity,
+      'rules.read',
+      'RULE_DRY_RUN_CURRENT',
+      id,
+      parse(emptyBodySchema, body ?? {}),
+      currentDryRunOutputSchema,
+    )
   }
   listAlerts(identity: ApplicationIdentity, query: unknown) {
     return this.execute(

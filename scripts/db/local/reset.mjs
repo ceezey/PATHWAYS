@@ -45,6 +45,8 @@ const preprovision = {
   '0090_test_case_gap_closure': 'hosted-test-case-gaps-preprovision.sql',
   // 0091 creates the backup owner and job roles and a SET-only chain to the backup, rules and report owner roles.
   '0091_backup_recovery': 'hosted-backup-preprovision.sql',
+  // 0092 replaces and adds rules-owned functions through a SET-only chain to six rules owner roles.
+  '0092_rules_outcomes_freshness': 'hosted-rules-outcomes-preprovision.sql',
 }
 // Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034 (and the later pairs).
 // Local runs the same reviewed cleanups at the same points, so later migrations (0037's
@@ -82,6 +84,8 @@ const cleanup = {
   '0090_test_case_gap_closure': ['hosted-test-case-gaps-cleanup.sql', []],
   // 0091's temporary chain is revoked and the backup owner gets its three permanent memberships right after it.
   '0091_backup_recovery': ['hosted-backup-cleanup.sql', []],
+  // 0092's temporary SET chain to six rules owner roles is revoked right after it.
+  '0092_rules_outcomes_freshness': ['hosted-rules-outcomes-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {

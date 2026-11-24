@@ -64,6 +64,7 @@ describe('rules routes', () => {
       'GET /rules rules.read private, no-store',
       'POST /rules rules.create private, no-store',
       'POST /rules/dry-run rules.read private, no-store',
+      'POST /rules/:id/dry-run-current rules.read private, no-store',
       'GET /rules/:id rules.read private, no-store',
       'POST /rules/:id/drafts rules.update private, no-store',
       'POST /rules/:id/activate rules.activate private, no-store',
@@ -92,6 +93,7 @@ describe('rules routes', () => {
       'RulesController.list 0:REQUEST 1:QUERY',
       'RulesController.create 0:REQUEST 1:BODY',
       'RulesController.dryRun 0:REQUEST 1:BODY',
+      'RulesController.dryRunCurrent 0:REQUEST 1:PARAM(id) 2:BODY',
       'RulesController.get 0:REQUEST 1:PARAM(id)',
       'RulesController.draft 0:REQUEST 1:PARAM(id) 2:BODY',
       'RulesController.activate 0:REQUEST 1:PARAM(id) 2:BODY',
@@ -121,7 +123,7 @@ describe('rules routes', () => {
       const instance = new controller(service)
       return handlers(controller).map((name) => () => instance[name]({ headers: {} }))
     })
-    expect(calls).toHaveLength(23)
+    expect(calls).toHaveLength(24)
     for (const call of calls) {
       expect(call).toThrow(ForbiddenException)
       expect(call).toThrow('Application profile is required.')
@@ -150,6 +152,7 @@ describe('rules routes', () => {
       'listRules(user, a)',
       'createRule(user, a)',
       'dryRun(user, a)',
+      'dryRunCurrent(user, a, b)',
       'getRule(user, a)',
       'draftRule(user, a, b)',
       'activateRule(user, a, b)',

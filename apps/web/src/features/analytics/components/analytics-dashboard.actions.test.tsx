@@ -16,12 +16,7 @@ import {
   toastSuccess,
 } from '@/test/fixtures/analytics-dashboard-fixtures'
 
-const participationGrants = [
-  'analytics.descriptive.read',
-  'journeys.read',
-  'beneficiaries.records.read',
-  'assessments.detail.read',
-]
+const participationGrants = ['analytics.descriptive.read', 'beneficiaries.aggregates.read']
 const pinsKey = 'pathways.dashboardPins.v1.user-1'
 const pins = () => JSON.parse(window.localStorage.getItem(pinsKey) ?? '[]')
 const addButton = () =>
@@ -234,7 +229,7 @@ describe('Analytics dashboard actions: rules link, Add to Dashboard and export',
     })
 
     it.each([
-      ['participation', 'journeys.read'],
+      ['participation', 'beneficiaries.aggregates.read'],
       ['timeline', 'analytics.descriptive.read'],
     ])('hides the %s pin once the role loses %s', async (view, lost) => {
       grant(...participationGrants)
