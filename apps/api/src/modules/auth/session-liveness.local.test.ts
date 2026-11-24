@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { Public } from '../../common/decorators/public.decorator'
 import { PrismaService } from '../../prisma/prisma.service'
+import { AppSessionsService } from './app-sessions.service'
 import { DEVELOPER_AUTH_UUID, DEVELOPER_SUPABASE_URL } from './developer-bootstrap-identity'
 import { SupabaseAuthGuard } from './guards/supabase-auth.guard'
 import { SessionLivenessService } from './session-liveness.service'
@@ -118,6 +119,7 @@ describe.skipIf(!enabled)(
         providers: [
           { provide: PrismaService, useValue: runtime },
           SessionLivenessService,
+          AppSessionsService,
           TokenAuthService,
           { provide: WorkspaceResolutionService, useValue: workspaces },
           { provide: APP_GUARD, useClass: SupabaseAuthGuard },

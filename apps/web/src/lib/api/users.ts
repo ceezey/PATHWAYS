@@ -61,4 +61,12 @@ export const usersClient = {
       })) as AuthorizedUserResponse,
     )
   },
+
+  // System Administrators only: signs the user out of every device.
+  async endUserSessions(id: string): Promise<{ sessionsEnded: number }> {
+    const result = (await requestFoundation(`/users/${encodeURIComponent(id)}/sessions/end`, {
+      method: 'POST',
+    })) as { sessionsEnded?: unknown }
+    return { sessionsEnded: Number(result?.sessionsEnded ?? 0) }
+  },
 }

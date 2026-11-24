@@ -20,6 +20,15 @@ import {
 // Fixed operational categories only. Never serialize error messages, metadata,
 // nested causes or arbitrary provider codes into a diagnostic event.
 const diagnosticCodes = new Set(['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2028', 'P2010'])
+/** The 401 for a session that was revoked, idle, expired or pushed out by the limit; the browser signs out on its code. */
+export const sessionEnded = () =>
+  new UnauthorizedException({
+    statusCode: 401,
+    error: 'Unauthorized',
+    code: 'SESSION_ENDED',
+    message: 'Invalid or expired authentication. Sign in again.',
+  })
+
 type VerificationStage =
   | 'TRANSACTION_START'
   | 'READ_ONLY_SETUP'
@@ -66,7 +75,8 @@ export class SessionLivenessService {
           `
           stage = 'SESSION_READ'
           const result = await transaction.$queryRaw<Array<{ live: boolean }>>`
-            SELECT pathways.runtime_auth_session_live(${subject}::uuid, ${sessionId}::uuid) AS live
+            SELECT pathways.runtime_auth_session_live(${subject}::uuid, ${sessionId}::uuid)
+              AND pathways.app_session_current(${subject}::uuid, ${sessionId}::uuid) AS live
           `
           stage = 'TRANSACTION_COMPLETION'
           budget?.check()
@@ -103,8 +113,6 @@ export class SessionLivenessService {
       })
       throw new ServiceUnavailableException('Session verification is temporarily unavailable.')
     }
-    if (!rows[0].live) {
-      throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
-    }
+    if (!rows[0].live) throw sessionEnded()
   }
 }

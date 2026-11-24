@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 
+import { AppSessionsService } from './app-sessions.service'
 import { ApplicationProfileService } from './application-profile.service'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
@@ -20,6 +21,7 @@ import { WorkspaceResolutionService } from './workspace-resolution.service'
   controllers: [AuthController, AuthorizedDataController, RouteAccessController],
   providers: [
     AuthService,
+    AppSessionsService,
     ApplicationProfileService,
     TokenAuthService,
     SessionLivenessService,
@@ -34,6 +36,7 @@ import { WorkspaceResolutionService } from './workspace-resolution.service'
   ],
   exports: [
     AuthService,
+    AppSessionsService,
     ApplicationProfileService,
     TokenAuthService,
     WorkspaceResolutionService,

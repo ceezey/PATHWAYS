@@ -34,7 +34,8 @@ describe('SessionLivenessService database boundary', () => {
     const [query, ...values] = transaction.$queryRaw.mock.calls[1]
     expect(query.join('')).not.toContain(subject)
     expect(query.join('')).not.toContain(sessionId)
-    expect(values).toEqual([subject, sessionId])
+    expect(query.join('')).toContain('pathways.app_session_current(')
+    expect(values).toEqual([subject, sessionId, subject, sessionId])
     expect(prisma.$transaction.mock.calls[0][1]).toEqual({
       isolationLevel: 'ReadCommitted',
       maxWait: 5_000,

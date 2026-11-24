@@ -1000,7 +1000,7 @@ describe('workspace ownership during asynchronous token acquisition', () => {
 
 describe('Beneficiary step-up denial', () => {
   const authUserId = '73900000-0000-4000-8000-000000000001'
-  const setup = (body: unknown) => {
+  const setup = (body: unknown, status = 403) => {
     const dispatchEvent = vi.fn()
     vi.stubGlobal('window', { dispatchEvent })
     vi.stubGlobal('document', {
@@ -1018,7 +1018,7 @@ describe('Beneficiary step-up denial', () => {
     })
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 403 })),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status })),
     )
     return dispatchEvent
   }
@@ -1034,6 +1034,37 @@ describe('Beneficiary step-up denial', () => {
     expect(events).toEqual([
       'pathways:authorization-denied',
       'pathways:beneficiary-step-up-required',
+    ])
+  })
+
+  it('announces a SESSION_ENDED 401 so the browser signs out', async () => {
+    const dispatchEvent = setup(
+      { statusCode: 401, code: 'SESSION_ENDED', message: 'Sign in again.' },
+      401,
+    )
+    const error = await requestFoundationResponse('/projects').catch((e) => e)
+    expect(error).toMatchObject({ code: 'unauthorized', status: 401 })
+    expect(dispatchEvent.mock.calls.map(([event]) => event.type)).toEqual([
+      'pathways:session-ended',
+      'pathways:authorization-denied',
+    ])
+  })
+
+  it('does not sign out on a 401 without the SESSION_ENDED code', async () => {
+    const dispatchEvent = setup({ statusCode: 401, message: 'A bearer token is required.' }, 401)
+    await requestFoundationResponse('/projects').catch(() => undefined)
+    expect(dispatchEvent.mock.calls.map(([event]) => event.type)).toEqual([
+      'pathways:authorization-denied',
+    ])
+  })
+
+  it('treats a session heartbeat as no data write, so cached reads are kept', async () => {
+    const dispatchEvent = setup({}, 200)
+    await requestFoundationResponse('/auth/sessions/activity', { method: 'POST' })
+    expect(dispatchEvent).not.toHaveBeenCalled()
+    await requestFoundationResponse('/auth/sessions/end-others', { method: 'POST' })
+    expect(dispatchEvent.mock.calls.map(([event]) => event.type)).toEqual([
+      'pathways:write-committed',
     ])
   })
 
