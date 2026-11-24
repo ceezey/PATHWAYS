@@ -197,6 +197,18 @@ describe('owned human decision flow', () => {
       clientOperationId: expect.any(String),
     })
   })
+  it('says outcome notes reach only outcome recorders and other notes stay private', () => {
+    const view = render(<HumanReviewAction {...props} />)
+    expect(
+      screen.getByText('Outcome notes are shown only to people who can record outcomes.'),
+    ).toBeTruthy()
+    view.rerender(<HumanReviewAction {...props} mode="review" />)
+    expect(
+      screen.getByText(
+        'Notes are stored privately and are not shown in alert or recommendation history.',
+      ),
+    ).toBeTruthy()
+  })
   it('retries an uncertain confirmation with the identical operation identifier and preview', async () => {
     state.confirm.mockRejectedValueOnce(new Error('lost response'))
     render(<HumanReviewAction {...props} />)

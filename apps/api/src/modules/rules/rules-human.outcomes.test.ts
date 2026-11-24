@@ -149,6 +149,34 @@ describe('drain after activation', () => {
   })
 })
 
+describe('alert history outcome detail', () => {
+  const entry = {
+    id,
+    occurredAt: '2026-11-24T12:06:00.000Z',
+    actorKind: 'HUMAN',
+    kind: 'OUTCOME',
+    lifecycle: null,
+    outcome: 'ACCEPT',
+    ruleVersion: 1,
+    explanation: 'A management outcome was recorded.',
+    result: null,
+    evidence: [],
+    decision: { note: 'Synthetic reschedule note', actorName: 'Synthetic Officer' },
+  }
+
+  it('passes the SQL-checked decision detail through and refuses loose note fields', async () => {
+    const page = { items: [entry], nextCursor: null }
+    await expect(setup(page).service.alertHistory(identity, id, {})).resolves.toEqual(page)
+    await expect(
+      setup({ items: [{ ...entry, note: 'leak' }], nextCursor: null }).service.alertHistory(
+        identity,
+        id,
+        {},
+      ),
+    ).rejects.toMatchObject({ status: 503 })
+  })
+})
+
 describe('recommendation latest outcome', () => {
   const recommendation = {
     id,
