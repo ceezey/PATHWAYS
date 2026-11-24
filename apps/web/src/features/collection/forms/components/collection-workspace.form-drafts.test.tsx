@@ -378,28 +378,27 @@ describe('collection saved forms list', () => {
     )
   })
 
-  it('reports the export and refuses a form of another project', async () => {
+  it('reports the export', async () => {
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn() })
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
     api.getDigitalForms.mockResolvedValue([published])
-    const view = renderFormsList()
+    renderFormsList()
     fireEvent.click(await screen.findByRole('button', { name: 'Export form' }))
     await waitFor(() =>
       expect(toasts.success).toHaveBeenCalledWith('Exported intake_live version 2 as CSV.'),
     )
-    view.unmount()
-    core.downloadCoreArtifact.mockClear()
-    api.getDigitalForms.mockResolvedValue([{ ...published, projectId: 'other-project' }])
-    renderFormsList()
-    fireEvent.click(await screen.findByRole('button', { name: 'Export form' }))
-    await act(async () => undefined)
-    expect(core.downloadCoreArtifact).not.toHaveBeenCalled()
   })
 
-  it('releases the screen after refusing the export of a form of another project', async () => {
+  it('exports a listed form of another project under that project', async () => {
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
     api.getDigitalForms.mockResolvedValue([{ ...published, projectId: 'other-project' }])
     renderFormsList()
     fireEvent.click(await screen.findByRole('button', { name: 'Export form' }))
+    await waitFor(() => expect(core.downloadCoreArtifact).toHaveBeenCalledOnce())
+    expect(core.downloadCoreArtifact.mock.calls[0][0]).toContain(
+      '/metadata/projects/other-project/',
+    )
     await act(async () => undefined)
     expect(screen.getByRole('button', { name: 'Export form' }).matches(':disabled')).toBe(false)
   })

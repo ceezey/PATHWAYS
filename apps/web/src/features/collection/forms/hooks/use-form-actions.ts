@@ -195,10 +195,7 @@ export function useFormActions(state: CollectionState, guard: CollectionGuard) {
       return
     }
     const ticket = beginOperation('forms.export')
-    if (!ticket || listed.projectId !== projectId) {
-      ticket?.finish()
-      return
-    }
+    if (!ticket) return
     try {
       // The server applies forms.export, project scope, artifact bounds and the audit row.
       const request = formDefinitionExportRequest(listed, format)
