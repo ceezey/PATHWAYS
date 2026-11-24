@@ -311,6 +311,12 @@ export function HumanReviewWorkspace({
                           {manilaTime(event.occurredAt)}
                         </p>
                         {event.outcome ? <p>{codeLabel(event.outcome)}</p> : null}
+                        {event.decision ? (
+                          <>
+                            <p>Recorded by {event.decision.actorName ?? 'a former team member'}</p>
+                            <p className="whitespace-pre-wrap">{event.decision.note}</p>
+                          </>
+                        ) : null}
                         <p className="text-sm">
                           Rule version {event.ruleVersion}
                           {event.result ? `; result ${codeLabel(event.result)}` : ''}

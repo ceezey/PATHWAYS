@@ -313,7 +313,9 @@ function HumanReviewActionForm({
             />
           </div>
           <p className="text-sm text-muted-foreground">
-            Notes are stored privately and are not shown in alert or recommendation history.
+            {mode === 'outcome'
+              ? 'Outcome notes are shown only to people who can record outcomes.'
+              : 'Notes are stored privately and are not shown in alert or recommendation history.'}
           </p>
           {kind === 'recommendation' && mode === 'outcome' && !canWriteAlert ? (
             <p className="text-sm">
