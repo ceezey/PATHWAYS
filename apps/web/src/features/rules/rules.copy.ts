@@ -83,6 +83,15 @@ const STATUS_LABELS: Record<string, string> = {
   DISMISSED: 'Dismissed',
   AUTO_RESOLVED: 'Auto-resolved',
 }
+// Plain-language outcome and badge tone for each rule test result.
+export const dryRunOutcome: Record<
+  'TRUE' | 'FALSE' | 'UNAVAILABLE',
+  { label: string; tone: 'warning' | 'success' | 'neutral' }
+> = {
+  TRUE: { label: 'Triggered', tone: 'warning' },
+  FALSE: { label: 'Not triggered', tone: 'success' },
+  UNAVAILABLE: { label: 'Unavailable', tone: 'neutral' },
+}
 /** Unknown statuses fall back to title case instead of failing. */
 export const statusLabel = (status: string) => STATUS_LABELS[status] ?? titleCase(status)
 const BASIS_LABELS: Record<string, string> = {

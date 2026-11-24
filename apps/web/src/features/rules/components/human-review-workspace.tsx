@@ -21,7 +21,7 @@ import { ArrowDownWideNarrow } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { basisLabel, statusLabel } from '../rules.copy'
-import { alertSeverityRank, codeLabel, manilaTime } from '../rules.utils'
+import { alertSeverityRank, codeLabel, manilaTime, titleCase } from '../rules.utils'
 import { AlertEvidence } from './alert-evidence'
 import { AlertSeverityBadge } from './alert-severity-badge'
 import { EvidenceTable } from './evidence-table'
@@ -207,6 +207,17 @@ export function HumanReviewWorkspace({
               <p className="whitespace-pre-wrap">{item.text}</p>
               <h3 className="font-semibold">Recommendation basis</h3>
               <p className="whitespace-pre-wrap">{basisLabel(item.basis)}</p>
+              {item.latestOutcome ? (
+                <section aria-label="Latest outcome" className="space-y-1">
+                  <h3 className="font-semibold">Latest outcome</h3>
+                  <p>
+                    {titleCase(item.latestOutcome.outcome)} by{' '}
+                    {item.latestOutcome.actorName ?? 'a former team member'} on{' '}
+                    {manilaTime(item.latestOutcome.recordedAt)}
+                  </p>
+                  <p className="whitespace-pre-wrap">{item.latestOutcome.note}</p>
+                </section>
+              ) : null}
               {principalHasAtomicPermission(profile, 'alerts.read') ? (
                 <LinkedAlertSummary alertId={item.alertId} projectId={item.projectId} />
               ) : null}

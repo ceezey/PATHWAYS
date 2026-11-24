@@ -33,7 +33,9 @@ import {
   timelineObservation,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
+import { dryRunOutcome } from '../rules.copy'
 import { conditionSentence, manualSeverity, selectClass, titleCase, unitOf } from '../rules.utils'
+import { RuleCurrentTest } from './rule-current-test'
 type IndicatorInput = {
   current: string
   baseline: string
@@ -69,13 +71,6 @@ const aggregateFields = [
 type AggregateKey = (typeof aggregateFields)[number][0]
 const collect = (node: RuleNode): RuleCondition[] =>
   node.kind === 'CONDITION' ? [node] : node.children.flatMap(collect)
-type DryResult = DryEvidence['result']
-// Plain-language outcome and badge tone for each dry-run result.
-const outcome: Record<DryResult, { label: string; tone: 'warning' | 'success' | 'neutral' }> = {
-  TRUE: { label: 'Triggered', tone: 'warning' },
-  FALSE: { label: 'Not triggered', tone: 'success' },
-  UNAVAILABLE: { label: 'Unavailable', tone: 'neutral' },
-}
 // Conditions are named by their position in the rule instead of their internal ID.
 const conditionNames = (conditions: RuleCondition[], ids: string[]) =>
   ids.map((id) => `Condition ${conditions.findIndex((item) => item.id === id) + 1}`).join(', ')
@@ -339,10 +334,12 @@ function RuleTestForm({
       <div className="space-y-1">
         <h3 className="font-semibold text-foreground">Test conditions</h3>
         <p className="text-sm text-muted-foreground">
-          Enter test values below. This test does not fetch project measurements or create alerts,
-          notifications, or decisions.
+          {rule.projectId
+            ? 'Test on current project data, or enter test values below. Neither test creates alerts, notifications, or decisions.'
+            : 'Enter test values below. This test does not fetch project measurements or create alerts, notifications, or decisions.'}
         </p>
       </div>
+      {rule.projectId ? <RuleCurrentTest rule={rule} isCurrent={current} /> : null}
       <ol className="space-y-1 text-sm">
         {conditions.map((condition, index) => (
           <li key={condition.id}>
@@ -618,8 +615,8 @@ function RuleTestForm({
         <div className="space-y-3 rounded-xl border border-border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="font-semibold text-foreground">Test result</h4>
-            <StatusBadge tone={outcome[result.result].tone}>
-              {outcome[result.result].label}
+            <StatusBadge tone={dryRunOutcome[result.result].tone}>
+              {dryRunOutcome[result.result].label}
             </StatusBadge>
           </div>
           <TestEvidence conditions={conditions} evidence={result.evidence} />
@@ -656,8 +653,8 @@ function TestEvidence({
         {evidence.children.length > 1 ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             {evidence.mode === 'AND' ? 'All conditions must match' : 'Any condition can match'}
-            <StatusBadge tone={outcome[evidence.result].tone}>
-              {outcome[evidence.result].label}
+            <StatusBadge tone={dryRunOutcome[evidence.result].tone}>
+              {dryRunOutcome[evidence.result].label}
             </StatusBadge>
           </p>
         ) : null}
@@ -691,8 +688,8 @@ function TestEvidence({
           Observed: <span className="font-semibold tabular-nums">{observed}</span>
         </p>
       </div>
-      <StatusBadge tone={outcome[evidence.result].tone}>
-        {outcome[evidence.result].label}
+      <StatusBadge tone={dryRunOutcome[evidence.result].tone}>
+        {dryRunOutcome[evidence.result].label}
       </StatusBadge>
     </div>
   )

@@ -94,6 +94,7 @@ const record: HumanRecommendation = {
   revision: '7',
   proposedAt: '2026-09-27T01:00:00Z',
   reviewedAt: null,
+  latestOutcome: null,
 }
 const linked: HumanAlert = {
   id: record.alertId,

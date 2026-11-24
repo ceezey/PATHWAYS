@@ -86,6 +86,7 @@ const recommendation = {
   revision: '2',
   proposedAt: '2026-09-27T00:00:00Z',
   reviewedAt: null,
+  latestOutcome: null,
 }
 const renderWorkspace = (kind: 'alert' | 'recommendation') =>
   render(
