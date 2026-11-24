@@ -2,7 +2,12 @@ import { type DynamicModule, Module } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { type MachineConfig, RulesMachineBoundary } from './rules-machine-boundary'
 import { type RulesDatabaseOptions, RulesMachineSqlClient } from './rules-machine-sql'
-import { RULES_MACHINE_SQL, RulesMachineWorker } from './rules-machine-worker'
+import {
+  RULES_ACTIVATION_DRAIN,
+  RULES_MACHINE_SQL,
+  RulesMachineWorker,
+  inProcessDrainInvocation,
+} from './rules-machine-worker'
 import { RulesMachineController } from './rules-machine.controller'
 
 export type RulesMachineOptions = MachineConfig & RulesDatabaseOptions
@@ -15,6 +20,8 @@ export class RulesMachineModule {
     const fixed = Object.freeze({ ...options })
     return {
       module: RulesMachineModule,
+      // Global so the rules API can drain once after an activation without importing the machine controller.
+      global: true,
       controllers: [RulesMachineController],
       providers: [
         RulesMachineWorker,
@@ -28,6 +35,13 @@ export class RulesMachineModule {
                     throw new Error('Rule processing is unavailable.')
                   },
                 },
+        },
+        {
+          // 17 s leaves the first claim its 15 s floor and stops after one or two projects.
+          provide: RULES_ACTIVATION_DRAIN,
+          inject: [RulesMachineWorker],
+          useFactory: (worker: RulesMachineWorker) =>
+            fixed.enabled ? () => worker.drain(inProcessDrainInvocation(17_000)) : null,
         },
         {
           provide: RulesMachineBoundary,
@@ -47,7 +61,7 @@ export class RulesMachineModule {
             ]),
         },
       ],
-      exports: [RulesMachineBoundary],
+      exports: [RulesMachineBoundary, RULES_ACTIVATION_DRAIN],
     }
   }
 }

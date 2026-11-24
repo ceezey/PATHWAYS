@@ -141,8 +141,8 @@ export const historyListSchema = z
   .object({ cursor: z.string().max(512).optional(), limit })
   .strict()
 
-// Every output is an explicit allowlist. Notes and note-presence metadata are
-// excluded even for Admin and committed retries, matching the approved CR.
+// Every output is an explicit allowlist. Notes and note-presence metadata are excluded, except that a
+// recommendation's latest outcome note is shown to callers holding recommendations.outcome.record (CR amendment 2026-11-24).
 const instant = z.string().datetime({ offset: true })
 // Stored rules and alerts may still hold the levels authors chose before severity-guide-v0.2.
 const storedSeverity = z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).nullable()
@@ -278,6 +278,16 @@ export const recommendationOutputSchema = z
     revision: revisionSchema,
     proposedAt: instant,
     reviewedAt: instant.nullable(),
+    // Null when no outcome is recorded or the caller may not record recommendation outcomes.
+    latestOutcome: z
+      .object({
+        outcome: z.enum(decisionOutcomes),
+        note: z.string().min(1).max(2000),
+        actorName: z.string().min(1).max(500).nullable(),
+        recordedAt: instant,
+      })
+      .strict()
+      .nullable(),
   })
   .strict()
 export const previewOutputSchema = z
@@ -460,3 +470,19 @@ export const dryRunOutputSchema = z
     (output) => output.result === 'TRUE' || output.severityBasis === null,
     'Only a matched test result has a severity basis.',
   )
+// A server dry run on the project's current timeline and activity data, in the alert evidence shape.
+export const currentDryRunOutputSchema = z
+  .object({
+    ruleId: uuidSchema,
+    asOf: instant,
+    reportingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    result: dryResult,
+    conditions: z.array(alertEvidenceSchema).min(1).max(MAX_CONDITIONS),
+    severityBasis: severityBasisSchema.nullable(),
+  })
+  .strict()
+  .refine(
+    (output) => output.result === 'TRUE' || output.severityBasis === null,
+    'Only a matched test result has a severity basis.',
+  )
+export type CurrentDryRun = z.infer<typeof currentDryRunOutputSchema>

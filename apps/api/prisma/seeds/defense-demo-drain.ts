@@ -1,29 +1,14 @@
 import { createInterface } from 'node:readline/promises'
 import type { PrismaClient } from '@prisma/client'
-import type { MachineInvocation } from '../../src/modules/rules/rules-machine-boundary'
 import { RulesMachineSqlClient } from '../../src/modules/rules/rules-machine-sql'
-import { RulesMachineWorker } from '../../src/modules/rules/rules-machine-worker'
+import {
+  RulesMachineWorker,
+  inProcessDrainInvocation,
+} from '../../src/modules/rules/rules-machine-worker'
 
 const POLL_MS = 15_000
 const TIMEOUT_MS = 15 * 60_000
 const command = 'gh workflow run rules-dispatch.yml -f purpose=drain'
-
-function invocation(budgetMs = 24_000): MachineInvocation {
-  const enteredAt = performance.now()
-  const deadlineAt = enteredAt + budgetMs
-  const remainingMs = () => Math.max(0, Math.floor(deadlineAt - performance.now()))
-  return {
-    purpose: 'DRAIN',
-    origin: 'SYSTEM',
-    actorId: null,
-    enteredAt,
-    deadlineAt,
-    remainingMs,
-    assertRemaining: () => {
-      if (remainingMs() <= 0) throw new Error('Rule processing budget exhausted.')
-    },
-  }
-}
 
 /** Drains rules in this process through the machine roles named by the two RULES_* URLs. */
 export function localWorkerDrain(env: NodeJS.ProcessEnv) {
@@ -34,7 +19,7 @@ export function localWorkerDrain(env: NodeJS.ProcessEnv) {
     new RulesMachineSqlClient({ workerDatabaseUrl, sweeperDatabaseUrl }),
   )
   return async () => {
-    for (let round = 0; round < 4; round += 1) await worker.drain(invocation())
+    for (let round = 0; round < 4; round += 1) await worker.drain(inProcessDrainInvocation(24_000))
   }
 }
 
