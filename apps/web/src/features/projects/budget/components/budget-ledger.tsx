@@ -231,7 +231,15 @@ export const BudgetLedger = ({
                         <div>
                           <dt className="text-muted-foreground">Activity allocated</dt>
                           <dd className="font-medium tabular-nums">
-                            {activityRow ? formatCurrency(activityRow.allocated) : 'Not recorded'}
+                            {!activityRow ? (
+                              'Not recorded'
+                            ) : activityRow.allocated < 0 ? (
+                              <span className="whitespace-nowrap text-danger">
+                                Over-allocated by {formatCurrency(-activityRow.allocated)}
+                              </span>
+                            ) : (
+                              formatCurrency(activityRow.allocated)
+                            )}
                           </dd>
                         </div>
                         <div>
@@ -264,7 +272,12 @@ export const BudgetLedger = ({
                           <dt className="text-muted-foreground">Remaining</dt>
                           <dd className="font-medium tabular-nums">
                             {activityRow
-                              ? formatCurrency(remaining(activityRow.allocated, activityRow.used))
+                              ? // An over-allocated project-level row has nothing left to spend.
+                                formatCurrency(
+                                  activityRow.allocated < 0
+                                    ? 0
+                                    : remaining(activityRow.allocated, activityRow.used),
+                                )
                               : 'Not recorded'}
                           </dd>
                         </div>
