@@ -6,10 +6,21 @@ import type { ExecutionContext } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { describe, expect, it, vi } from 'vitest'
 import { RulesMachineBoundary, requireMachineInvocation } from './rules-machine-boundary'
-import { RULES_MACHINE_SQL } from './rules-machine-worker'
+import { RULES_ACTIVATION_DRAIN, RULES_MACHINE_SQL } from './rules-machine-worker'
 import type { RulesMachineWorker } from './rules-machine-worker'
 import { RulesMachineController } from './rules-machine.controller'
 import { RulesMachineModule } from './rules-machine.module'
+
+// The activation drain factory of a registered module, called with a stand-in worker.
+function drainFactory(module: ReturnType<typeof RulesMachineModule.register>) {
+  const provider = module.providers?.find(
+    (value) =>
+      typeof value === 'object' && 'provide' in value && value.provide === RULES_ACTIVATION_DRAIN,
+  )
+  if (!provider || typeof provider !== 'object' || !('useFactory' in provider))
+    throw Error('Expected activation drain provider')
+  return provider.useFactory as (worker: { drain: (invocation: unknown) => unknown }) => unknown
+}
 
 function fixture(purpose: 'drain' | 'sweep') {
   const request = Object.assign(new EventEmitter(), {
@@ -94,7 +105,8 @@ describe('exact machine controller/module bindings', () => {
       sweeperDatabaseUrl: '',
     })
     expect(module.controllers).toEqual([RulesMachineController])
-    expect(module.exports).toEqual([RulesMachineBoundary])
+    expect(module.exports).toEqual([RulesMachineBoundary, RULES_ACTIVATION_DRAIN])
+    expect(drainFactory(module)({ drain: vi.fn() })).toBeNull()
     const provider = module.providers?.find(
       (value) =>
         typeof value === 'object' && 'provide' in value && value.provide === RULES_MACHINE_SQL,
@@ -110,5 +122,22 @@ describe('exact machine controller/module bindings', () => {
     await expect(sql.calendar()).rejects.toThrow('Rule processing is unavailable.')
     // Empty URLs would synchronously fail SQL client construction, proving the
     // disabled factory did not construct/open either dedicated client.
+  })
+  it('module enabled options drain once with a server-owned DRAIN budget under the request cap', async () => {
+    const module = RulesMachineModule.register({
+      enabled: true,
+      drainToken: 'a'.repeat(64),
+      sweepToken: 'b'.repeat(64),
+      workerDatabaseUrl: 'postgresql://worker@127.0.0.1:1/x',
+      sweeperDatabaseUrl: 'postgresql://sweeper@127.0.0.1:1/x',
+    })
+    expect(module.global).toBe(true)
+    const worker = { drain: vi.fn().mockResolvedValue({ state: 'ACKNOWLEDGED' }) }
+    const drain = drainFactory(module)(worker) as () => Promise<unknown>
+    await drain()
+    const invocation = worker.drain.mock.calls[0][0]
+    expect(invocation).toMatchObject({ purpose: 'DRAIN', origin: 'SYSTEM', actorId: null })
+    expect(invocation.remainingMs()).toBeGreaterThan(15_000)
+    expect(invocation.remainingMs()).toBeLessThanOrEqual(17_000)
   })
 })

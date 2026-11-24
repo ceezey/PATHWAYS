@@ -9,6 +9,7 @@ import {
   confirmOutcomeSchema,
   confirmationOutputSchema,
   createRuleSchema,
+  currentDryRunOutputSchema,
   dispositionSchema,
   draftRuleSchema,
   dryRunInputSchema,
@@ -80,6 +81,14 @@ const post = <I extends z.ZodTypeAny, O extends z.ZodTypeAny>(
 export const rulesHumanClient = {
   dryRun: (body: z.input<typeof dryRunInputSchema>, signal?: AbortSignal) =>
     post('/rules/dry-run', dryRunInputSchema, dryRunOutputSchema, body, signal),
+  dryRunCurrent: (id: string, signal?: AbortSignal) =>
+    post(
+      `${idPath('rules', id)}/dry-run-current`,
+      emptyBodySchema,
+      currentDryRunOutputSchema,
+      {},
+      signal,
+    ),
   listAlerts: (input: z.input<typeof alertListSchema> = {}, signal?: AbortSignal) =>
     read(`/alerts${query(alertListSchema, input)}`, pageSchema(alertOutputSchema), { signal }),
   getAlert: (id: string, signal?: AbortSignal) =>

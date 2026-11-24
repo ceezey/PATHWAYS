@@ -5,6 +5,8 @@ import { machineAcknowledgement } from './rules-machine-acknowledgement'
 import type { MachineInvocation } from './rules-machine-boundary'
 
 export const RULES_MACHINE_SQL = Symbol('RULES_MACHINE_SQL')
+export const RULES_ACTIVATION_DRAIN = Symbol('RULES_ACTIVATION_DRAIN')
+export type RulesActivationDrain = () => Promise<unknown>
 export type Lease = Readonly<{ jobId: string; leaseNonce: string; leaseExpiresAt: string }>
 export type Snapshot = Readonly<{
   snapshotId: string
@@ -121,5 +123,23 @@ export class RulesMachineWorker {
     } catch (error) {
       throw fault('SWEEP', error)
     }
+  }
+}
+
+/** A server-owned DRAIN budget for in-process drains; the HTTP boundary never builds one. */
+export function inProcessDrainInvocation(budgetMs: number): MachineInvocation {
+  const enteredAt = performance.now()
+  const deadlineAt = enteredAt + budgetMs
+  const remainingMs = () => Math.max(0, Math.floor(deadlineAt - performance.now()))
+  return {
+    purpose: 'DRAIN',
+    origin: 'SYSTEM',
+    actorId: null,
+    enteredAt,
+    deadlineAt,
+    remainingMs,
+    assertRemaining: () => {
+      if (remainingMs() <= 0) throw new Error('Rule processing budget exhausted.')
+    },
   }
 }

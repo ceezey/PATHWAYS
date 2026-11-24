@@ -5,11 +5,14 @@ import { comparisonCopy } from '../rules.copy'
 import { codeLabel, formatMetricValue, metricLabel } from '../rules.utils'
 import { ObservedValue } from './observed-value'
 
-export function EvidenceTable({ evidence }: { evidence: HumanAlert['evidence'] }) {
+export function EvidenceTable({
+  evidence,
+  caption = 'Recorded evaluation evidence',
+}: { evidence: HumanAlert['evidence']; caption?: string }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
-        <caption className="mb-2 text-left font-semibold">Recorded evaluation evidence</caption>
+        <caption className="mb-2 text-left font-semibold">{caption}</caption>
         <thead>
           <tr>
             <th className="p-2" scope="col">
