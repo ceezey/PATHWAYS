@@ -31,6 +31,7 @@ import type {
   JourneyStageConfig,
 } from '@/types/pathways'
 
+import { notifyAllocation } from '../../budget/allocation-notice'
 import { type ActivityFormSchema, createActivityFormSchema } from '../activity-form.utils'
 import { useActivityFormDraft } from '../hooks/use-activity-form-draft'
 import { ActivityFormFields } from './activity-form-fields'
@@ -297,6 +298,13 @@ const ActivityFormDialogContent = ({
       toast.success(activity ? 'Activity updated.' : 'Activity created.', {
         description: `${savedActivity.title} is available with its saved targets, budget, assignments, and optional links.`,
       })
+      // Only a new or changed allocation earns a notice, and only for readers of the budget.
+      if (
+        input.budgetAllocation !== undefined &&
+        Number(input.budgetAllocation) !== activity?.budgetAllocation &&
+        principalHasAtomicPermission(profile, 'budgets.read')
+      )
+        void notifyAllocation(projectId, Number(input.budgetAllocation))
       removeSensitiveDraft(draftStorageKey)
       onCreatedOrUpdated(savedActivity)
       onOpenChange(false)

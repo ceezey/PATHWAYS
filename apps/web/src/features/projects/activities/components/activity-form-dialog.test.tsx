@@ -20,6 +20,7 @@ const managerPermissions = vi.hoisted(() => [
 const state = vi.hoisted(() => ({
   createActivity: vi.fn(),
   transitionActivity: vi.fn(),
+  budgets: vi.fn(),
   onSaved: vi.fn(),
   profile: {
     userId: 'actor-a',
@@ -30,7 +31,10 @@ const state = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() },
+}))
+vi.mock('@/lib/api/finance', () => ({ financeClient: { budgets: state.budgets } }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
     role: state.profile.roles[0] === 'PROJECT_OFFICER' ? 'Project Officer' : 'Project Manager',
@@ -44,6 +48,8 @@ vi.mock('@/lib/api/activities', () => ({
     transitionActivity: state.transitionActivity,
   },
 }))
+
+import { toast } from 'sonner'
 
 import { ActivityFormDialog } from './activity-form-dialog'
 
@@ -82,6 +88,8 @@ const savedActivity = {
 
 describe('ActivityFormDialog activation', () => {
   beforeEach(() => {
+    vi.mocked(toast.warning).mockClear()
+    state.budgets.mockReset().mockResolvedValue([])
     state.createActivity.mockReset().mockResolvedValue(savedActivity)
     state.onSaved.mockReset()
     state.transitionActivity
@@ -154,6 +162,58 @@ describe('ActivityFormDialog activation', () => {
     )
     expect(state.createActivity.mock.calls[0][1].isCurrent()).toBe(true)
     expect(state.onSaved).toHaveBeenCalledWith(savedActivity)
+  })
+
+  const createWithBudget = async () => {
+    render(
+      <ActivityFormDialog
+        activity={null}
+        indicators={[]}
+        journeyStages={[]}
+        onCreatedOrUpdated={state.onSaved}
+        onOpenChange={vi.fn()}
+        open
+        projectId={projectId}
+        officers={[officer]}
+      />,
+    )
+    fireEvent.change(screen.getByLabelText(/Activity title/), {
+      target: { value: savedActivity.title },
+    })
+    fireEvent.change(screen.getByLabelText(/Description/), {
+      target: { value: savedActivity.description },
+    })
+    fireEvent.change(screen.getByLabelText(/Start date/), {
+      target: { value: savedActivity.startDate },
+    })
+    fireEvent.change(screen.getByLabelText(/Due date/), {
+      target: { value: savedActivity.dueDate },
+    })
+    fireEvent.change(screen.getByLabelText('Activity budget'), { target: { value: '10000' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Project Officer A/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create Activity' }))
+    await waitFor(() => expect(state.onSaved).toHaveBeenCalledWith(savedActivity))
+  }
+
+  it('toasts the allocation notice after saving an activity budget', async () => {
+    state.budgets.mockResolvedValue([
+      { category: 'PROJECT_PROFILE_TOTAL', plannedBudget: '12000.00' },
+      { category: 'ACTIVITY_PROFILE_TOTAL', plannedBudget: '10000.00' },
+    ])
+    await createWithBudget()
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith('Allocated ₱10,000.00 of ₱12,000.00 (83%)', {
+        description: 'This allocation is ₱10,000.00. The project is close to its planned budget.',
+      }),
+    )
+    expect(state.budgets).toHaveBeenCalledWith(projectId)
+  })
+
+  it('shows no allocation notice to a budget editor without budgets.read', async () => {
+    state.profile.permissions = managerPermissions.filter((p) => p !== 'budgets.read')
+    await createWithBudget()
+    expect(state.budgets).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 })
 
