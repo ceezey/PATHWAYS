@@ -229,7 +229,16 @@ export const BudgetOverview = ({
                   <tr className="h-14 border-t border-border" key={row.key}>
                     <td className="pr-3">{row.code}</td>
                     <td className="pr-3 font-medium text-foreground">{row.title}</td>
-                    <td className="pr-3 text-right">{formatCurrency(row.allocated)}</td>
+                    {/* Only the project-level remainder goes negative, when allocations pass the planned total. */}
+                    <td className="pr-3 text-right">
+                      {row.allocated < 0 ? (
+                        <span className="whitespace-nowrap font-medium text-danger">
+                          Over-allocated by {formatCurrency(-row.allocated)}
+                        </span>
+                      ) : (
+                        formatCurrency(row.allocated)
+                      )}
+                    </td>
                     <td className="pr-3 text-right">{formatCurrency(row.used)}</td>
                     <td className="pr-3 text-right text-muted-foreground">
                       {formatCurrency(row.pending)}

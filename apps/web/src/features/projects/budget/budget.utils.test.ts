@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type ExpenseRow,
   activityBudgetFigures,
+  allocationNotice,
   buildActivityRows,
   deriveAlerts,
   deriveRecommendations,
@@ -160,6 +161,52 @@ describe('budget math', () => {
       })
       expect(sum(rows, 'allocated')).toBe(5000)
     })
+  })
+})
+
+describe('allocationNotice', () => {
+  const planned = { category: 'PROJECT_PROFILE_TOTAL', plannedBudget: '1000.00' }
+  const line = (plannedBudget: string) => ({ category: 'ACTIVITY_PROFILE_TOTAL', plannedBudget })
+  const noticeAt = (allocated: string) => allocationNotice([planned, line(allocated)], 60)
+
+  it('stays info below 80% of the planned total', () => {
+    expect(noticeAt('799.00')).toEqual({
+      tone: 'info',
+      title: 'Allocated ₱799.00 of ₱1,000.00 (79%)',
+      description: 'This allocation is ₱60.00. The project is within its planned budget.',
+    })
+  })
+
+  it('warns from 80% and turns danger from 90%', () => {
+    expect(noticeAt('800.00')).toMatchObject({
+      tone: 'warning',
+      title: 'Allocated ₱800.00 of ₱1,000.00 (80%)',
+      description: 'This allocation is ₱60.00. The project is close to its planned budget.',
+    })
+    expect(noticeAt('899.99')?.tone).toBe('warning')
+    expect(noticeAt('900.00')).toMatchObject({
+      tone: 'danger',
+      title: expect.stringContaining('(90%)'),
+    })
+    expect(noticeAt('1000.00')).toMatchObject({
+      tone: 'danger',
+      description: 'This allocation is ₱60.00. The project is fully allocated.',
+    })
+  })
+
+  it('names the over-allocation above 100%', () => {
+    expect(allocationNotice([planned, line('900.00'), line('150.00')], 150)).toEqual({
+      tone: 'danger',
+      title: 'Allocated ₱1,050.00 of ₱1,000.00 (105%)',
+      description: 'This allocation is ₱150.00. The project is over-allocated by ₱50.00.',
+    })
+  })
+
+  it('shows nothing without a planned total', () => {
+    expect(allocationNotice([line('500.00')], 500)).toBeNull()
+    expect(
+      allocationNotice([{ ...planned, plannedBudget: '0.00' }, line('500.00')], 500),
+    ).toBeNull()
   })
 })
 
