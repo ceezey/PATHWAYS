@@ -24,6 +24,11 @@ import { formatLockRemaining, requestSignIn } from '../signin-request'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 const invalidCredentialsMessage = 'Could not sign in. Check your credentials and try again.'
+// Why the workspace sent the user here (session-timeout-guard.tsx).
+const endedNotices: Record<string, string> = {
+  idle: 'You were signed out after 30 minutes without activity.',
+  session: 'Your session ended. Sign in again.',
+}
 const authenticationUnavailableMessage =
   'Authentication is temporarily unavailable. No application access was granted.'
 
@@ -34,6 +39,7 @@ export const LoginForm = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [endedNotice, setEndedNotice] = useState('')
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -49,6 +55,13 @@ export const LoginForm = () => {
   useEffect(() => {
     if (status === 'authenticated') router.replace('/auth/mfa')
   }, [router, status])
+
+  // Read once after mount, so the page needs no search-params suspense boundary.
+  useEffect(() => {
+    setEndedNotice(
+      endedNotices[new URLSearchParams(window.location.search).get('ended') ?? ''] ?? '',
+    )
+  }, [])
 
   // Lockout is per identifier, so editing the email releases the local lock.
   useEffect(() => {
@@ -143,6 +156,9 @@ export const LoginForm = () => {
                 Too many failed sign-in attempts. Try again in {formatLockRemaining(remaining)}.
               </span>
             </p>
+          )}
+          {endedNotice && !error && (
+            <output className="block text-sm text-muted-foreground">{endedNotice}</output>
           )}
           {error && (
             <p

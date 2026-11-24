@@ -27,6 +27,7 @@ import {
   inspectionRequestBudget,
 } from '../../../common/network/inspection-request-budget'
 import type { VerifiedTransactionTiming } from '../../../prisma/prisma.service'
+import { AppSessionsService } from '../app-sessions'
 import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
 import { TokenAuthService, type VerifiedAuthSession } from '../token-auth.service'
 import { WorkspaceResolutionService } from '../workspace-resolution.service'
@@ -79,6 +80,7 @@ export class SupabaseAuthGuard implements CanActivate {
     @Inject(WorkspaceResolutionService) private readonly workspaces: WorkspaceResolutionService,
     @Inject(RulesMachineBoundary) private readonly machines: RulesMachineBoundary,
     @Inject(BeneficiaryStepUpService) private readonly stepUp: BeneficiaryStepUpService,
+    @Inject(AppSessionsService) private readonly sessions: AppSessionsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -115,6 +117,13 @@ export class SupabaseAuthGuard implements CanActivate {
     budget?.check()
     const verified = await this.tokens.verifyCurrent(header.slice(7), budget)
     budget?.check()
+    // Activity before the liveness read, so a session past its idle or 12-hour limit is marked ended, never refreshed.
+    const device = request.headers['user-agent']
+    await this.sessions.touch(
+      verified.identity.id,
+      verified.sessionId,
+      typeof device === 'string' ? device : undefined,
+    )
     const identity = verified.identity
     const boundary = this.reflector.getAllAndOverride<string>(AUTH_BOUNDARY_KEY, handlers)
     const assertSeparateSession = async () => {

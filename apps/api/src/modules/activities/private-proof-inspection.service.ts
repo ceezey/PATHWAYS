@@ -330,8 +330,8 @@ export class PrivateProofInspectionService {
         ORDER BY id LIMIT 11 FOR SHARE`
       const live = await tx.$queryRaw<
         Array<{ live: boolean }>
-      >`SELECT pathways.runtime_auth_session_live(
-        ${identity.id}::uuid, ${inspection.sessionId}::uuid) AS live`
+      >`SELECT pathways.runtime_auth_session_live(${identity.id}::uuid, ${inspection.sessionId}::uuid)
+        AND pathways.app_session_current(${identity.id}::uuid, ${inspection.sessionId}::uuid) AS live`
       if (live.length !== 1 || live[0]?.live !== true)
         throw new ForbiddenException('Private inspection is unavailable.')
       const fresh = await readApplicationProfile(

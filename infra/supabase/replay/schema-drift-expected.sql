@@ -236,6 +236,9 @@ DROP TABLE "auth"."sessions";
 DROP TABLE "auth"."users";
 
 -- DropTable
+DROP TABLE "pathways"."app_sessions";
+
+-- DropTable
 DROP TABLE "pathways"."signin_lockouts";
 
 -- DropTable

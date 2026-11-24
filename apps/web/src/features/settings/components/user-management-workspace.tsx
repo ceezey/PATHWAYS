@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { AsyncState, EmptyState, SectionCard } from '@/components/pathways'
+import { AsyncState, ConfirmationDialog, EmptyState, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -80,6 +80,7 @@ export const UserManagementWorkspace = ({
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('All')
   const [viewUserId, setViewUserId] = useState<string | null>(null)
+  const [endSessionsUserId, setEndSessionsUserId] = useState<string | null>(null)
   const [deactivateUserId, setDeactivateUserId] = useState<string | null>(null)
   const administrationSummary = actorRole
     ? getUserAdministrationSummary(actorRole)
@@ -91,6 +92,10 @@ export const UserManagementWorkspace = ({
   )
   const viewUser = users.find((user) => user.id === viewUserId)
   const deactivateUser = users.find((user) => user.id === deactivateUserId)
+  const endSessionsUser = users.find((user) => user.id === endSessionsUserId)
+  // The API allows only a System Administrator, and never for their own account.
+  const canEndSessions = (user: UserRecord | undefined) =>
+    actorRole === 'System Administrator' && Boolean(user) && user?.id !== profile?.userId
   const activeCount = users.filter((user) => user.accountStatus === 'Active').length
   const invitedCount = users.filter((user) => user.accountStatus === 'Invited').length
   const deactivatedCount = users.filter((user) => user.accountStatus === 'Deactivated').length
@@ -108,6 +113,18 @@ export const UserManagementWorkspace = ({
       toast.success('Account deactivated. Sign-in access revoked.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Deactivation failed.')
+    }
+  }
+  const endSessions = async () => {
+    if (!endSessionsUser) return
+    try {
+      const { sessionsEnded } = await usersClient.endUserSessions(endSessionsUser.id)
+      setEndSessionsUserId(null)
+      toast.success(
+        sessionsEnded === 1 ? 'Signed out of 1 device.' : `Signed out of ${sessionsEnded} devices.`,
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Sign-out failed.')
     }
   }
   const reactivate = async (user: UserRecord) => {
@@ -311,7 +328,26 @@ export const UserManagementWorkspace = ({
         projects={assignableProjects}
       />
 
-      <UserDetailDialog onClose={() => setViewUserId(null)} user={viewUser} />
+      <UserDetailDialog
+        onClose={() => setViewUserId(null)}
+        onEndSessions={
+          canEndSessions(viewUser)
+            ? () => {
+                setEndSessionsUserId(viewUserId)
+                setViewUserId(null)
+              }
+            : undefined
+        }
+        user={viewUser}
+      />
+      <ConfirmationDialog
+        confirmLabel="Sign out everywhere"
+        description={`${endSessionsUser?.name ?? 'This user'} will be signed out on every device right away. The account stays active.`}
+        onConfirm={() => void endSessions()}
+        onOpenChange={(open) => !open && setEndSessionsUserId(null)}
+        open={Boolean(endSessionsUser)}
+        title="Sign out everywhere?"
+      />
 
       <Dialog
         onOpenChange={(open) => {

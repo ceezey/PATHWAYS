@@ -1,6 +1,8 @@
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import {
+  SESSION_ENDED_CODE,
   announceAuthorizationDenied,
+  announceSessionEnded,
   announceWriteCommitted,
 } from '@/lib/api/core/authorized-read-events'
 import { ensureSourceInvalidationSubscription } from '@/lib/api/core/source-mutation'
@@ -93,6 +95,7 @@ export async function requestFoundationResponse(
     let reason: string | undefined
     if (
       response.status === 400 ||
+      response.status === 401 ||
       response.status === 403 ||
       response.status === 409 ||
       response.status === 422 ||
@@ -103,6 +106,7 @@ export async function requestFoundationResponse(
         errors?: unknown
         code?: unknown
       } | null
+      if (response.status === 401 && body?.code === SESSION_ENDED_CODE) announceSessionEnded()
       if (response.status === 403 && body?.code === STEP_UP_REQUIRED_CODE) {
         const stepUp = new PathwaysClientError(
           'Recent MFA verification is required for Beneficiary detail.',

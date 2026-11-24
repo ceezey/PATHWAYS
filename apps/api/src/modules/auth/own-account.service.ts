@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, NotFoundException } from '@nestjs/common'
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
-import type { ApplicationIdentity } from '../../common/authz/application-identity'
+import { endOwnSessions } from '../../common/authz/app-sessions'
+import { UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { PrismaService } from '../../prisma/prisma.service'
 import { evaluateBeneficiaryStepUp } from './beneficiary-step-up'
@@ -15,18 +16,72 @@ export class OwnAccountService {
     @Inject(PasswordRecoveryService) private readonly recovery: PasswordRecoveryService,
   ) {}
 
-  // Records the sign-out of the verified session; the browser then ends the Supabase session.
-  async recordSignOut(identity: ApplicationIdentity): Promise<void> {
-    await withAuthorizedOperation(this.prisma, identity, 'profile.manage', (tx, actor) =>
-      writeAuditLog(tx, actor, {
-        action: 'SIGNED_OUT',
-        entityType: 'Authentication',
-        entityId: actor.userId,
-      }),
+  // Records the sign-out and ends the verified session; the browser then ends the Supabase session.
+  async recordSignOut(actor: StepUpPinActor): Promise<void> {
+    await withAuthorizedOperation(
+      this.prisma,
+      actor.profile,
+      'profile.manage',
+      async (tx, profile) => {
+        await endOwnSessions(tx, actor.auth.id, { sessionId: actor.sessionId }, 'SIGNED_OUT')
+        await writeAuditLog(tx, profile, {
+          action: 'SIGNED_OUT',
+          entityType: 'Authentication',
+          entityId: profile.userId,
+        })
+      },
     )
   }
 
-  // Needs a fresh authenticator step; the audit row is written first so a refused Auth call rolls it back.
+  // Ends one of the caller's own sessions, for example on a lost phone.
+  async endSession(actor: StepUpPinActor, sessionId: string): Promise<void> {
+    if (!UUID_PATTERN.test(sessionId)) throw new NotFoundException('Session unavailable.')
+    await withAuthorizedOperation(
+      this.prisma,
+      actor.profile,
+      'profile.manage',
+      async (tx, profile) => {
+        const ended = await endOwnSessions(
+          tx,
+          actor.auth.id,
+          { sessionId: sessionId.toLowerCase() },
+          'USER',
+        )
+        if (!ended) throw new NotFoundException('Session unavailable.')
+        await writeAuditLog(tx, profile, {
+          action: 'SESSION_ENDED',
+          entityType: 'Authentication',
+          entityId: profile.userId,
+        })
+      },
+    )
+  }
+
+  // Ends every session of the caller except the one making this request.
+  async endOtherSessions(actor: StepUpPinActor): Promise<{ sessionsEnded: number }> {
+    return withAuthorizedOperation(
+      this.prisma,
+      actor.profile,
+      'profile.manage',
+      async (tx, profile) => {
+        const sessionsEnded = await endOwnSessions(
+          tx,
+          actor.auth.id,
+          { keepId: actor.sessionId },
+          'USER',
+        )
+        await writeAuditLog(tx, profile, {
+          action: 'OTHER_SESSIONS_ENDED',
+          entityType: 'Authentication',
+          entityId: profile.userId,
+          changes: { sessionsEnded },
+        })
+        return { sessionsEnded }
+      },
+    )
+  }
+
+  // Needs a fresh authenticator step; other sessions end and the audit row is written before the Auth call, so a refusal rolls both back.
   async changePassword(actor: StepUpPinActor, password: string): Promise<void> {
     if (!evaluateBeneficiaryStepUp(actor.auth.mfaVerifiedAt).fresh) throw totpRequired()
     await withAuthorizedOperation(
@@ -34,10 +89,17 @@ export class OwnAccountService {
       actor.profile,
       'profile.manage',
       async (tx, profile) => {
+        const sessionsEnded = await endOwnSessions(
+          tx,
+          actor.auth.id,
+          { keepId: actor.sessionId },
+          'PASSWORD_CHANGED',
+        )
         await writeAuditLog(tx, profile, {
           action: 'OWN_PASSWORD_CHANGED',
           entityType: 'Authentication',
           entityId: profile.userId,
+          changes: { sessionsEnded },
         })
         await this.recovery.setPassword(profile.id, password)
       },

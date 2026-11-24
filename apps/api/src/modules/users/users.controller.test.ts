@@ -13,7 +13,7 @@ import { UsersController } from './users.controller'
 import type { UsersService } from './users.service'
 
 const actor = { id: '75000000-0000-4000-8000-000000000001' } as ApplicationIdentity
-const users = { list: vi.fn(), authorizeExisting: vi.fn(), update: vi.fn() }
+const users = { list: vi.fn(), authorizeExisting: vi.fn(), update: vi.fn(), endSessions: vi.fn() }
 const controller = new UsersController(users as unknown as UsersService)
 const anonymous: AuthenticatedRequest = { headers: {} }
 const signedIn: AuthenticatedRequest = { headers: {}, user: actor }
@@ -39,6 +39,7 @@ describe('users controller application profile', () => {
       () => controller.list(anonymous),
       () => controller.authorizeExisting(anonymous, authorize),
       () => controller.update(anonymous, 'user-1', change),
+      () => controller.endSessions(anonymous, 'user-1'),
     ]) {
       expect(call).toThrow(ForbiddenException)
       expect(call).toThrow('Application profile is required.')
@@ -57,10 +58,10 @@ describe('users controller application profile', () => {
 })
 
 describe('users controller routes', () => {
-  it('registers three routes, each behind the users.authorize permission', () => {
+  it('registers four routes, each behind the users.authorize permission', () => {
     const prototype = UsersController.prototype as unknown as Record<string, () => void>
     const names = Object.getOwnPropertyNames(prototype).filter((name) => name !== 'constructor')
-    expect(names.sort()).toEqual(['authorizeExisting', 'list', 'update'])
+    expect(names.sort()).toEqual(['authorizeExisting', 'endSessions', 'list', 'update'])
     expect(Reflect.getMetadata(PATH_METADATA, UsersController)).toBe('users')
     expect(
       names.map((name) => [
@@ -71,6 +72,7 @@ describe('users controller routes', () => {
       ]),
     ).toEqual([
       ['authorizeExisting', 'POST', 'authorize-existing', 'users.authorize'],
+      ['endSessions', 'POST', ':userId/sessions/end', 'users.authorize'],
       ['list', 'GET', '/', 'users.authorize'],
       ['update', 'PATCH', ':userId', 'users.authorize'],
     ])

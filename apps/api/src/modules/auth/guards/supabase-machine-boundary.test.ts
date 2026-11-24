@@ -12,6 +12,7 @@ import { RulesMachineBoundary } from '../../rules/rules-machine-boundary'
 import { rulesMachineOptions } from '../../rules/rules-machine-options'
 import { RulesMachineController } from '../../rules/rules-machine.controller'
 import { RulesMachineModule } from '../../rules/rules-machine.module'
+import { AppSessionsService } from '../app-sessions'
 import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
 import { TokenAuthService } from '../token-auth.service'
 import { WorkspaceResolutionService } from '../workspace-resolution.service'
@@ -64,6 +65,7 @@ function fixture(enabled = true) {
     workspaces as unknown as WorkspaceResolutionService,
     boundary,
     { enforce: vi.fn() } as unknown as BeneficiaryStepUpService,
+    { touch: vi.fn() } as unknown as AppSessionsService,
   )
   return { tokens, workspaces, request, response, context, guard }
 }
@@ -77,6 +79,7 @@ describe('mandatory machine boundary before human/Public delegation', () => {
         { provide: TokenAuthService, useValue: { verifyCurrent: vi.fn() } },
         { provide: WorkspaceResolutionService, useValue: { resolveSelection: vi.fn() } },
         { provide: BeneficiaryStepUpService, useValue: { enforce: vi.fn() } },
+        { provide: AppSessionsService, useValue: { touch: vi.fn() } },
       ],
     }).compile()
     try {

@@ -8,6 +8,7 @@ import {
   Headers,
   HttpCode,
   Inject,
+  Param,
   Post,
   Query,
   Req,
@@ -31,6 +32,7 @@ import type { AuthenticatedRequest } from '../../common/authz/application-identi
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
 import { Public } from '../../common/decorators/public.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
+import { AppSessionsService } from './app-sessions'
 import { signInBody } from './auth.helpers'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'
@@ -57,6 +59,7 @@ export class AuthController {
     @Inject(SignInLockoutService) private readonly signIns: SignInLockoutService,
     @Inject(PasswordRecoveryService) private readonly recovery: PasswordRecoveryService,
     @Inject(OwnAccountService) private readonly account: OwnAccountService,
+    @Inject(AppSessionsService) private readonly sessions: AppSessionsService,
   ) {}
 
   @Post('sign-in')
@@ -66,8 +69,11 @@ export class AuthController {
   @ApiOkResponse({
     description: 'Identity-provider session; 429 SIGN_IN_LOCKED after repeated failures.',
   })
-  signIn(@Body(new ZodPipe(signInBody)) body: SignInRequest) {
-    return this.signIns.signIn(body.email, body.password)
+  signIn(
+    @Body(new ZodPipe(signInBody)) body: SignInRequest,
+    @Headers('user-agent') device: string | undefined,
+  ) {
+    return this.signIns.signIn(body.email, body.password, device)
   }
 
   @Post('password-recovery/complete')
@@ -93,7 +99,7 @@ export class AuthController {
       'Records the sign-out of the verified session; the browser then ends the Supabase session.',
   })
   recordSignOut(@Req() request: AuthenticatedRequest) {
-    return this.account.recordSignOut(pinActor(request).profile)
+    return this.account.recordSignOut(pinActor(request))
   }
 
   @Post('password/change')
@@ -109,6 +115,48 @@ export class AuthController {
     @Body(new ZodPipe(changeOwnPasswordRequest)) body: ChangeOwnPasswordRequest,
   ) {
     return this.account.changePassword(pinActor(request), body.password)
+  }
+
+  @Get('sessions')
+  @AuthBoundary('profile')
+  @Header('Cache-Control', 'private, no-store')
+  @ApiOkResponse({
+    description: "The caller's open sessions, newest first; device text and times only.",
+  })
+  listSessions(@Req() request: AuthenticatedRequest) {
+    const actor = pinActor(request)
+    return this.sessions.list(actor.auth.id, actor.sessionId)
+  }
+
+  @Post('sessions/activity')
+  @AuthBoundary('profile')
+  @HttpCode(204)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiNoContentResponse({
+    description: 'Heartbeat from an active browser; records the activity now.',
+  })
+  async recordActivity(@Req() request: AuthenticatedRequest) {
+    const actor = pinActor(request)
+    // Unthrottled, so the browser's idle clock never runs ahead of the server's.
+    await this.sessions.touch(actor.auth.id, actor.sessionId, undefined, true)
+  }
+
+  @Post('sessions/end-others')
+  @AuthBoundary('profile')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiOkResponse({ description: 'Ends every session of the caller except this one.' })
+  endOtherSessions(@Req() request: AuthenticatedRequest) {
+    return this.account.endOtherSessions(pinActor(request))
+  }
+
+  @Post('sessions/:sessionId/end')
+  @AuthBoundary('profile')
+  @HttpCode(204)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiNoContentResponse({ description: "Ends one of the caller's own sessions." })
+  endSession(@Req() request: AuthenticatedRequest, @Param('sessionId') sessionId: string) {
+    return this.account.endSession(pinActor(request), sessionId)
   }
 
   @Get('workspaces')

@@ -27,6 +27,7 @@ import {
   type VerifiedDatabaseContext,
   type VerifiedTransactionTiming,
 } from '../../../prisma/prisma.service'
+import { AppSessionsService } from '../app-sessions'
 import { ApplicationProfileService } from '../application-profile.service'
 import { AuthController } from '../auth.controller'
 import { AuthService } from '../auth.service'
@@ -153,6 +154,8 @@ export const prisma = {
   ),
 }
 export const routeChecks = { check: vi.fn() }
+// Session activity is recorded by the guard; the boundary suites check only the auth path around it.
+export const appSessions = { touch: vi.fn(async () => undefined) }
 let app: INestApplication
 let port: number
 
@@ -257,6 +260,7 @@ export function useBoundaryApp() {
         SignInLockoutService,
         PasswordRecoveryService,
         OwnAccountService,
+        { provide: AppSessionsService, useValue: appSessions },
         { provide: AuthService, useValue: { getStatus: () => ({ authenticated: true }) } },
         { provide: APP_GUARD, useClass: SupabaseAuthGuard },
       ],

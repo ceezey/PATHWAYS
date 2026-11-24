@@ -26,8 +26,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 68 rows (baseline plus 0027-0057 and 0058-0093) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 68)
+  // ledger has 69 rows (baseline plus 0027-0057 and 0058-0094) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 69)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -138,6 +138,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'preprovision:alert-notes',
     'deploy:0093_alert_outcome_notes',
     'cleanup:alert-notes',
+    'deploy:0094_session_management',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -707,15 +708,19 @@ test('planIndexForAppliedCount on a 0000-0092 ledger resumes at the alert-notes 
   assert.equal(plan[residual].name, 'rules-outcomes')
 })
 
-test('planIndexForAppliedCount on a complete 0000-0093 ledger resumes at alter-runtime-role, or at the alert-notes cleanup with residual owner memberships', () => {
+test('planIndexForAppliedCount on a 0000-0093 ledger resumes at the 0094 deploy, or at the alert-notes cleanup with residual owner memberships', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0093_alert_outcome_notes') + 1
+  assert.deepEqual(plan[planIndexForAppliedCount(applied)].migrations, ['0094_session_management'])
+  const index = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'alert-notes')
+})
+
+test('planIndexForAppliedCount on a complete 0000-0094 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   assert.equal(
     plan[planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)].type,
     'alter-runtime-role',
   )
-  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length, {
-    residualOwnerMemberships: true,
-  })
-  assert.equal(plan[index].type, 'cleanup')
-  assert.equal(plan[index].name, 'alert-notes')
 })

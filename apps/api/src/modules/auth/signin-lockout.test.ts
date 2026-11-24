@@ -26,10 +26,15 @@ function harness(grants: PasswordGrant[]) {
   const failures = new Map<string, number>()
   const locked = new Set<string>()
   const calls: string[] = []
+  const sessions: unknown[][] = []
   const prisma = {
-    $queryRaw: async (strings: TemplateStringsArray, email: string) => {
+    $queryRaw: async (strings: TemplateStringsArray, email: string, ...rest: unknown[]) => {
       const sql = strings.join('?')
       calls.push(sql)
+      if (sql.includes('app_session_touch')) {
+        sessions.push([email, ...rest])
+        return [{ n: 1 }]
+      }
       if (sql.includes('remaining')) return [{ s: locked.has(email) ? 900 : 0 }]
       if (sql.includes('failure')) {
         const n = (failures.get(email) ?? 0) + 1
@@ -53,7 +58,7 @@ function harness(grants: PasswordGrant[]) {
     grantCalls.push(email)
     return queue.shift() ?? { session: null, rejected: true }
   }
-  return { service, failures, locked, calls, grantCalls, prisma: audit, tx }
+  return { service, failures, locked, calls, grantCalls, prisma: audit, tx, sessions }
 }
 
 const ok: PasswordGrant = {
@@ -66,6 +71,33 @@ const status = async (promise: Promise<unknown>) =>
     () => 200,
     (error: unknown) => (error instanceof HttpException ? error.getStatus() : -1),
   )
+
+describe('sign-in session start', () => {
+  const SESSION = '44444444-4444-4444-8444-444444444444'
+  const token = `h.${Buffer.from(JSON.stringify({ session_id: SESSION })).toString('base64url')}.s`
+
+  it('records the new session with its device and notes the sessions the limit ended', async () => {
+    const h = harness([
+      { session: { accessToken: token, refreshToken: 'r', authUserId: AUTH }, rejected: false },
+    ])
+    await h.service.signIn('a@x.org', 'right', 'Synthetic browser')
+    expect(h.sessions).toEqual([[AUTH, SESSION, 'Synthetic browser']])
+    expect(h.tx.auditLog.create.mock.calls[0]?.[0].data).toMatchObject({
+      action: 'SIGNED_IN',
+      changes: { sessionsEnded: 1 },
+    })
+  })
+
+  it('still signs in when the token carries no session id', async () => {
+    const h = harness([ok])
+    await expect(h.service.signIn('a@x.org', 'right')).resolves.toEqual({
+      accessToken: 'a',
+      refreshToken: 'r',
+    })
+    expect(h.sessions).toEqual([])
+    expect(h.tx.auditLog.create.mock.calls[0]?.[0].data.changes).toBeUndefined()
+  })
+})
 
 describe('sign-in lockout (G-F1-10)', () => {
   it('happy: a correct password returns the session and clears prior failures', async () => {

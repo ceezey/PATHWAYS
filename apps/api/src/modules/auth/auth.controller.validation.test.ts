@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { AppSessionsService } from './app-sessions'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService } from './beneficiary-step-up-pin.service'
@@ -36,6 +37,7 @@ beforeAll(async () => {
       { provide: SignInLockoutService, useValue: signIns },
       { provide: PasswordRecoveryService, useValue: recovery },
       { provide: OwnAccountService, useValue: account },
+      { provide: AppSessionsService, useValue: {} },
     ],
   }).compile()
   app = module.createNestApplication({ logger: false })
@@ -84,7 +86,7 @@ describe('auth routes body validation', () => {
       JSON.stringify({ email: 'a!b@example.org', password: 'pppp-secret' }),
     )
     expect(result.status).toBe(200)
-    expect(signIns.signIn).toHaveBeenCalledWith('a!b@example.org', 'pppp-secret')
+    expect(signIns.signIn).toHaveBeenCalledWith('a!b@example.org', 'pppp-secret', expect.anything())
   })
 
   it('answers 400 for an address class-validator refused, before any password grant', async () => {
@@ -133,7 +135,7 @@ describe('auth routes body validation', () => {
   it('records the sign-out of the verified profile with 204 and no body', async () => {
     const result = await post('/sign-out', '')
     expect(result).toEqual({ status: 204, text: '' })
-    expect(account.recordSignOut).toHaveBeenCalledWith(profile)
+    expect(account.recordSignOut).toHaveBeenCalledWith(pinActor)
   })
 
   it('changes the own password with 204 and no body', async () => {
@@ -214,6 +216,7 @@ describe('auth controller verified values', () => {
       signIns as unknown as SignInLockoutService,
       recovery as unknown as PasswordRecoveryService,
       account as unknown as OwnAccountService,
+      {} as AppSessionsService,
     )
     const request = { headers: {}, ...values } as unknown as AuthenticatedRequest
     for (const call of [
