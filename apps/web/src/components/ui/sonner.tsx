@@ -12,6 +12,7 @@ const Toaster = ({ theme = 'light', ...props }: ToasterProps) => (
         success: 'border-success/40 bg-success-subtle text-success',
         error: 'border-danger/40 bg-danger-subtle text-danger',
         info: 'border-info/40 bg-info-subtle text-info',
+        warning: 'border-warning/40 bg-warning-subtle text-warning',
         description: 'text-muted-foreground',
         actionButton: 'rounded-md bg-primary text-primary-foreground hover:bg-primary-hover',
         cancelButton: 'rounded-md bg-secondary text-secondary-foreground hover:bg-muted',
