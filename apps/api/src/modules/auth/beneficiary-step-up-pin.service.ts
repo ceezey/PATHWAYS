@@ -26,6 +26,7 @@ import {
   type StepUpMethod,
   evaluateBeneficiaryStepUp,
 } from './beneficiary-step-up'
+import { sessionEnded } from './session-liveness.service'
 
 // cr-pathways-beneficiary-step-up-pin. The PIN travels only as a bound query parameter into
 // the 0037 SECURITY DEFINER functions; it is never logged, audited, echoed or cached. Every
@@ -263,9 +264,7 @@ export class BeneficiaryStepUpPinService {
         work,
       )
     } catch (error) {
-      if (error instanceof InactiveVerifiedSessionError) {
-        throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
-      }
+      if (error instanceof InactiveVerifiedSessionError) throw sessionEnded()
       // Sanitized: database errors can carry parameters, so none are forwarded or logged.
       if (error instanceof HttpException) throw error
       throw new ServiceUnavailableException('Step-up PIN service is unavailable.')

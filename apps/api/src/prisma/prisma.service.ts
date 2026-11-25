@@ -185,6 +185,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
                   SELECT pathways.runtime_auth_session_live(
                     ${context.authSubject}::uuid,
                     ${context.sessionId}::uuid
+                  ) AND pathways.app_session_current(
+                    ${context.authSubject}::uuid,
+                    ${context.sessionId}::uuid
                   ) AS live
                   FROM configured
                 )

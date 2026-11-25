@@ -29,7 +29,7 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 
 let currentRole: {
   role: string | null
-  profile: { permissions: string[] } | null
+  profile: { permissions: string[]; userId?: string } | null
   assignedProjectIds: readonly string[]
 }
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => currentRole }))
@@ -41,11 +41,13 @@ const getUsers = vi.fn()
 const getProjects = vi.fn()
 const authorizeExistingUser = vi.fn()
 const updateAuthorizedUser = vi.fn()
+const endUserSessions = vi.fn()
 vi.mock('@/lib/api/users', () => ({
   usersClient: {
     getUsers: (...args: unknown[]) => getUsers(...args),
     authorizeExistingUser: (...args: unknown[]) => authorizeExistingUser(...args),
     updateAuthorizedUser: (...args: unknown[]) => updateAuthorizedUser(...args),
+    endUserSessions: (...args: unknown[]) => endUserSessions(...args),
   },
 }))
 vi.mock('@/lib/api/projects', () => ({
@@ -161,6 +163,37 @@ describe('user management: account list', () => {
     expect(within(dialog).getByText('Not yet active')).toBeTruthy()
     fireEvent.click(within(dialog).getByText('Close', { selector: 'button' }))
     await waitFor(() => expect(screen.queryByText('Account details')).toBeNull())
+  })
+
+  it('lets a System Administrator sign a user out everywhere after confirmation', async () => {
+    endUserSessions.mockResolvedValue({ sessionsEnded: 2 })
+    await loaded()
+    fireEvent.click(within(row('Ada Lovelace')).getByRole('button', { name: 'View' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out everywhere' }))
+    const confirm = await screen.findByRole('dialog')
+    expect(within(confirm).getByText('Sign out everywhere?')).toBeTruthy()
+    expect(endUserSessions).not.toHaveBeenCalled()
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Sign out everywhere' }))
+    await waitFor(() => expect(endUserSessions).toHaveBeenCalledWith(ada.id))
+    expect(toast.success).toHaveBeenCalledWith('Signed out of 2 devices.')
+  })
+
+  it("offers no sign-out everywhere to other roles or for the administrator's own account", async () => {
+    actAs('Project Manager', projectManagerProfile.permissions, ['project-1'])
+    await loaded()
+    fireEvent.click(within(row('Ada Lovelace')).getByRole('button', { name: 'View' }))
+    await screen.findByText('Account details')
+    expect(screen.queryByRole('button', { name: 'Sign out everywhere' })).toBeNull()
+    cleanup()
+    currentRole = {
+      role: 'System Administrator',
+      profile: { permissions: projectManagerProfile.permissions, userId: ada.id },
+      assignedProjectIds: [],
+    }
+    await loaded()
+    fireEvent.click(within(row('Ada Lovelace')).getByRole('button', { name: 'View' }))
+    await screen.findByText('Account details')
+    expect(screen.queryByRole('button', { name: 'Sign out everywhere' })).toBeNull()
   })
 
   it('shows an error state with Retry when the records cannot be loaded', async () => {

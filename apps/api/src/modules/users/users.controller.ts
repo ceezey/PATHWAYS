@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Req } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Req } from '@nestjs/common'
 
 import {
   type AuthorizeExistingUserRequest,
@@ -39,5 +39,12 @@ export class UsersController {
     @Body(new ZodPipe(updateAuthorizedUserRequest)) body: UpdateAuthorizedUserRequest,
   ) {
     return this.users.update(requestIdentity(request), userId, body)
+  }
+
+  @Post(':userId/sessions/end')
+  @RequirePermission('users.authorize')
+  @HttpCode(200)
+  endSessions(@Req() request: AuthenticatedRequest, @Param('userId') userId: string) {
+    return this.users.endSessions(requestIdentity(request), userId)
   }
 }

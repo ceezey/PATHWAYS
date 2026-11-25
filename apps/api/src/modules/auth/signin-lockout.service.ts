@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js'
 
 import { isApprovedServiceProtocol } from '@pathways/config'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { recordSessionActivity, sessionIdOf } from '../../common/authz/app-sessions'
 import { PrismaService } from '../../prisma/prisma.service'
 
 const SIGN_IN_LOCKED_CODE = 'SIGN_IN_LOCKED'
@@ -86,7 +87,7 @@ export class SignInLockoutService {
 
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async signIn(rawEmail: string, password: string) {
+  async signIn(rawEmail: string, password: string, device?: string) {
     const email = rawEmail.trim().toLowerCase()
     const remaining = await this.db(
       () => this.prisma.$queryRaw<Array<{ s: unknown }>>`
@@ -101,7 +102,7 @@ export class SignInLockoutService {
           SELECT 0 AS s FROM (SELECT pathways.signin_lockout_reset(${email}::text)) r`,
       )
       // Best effort: an unrecorded sign-in is logged, never a refused one.
-      await this.recordSignIn(result.session.authUserId)
+      await this.recordSignIn(result.session.authUserId, result.session.accessToken, device)
       return { accessToken: result.session.accessToken, refreshToken: result.session.refreshToken }
     }
     if (!result.rejected) throw new ServiceUnavailableException('Authentication is unavailable.')
@@ -113,7 +114,16 @@ export class SignInLockoutService {
     throw new UnauthorizedException(INVALID_MESSAGE)
   }
 
-  private async recordSignIn(authUserId: string): Promise<void> {
+  private async recordSignIn(authUserId: string, accessToken: string, device?: string) {
+    // The new session starts now, so the 3-session limit applies before the first page loads.
+    let sessionsEnded = 0
+    const sessionId = sessionIdOf(accessToken)
+    try {
+      if (sessionId)
+        sessionsEnded = await recordSessionActivity(this.prisma, authUserId, sessionId, device)
+    } catch {
+      new Logger('SignInSession').warn({ event: 'PATHWAYS_SIGN_IN_SESSION_UNRECORDED' })
+    }
     try {
       const workspaces = await this.prisma.discoverWorkspace(authUserId)
       const [selector] = workspaces
@@ -129,6 +139,7 @@ export class SignInLockoutService {
             action: 'SIGNED_IN',
             entityType: 'Authentication',
             entityId: selector.userId,
+            ...(sessionsEnded ? { changes: { sessionsEnded } } : {}),
           }),
       )
     } catch {

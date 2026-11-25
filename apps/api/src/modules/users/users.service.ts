@@ -18,6 +18,7 @@ import {
   roleNames,
 } from '@pathways/shared'
 import { writeAuditLog } from '../../common/audit/write-audit-log'
+import { endUserSessions } from '../../common/authz/app-sessions'
 import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
 import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
 import { projectScope } from '../../common/authz/project-scope'
@@ -365,6 +366,11 @@ export class UsersService {
         if (input.accountStatus === 'DEACTIVATED') {
           await updateProfile()
         }
+        // A new role or a deactivation takes effect on the next request, not at the next sign-in.
+        const sessionsEnded =
+          input.role !== target.role.code || input.accountStatus === 'DEACTIVATED'
+            ? await endUserSessions(tx, target.id, 'ACCOUNT_CHANGED')
+            : 0
         await writeAuditLog(tx, actor, {
           action: 'USER_AUTHORIZATION_UPDATED',
           entityType: 'SystemUser',
@@ -374,6 +380,7 @@ export class UsersService {
             accountStatus: input.accountStatus,
             projectCount: projectIds.length,
             nameChanged: Boolean(input.fullName),
+            sessionsEnded,
           },
         })
         const result = await tx.systemUser.findUniqueOrThrow({
@@ -384,6 +391,32 @@ export class UsersService {
       },
       { transactionTimeoutMs: USER_MANAGEMENT_TRANSACTION_TIMEOUT_MS },
     )
+  }
+
+  // System Administrators only: signs a user out of every device, for example after a lost phone.
+  endSessions(identity: ApplicationIdentity, userId: string) {
+    return withAuthorizedOperation(this.prisma, identity, 'users.authorize', async (tx, actor) => {
+      if (actor.roles[0] !== 'SYSTEM_ADMINISTRATOR') {
+        throw new ForbiddenException('Only a System Administrator can end sessions.')
+      }
+      if (!UUID_PATTERN.test(userId)) throw new NotFoundException('User unavailable.')
+      if (userId.toLowerCase() === actor.userId.toLowerCase()) {
+        throw new ForbiddenException('Use your profile page to end your own sessions.')
+      }
+      const target = await tx.systemUser.findFirst({
+        where: { id: userId.toLowerCase(), organizationId: actor.organizationId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!target) throw new NotFoundException('User unavailable.')
+      const sessionsEnded = await endUserSessions(tx, target.id, 'ADMIN')
+      await writeAuditLog(tx, actor, {
+        action: 'USER_SESSIONS_ENDED',
+        entityType: 'SystemUser',
+        entityId: target.id,
+        changes: { sessionsEnded },
+      })
+      return { sessionsEnded }
+    })
   }
 
   private async requireProjects(

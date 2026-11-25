@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { SessionTimeoutGuard } from '@/components/layout/session-timeout-guard'
 import { Sidebar } from '@/components/layout/sidebar'
 import { sidebarCookie } from '@/components/layout/sidebar-preference'
 import { SkipLink } from '@/components/layout/skip-link'
@@ -75,6 +76,7 @@ export const AppShell = ({
   return (
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[auto_1fr]">
       <SkipLink />
+      <SessionTimeoutGuard />
       <div className="hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:self-start">
         <Sidebar compact={compact} onToggle={toggleCompact} />
       </div>
