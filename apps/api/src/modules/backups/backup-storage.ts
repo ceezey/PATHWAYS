@@ -12,6 +12,7 @@ export const pointPrefix = (orgId: string, pointId: string) =>
   `${organizationPrefix(orgId)}/backups/${pointId}`
 export const pointCopyPath = (orgId: string, pointId: string, fileName: string) =>
   `${pointPrefix(orgId, pointId)}/${BACKUP_FILES_DIR}/${fileName.slice(organizationPrefix(orgId).length + 1)}`
+export const downloadsPrefix = (orgId: string) => `${organizationPrefix(orgId)}/backups/downloads`
 
 /** Storage is not configured or did not answer (E1). */
 export class BackupStorageUnavailableError extends Error {
@@ -97,6 +98,20 @@ export class BackupStorage {
     if (paths.some((path) => !path.startsWith(prefix)))
       throw new Error('Refusing to remove a file outside the recovery point.')
     await this.call(() => this.storage.removeFiles(this.bucket, paths))
+  }
+
+  /** Removes download copies whose name starts with an epoch ms before the cutoff; other names stay. */
+  async removeStaleDownloads(orgId: string, before: number) {
+    if (!this.storage.isConfigured()) return
+    const entries = await this.call(() =>
+      this.storage.listObjects(this.bucket, downloadsPrefix(orgId)),
+    )
+    const stale = entries
+      .filter((entry) => !entry.folder && Number(/\/(\d+)-[^/]*$/.exec(entry.name)?.[1]) < before)
+      .map((entry) => entry.name)
+    if (stale.some((path) => !path.startsWith(`${downloadsPrefix(orgId)}/`)))
+      throw new Error('Refusing to remove a file outside the downloads folder.')
+    if (stale.length) await this.call(() => this.storage.removeFiles(this.bucket, stale))
   }
 
   signedUrl(path: string, seconds: number, downloadName: string): Promise<string | null> {

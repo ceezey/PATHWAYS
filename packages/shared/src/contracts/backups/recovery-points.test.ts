@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   backupErrorCodes,
+  downloadRecoveryPointRequest,
   recoveryPointListItem,
   recoveryPointProblemMessages,
   recoveryPointProblems,
@@ -49,6 +50,23 @@ describe('recovery point contracts', () => {
     ).toBe(false)
   })
 
+  it('accepts a passphrase of 12 to 128 characters untrimmed and rejects others', () => {
+    for (const length of [12, 128])
+      expect(
+        downloadRecoveryPointRequest.safeParse({ passphrase: 'a'.repeat(length) }).success,
+      ).toBe(true)
+    for (const length of [11, 129])
+      expect(
+        downloadRecoveryPointRequest.safeParse({ passphrase: 'a'.repeat(length) }).success,
+      ).toBe(false)
+    expect(downloadRecoveryPointRequest.parse({ passphrase: '  elevenchars  ' })).toEqual({
+      passphrase: '  elevenchars  ',
+    })
+    expect(
+      downloadRecoveryPointRequest.safeParse({ passphrase: 'a'.repeat(12), extra: 1 }).success,
+    ).toBe(false)
+  })
+
   it('lists INCOMPATIBLE as a status but not as a stored problem code', () => {
     expect(recoveryPointStatuses).toContain('INCOMPATIBLE')
     expect(backupErrorCodes).toEqual(
@@ -57,6 +75,7 @@ describe('recovery point contracts', () => {
         'BUSY',
         'STORAGE_UNAVAILABLE',
         'DATABASE_BUSY',
+        'STEP_UP_TOTP_REQUIRED',
       ]),
     )
   })
