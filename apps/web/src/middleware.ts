@@ -5,7 +5,7 @@ import { webEnv } from './lib/env'
 import { resolveMapStyleUrl } from './lib/map-style'
 import { updateSession } from './lib/middleware'
 import { type CspOrigins, buildCsp, securityHeaders } from './lib/security/csp'
-import { routeSite, siteOf } from './lib/site-hosts'
+import { publicSiteOrigin, routeSite, siteOf } from './lib/site-hosts'
 
 // Staff pages that need the session check, the same set the matcher listed before the address split.
 const sessionPath =
@@ -34,7 +34,8 @@ const cspOrigins: CspOrigins = {
   supabase: originOf(webEnv.NEXT_PUBLIC_SUPABASE_URL),
   tiles: [originOf(resolveMapStyleUrl())],
   // Browser error reports go to the tracker's ingest address, only when a DSN is set.
-  extraConnect: [originOf(webEnv.NEXT_PUBLIC_SENTRY_DSN)],
+  // Prefetching a public link on the staff address follows its redirect to the public address.
+  extraConnect: [originOf(webEnv.NEXT_PUBLIC_SENTRY_DSN), publicSiteOrigin],
   extraFrame: captchaOrigins,
   extraScript: [
     ...captchaOrigins,

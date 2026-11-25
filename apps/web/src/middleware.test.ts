@@ -191,6 +191,10 @@ describe('Next.js middleware entry point', () => {
       expect((await at('pathways.example.org', '/')).headers.get('x-robots-tag')).toBeNull()
       const staff = await at('staff.example.org', '/dashboard')
       expect(session).toHaveBeenCalledOnce()
+      // Staff pages prefetch public links, which redirect to the public address.
+      expect(staff.headers.get('content-security-policy')).toMatch(
+        /connect-src [^;]*https:\/\/pathways\.example\.org/,
+      )
       expect(staff.headers.get('x-robots-tag')).toBe('noindex, nofollow')
       expect((await at('staff.example.org', '/staff/login')).headers.get('x-robots-tag')).toBe(
         'noindex, nofollow',
