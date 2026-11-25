@@ -58,3 +58,31 @@ describe('requestSignIn', () => {
     await expect(requestSignIn('a@x.org', 'pw')).rejects.toThrow('SIGN_IN_UNAVAILABLE')
   })
 })
+
+describe('requestSignIn CAPTCHA token', () => {
+  const sentBody = () => JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
+
+  it('sends the token when the form has one', async () => {
+    reply(200, { accessToken: 'a', refreshToken: 'r' })
+    await requestSignIn('a@x.org', 'pw', 'token-1')
+    expect(sentBody()).toEqual({ email: 'a@x.org', password: 'pw', captchaToken: 'token-1' })
+  })
+
+  it('sends no token field when CAPTCHA is off', async () => {
+    reply(200, { accessToken: 'a', refreshToken: 'r' })
+    await requestSignIn('a@x.org', 'pw')
+    expect(sentBody()).toEqual({ email: 'a@x.org', password: 'pw' })
+    reply(200, { accessToken: 'a', refreshToken: 'r' })
+    await requestSignIn('a@x.org', 'pw', '')
+    expect(sentBody()).toEqual({ email: 'a@x.org', password: 'pw' })
+  })
+})
+
+describe('requestSignIn refused CAPTCHA', () => {
+  it('tells a refused security check apart from a wrong password', async () => {
+    reply(400, { code: 'CAPTCHA_FAILED' })
+    await expect(requestSignIn('a@x.org', 'pw', 'token-1')).resolves.toEqual({ kind: 'captcha' })
+    reply(400, { code: 'VALIDATION_FAILED' })
+    await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({ kind: 'invalid' })
+  })
+})
