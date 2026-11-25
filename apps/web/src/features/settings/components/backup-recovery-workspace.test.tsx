@@ -3,7 +3,7 @@
 import { PathwaysClientError } from '@/lib/api/core/request'
 import { BeneficiaryStepUpError } from '@/lib/auth/beneficiary-step-up'
 import { recoveryPointProblemMessages } from '@pathways/shared'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
@@ -245,7 +245,7 @@ describe('backup and recovery workspace', () => {
       fill('a'.repeat(11))
       expect(confirm().disabled).toBe(true)
       fill(PASS, `${PASS}x`)
-      expect(screen.getByText('The passphrases do not match.')).toBeTruthy()
+      expect(screen.getByText('The passphrases do not match.').getAttribute('role')).toBe('alert')
       expect(confirm().disabled).toBe(true)
       fill(PASS)
       await waitFor(() => expect(confirm().disabled).toBe(false))
@@ -300,6 +300,47 @@ describe('backup and recovery workspace', () => {
       expect(state.verifyCode).toHaveBeenCalledWith('123456')
       expect(state.verifyCode.mock.invocationCallOrder[0]).toBeLessThan(
         state.download.mock.invocationCallOrder[0] as number,
+      )
+    })
+
+    describe('while the status read is pending', () => {
+      const group = () => screen.queryByRole('group', { name: 'Authenticator code' })
+      const deferRead = () => {
+        const read = { fresh: () => {}, stale: () => {}, fail: () => {} }
+        state.stepUpStatus.mockReturnValue(
+          new Promise((resolve, reject) => {
+            read.fresh = () => resolve({ fresh: true, method: 'TOTP' })
+            read.stale = () => resolve({ fresh: false, method: null })
+            read.fail = () => reject(new Error('offline'))
+          }),
+        )
+        return read
+      }
+      const open = () => {
+        render(<BackupRecoveryWorkspace />)
+        openDownload()
+        fill(PASS)
+        expect(group()).toBeNull()
+        expect(confirm().disabled).toBe(true)
+      }
+
+      it('hides the code field and keeps Download off, then follows the passphrases once fresh', async () => {
+        const read = deferRead()
+        open()
+        await act(async () => read.fresh())
+        await waitFor(() => expect(confirm().disabled).toBe(false))
+        expect(group()).toBeNull()
+      })
+
+      it.each(['stale', 'fail'] as const)(
+        'shows the code field when the read ends %s',
+        async (how) => {
+          const read = deferRead()
+          open()
+          await act(async () => read[how]())
+          expect(group()).toBeTruthy()
+          expect(confirm().disabled).toBe(true)
+        },
       )
     })
 
@@ -466,6 +507,26 @@ describe('backup and recovery workspace', () => {
       expect(state.verifyCode.mock.invocationCallOrder[0]).toBeLessThan(
         state.restore.mock.invocationCallOrder[0] as number,
       )
+    })
+
+    it('keeps Restore off and the code field away while the status read is pending', async () => {
+      let settle: (value: unknown) => void = () => undefined
+      state.stepUpStatus.mockReturnValue(
+        new Promise((resolve) => {
+          settle = resolve
+        }),
+      )
+      render(<BackupRecoveryWorkspace />)
+      fireEvent.click(within(rowOf(point(1).id)).getByRole('button', { name: 'Restore' }))
+      fireEvent.change(screen.getByLabelText('Type ORG1 to confirm'), { target: { value: 'ORG1' } })
+      const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+        name: /^Restor/,
+      }) as HTMLButtonElement
+      expect(screen.queryByRole('group', { name: 'Authenticator code' })).toBeNull()
+      expect(confirm.disabled).toBe(true)
+      await act(async () => settle({ fresh: true, method: 'TOTP' }))
+      await waitFor(() => expect(confirm.disabled).toBe(false))
+      expect(screen.queryByRole('group', { name: 'Authenticator code' })).toBeNull()
     })
 
     it('restores once on a double click', async () => {

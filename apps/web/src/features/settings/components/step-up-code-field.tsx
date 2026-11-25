@@ -20,25 +20,27 @@ const UNREACHABLE =
  */
 export const useStepUpCode = (open: boolean, required: boolean) => {
   const [code, setCode] = useState('')
-  // True until the status read says a fresh authenticator code exists; a failed read keeps it true.
-  const [stale, setStale] = useState(true)
+  // Pending until the status read settles; only a fresh answer lets the code be skipped.
+  const [status, setStatus] = useState<'pending' | 'stale' | 'fresh'>('pending')
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setCode('')
     setError(null)
-    setStale(true)
+    setStatus('pending')
     if (!open) return
     const controller = new AbortController()
     getBeneficiaryStepUpStatus(controller.signal).then(
-      (status) => setStale(!(status.fresh && status.method === 'TOTP')),
-      () => undefined,
+      (read) => setStatus(read.fresh && read.method === 'TOTP' ? 'fresh' : 'stale'),
+      // A failed read leaves the field required.
+      () => setStatus('stale'),
     )
     return () => controller.abort()
   }, [open])
 
-  const needed = stale || required
+  const needed = status === 'stale' || required
+  const waiting = status === 'pending' && !required
 
   return {
     needed,
@@ -46,8 +48,8 @@ export const useStepUpCode = (open: boolean, required: boolean) => {
     setCode,
     checking,
     error,
-    /** True while the code field is empty or incomplete. */
-    incomplete: needed && code.length !== 6,
+    /** True while the status read is pending or the code field is empty or incomplete. */
+    incomplete: waiting || (needed && code.length !== 6),
     /** Checks the typed code; true when the caller may go on. The code is single use, so it is cleared. */
     verify: async () => {
       if (!needed) return true
@@ -55,7 +57,7 @@ export const useStepUpCode = (open: boolean, required: boolean) => {
       setError(null)
       try {
         await verifyBeneficiaryStepUp(code)
-        setStale(false)
+        setStatus('fresh')
         return true
       } catch (caught) {
         const unreachable =

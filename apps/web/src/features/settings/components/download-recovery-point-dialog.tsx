@@ -82,7 +82,11 @@ export const DownloadRecoveryPointDialog = ({
           value={again}
           onChange={(event) => setAgain(event.target.value)}
         />
-        {mismatch ? <p className="text-sm text-danger">The passphrases do not match.</p> : null}
+        {mismatch ? (
+          <p role="alert" className="text-sm text-danger">
+            The passphrases do not match.
+          </p>
+        ) : null}
       </div>
       <StepUpCodeField step={step} />
       {message ? (

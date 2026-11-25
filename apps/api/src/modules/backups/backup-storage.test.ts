@@ -85,6 +85,23 @@ describe('backup storage', () => {
     expect(storage.removeFiles).not.toHaveBeenCalled()
   })
 
+  it('refuses to remove a listed file outside the downloads folder', async () => {
+    const { storage, backups } = fakeStorage({
+      listObjects: vi.fn(async () => [file('organizations/o/projects/1000-x.pdf')]),
+    })
+    await expect(backups.removeStaleDownloads('o', 2_000)).rejects.toThrow(
+      'Refusing to remove a file outside the downloads folder.',
+    )
+    expect(storage.removeFiles).not.toHaveBeenCalled()
+  })
+
+  it('skips the download cleanup when storage is not configured', async () => {
+    const { storage, backups } = fakeStorage({ isConfigured: vi.fn(() => false) })
+    await expect(backups.removeStaleDownloads('o', 2_000)).resolves.toBeUndefined()
+    expect(storage.listObjects).not.toHaveBeenCalled()
+    expect(storage.removeFiles).not.toHaveBeenCalled()
+  })
+
   it('removes only the download copies older than the cutoff', async () => {
     const downloads = 'organizations/o/backups/downloads'
     const { storage, backups } = fakeStorage({

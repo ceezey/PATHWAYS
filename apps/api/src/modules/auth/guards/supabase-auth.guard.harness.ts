@@ -93,6 +93,7 @@ export class BoundaryTestController {
     return { detail: true }
   }
 
+  // Tests on this route must grant backups.restore, or the permission check answers first.
   @Get('totp-step-up')
   @RequirePermission('backups.restore')
   @RequireTotpStepUp()

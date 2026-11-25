@@ -102,12 +102,15 @@ export class BackupStorage {
 
   /** Removes download copies whose name starts with an epoch ms before the cutoff; other names stay. */
   async removeStaleDownloads(orgId: string, before: number) {
+    if (!this.storage.isConfigured()) return
     const entries = await this.call(() =>
       this.storage.listObjects(this.bucket, downloadsPrefix(orgId)),
     )
     const stale = entries
       .filter((entry) => !entry.folder && Number(/\/(\d+)-[^/]*$/.exec(entry.name)?.[1]) < before)
       .map((entry) => entry.name)
+    if (stale.some((path) => !path.startsWith(`${downloadsPrefix(orgId)}/`)))
+      throw new Error('Refusing to remove a file outside the downloads folder.')
     if (stale.length) await this.call(() => this.storage.removeFiles(this.bucket, stale))
   }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 import { decryptRecoveryPoint } from './decrypt-recovery-point.mjs'
 
-// Same vector as apps/api/src/modules/backups/recovery-point-encryption.test.ts, so the script and the module share one format.
+// The same VECTOR_HEX is in apps/api/src/modules/backups/recovery-point-encryption.test.ts.
 const VECTOR_HEX =
   '50575250316ccd5d408ec4243d00630aac73b24e32e536e385caf93822f8540e05299710cc2aea7d6a9a959b8b50b922adb951a820010e4673fc3d114f1549fc388b2f90cfea342bed7cd4f0d1c3106b3290fba4'
 const VECTOR_PASSPHRASE = 'correct horse battery staple'
@@ -52,6 +52,17 @@ test('the CLI drops .pwrp from the input path when no output is given', () => {
     writeFileSync(input, vector)
     assert.equal(cli([input]).status, 0)
     assert.equal(readFileSync(path.join(dir, 'point.json.gz'), 'utf8'), VECTOR_TEXT)
+  })
+})
+
+test('the CLI asks for an output name when the input does not end in .pwrp', () => {
+  withDir((dir) => {
+    const input = path.join(dir, 'point.bin')
+    writeFileSync(input, vector)
+    const result = cli([input])
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /Give an output file name: the input does not end in \.pwrp\./)
+    assert.deepEqual(readdirSync(dir), ['point.bin'])
   })
 })
 

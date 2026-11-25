@@ -1,5 +1,4 @@
-// Opens an encrypted recovery point: node scripts/db/decrypt-recovery-point.mjs <file.pwrp> [output]
-// The format is duplicated from apps/api/src/modules/backups/recovery-point-encryption.ts so this runs standalone.
+// Opens an encrypted recovery point, with the format copied from the API's recovery-point-encryption.ts to run standalone.
 import { createDecipheriv, scryptSync } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -40,6 +39,7 @@ export const decryptRecoveryPoint = (file, passphrase) => {
 const askPassphrase = () =>
   new Promise((resolve) => {
     let muted = false
+    let answered = false
     const output = new Writable({
       write(chunk, _encoding, done) {
         if (!muted) process.stderr.write(chunk)
@@ -47,7 +47,14 @@ const askPassphrase = () =>
       },
     })
     const rl = createInterface({ input: process.stdin, output, terminal: true })
+    // Ctrl+C, Ctrl+D or a closed input closes the prompt without an answer.
+    rl.on('close', () => {
+      if (answered) return
+      process.stderr.write('\n')
+      fail('No passphrase was entered.')
+    })
     rl.question('Passphrase: ', (answer) => {
+      answered = true
       rl.close()
       process.stderr.write('\n')
       resolve(answer)
@@ -63,6 +70,9 @@ const fail = (message) => {
 const main = async () => {
   const [input, outputArg] = process.argv.slice(2)
   if (!input) fail('Usage: node scripts/db/decrypt-recovery-point.mjs <file.pwrp> [output]')
+  if (!outputArg && !input.endsWith('.pwrp')) {
+    fail('Give an output file name: the input does not end in .pwrp.')
+  }
   const output = outputArg ?? input.replace(/\.pwrp$/, '')
   let passphrase = process.env.PATHWAYS_RECOVERY_PASSPHRASE
   if (passphrase === undefined) {

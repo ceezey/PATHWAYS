@@ -67,6 +67,12 @@ describe('Authenticator step-up decorator (cr-pathways-backup-step-up)', () => {
     expect(totpHandler).toHaveBeenCalledOnce()
   })
 
+  it('admits a timestamp at the edge of the 900 second window', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 899))
+    expect((await get(totpPath, headers)).status).toBe(200)
+    expect(totpHandler).toHaveBeenCalledOnce()
+  })
+
   it('answers a user without the permission with the plain permission 403', async () => {
     tokens.verifyCurrent.mockResolvedValue(stepUpSession())
     profiles.resolveWithSession.mockResolvedValue({ ...profile })

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { decryptRecoveryPoint, encryptRecoveryPoint } from './recovery-point-encryption'
 
-// Same vector as scripts/db/decrypt-recovery-point.test.mjs, so the module and the script share one format.
+// The same VECTOR_HEX is in scripts/db/decrypt-recovery-point.test.mjs.
 const VECTOR_HEX =
   '50575250316ccd5d408ec4243d00630aac73b24e32e536e385caf93822f8540e05299710cc2aea7d6a9a959b8b50b922adb951a820010e4673fc3d114f1549fc388b2f90cfea342bed7cd4f0d1c3106b3290fba4'
 const VECTOR_PASSPHRASE = 'correct horse battery staple'
