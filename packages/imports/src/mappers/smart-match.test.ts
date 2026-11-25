@@ -943,7 +943,7 @@ describe('normalizeMappingNameV1 trim', () => {
 
   it('stays fast on a header with a long run of spaces inside it', () => {
     const started = performance.now()
-    normalizeMappingNameV1(`A${' '.repeat(50_000)}B`)
+    normalizeMappingNameV1(`A${' '.repeat(200_000)}B`)
     expect(performance.now() - started).toBeLessThan(200)
   })
 })

@@ -36,9 +36,20 @@ describe('project codes', () => {
     )
   })
 
+  it('keeps the old parts when a dash follows the separator after extra spaces', () => {
+    // The old greedy split read 'Water -  - Leyte' as name 'Water' and suffix '- Leyte'.
+    expect(projectCodeBase({ title: 'Water -  - Leyte', startDate: '2026-01-01' })).toBe(
+      'WA-LE-2026',
+    )
+    expect(projectCodeBase({ title: 'Water - Leyte - Phase 2', startDate: '2026-01-01' })).toBe(
+      'WA-LE-2026',
+    )
+    expect(projectCodeBase({ title: ' - Leyte', startDate: '2026-01-01' })).toBe('PRJ-LE-2026')
+  })
+
   it('stays fast on a title with a long run of spaces and no dash', () => {
     const started = performance.now()
-    projectCodeBase({ title: `A${' '.repeat(50_000)}B`, startDate: '2026-01-01' })
+    projectCodeBase({ title: `A${' '.repeat(200_000)}B`, startDate: '2026-01-01' })
     expect(performance.now() - started).toBeLessThan(200)
   })
 

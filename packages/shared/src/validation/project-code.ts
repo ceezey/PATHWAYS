@@ -33,8 +33,12 @@ export function projectCodeBase(input: {
   area?: string | null
   startDate?: string | null
 }) {
-  // One space either side keeps the split linear on long space runs; trimming restores the old parts.
-  const [name, suffix] = input.title.split(/\s[-–—]\s/).map((part) => part.trim())
+  // Same parts as splitting on /\s+[-–—]\s+/, found with a linear search so long space runs stay fast.
+  const separator = /\s[-–—]\s/.exec(input.title)
+  const name = separator ? input.title.slice(0, separator.index).trimEnd() : input.title
+  const rest = separator ? input.title.slice(separator.index + 3).trimStart() : undefined
+  const next = rest === undefined ? null : /\s[-–—]\s/.exec(rest)
+  const suffix = next && rest ? rest.slice(0, next.index).trimEnd() : rest
   // The province is the last comma part of the area, falling back to the title's location suffix.
   const place = input.area?.split(',').pop()?.trim() || suffix || ''
   const year = /^\d{4}/.exec(input.startDate ?? '')?.[0] ?? String(new Date().getFullYear())
