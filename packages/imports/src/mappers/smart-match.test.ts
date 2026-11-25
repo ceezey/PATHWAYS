@@ -932,3 +932,18 @@ describe('AUTO_SMART_V5', () => {
     })
   })
 })
+
+describe('normalizeMappingNameV1 trim', () => {
+  it('trims only ASCII space characters, as the SQL normalizer does', () => {
+    expect(normalizeMappingNameV1(' \t\n\r\f\vFirst Name \t\n\r\f\v')).toBe('first_name')
+    // U+2028 is not one of the six, so it stays and is not folded to an underscore.
+    expect(normalizeMappingNameV1('\u2028Age')).toBe('\u2028age')
+    expect(normalizeMappingNameV1(' \t ')).toBe('')
+  })
+
+  it('stays fast on a header with a long run of spaces inside it', () => {
+    const started = performance.now()
+    normalizeMappingNameV1(`A${' '.repeat(200_000)}B`)
+    expect(performance.now() - started).toBeLessThan(200)
+  })
+})
