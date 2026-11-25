@@ -109,6 +109,12 @@ export const restoreRecoveryPointResult = z
   .strict()
 export type RestoreRecoveryPointResult = z.infer<typeof restoreRecoveryPointResult>
 
+// Not trimmed: the passphrase is used exactly as typed.
+export const downloadRecoveryPointRequest = z
+  .object({ passphrase: z.string().min(12).max(128) })
+  .strict()
+export type DownloadRecoveryPointRequest = z.infer<typeof downloadRecoveryPointRequest>
+
 export const recoveryPointDownload = z
   .object({ dataUrl: z.string().url(), manifestUrl: z.string().url(), expiresAt: instant })
   .strict()

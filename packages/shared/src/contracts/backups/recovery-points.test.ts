@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   backupErrorCodes,
+  downloadRecoveryPointRequest,
   recoveryPointListItem,
   recoveryPointProblemMessages,
   recoveryPointProblems,
@@ -46,6 +47,23 @@ describe('recovery point contracts', () => {
     expect(restoreRecoveryPointRequest.safeParse({ organizationCode: '   ' }).success).toBe(false)
     expect(
       restoreRecoveryPointRequest.safeParse({ organizationCode: 'X', confirm: true }).success,
+    ).toBe(false)
+  })
+
+  it('accepts a passphrase of 12 to 128 characters untrimmed and rejects others', () => {
+    for (const length of [12, 128])
+      expect(
+        downloadRecoveryPointRequest.safeParse({ passphrase: 'a'.repeat(length) }).success,
+      ).toBe(true)
+    for (const length of [11, 129])
+      expect(
+        downloadRecoveryPointRequest.safeParse({ passphrase: 'a'.repeat(length) }).success,
+      ).toBe(false)
+    expect(downloadRecoveryPointRequest.parse({ passphrase: '  elevenchars  ' })).toEqual({
+      passphrase: '  elevenchars  ',
+    })
+    expect(
+      downloadRecoveryPointRequest.safeParse({ passphrase: 'a'.repeat(12), extra: 1 }).success,
     ).toBe(false)
   })
 

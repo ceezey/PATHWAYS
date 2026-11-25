@@ -1,6 +1,11 @@
 import { Body, Controller, Get, Header, HttpCode, Inject, Param, Post, Req } from '@nestjs/common'
 
-import { type RestoreRecoveryPointRequest, restoreRecoveryPointRequest } from '@pathways/shared'
+import {
+  type DownloadRecoveryPointRequest,
+  type RestoreRecoveryPointRequest,
+  downloadRecoveryPointRequest,
+  restoreRecoveryPointRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
@@ -40,8 +45,12 @@ export class BackupsController {
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('backups.create', 'backups.restore')
   @RequireTotpStepUp()
-  download(@Req() request: AuthenticatedRequest, @Param('pointId') pointId: string) {
-    return this.service.download(requestIdentity(request), pointId)
+  download(
+    @Req() request: AuthenticatedRequest,
+    @Param('pointId') pointId: string,
+    @Body(new ZodPipe(downloadRecoveryPointRequest)) body: DownloadRecoveryPointRequest,
+  ) {
+    return this.service.download(requestIdentity(request), pointId, body)
   }
 
   @Post(':pointId/restore')

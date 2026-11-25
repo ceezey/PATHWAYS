@@ -85,6 +85,30 @@ describe('backup storage', () => {
     expect(storage.removeFiles).not.toHaveBeenCalled()
   })
 
+  it('removes only the download copies older than the cutoff', async () => {
+    const downloads = 'organizations/o/backups/downloads'
+    const { storage, backups } = fakeStorage({
+      listObjects: vi.fn(async (_bucket: string, prefix: string) =>
+        prefix === downloads
+          ? [
+              file(`${downloads}/1000-a.data.pwrp`),
+              file(`${downloads}/3000-b.data.pwrp`),
+              file(`${downloads}/x.data.pwrp`),
+              folder(`${downloads}/1-nested`),
+            ]
+          : [],
+      ),
+    })
+    await backups.removeStaleDownloads('o', 2_000)
+    expect(storage.removeFiles).toHaveBeenCalledOnce()
+    expect(storage.removeFiles).toHaveBeenCalledWith(expect.anything(), [
+      `${downloads}/1000-a.data.pwrp`,
+    ])
+    const empty = fakeStorage({ listObjects: vi.fn(async () => []) })
+    await empty.backups.removeStaleDownloads('o', 2_000)
+    expect(empty.storage.removeFiles).not.toHaveBeenCalled()
+  })
+
   it('maps a listed file to its copy inside the point', () => {
     expect(pointCopyPath('o', 'p', 'organizations/o/projects/a.pdf')).toBe(
       'organizations/o/backups/p/files/projects/a.pdf',
