@@ -7,6 +7,7 @@ export * from './validation/form-data'
 export * from './validation/project-code'
 export * from './validation/duplicate-match'
 export * from './export/neutralize-cell'
+export * from './export/export-label'
 
 export * from './metrics/metric-math'
 export * from './metrics/metric-cell'
