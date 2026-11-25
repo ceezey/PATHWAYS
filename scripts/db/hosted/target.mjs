@@ -1,6 +1,7 @@
 // Guards and env handling for scripts/db/hosted/build.mjs. Kept separate from
 // the orchestrator so the validation logic can be unit tested without ever
 // touching a network connection or spawning a process.
+import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -8,6 +9,9 @@ import path from 'node:path'
 const ALLOWED_TARGET_REFS = Object.freeze(['mvzxitlbtkkyvubgbcmx', 'klbtoqdalmcsfjqophty'])
 
 const MIN_PASSWORD_LENGTH = 24
+
+// SASLprep leaves printable ASCII unchanged, so scramVerifier matches what Postgres derives.
+const PRINTABLE_ASCII = /^[\x20-\x7e]+$/
 
 export class HostedEnvError extends Error {
   constructor(problems) {
@@ -150,6 +154,8 @@ export function validateHostedEnv(env, { allowLoopback = false } = {}) {
   for (const key of ['PRISMA_ROLE_PASSWORD', 'RUNTIME_ROLE_PASSWORD']) {
     if (!env[key] || env[key].length < MIN_PASSWORD_LENGTH) {
       problems.push(`${key} must be at least ${MIN_PASSWORD_LENGTH} characters`)
+    } else if (!PRINTABLE_ASCII.test(env[key])) {
+      problems.push(`${key} must use printable ASCII characters only`)
     }
   }
 
@@ -162,4 +168,15 @@ export function validateHostedEnv(env, { allowLoopback = false } = {}) {
     prismaPassword: env.PRISMA_ROLE_PASSWORD,
     runtimePassword: env.RUNTIME_ROLE_PASSWORD,
   }
+}
+
+// Postgres SCRAM-SHA-256 verifier for PASSWORD '...', so the plain password never reaches the statement log.
+export function scramVerifier(password, salt = randomBytes(16), iterations = 4096) {
+  if (!PRINTABLE_ASCII.test(password))
+    throw new HostedEnvError(['role passwords must be printable ASCII'])
+  const salted = pbkdf2Sync(password, salt, iterations, 32, 'sha256')
+  const hmac = (key, text) => createHmac('sha256', key).update(text).digest()
+  const storedKey = createHash('sha256').update(hmac(salted, 'Client Key')).digest()
+  const serverKey = hmac(salted, 'Server Key')
+  return `SCRAM-SHA-256$${iterations}:${salt.toString('base64')}$${storedKey.toString('base64')}:${serverKey.toString('base64')}`
 }
