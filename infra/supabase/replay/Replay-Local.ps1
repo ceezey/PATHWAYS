@@ -681,7 +681,8 @@ END $$;
     }
     Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
   }
-  Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
+  # The forward chain of -MigrationBaseline ends with 0095 dropping the legacy public tables, so only the historical modes can preserve them.
+  if (-not $MigrationBaseline) { Write-Output 'LEGACY_TABLE_PRESERVATION=PASS' }
   if ($SaveTemplate) {
     $phase6Clones = @(& $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 `
       -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','$phase6Database')")
