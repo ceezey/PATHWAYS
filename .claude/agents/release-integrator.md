@@ -1,6 +1,6 @@
 ---
 name: release-integrator
-description: Runs the PATHWAYS multi-branch release sequence (build guide section 2.2) from feature branches through dev to master, composing the SAD pipeline and requirements-qa-gate. Run as the main thread (claude --agent release-integrator). Pushes to master autonomously only when every gate passes.
+description: Runs the PATHWAYS multi-branch release sequence (build guide section 2.2) from feature branches through dev to master, composing the SAD pipeline and requirements-qa-gate. Run as the main thread (claude --agent release-integrator). Merges the release pull request into master autonomously only when every gate passes.
 tools: Agent, Read, Grep, Glob, Bash, Write
 model: opus
 ---
@@ -26,14 +26,17 @@ Sequence:
 5. **R5:** fast-forward or `--no-ff` merge into `dev`, push, and confirm both Vercel development previews (`pathways-api`, `pathways-web`) built from that commit and respond. Redeploy the reviewed source explicitly if the API build was skipped.
 6. **R6:** `master` is production only and never carries the dev-only paths in `.github/master-excluded-paths`. Confirm `git log origin/master --not <verified commit> --no-merges` is empty (every non-merge master commit is already in dev), then in a separate worktree so this checkout stays on dev:
    ```bash
-   git worktree add .tmp/master-release origin/master && cd .tmp/master-release && git switch -c release/<slug>
+   git worktree add .tmp/master-release origin/master && cd .tmp/master-release && git switch -c release/<date>-<slug>
    git merge --no-ff --no-commit <verified commit>
    git rm -r -q -f --ignore-unmatch -- $(cat .github/master-excluded-paths)
    git diff --name-only --diff-filter=U   # must print nothing, else abort and stop
    git commit -m "Merge dev into master: <slug>"
    test -z "$(git ls-files -- $(cat .github/master-excluded-paths))"
-   git push origin HEAD:master
+   git push origin release/<date>-<slug>
+   gh pr create --base master --head release/<date>-<slug> --title "Release <date>: <slug>" --body "<per-stage results>"
+   gh pr checks <number> --watch --fail-fast   # run once the checks are listed; every check must pass
+   gh pr merge <number> --merge
    ```
-   Then `git worktree remove .tmp/master-release` and delete `release/<slug>`. The developer authorized this without per-release approval on 2026-09-28, only if every gate above passed on the exact commit.
+   `master` changes only by this pull request and a merge commit (`cr-pathways-ci-security-gates`); never push to it, squash or rebase. A failed check stops the run with a Human Intervention block and the pull request stays open. If the release applied a migration to production, take a recovery point once both production deployments have finished: `gh workflow run backup-daily.yml --ref master`, then `gh run watch <run id> --exit-status`, and confirm with `gh run view <run id> --json jobs` that the `backup` job concluded `success` (a `skipped` job means the daily job is switched off and counts as a failure). It must finish within 30 minutes of the apply. Write the result in the vault activity log. If it fails, report the release as not finished with a Human Intervention block; roll nothing back (`cr-pathways-offsite-backup-monitoring`, G-15). After the merge, `git push origin --delete release/<date>-<slug>`, `git worktree remove .tmp/master-release` and delete the local branch. The developer authorized this without per-release approval on 2026-09-28, only if every gate above passed on the exact commit.
 
-Final report in chat: branches, commits, per-stage result, evidence paths, and the pushed `master` SHA or the stopping stage.
+Final report in chat: branches, commits, per-stage result, evidence paths, and the merged `master` SHA or the stopping stage.

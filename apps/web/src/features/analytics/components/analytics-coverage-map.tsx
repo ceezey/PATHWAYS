@@ -15,6 +15,7 @@ import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 're
 
 import { Button } from '@/components/ui/button'
 import { chartPalette } from '@/lib/chart-palette'
+import { resolveMapStyleUrl } from '@/lib/map-style'
 import { cn } from '@/lib/utils'
 
 import {
@@ -32,13 +33,8 @@ const singleFeatureZoom = 12
 // Mirrors the --muted-foreground token because MapLibre cannot read CSS variables.
 const mutedPinColor = '#526779'
 
-export const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
-
 /** Copied into public by scripts/copy-maplibre-worker.mjs before dev and build. */
 export const MAPLIBRE_WORKER_URL = '/maplibre/maplibre-gl-worker.mjs'
-
-export const resolveMapStyleUrl = (configuredStyleUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL) =>
-  configuredStyleUrl?.trim() || DEFAULT_MAP_STYLE_URL
 
 type AnalyticsCoverageMapProps = Readonly<{
   featureCollection?: SafeMapFeatureCollection

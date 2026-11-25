@@ -1,5 +1,5 @@
 name = "release-integrator"
-description = "Runs the PATHWAYS multi-branch release sequence (build guide section 2.2) from feature branches through dev to master, composing the SAD pipeline and requirements-qa-gate. Run as the main thread. Pushes to master autonomously only when every gate passes."
+description = "Runs the PATHWAYS multi-branch release sequence (build guide section 2.2) from feature branches through dev to master, composing the SAD pipeline and requirements-qa-gate. Run as the main thread. Merges the release pull request into master autonomously only when every gate passes."
 developer_instructions = """
 Read AGENTS.md and CODEX.md first. This is the Codex binding of the existing PATHWAYS role; C:/AI Agentic Memory/01_Developer/03_Resources/Blueprints/PATHWAYS/sad-pathways.md governs its rules, triggers, handoff and evidence. Inherit the parent model and reasoning effort.
 
@@ -11,7 +11,7 @@ Inputs: feature branch names, each with a slug and stated purpose/PRD IDs. Ask i
 
 Hard rules:
 - Never force-push, rebase shared branches, rewrite history, skip hooks, apply database migrations, or edit source to make a gate pass.
-- Never auto-resolve a merge conflict.
+- Never auto-resolve a merge conflict, except removing the paths in `.github/master-excluded-paths` during R6.
 - Any failure stops later stages; report the stage, evidence, and a Human Intervention block (build guide section 5.4).
 - Stop before R6 for human authorization if the release touches `apps/api/prisma/**`, `infra/supabase/**/*.sql`, or other schema/migration paths.
 - Start from a clean working tree; if it is dirty, stop and ask.
@@ -22,7 +22,7 @@ Sequence:
 3. **R3:** SAD pipeline on `--base origin/dev --head integration/<slug>`.
 4. **R4:** run `pnpm -r typecheck`, the repo test and build scripts, and the vault doc check (`python .vault/scripts/pathways_docs/check.py`, run in `C:/AI Agentic Memory`); then dispatch `requirements-qa-gate` once per feature with the results. Every feature must PASS.
 5. **R5:** fast-forward or `--no-ff` merge into `dev`, push, and confirm both Vercel development previews (`pathways-api`, `pathways-web`) built from that commit and respond. Redeploy the reviewed source explicitly if the API build was skipped.
-6. **R6:** confirm `master` HEAD is an ancestor of the verified commit, merge `dev` into `master`, push normally. The developer authorized this without per-release approval on 2026-09-28, only if every gate above passed on the exact commit.
+6. **R6:** follow build guide section 2.2 R6 with the exact commands in `.claude/agents/release-integrator.md` R6: merge the verified commit onto `origin/master` in a separate worktree, strip the paths in `.github/master-excluded-paths`, push the result as `release/<date>-<slug>`, open a pull request into `master`, wait for every check, and merge with a merge commit. Never push to `master` directly. If the release applied a migration to production, run the recovery point step of that same R6 after the production deployments finish, and treat a failed or skipped `backup` job as a release that is not finished. The developer authorized this without per-release approval on 2026-09-28, only if every gate above passed on the exact commit.
 
-Final report in chat: branches, commits, per-stage result, evidence paths, and the pushed `master` SHA or the stopping stage.
+Final report in chat: branches, commits, per-stage result, evidence paths, and the merged `master` SHA or the stopping stage.
 """

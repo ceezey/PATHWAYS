@@ -10,7 +10,7 @@
 > Create and edit every doc (suite docs, RFCs, runbooks, audits, Change Records, logs, session notes) in the vault, never in the repo `docs/`. Basenames are unchanged: the old repo `docs/<name>.md` is the vault note `<name>`.
 
 **Status:** Control
-**Version:** 2.3
+**Version:** 2.4
 **Last reconciled:** 2026-10-22
 **Owner:** PATHWAYS capstone team
 
@@ -104,9 +104,9 @@ Run reviews through `sad-orchestrator` as the main-thread agent (`claude --agent
 
 **Branch and release workflow**
 
-- `origin/master` is the production branch only: no development happens on it, and it never carries the dev-only paths listed in `.github/master-excluded-paths` (`AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `.claude`, `.codex`, `docs`, `supabase`, `scripts/sad`, `infra/**/*.md`). CI fails a `master` push that brings one back ([cr-pathways-production-only-master.md](<C:/AI Agentic Memory/01_Developer/01_Projects/PATHWAYS/Change_Records/cr-pathways-production-only-master.md>)).
+- `origin/master` is the production branch only: no development happens on it, and it never carries the dev-only paths listed in `.github/master-excluded-paths` (`AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `.claude`, `.codex`, `docs`, `supabase`, `scripts/sad`, `infra/**/*.md`). CI fails a pull request into `master`, or a push to it, that brings one back ([cr-pathways-production-only-master.md](<C:/AI Agentic Memory/01_Developer/01_Projects/PATHWAYS/Change_Records/cr-pathways-production-only-master.md>)).
 - `dev` is the development branch and holds everything.
-- Prepare and verify changes on `dev`, then bring the approved release into `master` and push normally.
+- Prepare and verify changes on `dev`, then bring the approved release into `master` through a pull request merged with a merge commit after its checks pass (`validate`, the tooling tests, `security`, `codeql`). Never push, force-push, squash, rebase or delete `master`. A ruleset on `master` enforces this; its state is recorded in [cr-pathways-ci-security-gates.md](<C:/AI Agentic Memory/01_Developer/01_Projects/PATHWAYS/Change_Records/cr-pathways-ci-security-gates.md>).
 - The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `dev` for development previews.
 - Production uses the Supabase project `PATHWAYS` (`mvzxitlbtkkyvubgbcmx`); Preview and development use devV2 (`klbtoqdalmcsfjqophty`). Migrations reach production only at R6, through `scripts/db/hosted/build.mjs --resume --through <last migration on master>` before the production redeploy ([runbook-production-build.md](<C:/AI Agentic Memory/01_Developer/02_Areas/Dev_&_Ops/PATHWAYS/runbook-production-build.md>)).
 - Verify both development previews when shared web route policy affects API imports. If Vercel skips the API build, redeploy the reviewed development source explicitly and confirm both previews before database application.
@@ -119,9 +119,9 @@ Use `release-integrator` as the main-thread agent (`claude --agent release-integ
 3. **R3 Merged review:** run the SAD pipeline on the merged digest. Passing branches can still conflict semantically.
 4. **R4 Requirements QA:** `requirements-qa-gate` verifies each feature against its PRD gate criteria (`G-F<n>-<m>`) and QAD happy/sad/abuse rows. Every feature needs PASS.
 5. **R5 Development release:** merge into `dev`, push, and verify that both Vercel development previews build and respond.
-6. **R6 Deployment:** apply any new migrations to production, then merge `dev` into `master` in a separate worktree (this checkout stays on `dev`), remove every path in `.github/master-excluded-paths` inside the same merge commit (the only conflicts ever auto-resolved), confirm none is left, and push normally. The exact commands are in `.claude/agents/release-integrator.md` R6.
+6. **R6 Deployment:** apply any new migrations to production, then merge `dev` into `master` in a separate worktree (this checkout stays on `dev`), remove every path in `.github/master-excluded-paths` inside the same merge commit (the only conflicts ever auto-resolved), confirm none is left, push the result as `release/<date>-<slug>`, open a pull request into `master`, wait for every check on it, and merge with a merge commit. The exact commands are in `.claude/agents/release-integrator.md` R6.
 
-The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, the vault doc check (`python .vault/scripts/pathways_docs/check.py`, run in the vault), `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
+The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, the vault doc check (`python .vault/scripts/pathways_docs/check.py`, run in the vault), `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. The release pull request is merged only after every check on it passes. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
 
 ### 2.3 Codex Platform Binding
 
