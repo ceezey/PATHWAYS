@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const env = vi.hoisted(() => ({ NEXT_PUBLIC_TURNSTILE_SITE_KEY: '' }))
 vi.mock('@/lib/env', () => ({ webEnv: env }))
 
-const turnstile = { render: vi.fn(() => 'widget-1'), remove: vi.fn() }
+const turnstile = {
+  render: vi.fn((_holder: HTMLElement, _options: Record<string, unknown>) => 'widget-1'),
+  remove: vi.fn(),
+}
 const scripts = () => [...document.head.querySelectorAll('script')]
 const load = async () => {
   vi.resetModules()
