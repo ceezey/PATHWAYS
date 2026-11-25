@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Inject,
@@ -35,10 +36,16 @@ export interface PasswordGrant {
   session: { accessToken: string; refreshToken: string; authUserId: string } | null
   // True only for a definite credential rejection, never for an outage or provider rate limit.
   rejected: boolean
+  // True when the provider refused the CAPTCHA answer; it says nothing about the password.
+  captchaFailed?: boolean
 }
 
 // Password grant against the identity provider; nothing is logged or returned beyond the session.
-export async function passwordGrant(email: string, password: string): Promise<PasswordGrant> {
+export async function passwordGrant(
+  email: string,
+  password: string,
+  captchaToken?: string,
+): Promise<PasswordGrant> {
   const url = process.env.SUPABASE_URL
   const key =
     process.env.SUPABASE_PUBLISHABLE_KEY ||
@@ -62,7 +69,11 @@ export async function passwordGrant(email: string, password: string): Promise<Pa
     },
   })
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      ...(captchaToken ? { options: { captchaToken } } : {}),
+    })
     if (data.session) {
       return {
         session: {
@@ -73,6 +84,8 @@ export async function passwordGrant(email: string, password: string): Promise<Pa
         rejected: false,
       }
     }
+    if (error?.code === 'captcha_failed')
+      return { session: null, rejected: false, captchaFailed: true }
     const status = error?.status ?? 0
     return { session: null, rejected: status >= 400 && status < 500 && status !== 429 }
   } catch {
@@ -87,7 +100,7 @@ export class SignInLockoutService {
 
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async signIn(rawEmail: string, password: string, device?: string) {
+  async signIn(rawEmail: string, password: string, device?: string, captchaToken?: string) {
     const email = rawEmail.trim().toLowerCase()
     const remaining = await this.db(
       () => this.prisma.$queryRaw<Array<{ s: unknown }>>`
@@ -95,7 +108,7 @@ export class SignInLockoutService {
     )
     // Locked identifiers are refused without checking the password.
     if (remaining > 0) throw signInLocked(remaining)
-    const result = await this.grant(email, password)
+    const result = await this.grant(email, password, captchaToken)
     if (result.session) {
       await this.db(
         () => this.prisma.$queryRaw<Array<{ s: unknown }>>`
@@ -105,6 +118,14 @@ export class SignInLockoutService {
       await this.recordSignIn(result.session.authUserId, result.session.accessToken, device)
       return { accessToken: result.session.accessToken, refreshToken: result.session.refreshToken }
     }
+    // A refused CAPTCHA is not a wrong password, so it never counts toward the lockout.
+    if (result.captchaFailed)
+      throw new BadRequestException({
+        statusCode: HttpStatus.BAD_REQUEST,
+        error: 'Bad Request',
+        code: 'CAPTCHA_FAILED',
+        message: 'The security check did not pass. Try again.',
+      })
     if (!result.rejected) throw new ServiceUnavailableException('Authentication is unavailable.')
     const locked = await this.db(
       () => this.prisma.$queryRaw<Array<{ s: unknown }>>`

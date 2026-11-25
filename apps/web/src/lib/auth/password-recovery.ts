@@ -79,6 +79,7 @@ export async function requestPasswordRecoveryEmail(
   auth: PasswordRecoveryAuth,
   email: string,
   currentOrigin: string,
+  captchaToken?: string,
 ): Promise<string> {
   if (!isApprovedPasswordRecoveryOrigin(currentOrigin)) {
     return passwordRecoveryAcknowledgement
@@ -89,6 +90,7 @@ export async function requestPasswordRecoveryEmail(
     // Keep provider and delivery errors generic here as well to prevent enumeration.
     await auth.resetPasswordForEmail(email.trim(), {
       redirectTo: passwordRecoveryCallbackUrl,
+      ...(captchaToken ? { captchaToken } : {}),
     })
   } catch {
     // The person sees the same acknowledgement for provider, network, and unknown-user cases.

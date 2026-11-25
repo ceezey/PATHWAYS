@@ -16,6 +16,7 @@ import {
   businessCalendarDate,
   computeSurveyAnalyticsFromAggregates,
   descriptiveAnalyticsQuerySchema,
+  exportLabel,
   hasAtomicPermission,
   surveyAggregateSchema,
   timelineAnalyticsSchema,
@@ -386,7 +387,8 @@ export class AnalyticsService {
           entityId: source.projectId,
           changes: { contractVersion: source.contractVersion, format, ...source.audit },
         })
-        return exportArtifact(format, source.title, source.table, source.fileBase)
+        const label = exportLabel({ exportedBy: actor.fullName, exportedAt: new Date() })
+        return exportArtifact(format, source.title, source.table, source.fileBase, label)
       }),
     )
   }

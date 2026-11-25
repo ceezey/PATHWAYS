@@ -35,7 +35,7 @@ export class ReportPdfError extends Error {
 export class ReportPdfRenderer {
   constructor(@Inject(PrintPdfRenderer) private readonly print: PrintPdfRenderer) {}
 
-  async render(reportId: string, snapshot: PrintSnapshot): Promise<Buffer> {
+  async render(reportId: string, snapshot: PrintSnapshot, footerNote: string): Promise<Buffer> {
     if (!reportIdPattern.test(reportId)) throw new ReportPdfError('input')
     try {
       validatedReportRows([snapshot.columns, ...snapshot.rows])
@@ -48,6 +48,7 @@ export class ReportPdfRenderer {
         globalName: '__PATHWAYS_REPORT__',
         payload: snapshot,
         maxBytes: REPORT_MAX_BYTES,
+        footerNote,
       })
     } catch (error) {
       if (error instanceof PrintPdfError) throw new ReportPdfError(error.stage, error.causeName)

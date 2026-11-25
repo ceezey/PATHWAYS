@@ -21,9 +21,11 @@ import { useSession } from '@/hooks/use-session'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { type LoginSchema, loginSchema } from '../login.schema'
 import { formatLockRemaining, requestSignIn } from '../signin-request'
+import { CaptchaField, captchaSiteKey } from './captcha-field'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 const invalidCredentialsMessage = 'Could not sign in. Check your credentials and try again.'
+const captchaFailedMessage = 'The security check did not pass. Try again.'
 // Why the workspace sent the user here (session-timeout-guard.tsx).
 const endedNotices: Record<string, string> = {
   idle: 'You were signed out after 30 minutes without activity.',
@@ -51,6 +53,10 @@ export const LoginForm = () => {
   const [lock, setLock] = useState<{ until: number; email: string } | null>(null)
   const [remaining, setRemaining] = useState(0)
   const locked = remaining > 0
+  const [captchaToken, setCaptchaToken] = useState('')
+  // Remounting the field asks Turnstile for a new token, since each one works once.
+  const [captchaRound, setCaptchaRound] = useState(0)
+  const waitingForCaptcha = Boolean(captchaSiteKey) && !captchaToken
 
   useEffect(() => {
     if (status === 'authenticated') router.replace('/auth/mfa')
@@ -88,7 +94,7 @@ export const LoginForm = () => {
   }, [lock])
 
   const onSubmit = async (values: LoginSchema) => {
-    if (inFlight.current || locked) return
+    if (inFlight.current || locked || waitingForCaptcha) return
     const supabase = getBrowserSupabaseClient()
 
     if (!configured || !supabase) {
@@ -100,7 +106,11 @@ export const LoginForm = () => {
     setBusy(true)
     setError('')
     try {
-      const outcome = await requestSignIn(values.identifier, values.password)
+      const outcome = await requestSignIn(
+        values.identifier,
+        values.password,
+        captchaToken || undefined,
+      )
       form.resetField('password')
       if (outcome.kind === 'locked') {
         setLock({
@@ -117,7 +127,7 @@ export const LoginForm = () => {
             })
           : { error: true }
       if (authError) {
-        setError(invalidCredentialsMessage)
+        setError(outcome.kind === 'captcha' ? captchaFailedMessage : invalidCredentialsMessage)
         return
       }
 
@@ -131,6 +141,10 @@ export const LoginForm = () => {
     } finally {
       inFlight.current = false
       setBusy(false)
+      if (captchaSiteKey) {
+        setCaptchaToken('')
+        setCaptchaRound((round) => round + 1)
+      }
     }
   }
 
@@ -260,7 +274,12 @@ export const LoginForm = () => {
                   Forgot password?
                 </Link>
               </div>
-              <Button className="w-full gap-2" disabled={busy || locked} type="submit">
+              <CaptchaField key={captchaRound} onToken={setCaptchaToken} />
+              <Button
+                className="w-full gap-2"
+                disabled={busy || locked || waitingForCaptcha}
+                type="submit"
+              >
                 {busy ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (

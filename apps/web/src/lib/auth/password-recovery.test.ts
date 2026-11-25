@@ -130,3 +130,24 @@ describe('password recovery validation', () => {
     }
   })
 })
+
+describe('password recovery CAPTCHA token', () => {
+  it('passes the token to the provider only when the form has one', async () => {
+    const resetPasswordForEmail = vi.fn().mockResolvedValue({ data: {}, error: null })
+    const auth = { resetPasswordForEmail } as never
+    await requestPasswordRecoveryEmail(
+      auth,
+      'a@example.org',
+      localPasswordRecoveryOrigin,
+      'token-1',
+    )
+    expect(resetPasswordForEmail).toHaveBeenLastCalledWith('a@example.org', {
+      redirectTo: passwordRecoveryCallbackUrl,
+      captchaToken: 'token-1',
+    })
+    await requestPasswordRecoveryEmail(auth, 'a@example.org', localPasswordRecoveryOrigin, '')
+    expect(resetPasswordForEmail).toHaveBeenLastCalledWith('a@example.org', {
+      redirectTo: passwordRecoveryCallbackUrl,
+    })
+  })
+})

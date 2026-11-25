@@ -25,12 +25,16 @@ import {
 } from '@/lib/auth/password-recovery'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { type RecoveryRequestValues, recoveryRequestSchema } from '../auth.schema'
+import { CaptchaField, captchaSiteKey } from './captcha-field'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 const genericResponse = passwordRecoveryAcknowledgement
 
 export const AccountRecoveryWorkspace = () => {
   const [submitted, setSubmitted] = useState(false)
+  // The field remounts with the form after each request, so Turnstile gives a new token.
+  const [captchaToken, setCaptchaToken] = useState('')
+  const waitingForCaptcha = Boolean(captchaSiteKey) && !captchaToken
   const form = useForm<RecoveryRequestValues>({
     resolver: zodResolver(recoveryRequestSchema),
     defaultValues: { email: '' },
@@ -84,8 +88,9 @@ export const AccountRecoveryWorkspace = () => {
               }
               const supabase = getBrowserSupabaseClient()
               if (supabase) {
-                await requestPasswordRecoveryEmail(supabase.auth, email, origin)
+                await requestPasswordRecoveryEmail(supabase.auth, email, origin, captchaToken)
               }
+              setCaptchaToken('')
               setSubmitted(true)
             })}
           >
@@ -110,7 +115,8 @@ export const AccountRecoveryWorkspace = () => {
                 </FormItem>
               )}
             />
-            <Button className="w-full" type="submit">
+            <CaptchaField onToken={setCaptchaToken} />
+            <Button className="w-full" disabled={waitingForCaptcha} type="submit">
               Continue
             </Button>
           </form>

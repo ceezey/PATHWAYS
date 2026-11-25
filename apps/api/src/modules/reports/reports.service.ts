@@ -18,6 +18,7 @@ import {
   type ReportPreviewResponse,
   type ReportResponse,
   type SurveyFormResponse,
+  exportLabel,
   generateReportRequest,
   hasAtomicPermission,
   reportKindGrants,
@@ -203,17 +204,21 @@ export class ReportsService {
     })
   }
   // Designed PDF through headless Chromium; null keeps the pdfkit artifact as the fallback.
-  private async designedPdf(id: string, title: string, source: ReportSource) {
+  private async designedPdf(id: string, title: string, source: ReportSource, label: string) {
     try {
-      return await this.pdf.render(id, {
-        title,
-        kind: source.kind,
-        columns: source.columns,
-        rows: source.rows,
-        ...(source.sections ? { sections: source.sections } : {}),
-        generatedAt: source.generatedAt,
-        unavailableReasons: source.unavailableReasons,
-      })
+      return await this.pdf.render(
+        id,
+        {
+          title,
+          kind: source.kind,
+          columns: source.columns,
+          rows: source.rows,
+          ...(source.sections ? { sections: source.sections } : {}),
+          generatedAt: source.generatedAt,
+          unavailableReasons: source.unavailableReasons,
+        },
+        label,
+      )
     } catch (error) {
       const known = error instanceof ReportPdfError ? error : null
       const cause = known?.causeName ?? (error instanceof Error ? error.name : 'Error')
@@ -262,9 +267,13 @@ export class ReportsService {
     let bytes: Buffer
     // Set when a PDF was asked for and Chromium could not render it, so the caller can say so.
     let pdfFallback = false
+    // The stored file keeps its generator's name, since later downloads return these exact bytes.
+    const label = exportLabel({ exportedBy: identity.fullName, exportedAt: new Date() })
     try {
       const designed =
-        body.format === 'PDF' ? await this.designedPdf(prepare.id, body.name, prepare.source) : null
+        body.format === 'PDF'
+          ? await this.designedPdf(prepare.id, body.name, prepare.source, label)
+          : null
       pdfFallback = body.format === 'PDF' && designed === null
       bytes =
         designed ??
@@ -272,6 +281,7 @@ export class ReportsService {
           body.name,
           [prepare.source.columns, ...prepare.source.rows],
           body.format,
+          label,
         ))
     } catch (error) {
       // Correctable input keeps its fixed descriptive message; integrity/renderer faults do not.

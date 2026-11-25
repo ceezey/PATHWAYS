@@ -129,6 +129,27 @@ describe('Next.js middleware entry point', () => {
     }
   })
 
+  it('allows the Turnstile origin as a frame and script source only when a site key is set', async () => {
+    const without = await middleware(new NextRequest('http://127.0.0.1:3000/staff/login'))
+    expect(without.headers.get('content-security-policy')).not.toContain(
+      'challenges.cloudflare.com',
+    )
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'site-key')
+    vi.resetModules()
+    try {
+      const keyed = await import('./middleware')
+      const response = await keyed.middleware(new NextRequest('http://127.0.0.1:3000/staff/login'))
+      const policy = response.headers.get('content-security-policy') ?? ''
+      expect(policy).toContain('frame-src blob: https://challenges.cloudflare.com;')
+      expect(policy).toMatch(
+        /script-src [^;]*'strict-dynamic' https:\/\/challenges\.cloudflare\.com;/,
+      )
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
   it('lets the browser send error reports to the tracker only when a DSN is set', async () => {
     const without = await middleware(new NextRequest('http://127.0.0.1:3000/staff/login'))
     expect(without.headers.get('content-security-policy')).not.toContain('ingest.example.io')

@@ -24,15 +24,23 @@ function apiOrigin() {
   }
 }
 
+// The sign-in CAPTCHA frame and script, only while a site key turns CAPTCHA on.
+const captchaOrigins = webEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+  ? ['https://challenges.cloudflare.com']
+  : []
+
 const cspOrigins: CspOrigins = {
   api: apiOrigin(),
   supabase: originOf(webEnv.NEXT_PUBLIC_SUPABASE_URL),
   tiles: [originOf(resolveMapStyleUrl())],
   // Browser error reports go to the tracker's ingest address, only when a DSN is set.
   extraConnect: [originOf(webEnv.NEXT_PUBLIC_SENTRY_DSN)],
-  extraFrame: [],
-  // React's development build needs eval; a production build never gets it.
-  extraScript: process.env.NODE_ENV === 'development' ? ["'unsafe-eval'"] : [],
+  extraFrame: captchaOrigins,
+  extraScript: [
+    ...captchaOrigins,
+    // React's development build needs eval; a production build never gets it.
+    ...(process.env.NODE_ENV === 'development' ? ["'unsafe-eval'"] : []),
+  ],
 }
 const cspHeader =
   webEnv.CSP_MODE === 'report-only'

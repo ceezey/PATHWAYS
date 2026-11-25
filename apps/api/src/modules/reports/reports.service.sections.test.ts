@@ -65,6 +65,7 @@ describe('report source authority, privacy and artifact recovery', () => {
       expect.objectContaining({
         sections: expect.objectContaining({ overview: expect.any(Array) }),
       }),
+      expect.any(String),
     )
   })
   describe('project summary section integrity', () => {
