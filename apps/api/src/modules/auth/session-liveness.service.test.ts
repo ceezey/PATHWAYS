@@ -46,7 +46,9 @@ describe('SessionLivenessService database boundary', () => {
   it('does not cache a previously live session across requests', async () => {
     await service.assertLive(subject, sessionId)
     transaction.$queryRaw.mockResolvedValue([{ live: false }])
-    await expect(service.assertLive(subject, sessionId)).rejects.toThrow(UnauthorizedException)
+    const ended = await service.assertLive(subject, sessionId).catch((error) => error)
+    expect(ended).toBeInstanceOf(UnauthorizedException)
+    expect(ended.getResponse()).toMatchObject({ statusCode: 401, code: 'SESSION_ENDED' })
     expect(prisma.$transaction).toHaveBeenCalledTimes(2)
     expect(Logger.prototype.warn).not.toHaveBeenCalled()
   })
