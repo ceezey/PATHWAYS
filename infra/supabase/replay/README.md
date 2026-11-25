@@ -32,10 +32,10 @@ The runner removes only its validated `.tmp/pathways-phase6-*` directory after
 the disposable cluster is stopped. An uncertain stop preserves the directory
 and fails.
 
-The former public-table retirement SQL is not an active migration. It is held
-only as a deferred review artifact under `../legacy-retirement/`; it must not be
-staged or executed. A future retirement requires a new data decision, new
-migration number and separate review.
+Migration `0095_retire_legacy_public_tables` drops those 15 legacy `public`
+tables. It runs only in the `-MigrationBaseline` forward chain, which therefore
+prints no `LEGACY_TABLE_PRESERVATION=PASS`; the historical modes still require
+the 15 tables through 0025.
 
 Session liveness ships as migration-managed SQL; its historical deployment runner was removed on 2026-10-09 and remains in git history.
 
