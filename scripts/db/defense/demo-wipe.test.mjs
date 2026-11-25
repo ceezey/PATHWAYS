@@ -19,6 +19,7 @@ const keep = [
   'pathways.system_users',
   'pathways.user_step_up_pins',
   'pathways.signin_lockouts',
+  'pathways.app_sessions',
   'pathways_rules_internal.source_operation_catalog',
   'pathways_rules_internal.calendar_configuration',
   'pathways_rules_internal.sweep_cursor',
