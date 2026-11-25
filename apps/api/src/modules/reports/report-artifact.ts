@@ -44,6 +44,7 @@ export async function createReportArtifact(
   title: string,
   rows: string[][],
   format: ReportFormat,
+  label: string,
 ): Promise<Buffer> {
   if (!['CSV', 'XLSX', 'XLS', 'PDF'].includes(format))
     throw new ReportArtifactInputError('Unsupported report format.')
@@ -53,12 +54,12 @@ export async function createReportArtifact(
   let bytes: Buffer
   if (format === 'CSV') {
     bytes = Buffer.from(
-      `\ufeff${rows.map((row) => row.map((cell) => `"${neutralizeCell(cell).replaceAll('"', '""')}"`).join(',')).join('\r\n')}\r\n`,
+      `\ufeff${[[label], ...rows].map((row) => row.map((cell) => `"${neutralizeCell(cell).replaceAll('"', '""')}"`).join(',')).join('\r\n')}\r\n`,
       'utf8',
     )
   } else if (format === 'XLSX' || format === 'XLS') {
     // toWorkbookBytes neutralizes string cells itself.
-    bytes = Buffer.from(toWorkbookBytes(rows, format.toLowerCase() as 'xlsx' | 'xls'))
+    bytes = Buffer.from(toWorkbookBytes([[label], ...rows], format.toLowerCase() as 'xlsx' | 'xls'))
   } else {
     const font = readFileSync(reportAsset('NotoSans-Regular.ttf'))
     if (
@@ -81,7 +82,7 @@ export async function createReportArtifact(
       })
       .strict()
       .parse(JSON.parse(coverageBytes.toString('utf8')))
-    for (const text of [title, ...rows.flat()])
+    for (const text of [title, label, ...rows.flat()])
       for (const char of text) {
         const point = char.codePointAt(0)
         if (
@@ -103,6 +104,7 @@ export async function createReportArtifact(
         font: font as unknown as string,
         size: 'A4',
         margin: 44,
+        bufferPages: true,
         tagged: true,
         pdfVersion: '1.7',
         displayTitle: true,
@@ -151,7 +153,27 @@ export async function createReportArtifact(
           }),
         )
       })
-      if (!failed) doc.end()
+      if (!failed) {
+        // The footer goes on each buffered page last and with no bottom margin, so it adds no page.
+        const { start, count } = doc.bufferedPageRange()
+        for (let index = start; index < start + count; index++) {
+          doc.switchToPage(index)
+          doc.page.margins.bottom = 0
+          doc.markContent('Artifact', { type: 'Pagination' })
+          doc
+            .fontSize(8)
+            .fillColor('#6F7785')
+            .text(label, 44, doc.page.height - 30, {
+              width: doc.page.width - 88,
+              align: 'center',
+              // One line that truncates: a wrapped footer would run off the page and add one.
+              height: 10,
+              ellipsis: true,
+            })
+          doc.endMarkedContent()
+        }
+        doc.end()
+      }
     })
   }
   if (!bytes.length || bytes.length > REPORT_MAX_BYTES)

@@ -435,6 +435,7 @@ export const ProjectActivitiesWorkspace = ({
         <ActivityListTable
           activities={filteredActivities}
           canReadBudget={canReadBudget}
+          exportedBy={profile?.fullName ?? ''}
           onOpen={openDetail}
           projectId={projectId}
         />

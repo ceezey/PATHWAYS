@@ -15,6 +15,7 @@ export const webEnv = readWebEnv({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? suppliedSupabasePublishableKey,
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   STAFF_PORTAL_BASE_URL: process.env.STAFF_PORTAL_BASE_URL,
   CSP_MODE: process.env.CSP_MODE,
   WEB_PORT: process.env.WEB_PORT,
@@ -28,5 +29,4 @@ export const webSupabasePublishableKey =
 export const webSetupState = {
   supabaseConfigured:
     Boolean(webEnv.NEXT_PUBLIC_SUPABASE_URL) && Boolean(webSupabasePublishableKey),
-  sentryEnabled: Boolean(webEnv.NEXT_PUBLIC_SENTRY_DSN),
 }

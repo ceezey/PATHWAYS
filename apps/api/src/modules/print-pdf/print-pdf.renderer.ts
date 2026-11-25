@@ -29,8 +29,11 @@ function installedBrowser() {
   return candidates.find((path) => existsSync(path))
 }
 
-const footer =
-  '<div style="width:100%;font-size:8px;color:#6F7785;text-align:center;font-family:Arial,sans-serif">PATHWAYS · Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>'
+const escapeHtml = (text: string) =>
+  text.replace(/[&<>"]/g, (char) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[char]};`)
+
+const footer = (note?: string) =>
+  `<div style="width:100%;font-size:8px;color:#6F7785;text-align:center;font-family:Arial,sans-serif">${note ? `${escapeHtml(note)} · ` : ''}PATHWAYS · Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>`
 
 // Only the web origin and inline data may load, so redirects and third-party calls abort.
 function allowed(url: string, origin: string) {
@@ -74,6 +77,8 @@ type PrintPdfRequest = {
   globalName: string
   payload: unknown
   maxBytes: number
+  /** Shown in the page footer beside the page numbers; receipts leave it out. */
+  footerNote?: string
 }
 
 /** Shared headless Chromium print pipeline; each document kind supplies its own page and payload. */
@@ -135,7 +140,7 @@ export class PrintPdfRenderer implements OnModuleDestroy {
             margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' },
             displayHeaderFooter: true,
             headerTemplate: '<span></span>',
-            footerTemplate: footer,
+            footerTemplate: footer(request.footerNote),
             timeout: 20_000,
           }),
         )

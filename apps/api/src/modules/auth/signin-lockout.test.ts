@@ -247,3 +247,45 @@ describe('sign-in reset query', () => {
     expect(reset).toMatch(/SELECT 0 AS s FROM \(SELECT pathways\.signin_lockout_reset/)
   })
 })
+
+describe('sign-in CAPTCHA token', () => {
+  it('passes the token to the password grant', async () => {
+    const h = harness([ok])
+    const seen: unknown[][] = []
+    h.service.grant = async (...args) => {
+      seen.push(args)
+      return ok
+    }
+    await h.service.signIn('a@example.org', 'pw', 'device', 'token-1')
+    expect(seen).toEqual([['a@example.org', 'pw', 'token-1']])
+  })
+
+  it('abuse: a refused CAPTCHA is 400 CAPTCHA_FAILED and never counts toward the lockout', async () => {
+    const h = harness(Array(6).fill({ session: null, rejected: false, captchaFailed: true }))
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const error = await h.service.signIn('a@example.org', 'pw').catch((thrown) => thrown)
+      expect(error).toBeInstanceOf(BadRequestException)
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        statusCode: 400,
+        code: 'CAPTCHA_FAILED',
+      })
+    }
+    expect(h.failures.size).toBe(0)
+    expect(h.locked.size).toBe(0)
+    expect(h.calls.some((sql) => sql.includes('failure'))).toBe(false)
+  })
+
+  it('accepts a token of 1 to 4096 characters and refuses others', async () => {
+    const body = { email: 'a@example.org', password: 'pw' }
+    await expect(validate({ ...body, captchaToken: 'x'.repeat(4096) })).resolves.toMatchObject({
+      captchaToken: 'x'.repeat(4096),
+    })
+    await expect(validate({ ...body, captchaToken: '' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    )
+    await expect(validate({ ...body, captchaToken: 'x'.repeat(4097) })).rejects.toBeInstanceOf(
+      BadRequestException,
+    )
+    await expect(validate({ ...body, captchaToken: 7 })).rejects.toBeInstanceOf(BadRequestException)
+  })
+})

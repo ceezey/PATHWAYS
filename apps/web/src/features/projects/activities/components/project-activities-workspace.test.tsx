@@ -29,6 +29,7 @@ const access = vi.hoisted(() => ({
   access: 'ready',
   assignedProjectIds: ['4baf1a98-7285-4671-a897-64787e31fe93'],
   profile: {
+    fullName: 'Ana Reyes',
     id: 'synthetic-subject',
     userId: 'synthetic-user',
     organizationId: 'synthetic-org',
@@ -431,7 +432,12 @@ describe('project activities permission-aware loading', () => {
       reader.onload = () => resolve(String(reader.result))
       reader.readAsText(blobs[0])
     })
-    expect(text.split('\r\n')[0]).toBe(
+    const [label, header] = text.split('\r\n')
+    // The signed-in person's name is on the first line, above the header row.
+    expect(label).toMatch(
+      /^"Confidential\. Exported by Ana Reyes on \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(Asia\/Manila\)\."$/,
+    )
+    expect(header).toBe(
       '"Activity","Code","Status","Due date","Beneficiaries","Indicators","Budget"',
     )
     expect(text).toContain(`"'=cmd","ACT-001"`)

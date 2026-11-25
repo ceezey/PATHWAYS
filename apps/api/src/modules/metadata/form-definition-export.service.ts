@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common'
+import { exportLabel } from '@pathways/shared'
 import type { Prisma } from '@prisma/client'
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
@@ -128,6 +129,7 @@ export class FormDefinitionExportService {
         `${definition.name} v${definition.version}`.slice(0, 200),
         formDefinitionExportRows(definition),
         wanted,
+        exportLabel({ exportedBy: identity.fullName, exportedAt: new Date() }),
       )
     } catch (error) {
       // A definition too large for the artifact bounds fails whole; it is never truncated.
