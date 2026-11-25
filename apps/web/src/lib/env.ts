@@ -29,5 +29,4 @@ export const webSupabasePublishableKey =
 export const webSetupState = {
   supabaseConfigured:
     Boolean(webEnv.NEXT_PUBLIC_SUPABASE_URL) && Boolean(webSupabasePublishableKey),
-  sentryEnabled: Boolean(webEnv.NEXT_PUBLIC_SENTRY_DSN),
 }

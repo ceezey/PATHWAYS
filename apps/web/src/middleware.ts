@@ -33,7 +33,8 @@ const cspOrigins: CspOrigins = {
   api: apiOrigin(),
   supabase: originOf(webEnv.NEXT_PUBLIC_SUPABASE_URL),
   tiles: [originOf(resolveMapStyleUrl())],
-  extraConnect: [],
+  // Browser error reports go to the tracker's ingest address, only when a DSN is set.
+  extraConnect: [originOf(webEnv.NEXT_PUBLIC_SENTRY_DSN)],
   extraFrame: captchaOrigins,
   extraScript: [
     ...captchaOrigins,
