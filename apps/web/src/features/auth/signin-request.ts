@@ -23,12 +23,16 @@ const parseRetryAfter = async (response: Response) => {
 }
 
 // The API counts failures and applies the lockout; credentials go nowhere else.
-export async function requestSignIn(email: string, password: string): Promise<SignInOutcome> {
+export async function requestSignIn(
+  email: string,
+  password: string,
+  captchaToken?: string,
+): Promise<SignInOutcome> {
   const base = approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL)
   const response = await fetch(`${base.toString().replace(/\/$/, '')}/auth/sign-in`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, ...(captchaToken ? { captchaToken } : {}) }),
     cache: 'no-store',
     credentials: 'omit',
     redirect: 'error',
