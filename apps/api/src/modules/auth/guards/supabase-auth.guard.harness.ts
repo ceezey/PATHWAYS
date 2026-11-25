@@ -22,6 +22,7 @@ import { reportAuthorizedOperationTiming } from '../../../common/authz/authorize
 import { RequireBeneficiaryStepUp } from '../../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../../common/decorators/permission.decorator'
 import { Public } from '../../../common/decorators/public.decorator'
+import { RequireTotpStepUp } from '../../../common/decorators/totp-step-up.decorator'
 import {
   PrismaService,
   type VerifiedDatabaseContext,
@@ -46,6 +47,8 @@ import { SupabaseAuthGuard } from './supabase-auth.guard'
 export const beneficiaryHandler = vi.fn()
 const assignedProjectId = '60000000-0000-4000-8000-000000000006'
 export const unassignedProjectId = '60000000-0000-4000-8000-000000000007'
+export const totpHandler = vi.fn()
+export const totpPath = '/boundary-test/totp-step-up'
 export const detailPath = `/boundary-test/projects/${assignedProjectId}/beneficiary-detail`
 export const unpermittedPath = `/boundary-test/projects/${assignedProjectId}/beneficiary-detail-unpermitted`
 
@@ -88,6 +91,14 @@ export class BoundaryTestController {
   beneficiaryDetailUnpermitted() {
     beneficiaryHandler()
     return { detail: true }
+  }
+
+  @Get('totp-step-up')
+  @RequirePermission('backups.restore')
+  @RequireTotpStepUp()
+  totpStepUp() {
+    totpHandler()
+    return { totp: true }
   }
 
   @Get('beneficiary-aggregate')

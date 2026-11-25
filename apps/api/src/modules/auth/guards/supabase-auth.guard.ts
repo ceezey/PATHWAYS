@@ -22,12 +22,15 @@ import { AUTH_BOUNDARY_KEY } from '../../../common/decorators/auth-boundary.deco
 import { BENEFICIARY_STEP_UP_KEY } from '../../../common/decorators/beneficiary-step-up.decorator'
 import { PERMISSION_KEY } from '../../../common/decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator'
+import { TOTP_STEP_UP_KEY } from '../../../common/decorators/totp-step-up.decorator'
 import {
   bindInspectionIdentity,
   inspectionRequestBudget,
 } from '../../../common/network/inspection-request-budget'
 import type { VerifiedTransactionTiming } from '../../../prisma/prisma.service'
 import { AppSessionsService } from '../app-sessions.service'
+import { evaluateBeneficiaryStepUp } from '../beneficiary-step-up'
+import { totpRequired } from '../beneficiary-step-up-pin.service'
 import { BeneficiaryStepUpService } from '../beneficiary-step-up.service'
 import { TokenAuthService, type VerifiedAuthSession } from '../token-auth.service'
 import { WorkspaceResolutionService } from '../workspace-resolution.service'
@@ -204,6 +207,15 @@ export class SupabaseAuthGuard implements CanActivate {
       request.user = undefined
       request.authSessionId = undefined
       throw new ForbiddenException('Required application permission is missing.')
+    }
+    // Only a fresh signed TOTP counts here; a PIN grant is never consulted.
+    if (
+      this.reflector.getAllAndOverride<boolean>(TOTP_STEP_UP_KEY, handlers) &&
+      !evaluateBeneficiaryStepUp(identity.mfaVerifiedAt).fresh
+    ) {
+      request.user = undefined
+      request.authSessionId = undefined
+      throw totpRequired()
     }
     // Server-derived step-up after identity/account/org/role/permission and the
     // route project assignment, before any Beneficiary query. Freshness (a signed TOTP

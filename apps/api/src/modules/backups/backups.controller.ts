@@ -4,6 +4,7 @@ import { type RestoreRecoveryPointRequest, restoreRecoveryPointRequest } from '@
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
+import { RequireTotpStepUp } from '../../common/decorators/totp-step-up.decorator'
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import { BackupsService } from './backups.service'
 
@@ -38,6 +39,7 @@ export class BackupsController {
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('backups.create', 'backups.restore')
+  @RequireTotpStepUp()
   download(@Req() request: AuthenticatedRequest, @Param('pointId') pointId: string) {
     return this.service.download(requestIdentity(request), pointId)
   }
@@ -46,6 +48,7 @@ export class BackupsController {
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('backups.restore')
+  @RequireTotpStepUp()
   restore(
     @Req() request: AuthenticatedRequest,
     @Param('pointId') pointId: string,
