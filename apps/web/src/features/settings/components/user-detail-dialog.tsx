@@ -13,7 +13,16 @@ import {
 import type { UserRecord } from '@/types/pathways'
 import { formatAccountDate, getUserInitials, userAccountStatusTone } from '../settings.utils'
 
-export const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserRecord }) => (
+export const UserDetailDialog = ({
+  onClose,
+  onEndSessions,
+  user,
+}: {
+  onClose: () => void
+  /** Shown to System Administrators for other accounts only. */
+  onEndSessions?: () => void
+  user?: UserRecord
+}) => (
   <Dialog onOpenChange={(open) => !open && onClose()} open={Boolean(user)}>
     {user ? (
       <DialogContent>
@@ -52,6 +61,11 @@ export const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?
           />
         </dl>
         <DialogFooter>
+          {onEndSessions ? (
+            <Button onClick={onEndSessions} type="button" variant="outline">
+              Sign out everywhere
+            </Button>
+          ) : null}
           <Button onClick={onClose} type="button">
             Close
           </Button>

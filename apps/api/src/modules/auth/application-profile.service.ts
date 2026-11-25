@@ -18,6 +18,7 @@ import {
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
 
 import type { InspectionRequestBudget } from '../../common/network/inspection-request-budget'
+import { sessionEnded } from './session-liveness.service'
 
 @Injectable()
 export class ApplicationProfileService {
@@ -92,9 +93,7 @@ export class ApplicationProfileService {
       budget?.check()
       return result
     } catch (error) {
-      if (error instanceof InactiveVerifiedSessionError) {
-        throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
-      }
+      if (error instanceof InactiveVerifiedSessionError) throw sessionEnded()
       // Fixed diagnostics only: never serialize provider errors, SQL, headers,
       // selectors, JWTs or connection settings into logs or public responses.
       const code = prismaDiagnosticCode(error)

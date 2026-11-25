@@ -13,6 +13,7 @@ import type { OwnProfileResponse } from '@pathways/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ownProfileSchema } from '../own-profile.schema'
 import { OwnPasswordForm } from './own-password-form'
+import { OwnSessionsCard } from './own-sessions-card'
 import { OwnStepUpPinForm } from './own-step-up-pin-form'
 
 export const OwnProfileWorkspace = () => {
@@ -110,7 +111,7 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
       <PageHeader
         eyebrow="Account settings"
         title="My Profile"
-        description="Manage your name, contact number, and password."
+        description="Manage your name, contact number, password, and signed-in devices."
       />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
         <SectionCard
@@ -162,6 +163,12 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
         </SectionCard>
         <SectionCard title="Change password" description="Requires a fresh account verification.">
           <OwnPasswordForm />
+        </SectionCard>
+        <SectionCard
+          title="Signed-in devices"
+          description="You can be signed in on up to 3 devices. Idle devices sign out after 30 minutes."
+        >
+          <OwnSessionsCard />
         </SectionCard>
         {beneficiaryDetail && (
           <SectionCard

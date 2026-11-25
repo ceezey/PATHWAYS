@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({
   options: undefined as unknown,
   operations: 0,
 }))
-const tx = { auditLog: { create: vi.fn() } }
+const tx = { auditLog: { create: vi.fn() }, $queryRaw: vi.fn() }
 vi.mock('../../common/authz/authorized-operation', () => ({
   withAuthorizedOperation: async (
     _db: unknown,
@@ -31,6 +31,8 @@ vi.mock('../../common/authz/authorized-operation', () => ({
 const ORG = '10000000-0000-4000-8000-000000000001'
 const USER = '30000000-0000-4000-8000-000000000003'
 const AUTH = '30000000-0000-4000-8000-000000000004'
+const SESSION = '30000000-0000-4000-8000-000000000005'
+const OTHER = '30000000-0000-4000-8000-000000000006'
 const GOOD = 'Str0ng!Passw0rd#1'
 const identity: ApplicationIdentity = {
   id: AUTH,
@@ -43,19 +45,28 @@ const identity: ApplicationIdentity = {
   assignedProjectIds: [],
 }
 
+const actor: StepUpPinActor = {
+  auth: { id: AUTH, aal: 'aal2' } as StepUpPinActor['auth'],
+  profile: identity,
+  sessionId: SESSION,
+}
+// The values of the one app_session_end call: subject, target, keep, reason.
+const sessionCall = () => tx.$queryRaw.mock.calls[0]?.slice(1)
+const service = () => new OwnAccountService({} as PrismaService, {} as PasswordRecoveryService)
+
 describe('own account sign-out', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.permission = undefined
     state.options = undefined
     state.operations = 0
+    tx.$queryRaw.mockResolvedValue([{ n: 1 }])
   })
 
-  it('writes one SIGNED_OUT row for the verified actor', async () => {
-    await new OwnAccountService({} as PrismaService, {} as PasswordRecoveryService).recordSignOut(
-      identity,
-    )
+  it('ends the current session and writes one SIGNED_OUT row for the verified actor', async () => {
+    await service().recordSignOut(actor)
     expect(state.permission).toBe('profile.manage')
+    expect(sessionCall()).toEqual([AUTH, SESSION, null, 'SIGNED_OUT'])
     expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
     expect(tx.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -69,9 +80,47 @@ describe('own account sign-out', () => {
   })
 })
 
+describe('own sessions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.operations = 0
+    tx.$queryRaw.mockResolvedValue([{ n: 2 }])
+  })
+
+  it('ends one own session and audits it', async () => {
+    await service().endSession(actor, OTHER.toUpperCase())
+    expect(sessionCall()).toEqual([AUTH, OTHER, null, 'USER'])
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'SESSION_ENDED', entityId: USER }),
+    })
+  })
+
+  it('answers 404 without an audit row when no open session of the caller matches', async () => {
+    tx.$queryRaw.mockResolvedValue([{ n: 0 }])
+    await expect(service().endSession(actor, OTHER)).rejects.toMatchObject({ status: 404 })
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('refuses a malformed session id before any database work', async () => {
+    await expect(service().endSession(actor, 'not-a-uuid')).rejects.toMatchObject({ status: 404 })
+    expect(state.operations).toBe(0)
+  })
+
+  it('ends every other session, keeping the current one, and reports the count', async () => {
+    await expect(service().endOtherSessions(actor)).resolves.toEqual({ sessionsEnded: 2 })
+    expect(sessionCall()).toEqual([AUTH, null, SESSION, 'USER'])
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'OTHER_SESSIONS_ENDED',
+        changes: { sessionsEnded: 2 },
+      }),
+    })
+  })
+})
+
 describe('own password change', () => {
   const recovery = { setPassword: vi.fn() }
-  const service = () =>
+  const passwordService = () =>
     new OwnAccountService({} as PrismaService, recovery as unknown as PasswordRecoveryService)
   const actorWith = (mfaVerifiedAt: number | undefined): StepUpPinActor => ({
     auth: { id: AUTH, aal: 'aal2', mfaVerifiedAt } as StepUpPinActor['auth'],
@@ -84,11 +133,12 @@ describe('own password change', () => {
     state.operations = 0
     state.options = undefined
     recovery.setPassword.mockReset().mockResolvedValue(undefined)
+    tx.$queryRaw.mockResolvedValue([{ n: 2 }])
   })
 
   it('refuses a stale or missing authenticator step before any change', async () => {
     for (const at of [undefined, Date.now() / 1000 - 16 * 60]) {
-      const error = await service()
+      const error = await passwordService()
         .changePassword(actorWith(at), GOOD)
         .catch((e: unknown) => e)
       expect((error as HttpException).getStatus()).toBe(403)
@@ -100,8 +150,8 @@ describe('own password change', () => {
     expect(recovery.setPassword).not.toHaveBeenCalled()
   })
 
-  it('writes OWN_PASSWORD_CHANGED, then sets the password of the caller only', async () => {
-    await service().changePassword(actorWith(Date.now() / 1000 - 60), GOOD)
+  it('ends the other sessions, writes OWN_PASSWORD_CHANGED, then sets the password of the caller only', async () => {
+    await passwordService().changePassword(actorWith(Date.now() / 1000 - 60), GOOD)
     expect(state.permission).toBe('profile.manage')
     expect(tx.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -110,8 +160,10 @@ describe('own password change', () => {
         action: 'OWN_PASSWORD_CHANGED',
         entityType: 'Authentication',
         entityId: USER,
+        changes: { sessionsEnded: 2 },
       },
     })
+    expect(sessionCall()).toEqual([AUTH, null, SESSION, 'PASSWORD_CHANGED'])
     expect(recovery.setPassword).toHaveBeenCalledWith(AUTH, GOOD)
     expect(tx.auditLog.create.mock.invocationCallOrder[0]).toBeLessThan(
       recovery.setPassword.mock.invocationCallOrder[0] ?? 0,
@@ -122,7 +174,7 @@ describe('own password change', () => {
   it('passes an Auth refusal through as 400', async () => {
     recovery.setPassword.mockRejectedValue(new BadRequestException('The password was not changed.'))
     await expect(
-      service().changePassword(actorWith(Date.now() / 1000), GOOD),
+      passwordService().changePassword(actorWith(Date.now() / 1000), GOOD),
     ).rejects.toBeInstanceOf(BadRequestException)
   })
 })

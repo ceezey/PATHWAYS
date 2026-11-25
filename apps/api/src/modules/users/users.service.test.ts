@@ -70,9 +70,11 @@ function buildTx(targetRole: string) {
     project: { findMany: fn([{ id: projectId }]) },
     role: { findFirst: fn({ id: id(5) }) },
     auditLog: { create: fn({}) },
+    // app_session_end_user: the number of sessions it ended.
+    $queryRaw: fn([{ n: 2 }]),
   }
   state.tx = tx
-  return tx as Tx
+  return tx as unknown as Tx
 }
 
 function writeCalls(tx: Tx) {
@@ -102,6 +104,73 @@ beforeEach(() => {
   directory.getExistingVerifiedIdentity
     .mockReset()
     .mockResolvedValue({ id: id(7), email: 'synthetic@example.invalid' })
+})
+
+// The values of the app_session_end_user call, or undefined when sessions were left alone.
+const sessionCall = () => (state.tx.$queryRaw as Mock).mock.calls[0]?.slice(1)
+const endSessions = (userId: string) => service.endSessions(identity, userId)
+
+describe('users service session revocation', () => {
+  it('ends every session of a user whose role changes, and records the count', async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    const tx = buildTx('PROJECT_OFFICER')
+    await update(targetId, 'PROJECT_MANAGER')
+    expect(sessionCall()).toEqual([targetId, 'ACCOUNT_CHANGED'])
+    expect(tx.auditLog.create.mock.calls[0]?.[0].data.changes).toMatchObject({ sessionsEnded: 2 })
+  })
+
+  it('ends every session of a deactivated user', async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    buildTx('PROJECT_OFFICER')
+    await service.update(identity, targetId, {
+      role: 'PROJECT_OFFICER',
+      accountStatus: 'DEACTIVATED',
+      projectIds: [],
+    })
+    expect(sessionCall()).toEqual([targetId, 'ACCOUNT_CHANGED'])
+  })
+
+  it('leaves sessions alone when the role and status do not change', async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    const tx = buildTx('PROJECT_OFFICER')
+    await update(targetId, 'PROJECT_OFFICER')
+    expect(sessionCall()).toBeUndefined()
+    expect(tx.auditLog.create.mock.calls[0]?.[0].data.changes).toMatchObject({ sessionsEnded: 0 })
+  })
+
+  it("lets a System Administrator end a user's sessions and audits it", async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    const tx = buildTx('PROJECT_OFFICER')
+    await expect(endSessions(targetId.toUpperCase())).resolves.toEqual({ sessionsEnded: 2 })
+    expect(sessionCall()).toEqual([targetId, 'ADMIN'])
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'USER_SESSIONS_ENDED', entityId: targetId }),
+    })
+  })
+
+  it.each(['PROGRAM_MANAGER', 'PROJECT_MANAGER'])(
+    'refuses %s, who also holds users.authorize',
+    async (role) => {
+      state.roles = [role]
+      const tx = buildTx('PROJECT_OFFICER')
+      await expect(endSessions(targetId)).rejects.toBeInstanceOf(ForbiddenException)
+      expect(sessionCall()).toBeUndefined()
+      expect(writeCalls(tx)).toEqual([])
+    },
+  )
+
+  it("refuses the administrator's own account, a malformed id and a user outside the organization", async () => {
+    state.roles = ['SYSTEM_ADMINISTRATOR']
+    const tx = buildTx('PROJECT_OFFICER')
+    await expect(endSessions(actorId)).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(endSessions('not-a-uuid')).rejects.toBeInstanceOf(NotFoundException)
+    tx.systemUser.findFirst.mockResolvedValue(null)
+    await expect(endSessions(targetId)).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.systemUser.findFirst.mock.calls[0]?.[0].where).toMatchObject({
+      organizationId: id(9),
+    })
+    expect(sessionCall()).toBeUndefined()
+  })
 })
 
 describe('users service role scope (G-F1-5)', () => {

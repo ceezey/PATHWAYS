@@ -4,7 +4,6 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
-  UnauthorizedException,
 } from '@nestjs/common'
 
 import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
@@ -23,6 +22,7 @@ import {
   evaluateBeneficiaryStepUp,
 } from './beneficiary-step-up'
 import { readStepUpPinStatus } from './beneficiary-step-up-pin.service'
+import { sessionEnded } from './session-liveness.service'
 
 // Best-effort per-instance dedupe so one verified factor or denial reason is
 // audited once rather than on every request. Duplicates across instances are
@@ -94,9 +94,7 @@ export class BeneficiaryStepUpService {
       inScope = result.found
       grantExpiresAt = result.grantExpiresAt
     } catch (error) {
-      if (error instanceof InactiveVerifiedSessionError) {
-        throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
-      }
+      if (error instanceof InactiveVerifiedSessionError) throw sessionEnded()
       throw new ServiceUnavailableException('Project scope could not be verified.')
     }
     if (!inScope) throw new NotFoundException('Project unavailable.')
