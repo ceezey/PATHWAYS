@@ -1,7 +1,7 @@
 import type { Breadcrumb, ErrorEvent } from '@sentry/nextjs'
 import { describe, expect, it } from 'vitest'
 
-import { scrubWebBreadcrumb, scrubWebEvent, sentryIngestOrigin } from './sentry'
+import { scrubWebBreadcrumb, scrubWebEvent, webSentryOptions } from './sentry'
 
 describe('web error report filter', () => {
   it('sends no query string, user, body, cookies or headers', () => {
@@ -40,14 +40,54 @@ describe('web error report filter', () => {
       category: 'xhr',
       data: { url: '/api/public/projects?limit=100' },
     } as Breadcrumb)
-    expect(crumb.data).toEqual({ url: '/api/public/projects' })
+    expect(crumb?.data).toEqual({ url: '/api/public/projects' })
   })
 
-  it('takes the policy origin from the DSN, or nothing when there is none', () => {
-    expect(sentryIngestOrigin('https://publickey@o123.ingest.example.io/456')).toBe(
-      'https://o123.ingest.example.io',
-    )
-    expect(sentryIngestOrigin('')).toBe('')
-    expect(sentryIngestOrigin('not a url')).toBe('')
+  it('drops the query a server request error and a server request breadcrumb record', () => {
+    const event = scrubWebEvent({
+      type: undefined,
+      contexts: {
+        nextjs: {
+          request_path: '/auth/recovery/callback?code=secret-code',
+          router_kind: 'App Router',
+        },
+      },
+      breadcrumbs: [
+        {
+          category: 'http',
+          data: {
+            url: 'https://api.example.org/x',
+            'http.query': '?token=t',
+            'http.fragment': '#f',
+          },
+        },
+      ],
+    } as unknown as ErrorEvent)
+    expect(event.contexts?.nextjs).toEqual({
+      request_path: '/auth/recovery/callback',
+      router_kind: 'App Router',
+    })
+    expect(event.breadcrumbs?.[0]?.data).toEqual({ url: 'https://api.example.org/x' })
+    expect(JSON.stringify(event)).not.toMatch(/secret-code|token=|#f/)
+  })
+
+  it('keeps no console message, which can hold anything', () => {
+    expect(
+      scrubWebBreadcrumb({ category: 'console', message: 'ana@example.org' } as Breadcrumb),
+    ).toBeNull()
+    const event = scrubWebEvent({
+      type: undefined,
+      breadcrumbs: [{ category: 'console', message: 'x' }, { category: 'ui.click' }],
+    } as ErrorEvent)
+    expect(event.breadcrumbs?.map((crumb) => crumb.category)).toEqual(['ui.click'])
+  })
+
+  it('reports errors only: no tracing, and nothing at all without a DSN', () => {
+    const on = webSentryOptions('https://publickey@o123.ingest.example.io/456')
+    // The SDK starts tracing when either setting is present at all, even 0.
+    expect('tracesSampleRate' in on).toBe(false)
+    expect('tracesSampler' in on).toBe(false)
+    expect(on).toMatchObject({ enabled: true, sendDefaultPii: false })
+    expect(webSentryOptions('')).toMatchObject({ enabled: false })
   })
 })
