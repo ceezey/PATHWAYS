@@ -1,8 +1,9 @@
 /* @vitest-environment jsdom */
 
 import { PathwaysClientError } from '@/lib/api/core/request'
+import { BeneficiaryStepUpError } from '@/lib/auth/beneficiary-step-up'
 import { recoveryPointProblemMessages } from '@pathways/shared'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
@@ -16,6 +17,8 @@ const state = vi.hoisted(() => ({
   verify: vi.fn(),
   download: vi.fn(),
   restore: vi.fn(),
+  stepUpStatus: vi.fn(),
+  verifyCode: vi.fn(),
 }))
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
@@ -35,6 +38,11 @@ vi.mock('@/lib/api/backups', () => ({
     download: state.download,
     restore: state.restore,
   },
+}))
+vi.mock('@/lib/auth/beneficiary-step-up', async (original) => ({
+  ...(await original<typeof import('@/lib/auth/beneficiary-step-up')>()),
+  getBeneficiaryStepUpStatus: state.stepUpStatus,
+  verifyBeneficiaryStepUp: state.verifyCode,
 }))
 vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: () => ({
@@ -79,6 +87,8 @@ const generic = 'The requested operation could not be completed.'
 describe('backup and recovery workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    state.stepUpStatus.mockResolvedValue({ fresh: true, method: 'TOTP' })
+    state.verifyCode.mockResolvedValue({ fresh: true, method: 'TOTP' })
     state.permissions = ['backups.create', 'backups.restore']
     state.fileMode = 'manifest'
     state.error = false
@@ -196,31 +206,232 @@ describe('backup and recovery workspace', () => {
     expect(state.refetch).toHaveBeenCalledTimes(2)
   })
 
-  it('shows two expiring download links and replaces them for another point', async () => {
+  describe('download', () => {
+    const PASS = 'correct horse battery'
     const links = (name: string) => ({
       dataUrl: `https://storage.invalid/${name}/data`,
       manifestUrl: `https://storage.invalid/${name}/manifest`,
       expiresAt: '2026-11-12T06:02:00.000Z',
     })
-    state.download.mockResolvedValueOnce(links('first')).mockResolvedValueOnce(links('second'))
-    render(<BackupRecoveryWorkspace />)
-    fireEvent.click(within(rowOf(point(1).id)).getByRole('button', { name: 'Download' }))
-    const data = (await screen.findByRole('link', {
-      name: 'Download data file',
-    })) as HTMLAnchorElement
-    expect(data.getAttribute('href')).toBe('https://storage.invalid/first/data')
-    expect(data.getAttribute('rel')).toBe('noopener noreferrer')
-    expect(screen.getByRole('link', { name: 'Download manifest' }).getAttribute('href')).toBe(
-      'https://storage.invalid/first/manifest',
-    )
-    expect(screen.getByText('These links expire in 2 minutes.')).toBeTruthy()
-    fireEvent.click(within(rowOf(point(3).id)).getByRole('button', { name: 'Download' }))
-    await waitFor(() =>
-      expect(screen.getByRole('link', { name: 'Download data file' }).getAttribute('href')).toBe(
-        'https://storage.invalid/second/data',
-      ),
-    )
-    expect(state.refetch).not.toHaveBeenCalled()
+    const stepUpRequired = () =>
+      new PathwaysClientError('Forbidden', 'forbidden', [], 403, false, 'STEP_UP_TOTP_REQUIRED')
+    const openDownload = (index = 1) =>
+      fireEvent.click(within(rowOf(point(index).id)).getByRole('button', { name: 'Download' }))
+    const passphraseField = () =>
+      screen.getByLabelText('Passphrase (at least 12 characters)') as HTMLInputElement
+    const againField = () => screen.getByLabelText('Type the passphrase again') as HTMLInputElement
+    const fill = (passphrase: string, again = passphrase) => {
+      fireEvent.change(passphraseField(), { target: { value: passphrase } })
+      fireEvent.change(againField(), { target: { value: again } })
+    }
+    const confirm = () =>
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Download',
+      }) as HTMLButtonElement
+    const codeBox = () => screen.getByRole('textbox', { name: 'Digit 1 of 6' }) as HTMLInputElement
+    const typeCode = () => fireEvent.change(codeBox(), { target: { value: '123456' } })
+
+    it('opens a dialog and asks for a passphrase twice before any request', async () => {
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      expect(state.download).not.toHaveBeenCalled()
+      expect(
+        within(screen.getByRole('dialog')).getByText(
+          'Download the recovery point from Nov 12, 2026, 2:00 PM?',
+        ),
+      ).toBeTruthy()
+      expect(passphraseField().type).toBe('password')
+      expect(againField().type).toBe('password')
+      fill('a'.repeat(11))
+      expect(confirm().disabled).toBe(true)
+      fill(PASS, `${PASS}x`)
+      expect(screen.getByText('The passphrases do not match.').getAttribute('role')).toBe('alert')
+      expect(confirm().disabled).toBe(true)
+      fill(PASS)
+      await waitFor(() => expect(confirm().disabled).toBe(false))
+      expect(screen.queryByText('The passphrases do not match.')).toBeNull()
+    })
+
+    it('raises the mismatch only once the second field is as long as the first, and ties it to the field', () => {
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      fill(PASS, PASS.slice(0, 5))
+      expect(screen.queryByText('The passphrases do not match.')).toBeNull()
+      expect(againField().getAttribute('aria-invalid')).toBeNull()
+      expect(confirm().disabled).toBe(true)
+      fill(PASS, 'x'.repeat(PASS.length))
+      const alert = screen.getByText('The passphrases do not match.')
+      expect(alert.getAttribute('role')).toBe('alert')
+      expect(alert.id).toBe('download-passphrase-mismatch')
+      expect(againField().getAttribute('aria-invalid')).toBe('true')
+      expect(againField().getAttribute('aria-describedby')).toBe('download-passphrase-mismatch')
+      expect(confirm().disabled).toBe(true)
+    })
+
+    it('sends the passphrase and shows the two encrypted links with a fresh authenticator', async () => {
+      state.download.mockResolvedValueOnce(links('first')).mockResolvedValueOnce(links('second'))
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      fill(PASS)
+      await waitFor(() => expect(confirm().disabled).toBe(false))
+      expect(screen.queryByRole('group', { name: 'Authenticator code' })).toBeNull()
+      fireEvent.click(confirm())
+      const data = (await screen.findByRole('link', {
+        name: 'Download data file (encrypted)',
+      })) as HTMLAnchorElement
+      expect(state.download).toHaveBeenCalledWith(point(1).id, { passphrase: PASS })
+      expect(state.verifyCode).not.toHaveBeenCalled()
+      expect(data.getAttribute('href')).toBe('https://storage.invalid/first/data')
+      expect(data.getAttribute('rel')).toBe('noopener noreferrer')
+      expect(
+        screen.getByRole('link', { name: 'Download manifest (encrypted)' }).getAttribute('href'),
+      ).toBe('https://storage.invalid/first/manifest')
+      expect(screen.getByText('These links expire in 2 minutes.')).toBeTruthy()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      openDownload(3)
+      expect(passphraseField().value).toBe('')
+      expect(againField().value).toBe('')
+      fill(PASS)
+      await waitFor(() => expect(confirm().disabled).toBe(false))
+      fireEvent.click(confirm())
+      await waitFor(() =>
+        expect(
+          screen.getByRole('link', { name: 'Download data file (encrypted)' }).getAttribute('href'),
+        ).toBe('https://storage.invalid/second/data'),
+      )
+    })
+
+    it('verifies a typed authenticator code before the request when none is fresh', async () => {
+      state.stepUpStatus.mockResolvedValue({ fresh: false, method: null })
+      state.download.mockResolvedValueOnce(links('first'))
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      fill(PASS)
+      expect(await screen.findByRole('group', { name: 'Authenticator code' })).toBeTruthy()
+      expect(confirm().disabled).toBe(true)
+      typeCode()
+      expect(confirm().disabled).toBe(false)
+      fireEvent.click(confirm())
+      await screen.findByRole('link', { name: 'Download data file (encrypted)' })
+      expect(state.verifyCode).toHaveBeenCalledWith('123456')
+      expect(state.verifyCode.mock.invocationCallOrder[0]).toBeLessThan(
+        state.download.mock.invocationCallOrder[0] as number,
+      )
+    })
+
+    describe('while the status read is pending', () => {
+      const group = () => screen.queryByRole('group', { name: 'Authenticator code' })
+      const deferRead = () => {
+        const read = { fresh: () => {}, stale: () => {}, fail: () => {} }
+        state.stepUpStatus.mockReturnValue(
+          new Promise((resolve, reject) => {
+            read.fresh = () => resolve({ fresh: true, method: 'TOTP' })
+            read.stale = () => resolve({ fresh: false, method: null })
+            read.fail = () => reject(new Error('offline'))
+          }),
+        )
+        return read
+      }
+      const open = () => {
+        render(<BackupRecoveryWorkspace />)
+        openDownload()
+        fill(PASS)
+        expect(group()).toBeNull()
+        expect(confirm().disabled).toBe(true)
+      }
+
+      it('hides the code field and keeps Download off, then follows the passphrases once fresh', async () => {
+        const read = deferRead()
+        open()
+        await act(async () => read.fresh())
+        await waitFor(() => expect(confirm().disabled).toBe(false))
+        expect(group()).toBeNull()
+      })
+
+      it.each(['stale', 'fail'] as const)(
+        'shows the code field when the read ends %s',
+        async (how) => {
+          const read = deferRead()
+          open()
+          await act(async () => read[how]())
+          expect(group()).toBeTruthy()
+          expect(confirm().disabled).toBe(true)
+        },
+      )
+    })
+
+    it('makes no request when the code is rejected, and keeps the passphrase', async () => {
+      state.stepUpStatus.mockResolvedValue({ fresh: false, method: null })
+      state.verifyCode.mockRejectedValueOnce(
+        new BeneficiaryStepUpError('The code was not accepted.', 'rejected'),
+      )
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      fill(PASS)
+      await screen.findByRole('group', { name: 'Authenticator code' })
+      typeCode()
+      fireEvent.click(confirm())
+      const alert = await screen.findByRole('alert')
+      expect(alert.textContent).toBe('The code was not accepted. Try the next authenticator code.')
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+      expect(alert.id).toBe('step-up-code-error')
+      expect(codeBox().getAttribute('aria-invalid')).toBe('true')
+      expect(codeBox().getAttribute('aria-describedby')).toBe('step-up-code-error')
+      expect(state.download).not.toHaveBeenCalled()
+      expect(passphraseField().value).toBe(PASS)
+      expect(againField().value).toBe(PASS)
+      await waitFor(() => expect(codeBox().value).toBe(''))
+    })
+
+    it('says so when the verification service cannot be reached', async () => {
+      state.stepUpStatus.mockRejectedValue(new Error('offline'))
+      state.verifyCode.mockRejectedValueOnce(
+        new BeneficiaryStepUpError('The verification service could not be reached.', 'unavailable'),
+      )
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      fill(PASS)
+      await screen.findByRole('group', { name: 'Authenticator code' })
+      typeCode()
+      fireEvent.click(confirm())
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'The verification service could not be reached. Check your connection and try again.',
+      )
+      expect(state.download).not.toHaveBeenCalled()
+      expect(passphraseField().value).toBe(PASS)
+    })
+
+    it('shows the code field and keeps the passphrase when the API asks for a fresh code', async () => {
+      state.download.mockRejectedValueOnce(stepUpRequired())
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      fill(PASS)
+      await waitFor(() => expect(confirm().disabled).toBe(false))
+      fireEvent.click(confirm())
+      expect(await screen.findByRole('group', { name: 'Authenticator code' })).toBeTruthy()
+      expect(screen.getByRole('alert').textContent).toBe(
+        'Enter the code from your authenticator app to continue.',
+      )
+      expect(passphraseField().value).toBe(PASS)
+      expect(againField().value).toBe(PASS)
+      state.download.mockResolvedValueOnce(links('first'))
+      typeCode()
+      fireEvent.click(confirm())
+      await screen.findByRole('link', { name: 'Download data file (encrypted)' })
+      expect(state.verifyCode).toHaveBeenCalledWith('123456')
+      expect(state.download).toHaveBeenLastCalledWith(point(1).id, { passphrase: PASS })
+    })
+
+    it('clears the passphrase fields when the dialog closes', async () => {
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      fill(PASS)
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      openDownload()
+      expect(passphraseField().value).toBe('')
+      expect(againField().value).toBe('')
+    })
   })
 
   it('hides Create Backup without backups.create and Restore without backups.restore', () => {
@@ -257,10 +468,14 @@ describe('backup and recovery workspace', () => {
 
   describe('restore', () => {
     const pre = '79300000-0000-4000-8000-000000000098'
-    const openRestore = () => {
+    const openRestore = async () => {
       fireEvent.click(within(rowOf(point(1).id)).getByRole('button', { name: 'Restore' }))
       fireEvent.change(screen.getByLabelText('Type ORG1 to confirm'), { target: { value: 'ORG1' } })
-      return within(screen.getByRole('dialog')).getByRole('button', { name: /^Restor/ })
+      const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+        name: /^Restor/,
+      }) as HTMLButtonElement
+      await waitFor(() => expect(confirm.disabled).toBe(false))
+      return confirm
     }
 
     it('restores after the typed code, closes, reports and refetches', async () => {
@@ -271,7 +486,7 @@ describe('backup and recovery workspace', () => {
         filesRestored: 2,
       })
       render(<BackupRecoveryWorkspace />)
-      fireEvent.click(openRestore())
+      fireEvent.click(await openRestore())
       await waitFor(() =>
         expect(state.restore).toHaveBeenCalledWith(point(1).id, { organizationCode: 'ORG1' }),
       )
@@ -284,10 +499,59 @@ describe('backup and recovery workspace', () => {
       expect(state.refetch).toHaveBeenCalled()
     })
 
+    it('verifies a typed authenticator code before the restore request when none is fresh', async () => {
+      state.stepUpStatus.mockResolvedValue({ fresh: false, method: null })
+      state.restore.mockResolvedValueOnce({
+        point: point(1),
+        preRestorePointId: pre,
+        rowCounts: {},
+        filesRestored: 0,
+      })
+      render(<BackupRecoveryWorkspace />)
+      fireEvent.click(within(rowOf(point(1).id)).getByRole('button', { name: 'Restore' }))
+      fireEvent.change(screen.getByLabelText('Type ORG1 to confirm'), { target: { value: 'ORG1' } })
+      await screen.findByRole('group', { name: 'Authenticator code' })
+      const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+        name: /^Restor/,
+      }) as HTMLButtonElement
+      expect(confirm.disabled).toBe(true)
+      fireEvent.change(screen.getByRole('textbox', { name: 'Digit 1 of 6' }), {
+        target: { value: '123456' },
+      })
+      fireEvent.click(confirm)
+      await waitFor(() =>
+        expect(state.restore).toHaveBeenCalledWith(point(1).id, { organizationCode: 'ORG1' }),
+      )
+      expect(state.verifyCode).toHaveBeenCalledWith('123456')
+      expect(state.verifyCode.mock.invocationCallOrder[0]).toBeLessThan(
+        state.restore.mock.invocationCallOrder[0] as number,
+      )
+    })
+
+    it('keeps Restore off and the code field away while the status read is pending', async () => {
+      let settle: (value: unknown) => void = () => undefined
+      state.stepUpStatus.mockReturnValue(
+        new Promise((resolve) => {
+          settle = resolve
+        }),
+      )
+      render(<BackupRecoveryWorkspace />)
+      fireEvent.click(within(rowOf(point(1).id)).getByRole('button', { name: 'Restore' }))
+      fireEvent.change(screen.getByLabelText('Type ORG1 to confirm'), { target: { value: 'ORG1' } })
+      const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+        name: /^Restor/,
+      }) as HTMLButtonElement
+      expect(screen.queryByRole('group', { name: 'Authenticator code' })).toBeNull()
+      expect(confirm.disabled).toBe(true)
+      await act(async () => settle({ fresh: true, method: 'TOTP' }))
+      await waitFor(() => expect(confirm.disabled).toBe(false))
+      expect(screen.queryByRole('group', { name: 'Authenticator code' })).toBeNull()
+    })
+
     it('restores once on a double click', async () => {
       state.restore.mockReturnValue(new Promise(() => undefined))
       render(<BackupRecoveryWorkspace />)
-      const confirm = openRestore()
+      const confirm = await openRestore()
       fireEvent.click(confirm)
       fireEvent.click(confirm)
       await waitFor(() => expect(state.restore).toHaveBeenCalledTimes(1))
@@ -298,7 +562,7 @@ describe('backup and recovery workspace', () => {
         new PathwaysClientError(recoveryPointProblemMessages.FILE_MISSING, 'network', [], 409),
       )
       render(<BackupRecoveryWorkspace />)
-      fireEvent.click(openRestore())
+      fireEvent.click(await openRestore())
       const dialog = await screen.findByRole('dialog')
       expect(
         await within(dialog).findByText(recoveryPointProblemMessages.FILE_MISSING),
@@ -319,7 +583,7 @@ describe('backup and recovery workspace', () => {
     ])('shows %s in the open dialog', async (error, text) => {
       state.restore.mockRejectedValueOnce(error)
       render(<BackupRecoveryWorkspace />)
-      fireEvent.click(openRestore())
+      fireEvent.click(await openRestore())
       const alert = await within(await screen.findByRole('dialog')).findByRole('alert')
       expect(alert.textContent).toMatch(text)
     })
@@ -332,7 +596,8 @@ describe('backup and recovery workspace', () => {
         }),
       )
       render(<BackupRecoveryWorkspace />)
-      fireEvent.click(openRestore())
+      fireEvent.click(await openRestore())
+      await waitFor(() => expect(state.restore).toHaveBeenCalled())
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
       expect(screen.getByRole('dialog')).toBeTruthy()
       reject(new PathwaysClientError(generic, 'network', [], 500))
@@ -343,7 +608,7 @@ describe('backup and recovery workspace', () => {
     it('clears the error when the dialog closes', async () => {
       state.restore.mockRejectedValueOnce(new PathwaysClientError(generic, 'network', [], 500))
       render(<BackupRecoveryWorkspace />)
-      fireEvent.click(openRestore())
+      fireEvent.click(await openRestore())
       await within(await screen.findByRole('dialog')).findByRole('alert')
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
