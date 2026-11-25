@@ -10,11 +10,20 @@ import {
   TIER,
 } from './smart-match-rules'
 
+const ASCII_SPACE = ' \t\n\r\f\v'
+
+// Trims only these six characters, as the SQL normalizer does; a loop keeps it linear on long space runs.
+function trimAsciiSpace(value: string) {
+  let start = 0
+  let end = value.length
+  while (start < end && ASCII_SPACE.includes(value[start])) start += 1
+  while (end > start && ASCII_SPACE.includes(value[end - 1])) end -= 1
+  return value.slice(start, end)
+}
+
 /** The approved V1 normalizer (p29_mapping_name_v1): NFKC, ASCII trim and A-Z folding. */
 export function normalizeMappingNameV1(value: string) {
-  return value
-    .normalize('NFKC')
-    .replace(/^[ \t\n\r\f\v]+|[ \t\n\r\f\v]+$/g, '')
+  return trimAsciiSpace(value.normalize('NFKC'))
     .replace(/[A-Z]/g, (character) => String.fromCharCode(character.charCodeAt(0) + 32))
     .replace(/[ \t\n\r\f\v-]+/g, '_')
 }
