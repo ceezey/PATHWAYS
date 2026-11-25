@@ -12,9 +12,6 @@ const sites = splitSites(
   process.env.NEXT_PUBLIC_STAFF_PORTAL_BASE_URL,
 )
 
-/** The public address's origin while the split is on, since staff pages redirect public links there. */
-export const publicSiteOrigin = sites?.public.origin ?? ''
-
 export function siteOf(request: NextRequest, split = sites) {
   return siteOfHost(request.headers.get('host'), split)
 }
