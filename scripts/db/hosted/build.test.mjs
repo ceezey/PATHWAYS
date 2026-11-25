@@ -135,6 +135,14 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
   await runHostedBuild({ io, config })
   const kinds = io.calls.map((c) => c.kind)
   assert.ok(kinds.includes('psqlSql'))
+  const roleSql = io.calls.filter((c) => c.kind === 'psqlSql' && /PASSWORD '/.test(c.sql))
+  assert.equal(roleSql.length, 2, 'prisma creation and runtime login set a password')
+  for (const call of roleSql) {
+    assert.match(call.sql, /PASSWORD 'SCRAM-SHA-256\$4096:/)
+    assert.ok(
+      !call.sql.includes(config.prismaPassword) && !call.sql.includes(config.runtimePassword),
+    )
+  }
   assert.ok(kinds.includes('resolve'))
   assert.equal(kinds.filter((k) => k === 'deploy').length, 60)
   assert.equal(kinds.filter((k) => k === 'psqlFile').length, 35) // 18 preprovision + 17 cleanup

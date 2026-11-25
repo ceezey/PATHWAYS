@@ -29,7 +29,13 @@ import {
   planIndexForAppliedCount,
   planThrough,
 } from './plan.mjs'
-import { assertEnvFileLocation, parseEnvFile, redactUrl, validateHostedEnv } from './target.mjs'
+import {
+  assertEnvFileLocation,
+  parseEnvFile,
+  redactUrl,
+  scramVerifier,
+  validateHostedEnv,
+} from './target.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
@@ -514,9 +520,9 @@ export async function runHostedBuild({ io, config, resume = false, log = console
         case 'create-role': {
           io.psqlSql(
             config.adminUrl,
-            // One transaction so a failed grant never leaves a half-made prisma role that blocks the rerun preflight.
+            // One transaction so a failed grant never leaves a half-made prisma role; the password goes as a SCRAM verifier.
             `BEGIN;
-CREATE ROLE prisma LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${config.prismaPassword}';
+CREATE ROLE prisma LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${scramVerifier(config.prismaPassword)}';
 GRANT prisma TO postgres WITH INHERIT TRUE, SET TRUE;
 GRANT CREATE ON DATABASE postgres TO prisma;
 GRANT USAGE, CREATE ON SCHEMA public TO prisma;
@@ -571,7 +577,8 @@ COMMIT;`,
         case 'alter-runtime-role': {
           io.psqlSql(
             config.adminUrl,
-            `ALTER ROLE pathways_runtime WITH LOGIN PASSWORD '${config.runtimePassword}';`,
+            // A SCRAM verifier, not the password, because the hosted log records role DDL.
+            `ALTER ROLE pathways_runtime WITH LOGIN PASSWORD '${scramVerifier(config.runtimePassword)}';`,
             { label: 'runtime login' },
           )
           break
