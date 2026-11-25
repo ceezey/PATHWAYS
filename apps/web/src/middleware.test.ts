@@ -8,6 +8,8 @@ const session = vi.hoisted(() => vi.fn())
 vi.mock('./lib/middleware', () => ({ updateSession: session }))
 import { config, middleware } from './middleware'
 
+const nonceOf = (policy: string | null) => /'nonce-([^']+)'/.exec(policy ?? '')?.[1]
+
 describe('Next.js middleware entry point', () => {
   it('lives next to src/app so Next actually includes it in the build', () => {
     expect(existsSync(path.join(__dirname, 'middleware.ts'))).toBe(true)
@@ -63,6 +65,53 @@ describe('Next.js middleware entry point', () => {
     expect(response.headers.get('x-middleware-next')).toBe('1')
   })
 
+  it.each(['/', '/staff/login'])('sends the policy and the fixed headers on %s', async (url) => {
+    const send = () =>
+      middleware(
+        new NextRequest(`http://127.0.0.1:3000${url}`, {
+          headers: { 'content-security-policy': "script-src 'nonce-planted'" },
+        }),
+      )
+    const [first, second] = [await send(), await send()]
+    const policy = first.headers.get('content-security-policy')
+    expect(policy).toContain("frame-ancestors 'none'")
+    expect(first.headers.get('content-security-policy-report-only')).toBeNull()
+    expect(first.headers.get('x-frame-options')).toBe('DENY')
+    expect(first.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(first.headers.get('referrer-policy')).toBe('no-referrer')
+    expect(nonceOf(policy)).toBeTruthy()
+    expect(nonceOf(policy)).not.toBe('planted')
+    expect(nonceOf(policy)).not.toBe(nonceOf(second.headers.get('content-security-policy')))
+    // Next takes the nonce for its own scripts from the request header the middleware forwards.
+    expect(first.headers.get('x-middleware-request-content-security-policy')).toBe(policy)
+  })
+
+  it('checks the session with the policy on the request', async () => {
+    session.mockReset().mockResolvedValue(NextResponse.next())
+    const response = await middleware(new NextRequest('http://127.0.0.1:3000/dashboard'))
+    const policy = response.headers.get('content-security-policy')
+    expect(nonceOf(policy)).toBeTruthy()
+    expect(session.mock.calls[0]?.[0].headers.get('content-security-policy')).toBe(policy)
+    expect(response.headers.get('x-frame-options')).toBe('DENY')
+  })
+
+  it('moves the policy to the report-only header when CSP_MODE says so', async () => {
+    vi.stubEnv('CSP_MODE', 'report-only')
+    vi.resetModules()
+    try {
+      const reporting = await import('./middleware')
+      const response = await reporting.middleware(
+        new NextRequest('http://127.0.0.1:3000/staff/login'),
+      )
+      expect(response.headers.get('content-security-policy')).toBeNull()
+      expect(nonceOf(response.headers.get('content-security-policy-report-only'))).toBeTruthy()
+      expect(response.headers.get('x-frame-options')).toBe('DENY')
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
   it('keeps each address to its own pages when the split is on', async () => {
     vi.stubEnv('NEXT_PUBLIC_PUBLIC_SITE_BASE_URL', 'https://pathways.example.org')
     vi.stubEnv('NEXT_PUBLIC_STAFF_PORTAL_BASE_URL', 'https://staff.example.org')
@@ -76,6 +125,12 @@ describe('Next.js middleware entry point', () => {
       expect(session).not.toHaveBeenCalled()
       expect(hidden.status).toBe(404)
       expect(hidden.body).toBeNull()
+      expect(hidden.headers.get('x-frame-options')).toBe('DENY')
+      expect(hidden.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
+      const moved = await at('staff.example.org', '/')
+      expect(moved.status).toBe(307)
+      expect(moved.headers.get('x-frame-options')).toBe('DENY')
+      expect(moved.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
       expect((await at('pathways.example.org', '/')).headers.get('x-robots-tag')).toBeNull()
       const staff = await at('staff.example.org', '/dashboard')
       expect(session).toHaveBeenCalledOnce()

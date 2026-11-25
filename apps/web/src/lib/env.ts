@@ -1,4 +1,8 @@
 import { readWebEnv } from '@pathways/config'
+import { z } from 'zod'
+
+// The content security policy refuses zod's one-time new Function probe and reports it as a violation.
+z.config({ jitless: true })
 
 const suppliedSupabasePublishableKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
@@ -16,6 +20,7 @@ export const webEnv = readWebEnv({
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   STAFF_PORTAL_BASE_URL: process.env.STAFF_PORTAL_BASE_URL,
+  CSP_MODE: process.env.CSP_MODE,
   WEB_PORT: process.env.WEB_PORT,
 })
 
