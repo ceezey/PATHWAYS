@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { NextConfig } from 'next'
 import { PHASE_DEVELOPMENT_SERVER } from 'next/constants'
 
+import { securityHeaders } from './src/lib/security/csp'
 import { splitSites } from './src/lib/site-split'
 
 export const getWebBuildDirectory = (phase: string) =>
@@ -45,6 +46,7 @@ export default function createNextConfig(phase: string): NextConfig {
     // Next 15 does not yet provide isolatedDevBuild. Keep development output
     // separate so a validation build cannot invalidate the running UI assets.
     distDir: getWebBuildDirectory(phase),
+    poweredByHeader: false,
     // The monorepo root holds the lockfile; pinning it stops Turbopack guessing in nested worktrees.
     turbopack: { root: path.resolve(process.cwd(), '../..') },
     // Preserve approved loopback redirects: Next's response adapter otherwise
@@ -75,12 +77,16 @@ export default function createNextConfig(phase: string): NextConfig {
     },
     transpilePackages: ['@pathways/config', '@pathways/imports', '@pathways/shared'],
     async headers() {
-      return staffOnly(
-        privateAuthSurfacePaths.map((source) => ({
-          source,
-          headers: passwordRecoveryResponseHeaders,
-        })),
-      )
+      return [
+        // Both addresses, and the build output and static files the middleware skips.
+        { source: '/:path*', headers: securityHeaders },
+        ...staffOnly(
+          privateAuthSurfacePaths.map((source) => ({
+            source,
+            headers: passwordRecoveryResponseHeaders,
+          })),
+        ),
+      ]
     },
     async redirects() {
       return staffOnly([

@@ -13,6 +13,8 @@ export const webEnvSchema = z.object({
     .default('http://127.0.0.1:4000/api'),
   NEXT_PUBLIC_SENTRY_DSN: optionalString,
   STAFF_PORTAL_BASE_URL: optionalUrl,
+  // Any other value enforces, so a typo fails to the strict side.
+  CSP_MODE: z.enum(['enforce', 'report-only']).catch('enforce'),
   WEB_PORT: z.coerce.number().default(3000),
 })
 
