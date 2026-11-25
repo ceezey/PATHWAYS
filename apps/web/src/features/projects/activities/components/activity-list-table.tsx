@@ -1,6 +1,6 @@
 'use client'
 
-import { neutralizeCell } from '@pathways/shared'
+import { exportLabel, neutralizeCell } from '@pathways/shared'
 import { ArrowDown, ArrowUp, Download, MoreHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -43,7 +43,7 @@ const indicatorsText = (activity: ActivitySummary) =>
 
 const csvCell = (value: string) => `"${neutralizeCell(value).replace(/"/g, '""')}"`
 
-const activitiesCsv = (rows: ActivitySummary[], columns: ColumnKey[]) => {
+const activitiesCsv = (rows: ActivitySummary[], columns: ColumnKey[], label: string) => {
   const cells: Record<ColumnKey, (activity: ActivitySummary) => string> = {
     code: (a) => a.code ?? '',
     status: (a) => a.status,
@@ -54,7 +54,7 @@ const activitiesCsv = (rows: ActivitySummary[], columns: ColumnKey[]) => {
   }
   const header = ['Activity', ...columns.map((key) => columnLabels[key])]
   const lines = rows.map((a) => [a.title, ...columns.map((key) => cells[key](a))])
-  return [header, ...lines].map((line) => line.map(csvCell).join(',')).join('\r\n')
+  return [[label], header, ...lines].map((line) => line.map(csvCell).join(',')).join('\r\n')
 }
 
 const downloadCsv = (text: string) => {
@@ -69,11 +69,14 @@ const downloadCsv = (text: string) => {
 export const ActivityListTable = ({
   activities,
   canReadBudget,
+  exportedBy,
   onOpen,
   projectId,
 }: {
   activities: ActivitySummary[]
   canReadBudget: boolean
+  /** Full name of the signed-in person, written into the export's confidentiality label. */
+  exportedBy: string
   onOpen: (activity: ActivitySummary) => void
   projectId: string
 }) => {
@@ -92,7 +95,11 @@ export const ActivityListTable = ({
       actions={
         <Button
           className="gap-2"
-          onClick={() => downloadCsv(activitiesCsv(rows, columns))}
+          onClick={() =>
+            downloadCsv(
+              activitiesCsv(rows, columns, exportLabel({ exportedBy, exportedAt: new Date() })),
+            )
+          }
           size="sm"
           type="button"
           variant="outline"
