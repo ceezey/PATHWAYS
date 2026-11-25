@@ -37,6 +37,7 @@
     "@types/node": "^24.19.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "lodash": "4.17.20",
     "supabase": "2.118.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",

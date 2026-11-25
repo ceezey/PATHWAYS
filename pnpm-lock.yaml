@@ -39,6 +39,9 @@ importers:
       lint-staged:
         specifier: ^16.4.0
         version: 16.4.0
+      lodash:
+        specifier: 4.17.20
+        version: 4.17.20
       supabase:
         specifier: 2.118.0
         version: 2.118.0
@@ -3393,6 +3396,9 @@ packages:
   load-esm@1.0.3:
     resolution: {integrity: sha512-v5xlu8eHD1+6r8EHTg6hfmO97LN8ugKtiXcy5e6oN72iD2r6u0RPfLl6fxM+7Wnh2ZRq15o0russMst44WauPA==}
     engines: {node: '>=13.2.0'}
+
+  lodash@4.17.20:
+    resolution: {integrity: sha512-PlhdFcillOINfeV7Ni6oF1TAEayyZBoZ8bcshTHqOYJYlrqzRK5hagpagky5o4HfCzzd1TRkXPMFq6cKk9rGmA==}
 
   lodash@4.18.1:
     resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
@@ -7706,6 +7712,8 @@ snapshots:
       wrap-ansi: 9.0.2
 
   load-esm@1.0.3: {}
+
+  lodash@4.17.20: {}
 
   lodash@4.18.1: {}
 
