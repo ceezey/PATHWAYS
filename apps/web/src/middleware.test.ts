@@ -112,6 +112,21 @@ describe('Next.js middleware entry point', () => {
     }
   })
 
+  it('allows the API address the app really calls, where a local localhost becomes 127.0.0.1', async () => {
+    vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'http://localhost:4000/api')
+    vi.resetModules()
+    try {
+      const local = await import('./middleware')
+      const response = await local.middleware(new NextRequest('http://127.0.0.1:3000/'))
+      const policy = response.headers.get('content-security-policy')
+      expect(policy).toContain("connect-src 'self' http://127.0.0.1:4000")
+      expect(policy).not.toContain('localhost')
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
   it('keeps each address to its own pages when the split is on', async () => {
     vi.stubEnv('NEXT_PUBLIC_PUBLIC_SITE_BASE_URL', 'https://pathways.example.org')
     vi.stubEnv('NEXT_PUBLIC_STAFF_PORTAL_BASE_URL', 'https://staff.example.org')

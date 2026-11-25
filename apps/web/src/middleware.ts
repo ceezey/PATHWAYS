@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
+import { approvedApiBaseUrl } from './lib/api-base-url'
 import { webEnv } from './lib/env'
 import { resolveMapStyleUrl } from './lib/map-style'
 import { updateSession } from './lib/middleware'
@@ -13,8 +14,18 @@ const sessionPath =
 // A same-site path such as /api has no origin of its own; 'self' already covers it.
 const originOf = (address: string) => (URL.canParse(address) ? new URL(address).origin : '')
 
+// The address the app really calls: the approved one, where a local localhost becomes 127.0.0.1.
+function apiOrigin() {
+  try {
+    return approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL)
+      .origin
+  } catch {
+    return ''
+  }
+}
+
 const cspOrigins: CspOrigins = {
-  api: originOf(webEnv.NEXT_PUBLIC_API_BASE_URL),
+  api: apiOrigin(),
   supabase: originOf(webEnv.NEXT_PUBLIC_SUPABASE_URL),
   tiles: [originOf(resolveMapStyleUrl())],
   extraConnect: [],
