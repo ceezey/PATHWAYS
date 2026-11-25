@@ -10,7 +10,7 @@
 > Create and edit every doc (suite docs, RFCs, runbooks, audits, Change Records, logs, session notes) in the vault, never in the repo `docs/`. Basenames are unchanged: the old repo `docs/<name>.md` is the vault note `<name>`.
 
 **Status:** Control
-**Version:** 2.4
+**Version:** 2.5
 **Last reconciled:** 2026-10-22
 **Owner:** PATHWAYS capstone team
 
@@ -119,7 +119,7 @@ Use `release-integrator` as the main-thread agent (`claude --agent release-integ
 3. **R3 Merged review:** run the SAD pipeline on the merged digest. Passing branches can still conflict semantically.
 4. **R4 Requirements QA:** `requirements-qa-gate` verifies each feature against its PRD gate criteria (`G-F<n>-<m>`) and QAD happy/sad/abuse rows. Every feature needs PASS.
 5. **R5 Development release:** merge into `dev`, push, and verify that both Vercel development previews build and respond.
-6. **R6 Deployment:** apply any new migrations to production, then merge `dev` into `master` in a separate worktree (this checkout stays on `dev`), remove every path in `.github/master-excluded-paths` inside the same merge commit (the only conflicts ever auto-resolved), confirm none is left, push the result as `release/<date>-<slug>`, open a pull request into `master`, wait for every check on it, and merge with a merge commit. The exact commands are in `.claude/agents/release-integrator.md` R6.
+6. **R6 Deployment:** apply any new migrations to production, then merge `dev` into `master` in a separate worktree (this checkout stays on `dev`), remove every path in `.github/master-excluded-paths` inside the same merge commit (the only conflicts ever auto-resolved), confirm none is left, push the result as `release/<date>-<slug>`, open a pull request into `master`, wait for every check on it, and merge with a merge commit. When a migration was applied to production, take a recovery point after the production deployments finish (the daily backup workflow, run by hand) and record it in the activity log; a failed or skipped run means the release is not finished ([cr-pathways-offsite-backup-monitoring.md](<C:/AI Agentic Memory/01_Developer/01_Projects/PATHWAYS/Change_Records/cr-pathways-offsite-backup-monitoring.md>)). The exact commands are in `.claude/agents/release-integrator.md` R6.
 
 The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, the vault doc check (`python .vault/scripts/pathways_docs/check.py`, run in the vault), `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. The release pull request is merged only after every check on it passes. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
 
