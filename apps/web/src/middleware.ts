@@ -5,6 +5,7 @@ import { webEnv } from './lib/env'
 import { resolveMapStyleUrl } from './lib/map-style'
 import { updateSession } from './lib/middleware'
 import { type CspOrigins, buildCsp, securityHeaders } from './lib/security/csp'
+import { sentryIngestOrigin } from './lib/sentry'
 import { routeSite, siteOf } from './lib/site-hosts'
 
 // Staff pages that need the session check, the same set the matcher listed before the address split.
@@ -28,7 +29,8 @@ const cspOrigins: CspOrigins = {
   api: apiOrigin(),
   supabase: originOf(webEnv.NEXT_PUBLIC_SUPABASE_URL),
   tiles: [originOf(resolveMapStyleUrl())],
-  extraConnect: [],
+  // Browser error reports go to the tracker's ingest address, only when a DSN is set.
+  extraConnect: [sentryIngestOrigin(webEnv.NEXT_PUBLIC_SENTRY_DSN)],
   extraFrame: [],
   // React's development build needs eval; a production build never gets it.
   extraScript: process.env.NODE_ENV === 'development' ? ["'unsafe-eval'"] : [],

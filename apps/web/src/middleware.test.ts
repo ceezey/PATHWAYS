@@ -129,6 +129,25 @@ describe('Next.js middleware entry point', () => {
     }
   })
 
+  it('lets the browser send error reports to the tracker only when a DSN is set', async () => {
+    const without = await middleware(new NextRequest('http://127.0.0.1:3000/staff/login'))
+    expect(without.headers.get('content-security-policy')).not.toContain('ingest.example.io')
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', 'https://publickey@o123.ingest.example.io/456')
+    vi.resetModules()
+    try {
+      const reporting = await import('./middleware')
+      const response = await reporting.middleware(
+        new NextRequest('http://127.0.0.1:3000/staff/login'),
+      )
+      expect(response.headers.get('content-security-policy')).toMatch(
+        /connect-src [^;]*https:\/\/o123\.ingest\.example\.io/,
+      )
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
   it('keeps each address to its own pages when the split is on', async () => {
     vi.stubEnv('NEXT_PUBLIC_PUBLIC_SITE_BASE_URL', 'https://pathways.example.org')
     vi.stubEnv('NEXT_PUBLIC_STAFF_PORTAL_BASE_URL', 'https://staff.example.org')
