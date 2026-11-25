@@ -21,6 +21,7 @@ import {
   recoveryPointStatusView,
 } from '../backup-recovery.utils'
 import { useBackupActions } from '../hooks/use-backup-actions'
+import { DownloadRecoveryPointDialog } from './download-recovery-point-dialog'
 import { RestoreRecoveryPointDialog } from './restore-recovery-point-dialog'
 
 const fileModeNotes = {
@@ -45,9 +46,14 @@ export const BackupRecoveryWorkspace = () => {
     : actions.links
       ? { pointId: actions.links.pointId, tone: 'muted' as const }
       : null
+  const [downloading, setDownloading] = useState<RecoveryPointListItem | null>(null)
   const closeRestore = () => {
     setRestoring(null)
-    actions.clearRestoreError()
+    actions.clearDialogError()
+  }
+  const closeDownload = () => {
+    setDownloading(null)
+    actions.clearDialogError()
   }
 
   return (
@@ -83,10 +89,10 @@ export const BackupRecoveryWorkspace = () => {
             <div className="space-y-1 rounded-md border p-3 text-sm">
               <div className="flex flex-wrap gap-4">
                 <a href={actions.links.dataUrl} rel="noopener noreferrer" className="underline">
-                  Download data file
+                  Download data file (encrypted)
                 </a>
                 <a href={actions.links.manifestUrl} rel="noopener noreferrer" className="underline">
-                  Download manifest
+                  Download manifest (encrypted)
                 </a>
               </div>
               <p className="text-muted-foreground">These links expire in 2 minutes.</p>
@@ -131,11 +137,14 @@ export const BackupRecoveryWorkspace = () => {
                       highlight={highlight?.pointId === point.id ? highlight.tone : null}
                       canRestore={canRestore}
                       onRestore={() => {
-                        actions.clearRestoreError()
+                        actions.clearDialogError()
                         setRestoring(point)
                       }}
                       onVerify={() => void actions.verify(point)}
-                      onDownload={() => void actions.download(point)}
+                      onDownload={() => {
+                        actions.clearDialogError()
+                        setDownloading(point)
+                      }}
                     />
                   ))}
                 </tbody>
@@ -148,7 +157,8 @@ export const BackupRecoveryWorkspace = () => {
         point={restoring}
         organizationCode={read.data?.organizationCode ?? ''}
         pending={actions.pending?.action === 'restore'}
-        error={actions.restoreError}
+        error={actions.dialogError}
+        stepUpRequired={actions.stepUpRequired}
         onOpenChange={(open) => {
           // A running restore keeps its dialog, so its outcome is never lost.
           if (!open && actions.pending?.action !== 'restore') closeRestore()
@@ -157,6 +167,22 @@ export const BackupRecoveryWorkspace = () => {
           if (!restoring) return
           void actions.restore(restoring, organizationCode).then((restored) => {
             if (restored) closeRestore()
+          })
+        }}
+      />
+      <DownloadRecoveryPointDialog
+        point={downloading}
+        pending={actions.pending?.action === 'download'}
+        error={actions.dialogError}
+        stepUpRequired={actions.stepUpRequired}
+        onOpenChange={(open) => {
+          // A running download keeps its dialog, so its outcome is never lost.
+          if (!open && actions.pending?.action !== 'download') closeDownload()
+        }}
+        onConfirm={(passphrase) => {
+          if (!downloading) return
+          void actions.download(downloading, passphrase).then((done) => {
+            if (done) closeDownload()
           })
         }}
       />

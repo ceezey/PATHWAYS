@@ -1,8 +1,14 @@
 /* @vitest-environment jsdom */
 
 import type { RecoveryPointListItem } from '@pathways/shared'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/auth/beneficiary-step-up', async (original) => ({
+  ...(await original<typeof import('@/lib/auth/beneficiary-step-up')>()),
+  getBeneficiaryStepUpStatus: vi.fn().mockResolvedValue({ fresh: true, method: 'TOTP' }),
+}))
+
 import { RestoreRecoveryPointDialog } from './restore-recovery-point-dialog'
 
 const point: RecoveryPointListItem = {
@@ -27,6 +33,7 @@ const renderDialog = (props: Partial<Parameters<typeof RestoreRecoveryPointDialo
       organizationCode="ORG1"
       pending={false}
       error={null}
+      stepUpRequired={false}
       onConfirm={onConfirm}
       onOpenChange={vi.fn()}
       {...props}
@@ -55,7 +62,7 @@ describe('RestoreRecoveryPointDialog', () => {
     expect(screen.queryByText(/copied back from the recovery point/)).toBeNull()
   })
 
-  it('requires the typed organization code and sends it trimmed', () => {
+  it('requires the typed organization code and sends it trimmed', async () => {
     const { onConfirm, confirm } = renderDialog()
     const input = screen.getByLabelText('Type ORG1 to confirm')
     expect(input.getAttribute('autocomplete')).toBe('off')
@@ -63,9 +70,9 @@ describe('RestoreRecoveryPointDialog', () => {
     fireEvent.change(input, { target: { value: '   ' } })
     expect(confirm().disabled).toBe(true)
     fireEvent.change(input, { target: { value: 'ORG1 ' } })
-    expect(confirm().disabled).toBe(false)
+    await waitFor(() => expect(confirm().disabled).toBe(false))
     fireEvent.click(confirm())
-    expect(onConfirm).toHaveBeenCalledWith('ORG1')
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('ORG1'))
   })
 
   it('mentions file copies only for a copy point', () => {
