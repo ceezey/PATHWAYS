@@ -23,8 +23,6 @@ jobs:
       BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
       R2_ENDPOINT: ${{ vars.BACKUP_R2_ENDPOINT }}
       R2_BUCKET: ${{ vars.BACKUP_R2_BUCKET }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: auto
     steps:
       # First, so no data is read when it could not be encrypted.
@@ -56,6 +54,8 @@ jobs:
         shell: bash
         env:
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           dump="$RUNNER_TEMP/db.dump.age"
@@ -69,6 +69,8 @@ jobs:
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
           SUPABASE_URL: ${{ vars.BACKUP_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.BACKUP_SUPABASE_SERVICE_ROLE_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
         run: node scripts/backup/offsite-files.mjs
 
       # The uptime monitor alerts when no heartbeat arrives for 30 hours.

@@ -11,6 +11,7 @@ import {
   makeCopyOne,
   objectUrl,
   offsiteKey,
+  parseListing,
 } from './offsite-files.mjs'
 
 const recipient = `age1${'q'.repeat(58)}`
@@ -61,6 +62,16 @@ test('the download address encodes each part of the name and keeps its folders',
       name: 'org 1/niño file#1.jpg',
     }),
     'https://example.supabase.co/storage/v1/object/pathways-private/org%201/ni%C3%B1o%20file%231.jpg',
+  )
+})
+
+test('a listing that cannot be read fails without repeating its contents', () => {
+  assert.deepEqual(parseListing('Listing', '[{"bucket":"a","name":"b"}]'), [
+    { bucket: 'a', name: 'b' },
+  ])
+  assert.throws(
+    () => parseListing('Listing stored files', '[{"name":"maria-santos-id.jpg"'),
+    (error) => error.message === 'Listing stored files returned output that could not be read.',
   )
 })
 

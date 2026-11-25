@@ -1,6 +1,7 @@
 import 'reflect-metadata'
 
 import { ServiceUnavailableException } from '@nestjs/common'
+import { HEADERS_METADATA } from '@nestjs/common/constants'
 import { describe, expect, it } from 'vitest'
 
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator'
@@ -16,7 +17,7 @@ describe('HealthController readiness', () => {
   })
 
   it('is never cached, so a stale ok cannot hide an outage', () => {
-    expect(Reflect.getMetadata('__headers__', HealthController.prototype.getReadiness)).toEqual([
+    expect(Reflect.getMetadata(HEADERS_METADATA, HealthController.prototype.getReadiness)).toEqual([
       { name: 'Cache-Control', value: 'no-store' },
     ])
   })

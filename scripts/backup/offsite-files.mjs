@@ -22,6 +22,15 @@ async function run(what, command, args) {
   }
 }
 
+// JSON.parse quotes its input in its own message, and the input holds object names.
+export function parseListing(what, text) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error(`${what} returned output that could not be read.`)
+  }
+}
+
 export function assertRecipient(recipient) {
   if (typeof recipient !== 'string' || !/^age1[0-9a-z]+$/.test(recipient))
     throw new Error('The backup recipient must be one age public key (age1...).')
@@ -80,11 +89,14 @@ export function makeCopyOne({
       const child = spawn(age[0], [...age.slice(1), '-r', recipient, '-o', encrypted], {
         stdio: ['pipe', 'inherit', 'inherit'],
       })
-      const [, [code]] = await Promise.all([
+      // Both are awaited to the end, so the cleanup below never runs while age is still writing.
+      const [piped, closed] = await Promise.allSettled([
         pipeline(Readable.fromWeb(response.body), child.stdin),
         once(child, 'close'),
       ])
-      if (code !== 0) throw new Error(`age exited with ${code}`)
+      if (closed.status === 'rejected') throw closed.reason
+      if (closed.value[0] !== 0) throw new Error(`age exited with ${closed.value[0]}`)
+      if (piped.status === 'rejected') throw piped.reason
       const target = [encrypted, `s3://${bucket}/${key}`, '--endpoint-url', endpoint]
       await run('The upload', aws[0], [
         ...aws.slice(1),
@@ -124,7 +136,7 @@ async function main() {
       '-c',
       sql,
     ])
-    return JSON.parse(stdout)
+    return parseListing('Listing stored files', stdout)
   }
 
   const listOffsite = async () => {
@@ -142,7 +154,7 @@ async function main() {
       '--output',
       'json',
     ])
-    return new Set(JSON.parse(stdout) ?? [])
+    return new Set(parseListing('Listing offsite files', stdout) ?? [])
   }
 
   const copyOne = makeCopyOne({ supabaseUrl, serviceKey, recipient, bucket, endpoint })
