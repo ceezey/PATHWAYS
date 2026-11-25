@@ -1,0 +1,79 @@
+name: Backup offsite
+
+on:
+  schedule:
+    - cron: '30 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offsite:
+    # Stays inert until a person finishes the setup in vault note runbook-backup-restore.
+    if: vars.BACKUP_OFFSITE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: backup-hosted
+    timeout-minutes: 60
+    concurrency:
+      group: backup-offsite
+      cancel-in-progress: false
+    env:
+      # Only the age public key lives here; the private key never enters GitHub.
+      BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      R2_ENDPOINT: ${{ vars.BACKUP_R2_ENDPOINT }}
+      R2_BUCKET: ${{ vars.BACKUP_R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+    steps:
+      # First, so no data is read when it could not be encrypted.
+      - name: Refuse to run without an encryption recipient
+        shell: bash
+        run: |
+          if [[ ! "$BACKUP_AGE_RECIPIENT" =~ ^age1[0-9a-z]+$ ]]; then
+            echo "BACKUP_AGE_RECIPIENT is not set to one age public key."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install age and the PostgreSQL 18 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc > /dev/null
+          source /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y age postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      # Encrypted to a local file first, so a dump cut off midway is never uploaded.
+      - name: Dump the database, encrypt it and send it offsite
+        shell: bash
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          dump="$RUNNER_TEMP/db.dump.age"
+          pg_dump --format=custom --no-owner --dbname="$BACKUP_DATABASE_URL" | age -r "$BACKUP_AGE_RECIPIENT" -o "$dump"
+          aws s3 cp "$dump" "s3://${R2_BUCKET}/db/$(date -u +%F).dump.age" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          rm -f "$dump"
+          echo "Database dump sent offsite."
+
+      - name: Copy new stored files offsite, encrypted
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          SUPABASE_URL: ${{ vars.BACKUP_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.BACKUP_SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/backup/offsite-files.mjs
+
+      # The uptime monitor alerts when no heartbeat arrives for 30 hours.
+      - name: Send the heartbeat
+        shell: bash
+        env:
+          BACKUP_HEARTBEAT_URL: ${{ secrets.BACKUP_HEARTBEAT_URL }}
+        run: curl --fail --silent --show-error --max-time 30 --output /dev/null "$BACKUP_HEARTBEAT_URL"
