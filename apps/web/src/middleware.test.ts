@@ -129,6 +129,27 @@ describe('Next.js middleware entry point', () => {
     }
   })
 
+  it('allows the Turnstile origin as a frame and script source only when a site key is set', async () => {
+    const without = await middleware(new NextRequest('http://127.0.0.1:3000/staff/login'))
+    expect(without.headers.get('content-security-policy')).not.toContain(
+      'challenges.cloudflare.com',
+    )
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'site-key')
+    vi.resetModules()
+    try {
+      const keyed = await import('./middleware')
+      const response = await keyed.middleware(new NextRequest('http://127.0.0.1:3000/staff/login'))
+      const policy = response.headers.get('content-security-policy') ?? ''
+      expect(policy).toContain('frame-src blob: https://challenges.cloudflare.com;')
+      expect(policy).toMatch(
+        /script-src [^;]*'strict-dynamic' https:\/\/challenges\.cloudflare\.com;/,
+      )
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
+  })
+
   it('keeps each address to its own pages when the split is on', async () => {
     vi.stubEnv('NEXT_PUBLIC_PUBLIC_SITE_BASE_URL', 'https://pathways.example.org')
     vi.stubEnv('NEXT_PUBLIC_STAFF_PORTAL_BASE_URL', 'https://staff.example.org')
