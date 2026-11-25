@@ -166,7 +166,9 @@ export async function createReportArtifact(
             .text(label, 44, doc.page.height - 30, {
               width: doc.page.width - 88,
               align: 'center',
-              lineBreak: false,
+              // One line that truncates: a wrapped footer would run off the page and add one.
+              height: 10,
+              ellipsis: true,
             })
           doc.endMarkedContent()
         }

@@ -193,6 +193,13 @@ describe('bounded truthful report artifacts', () => {
       expect(pdfPageCount(bytes)).toBe(1)
       expect(draws).toHaveLength(1)
     })
+    it('keeps a very long label to one footer line, so it still adds no page', async () => {
+      const long = `Confidential. Exported by ${'Maria Clara de los Santos '.repeat(12)}on 2026-11-26 00:30 (Asia/Manila).`
+      const draws = spyOnLabelDraws(long)
+      const bytes = await createReportArtifact('Title', table, 'PDF', long)
+      expect(pdfPageCount(bytes)).toBe(1)
+      expect(draws).toHaveLength(1)
+    })
     it('rejects a PDF label the bundled font cannot draw', async () => {
       await expect(
         createReportArtifact('Title', table, 'PDF', 'Confidential. Exported by 漢字.'),
