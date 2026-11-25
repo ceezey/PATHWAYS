@@ -7,6 +7,7 @@ import { ConfirmationDialog } from '@/components/pathways'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatRecoveryPointTime, recoveryPointKindLabels } from '../backup-recovery.utils'
+import { StepUpCodeField, useStepUpCode } from './step-up-code-field'
 
 const SUMMARY =
   'PATHWAYS saves a recovery point of the current data first, so you can undo this restore.'
@@ -46,6 +47,7 @@ export const RestoreRecoveryPointDialog = ({
   organizationCode,
   pending,
   error,
+  stepUpRequired,
   onConfirm,
   onOpenChange,
 }: {
@@ -53,6 +55,7 @@ export const RestoreRecoveryPointDialog = ({
   organizationCode: string
   pending: boolean
   error: string | null
+  stepUpRequired: boolean
   onConfirm: (organizationCode: string) => void
   onOpenChange: (open: boolean) => void
 }) => {
@@ -60,11 +63,13 @@ export const RestoreRecoveryPointDialog = ({
   // A new point starts with an empty confirmation.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only when the point changes
   useEffect(() => setTyped(''), [point?.id])
+  const step = useStepUpCode(point !== null, stepUpRequired)
   const value = typed.trim()
   return (
     <ConfirmationDialog
       open={point !== null}
-      onOpenChange={onOpenChange}
+      // A running code check keeps its dialog, so its result is never lost.
+      onOpenChange={(next) => step.checking || onOpenChange(next)}
       title={
         point
           ? `Restore the ${recoveryPointKindLabels[point.pointType]} recovery point from ${formatRecoveryPointTime(point)}?`
@@ -72,8 +77,12 @@ export const RestoreRecoveryPointDialog = ({
       }
       description={SUMMARY}
       confirmLabel={pending ? 'Restoring' : 'Restore'}
-      confirmDisabled={pending || value === ''}
-      onConfirm={() => onConfirm(value)}
+      confirmDisabled={pending || step.checking || value === '' || step.incomplete}
+      onConfirm={() =>
+        void step.verify().then((ready) => {
+          if (ready) onConfirm(value)
+        })
+      }
     >
       <div className="grid gap-4 text-sm sm:grid-cols-2">
         <ChangeList id="restore-replaced" title="Goes back to that time" items={REPLACED} />
@@ -90,14 +99,16 @@ export const RestoreRecoveryPointDialog = ({
           id="restore-organization-code"
           autoComplete="off"
           value={typed}
+          aria-describedby={error ? 'restore-error' : undefined}
           onChange={(event) => setTyped(event.target.value)}
         />
-        {error ? (
-          <p role="alert" className="text-sm text-danger">
-            {error}
-          </p>
-        ) : null}
       </div>
+      <StepUpCodeField step={step} />
+      {error ? (
+        <p id="restore-error" role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      ) : null}
     </ConfirmationDialog>
   )
 }

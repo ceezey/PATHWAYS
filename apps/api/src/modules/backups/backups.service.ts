@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 import {
   BadRequestException,
@@ -13,6 +14,7 @@ import {
 } from '@nestjs/common'
 import { readApiEnv } from '@pathways/config'
 import {
+  type DownloadRecoveryPointRequest,
   type RecoveryPointDownload,
   type RecoveryPointList,
   type RecoveryPointListItem,
@@ -32,6 +34,7 @@ import {
   BACKUP_MANIFEST_FILE,
   BackupStorage,
   BackupStorageUnavailableError,
+  downloadsPrefix,
   pointCopyPath,
   pointPrefix,
 } from './backup-storage'
@@ -47,8 +50,10 @@ import {
   isBackupBusy,
 } from './recovery-point-capture.service'
 import { checkRecoveryPoint } from './recovery-point-check'
+import { encryptRecoveryPoint } from './recovery-point-encryption'
 
 export const DOWNLOAD_URL_SECONDS = 120
+export const DOWNLOAD_COPY_MAX_AGE_MS = 15 * 60 * 1000
 export const RESTORE_MESSAGES = {
   CODE_MISMATCH: 'The organization code does not match.',
   PRE_RESTORE_FAILED: 'The safety backup before the restore failed, so nothing was changed.',
@@ -132,7 +137,17 @@ export class BackupsService {
     })
   }
 
+  // Best effort: a cleanup fault must not block a list or a download.
+  private async removeStaleDownloads(orgId: string) {
+    try {
+      await this.storage.removeStaleDownloads(orgId, Date.now() - DOWNLOAD_COPY_MAX_AGE_MS)
+    } catch {
+      logger.error({ event: 'PATHWAYS_BACKUP_DOWNLOAD_CLEANUP_FAILED' })
+    }
+  }
+
   async list(identity: ApplicationIdentity): Promise<RecoveryPointList> {
+    await this.removeStaleDownloads(identity.organizationId)
     return this.read(identity, async (tx) => {
       const rows = await tx.recoveryPoint.findMany({
         where: { organizationId: identity.organizationId },
@@ -200,7 +215,11 @@ export class BackupsService {
     return { point: toRecoveryPointItem(point, migration, new Date()), problem: check.problem }
   }
 
-  async download(identity: ApplicationIdentity, pointId: string): Promise<RecoveryPointDownload> {
+  async download(
+    identity: ApplicationIdentity,
+    pointId: string,
+    input: DownloadRecoveryPointRequest,
+  ): Promise<RecoveryPointDownload> {
     const row = await this.read(identity, (tx) => findPoint(tx, identity, pointId))
     if (!row) throw backupNotFound()
     if (row.status !== 'READY' && row.status !== 'UNAVAILABLE')
@@ -208,21 +227,48 @@ export class BackupsService {
         message: recoveryPointProblemMessages.NOT_READY,
         code: 'NOT_READY',
       })
+    await this.removeStaleDownloads(identity.organizationId)
     const prefix = pointPrefix(identity.organizationId, row.id)
-    const [dataUrl, manifestUrl] = await storageCall(() =>
+    const [data, manifest] = await storageCall(() =>
       Promise.all([
-        this.storage.signedUrl(
-          `${prefix}/${BACKUP_DATA_FILE}`,
-          DOWNLOAD_URL_SECONDS,
-          `recovery-point-${row.id}.json.gz`,
-        ),
-        this.storage.signedUrl(
-          `${prefix}/${BACKUP_MANIFEST_FILE}`,
-          DOWNLOAD_URL_SECONDS,
-          `recovery-point-${row.id}.manifest.json`,
-        ),
+        this.storage.read(`${prefix}/${BACKUP_DATA_FILE}`),
+        this.storage.read(`${prefix}/${BACKUP_MANIFEST_FILE}`),
       ]),
     )
+    if (!data || !manifest)
+      throw new ConflictException({
+        message: recoveryPointProblemMessages.DATA_FILE_MISSING,
+        code: 'DATA_FILE_MISSING',
+      })
+    // Each copy name carries a random id because the upload never overwrites.
+    const copy = `${downloadsPrefix(identity.organizationId)}/${Date.now()}-${randomUUID()}`
+    const [dataUrl, manifestUrl] = await storageCall(async () => {
+      // The bucket accepts only listed types, so the manifest copy is stored as application/gzip too.
+      await Promise.all([
+        this.storage.write(
+          `${copy}.data.pwrp`,
+          encryptRecoveryPoint(data, input.passphrase),
+          'application/gzip',
+        ),
+        this.storage.write(
+          `${copy}.manifest.pwrp`,
+          encryptRecoveryPoint(manifest, input.passphrase),
+          'application/gzip',
+        ),
+      ])
+      return Promise.all([
+        this.storage.signedUrl(
+          `${copy}.data.pwrp`,
+          DOWNLOAD_URL_SECONDS,
+          `recovery-point-${row.id}.json.gz.pwrp`,
+        ),
+        this.storage.signedUrl(
+          `${copy}.manifest.pwrp`,
+          DOWNLOAD_URL_SECONDS,
+          `recovery-point-${row.id}.manifest.json.pwrp`,
+        ),
+      ])
+    })
     if (!dataUrl || !manifestUrl)
       throw new ConflictException({
         message: recoveryPointProblemMessages.DATA_FILE_MISSING,

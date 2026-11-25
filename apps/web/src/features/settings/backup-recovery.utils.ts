@@ -44,7 +44,16 @@ export type BackupAction = 'create' | 'verify' | 'download' | 'restore'
 const GENERIC_SERVER_MESSAGE = 'The requested operation could not be completed.'
 const SERVER_TEXT_STATUSES = new Set([400, 403, 409, 422, 503])
 
+const STEP_UP_REQUIRED = 'STEP_UP_TOTP_REQUIRED'
+
+/** True when the API refused because no authenticator code was used in the last 15 minutes. */
+export const isStepUpRequired = (caught: unknown) =>
+  caught instanceof PathwaysClientError &&
+  caught.status === 403 &&
+  caught.reason === STEP_UP_REQUIRED
+
 export function backupFailureMessage(action: BackupAction, caught: unknown): string {
+  if (isStepUpRequired(caught)) return 'Enter the code from your authenticator app to continue.'
   const status = caught instanceof PathwaysClientError ? caught.status : undefined
   if (
     caught instanceof PathwaysClientError &&

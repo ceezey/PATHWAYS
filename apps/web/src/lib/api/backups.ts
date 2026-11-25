@@ -1,4 +1,5 @@
 import {
+  type DownloadRecoveryPointRequest,
   type RestoreRecoveryPointRequest,
   recoveryPointDownload,
   recoveryPointList,
@@ -18,8 +19,8 @@ export const backupsClient = {
   create: () => ownedJsonRead('/backups', recoveryPointListItem, { method: 'POST' }),
   verify: async (pointId: string) =>
     ownedJsonRead(`${pointPath(pointId)}/verify`, recoveryPointVerifyResult, { method: 'POST' }),
-  download: async (pointId: string) =>
-    ownedJsonRead(`${pointPath(pointId)}/download`, recoveryPointDownload, { method: 'POST' }),
+  download: async (pointId: string, input: DownloadRecoveryPointRequest) =>
+    ownedJsonPost(`${pointPath(pointId)}/download`, recoveryPointDownload, input),
   restore: async (pointId: string, input: RestoreRecoveryPointRequest) =>
     ownedJsonPost(`${pointPath(pointId)}/restore`, restoreRecoveryPointResult, input),
 }
