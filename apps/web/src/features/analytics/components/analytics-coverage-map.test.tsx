@@ -83,13 +83,9 @@ vi.mock('maplibre-gl', () => ({
   setWorkerUrl: maplibre.setWorkerUrl,
 }))
 
-import {
-  AnalyticsCoverageMap,
-  DEFAULT_MAP_STYLE_URL,
-  MAPLIBRE_WORKER_URL,
-  cardPosition,
-  resolveMapStyleUrl,
-} from './analytics-coverage-map'
+import { DEFAULT_MAP_STYLE_URL, resolveMapStyleUrl } from '@/lib/map-style'
+
+import { AnalyticsCoverageMap, MAPLIBRE_WORKER_URL, cardPosition } from './analytics-coverage-map'
 
 const resizeObserverInstances: ResizeObserverMock[] = []
 
