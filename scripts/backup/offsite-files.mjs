@@ -55,6 +55,50 @@ export async function copyNewFiles({ recipient, listStored, listOffsite, copyOne
   return result
 }
 
+// The age and aws commands can be replaced so a test runs this without the real tools.
+export function makeCopyOne({
+  supabaseUrl,
+  serviceKey,
+  recipient,
+  bucket,
+  endpoint,
+  fetchFile = fetch,
+  age = ['age'],
+  aws = ['aws'],
+}) {
+  return async (object, key) => {
+    const response = await fetchFile(objectUrl(supabaseUrl, object), {
+      headers: { authorization: `Bearer ${serviceKey}` },
+    })
+    if (!response.ok || !response.body) {
+      await response.body?.cancel()
+      throw new Error(`download answered ${response.status}`)
+    }
+    // Encrypted to a local file first, so a broken download never leaves a cut-off object offsite.
+    const encrypted = path.join(process.env.RUNNER_TEMP ?? tmpdir(), 'offsite-file.age')
+    try {
+      const child = spawn(age[0], [...age.slice(1), '-r', recipient, '-o', encrypted], {
+        stdio: ['pipe', 'inherit', 'inherit'],
+      })
+      const [, [code]] = await Promise.all([
+        pipeline(Readable.fromWeb(response.body), child.stdin),
+        once(child, 'close'),
+      ])
+      if (code !== 0) throw new Error(`age exited with ${code}`)
+      const target = [encrypted, `s3://${bucket}/${key}`, '--endpoint-url', endpoint]
+      await run('The upload', aws[0], [
+        ...aws.slice(1),
+        's3',
+        'cp',
+        ...target,
+        '--only-show-errors',
+      ])
+    } finally {
+      await rm(encrypted, { force: true })
+    }
+  }
+}
+
 function required(name) {
   const value = process.env[name]
   if (!value) throw new Error(`${name} is not set.`)
@@ -101,34 +145,7 @@ async function main() {
     return new Set(JSON.parse(stdout) ?? [])
   }
 
-  const copyOne = async (object, key) => {
-    const response = await fetch(objectUrl(supabaseUrl, object), {
-      headers: { authorization: `Bearer ${serviceKey}` },
-    })
-    if (!response.ok || !response.body) throw new Error(`download answered ${response.status}`)
-    // Encrypted to a local file first, so a broken download never leaves a cut-off object offsite.
-    const encrypted = path.join(process.env.RUNNER_TEMP ?? tmpdir(), 'offsite-file.age')
-    try {
-      const age = spawn('age', ['-r', recipient, '-o', encrypted], {
-        stdio: ['pipe', 'inherit', 'inherit'],
-      })
-      const closed = once(age, 'close')
-      await pipeline(Readable.fromWeb(response.body), age.stdin)
-      const [code] = await closed
-      if (code !== 0) throw new Error(`age exited with ${code}`)
-      await run('The upload', 'aws', [
-        's3',
-        'cp',
-        encrypted,
-        `s3://${bucket}/${key}`,
-        '--endpoint-url',
-        endpoint,
-        '--only-show-errors',
-      ])
-    } finally {
-      await rm(encrypted, { force: true })
-    }
-  }
+  const copyOne = makeCopyOne({ supabaseUrl, serviceKey, recipient, bucket, endpoint })
 
   const result = await copyNewFiles({ recipient, listStored, listOffsite, copyOne })
   console.log(
