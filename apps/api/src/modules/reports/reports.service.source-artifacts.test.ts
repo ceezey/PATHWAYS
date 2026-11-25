@@ -25,6 +25,9 @@ import {
 import { generateReportRequest, reportPreviewQuery } from '@pathways/shared'
 import { describe, expect, it, vi } from 'vitest'
 
+const labelPattern =
+  /^Confidential\. Exported by Fictional report author on \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(Asia\/Manila\)\.$/
+
 describe('report source authority, privacy and artifact recovery', () => {
   useReportsHarness()
   it('requires exact survey-only form context and rejects caller filter dimensions', () => {
@@ -237,6 +240,7 @@ describe('report source authority, privacy and artifact recovery', () => {
     expect(renderer.render).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ title: 'Private report', kind: 'PROJECT_SUMMARY' }),
+      expect.stringMatching(labelPattern),
     )
     expect(state.artifact).not.toHaveBeenCalled()
     expect(storage.uploadPrivateFile).toHaveBeenCalledWith(
@@ -252,6 +256,10 @@ describe('report source authority, privacy and artifact recovery', () => {
     expect(acknowledgement).toMatchObject({ pdfFallback: true })
     expect(renderer.render).toHaveBeenCalledOnce()
     expect(state.artifact).toHaveBeenCalledOnce()
+    // The designed PDF and the plain fallback carry the same label, built once from the generator.
+    const label = state.artifact.mock.calls[0][3]
+    expect(label).toMatch(labelPattern)
+    expect(renderer.render.mock.calls[0][2]).toBe(label)
     const warning = vi.mocked(Logger.prototype.warn).mock.calls.flat().join(' ')
     expect(vi.mocked(Logger.prototype.warn)).toHaveBeenCalledOnce()
     expect(warning).toContain('at launch')
