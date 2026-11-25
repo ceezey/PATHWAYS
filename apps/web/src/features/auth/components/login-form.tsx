@@ -25,6 +25,7 @@ import { CaptchaField, captchaSiteKey } from './captcha-field'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 const invalidCredentialsMessage = 'Could not sign in. Check your credentials and try again.'
+const captchaFailedMessage = 'The security check did not pass. Try again.'
 // Why the workspace sent the user here (session-timeout-guard.tsx).
 const endedNotices: Record<string, string> = {
   idle: 'You were signed out after 30 minutes without activity.',
@@ -126,7 +127,7 @@ export const LoginForm = () => {
             })
           : { error: true }
       if (authError) {
-        setError(invalidCredentialsMessage)
+        setError(outcome.kind === 'captcha' ? captchaFailedMessage : invalidCredentialsMessage)
         return
       }
 

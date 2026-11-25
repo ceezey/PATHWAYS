@@ -85,3 +85,15 @@ describe('sign-in CAPTCHA', () => {
     )
   })
 })
+
+describe('sign-in CAPTCHA refusal', () => {
+  it('says the security check failed, not that the password is wrong', async () => {
+    requestSignIn.mockResolvedValue({ kind: 'captcha' })
+    render(<LoginForm />)
+    fill()
+    fireEvent.click(screen.getByRole('button', { name: 'Pass check' }))
+    await act(async () => fireEvent.click(signIn()))
+    expect(await screen.findByText('The security check did not pass. Try again.')).toBeTruthy()
+    expect(screen.queryByText(/Check your credentials/)).toBeNull()
+  })
+})

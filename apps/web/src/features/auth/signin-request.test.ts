@@ -77,3 +77,12 @@ describe('requestSignIn CAPTCHA token', () => {
     expect(sentBody()).toEqual({ email: 'a@x.org', password: 'pw' })
   })
 })
+
+describe('requestSignIn refused CAPTCHA', () => {
+  it('tells a refused security check apart from a wrong password', async () => {
+    reply(400, { code: 'CAPTCHA_FAILED' })
+    await expect(requestSignIn('a@x.org', 'pw', 'token-1')).resolves.toEqual({ kind: 'captcha' })
+    reply(400, { code: 'VALIDATION_FAILED' })
+    await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({ kind: 'invalid' })
+  })
+})

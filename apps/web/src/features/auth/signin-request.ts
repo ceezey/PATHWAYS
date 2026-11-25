@@ -4,6 +4,7 @@ import { webEnv } from '@/lib/env'
 type SignInOutcome =
   | { kind: 'session'; accessToken: string; refreshToken: string }
   | { kind: 'invalid' }
+  | { kind: 'captcha' }
   | { kind: 'locked'; retryAfterSeconds: number }
 
 const maxLockSeconds = 900
@@ -42,7 +43,14 @@ export async function requestSignIn(
   if (response.status === 429) {
     return { kind: 'locked', retryAfterSeconds: await parseRetryAfter(response) }
   }
-  if (response.status === 400 || response.status === 401) return { kind: 'invalid' }
+  if (response.status === 400) {
+    const body: unknown = await response.json().catch(() => null)
+    // A refused security check is not a wrong password, so the form says which it was.
+    if ((body as Record<string, unknown> | null)?.code === 'CAPTCHA_FAILED')
+      return { kind: 'captcha' }
+    return { kind: 'invalid' }
+  }
+  if (response.status === 401) return { kind: 'invalid' }
   if (!response.ok) throw new Error('SIGN_IN_UNAVAILABLE')
   const body: unknown = await response.json()
   const { accessToken, refreshToken } = (body ?? {}) as Record<string, unknown>

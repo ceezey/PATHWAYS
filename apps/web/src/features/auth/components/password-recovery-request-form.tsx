@@ -30,8 +30,6 @@ import { StaffAuthFrame } from './staff-auth-frame'
 export const PasswordRecoveryRequestForm = () => {
   const [acknowledgement, setAcknowledgement] = useState<string | null>(null)
   const [captchaToken, setCaptchaToken] = useState('')
-  // Remounting the field asks Turnstile for a new token, since each one works once.
-  const [captchaRound, setCaptchaRound] = useState(0)
   const waitingForCaptcha = Boolean(captchaSiteKey) && !captchaToken
   const form = useForm<PasswordRecoveryRequest>({
     resolver: zodResolver(passwordRecoveryRequestSchema),
@@ -50,7 +48,6 @@ export const PasswordRecoveryRequestForm = () => {
       await requestPasswordRecoveryEmail(supabase.auth, email, currentOrigin, captchaToken)
     }
     setCaptchaToken('')
-    setCaptchaRound((round) => round + 1)
 
     form.reset()
     setAcknowledgement(passwordRecoveryAcknowledgement)
@@ -107,7 +104,7 @@ export const PasswordRecoveryRequestForm = () => {
                   </FormItem>
                 )}
               />
-              <CaptchaField key={captchaRound} onToken={setCaptchaToken} />
+              <CaptchaField onToken={setCaptchaToken} />
               <Button
                 className="w-full gap-2"
                 disabled={form.formState.isSubmitting || waitingForCaptcha}
