@@ -73,7 +73,7 @@ export class AuthController {
     @Body(new ZodPipe(signInBody)) body: SignInRequest,
     @Headers('user-agent') device: string | undefined,
   ) {
-    return this.signIns.signIn(body.email, body.password, device)
+    return this.signIns.signIn(body.email, body.password, device, body.captchaToken)
   }
 
   @Post('password-recovery/complete')
