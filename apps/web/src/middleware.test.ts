@@ -75,6 +75,8 @@ describe('Next.js middleware entry point', () => {
     const [first, second] = [await send(), await send()]
     const policy = first.headers.get('content-security-policy')
     expect(policy).toContain("frame-ancestors 'none'")
+    // Only next dev may add eval; a wider condition in the middleware must fail here.
+    expect(policy).not.toMatch(/unsafe-eval|script-src[^;]*unsafe-inline/)
     expect(first.headers.get('content-security-policy-report-only')).toBeNull()
     expect(first.headers.get('x-frame-options')).toBe('DENY')
     expect(first.headers.get('x-content-type-options')).toBe('nosniff')
