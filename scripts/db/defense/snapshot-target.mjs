@@ -14,7 +14,7 @@ export function assertRestoreTarget(env, projectRef = ALLOWED_PROJECT_REF) {
     throw new Error('HOSTED_ADMIN_URL is not a valid URL.')
   }
   assertHostedPgUrl(url, 'HOSTED_ADMIN_URL', 'postgres', projectRef)
-  if (/.pooler.supabase.com$/i.test(url.hostname) && url.port && url.port !== '5432')
+  if (/\.pooler\.supabase\.com$/i.test(url.hostname) && url.port && url.port !== '5432')
     throw new Error('HOSTED_ADMIN_URL on the pooler must use the session port 5432.')
   return raw
 }
