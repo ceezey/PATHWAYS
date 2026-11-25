@@ -82,6 +82,13 @@ export const StepUpCodeField = ({ step }: { step: ReturnType<typeof useStepUpCod
         value={step.code}
         onChange={step.setCode}
         disabled={step.checking}
+        invalid={Boolean(step.error)}
+        describedBy={step.error ? 'step-up-code-error' : undefined}
       />
+      {step.error ? (
+        <p id="step-up-code-error" role="alert" className="text-sm text-danger">
+          {step.error}
+        </p>
+      ) : null}
     </div>
   ) : null

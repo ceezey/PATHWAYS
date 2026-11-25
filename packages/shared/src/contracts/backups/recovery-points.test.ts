@@ -75,6 +75,7 @@ describe('recovery point contracts', () => {
         'BUSY',
         'STORAGE_UNAVAILABLE',
         'DATABASE_BUSY',
+        'STEP_UP_TOTP_REQUIRED',
       ]),
     )
   })

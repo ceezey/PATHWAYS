@@ -252,6 +252,22 @@ describe('backup and recovery workspace', () => {
       expect(screen.queryByText('The passphrases do not match.')).toBeNull()
     })
 
+    it('raises the mismatch only once the second field is as long as the first, and ties it to the field', () => {
+      render(<BackupRecoveryWorkspace />)
+      openDownload()
+      fill(PASS, PASS.slice(0, 5))
+      expect(screen.queryByText('The passphrases do not match.')).toBeNull()
+      expect(againField().getAttribute('aria-invalid')).toBeNull()
+      expect(confirm().disabled).toBe(true)
+      fill(PASS, 'x'.repeat(PASS.length))
+      const alert = screen.getByText('The passphrases do not match.')
+      expect(alert.getAttribute('role')).toBe('alert')
+      expect(alert.id).toBe('download-passphrase-mismatch')
+      expect(againField().getAttribute('aria-invalid')).toBe('true')
+      expect(againField().getAttribute('aria-describedby')).toBe('download-passphrase-mismatch')
+      expect(confirm().disabled).toBe(true)
+    })
+
     it('sends the passphrase and shows the two encrypted links with a fresh authenticator', async () => {
       state.download.mockResolvedValueOnce(links('first')).mockResolvedValueOnce(links('second'))
       render(<BackupRecoveryWorkspace />)
@@ -355,9 +371,12 @@ describe('backup and recovery workspace', () => {
       await screen.findByRole('group', { name: 'Authenticator code' })
       typeCode()
       fireEvent.click(confirm())
-      expect((await screen.findByRole('alert')).textContent).toBe(
-        'The code was not accepted. Try the next authenticator code.',
-      )
+      const alert = await screen.findByRole('alert')
+      expect(alert.textContent).toBe('The code was not accepted. Try the next authenticator code.')
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+      expect(alert.id).toBe('step-up-code-error')
+      expect(codeBox().getAttribute('aria-invalid')).toBe('true')
+      expect(codeBox().getAttribute('aria-describedby')).toBe('step-up-code-error')
       expect(state.download).not.toHaveBeenCalled()
       expect(passphraseField().value).toBe(PASS)
       expect(againField().value).toBe(PASS)

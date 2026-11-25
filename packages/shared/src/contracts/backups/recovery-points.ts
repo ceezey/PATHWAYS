@@ -54,6 +54,7 @@ export const backupErrorCodes = [
   'COUNT_MISMATCH',
   'RESTORE_FAILED',
   'DATABASE_BUSY',
+  'STEP_UP_TOTP_REQUIRED',
 ] as const
 export type BackupErrorCode = (typeof backupErrorCodes)[number]
 

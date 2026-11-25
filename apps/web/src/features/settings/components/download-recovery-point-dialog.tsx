@@ -37,8 +37,8 @@ export const DownloadRecoveryPointDialog = ({
     setPassphrase('')
     setAgain('')
   }, [point?.id])
-  const mismatch = again !== '' && again !== passphrase
-  const message = step.error ?? error
+  // Raised only once the second field is as long as the first, so it stays quiet mid-typing.
+  const mismatch = again.length >= passphrase.length && again !== '' && again !== passphrase
   const valid =
     passphrase.length >= MIN_LENGTH && passphrase.length <= MAX_LENGTH && passphrase === again
   return (
@@ -80,18 +80,20 @@ export const DownloadRecoveryPointDialog = ({
           autoComplete="new-password"
           maxLength={MAX_LENGTH}
           value={again}
+          aria-invalid={mismatch || undefined}
+          aria-describedby={mismatch ? 'download-passphrase-mismatch' : undefined}
           onChange={(event) => setAgain(event.target.value)}
         />
         {mismatch ? (
-          <p role="alert" className="text-sm text-danger">
+          <p id="download-passphrase-mismatch" role="alert" className="text-sm text-danger">
             The passphrases do not match.
           </p>
         ) : null}
       </div>
       <StepUpCodeField step={step} />
-      {message ? (
+      {error ? (
         <p role="alert" className="text-sm text-danger">
-          {message}
+          {error}
         </p>
       ) : null}
     </ConfirmationDialog>

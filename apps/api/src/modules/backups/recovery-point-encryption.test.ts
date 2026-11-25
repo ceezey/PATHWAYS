@@ -63,8 +63,8 @@ describe('recovery point encryption', () => {
 
   it('treats composed and decomposed forms of a passphrase as the same', () => {
     const plain = Buffer.from('normalized')
-    const file = encryptRecoveryPoint(plain, 'café passphrase 1')
-    expect(decryptRecoveryPoint(file, 'café passphrase 1').equals(plain)).toBe(true)
+    const file = encryptRecoveryPoint(plain, 'caf\u00e9 passphrase 1')
+    expect(decryptRecoveryPoint(file, 'cafe\u0301 passphrase 1').equals(plain)).toBe(true)
   })
 
   it('opens the known-answer vector', () => {

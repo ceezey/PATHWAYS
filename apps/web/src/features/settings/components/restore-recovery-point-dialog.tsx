@@ -65,7 +65,6 @@ export const RestoreRecoveryPointDialog = ({
   useEffect(() => setTyped(''), [point?.id])
   const step = useStepUpCode(point !== null, stepUpRequired)
   const value = typed.trim()
-  const message = step.error ?? error
   return (
     <ConfirmationDialog
       open={point !== null}
@@ -100,13 +99,14 @@ export const RestoreRecoveryPointDialog = ({
           id="restore-organization-code"
           autoComplete="off"
           value={typed}
+          aria-describedby={error ? 'restore-error' : undefined}
           onChange={(event) => setTyped(event.target.value)}
         />
       </div>
       <StepUpCodeField step={step} />
-      {message ? (
-        <p role="alert" className="text-sm text-danger">
-          {message}
+      {error ? (
+        <p id="restore-error" role="alert" className="text-sm text-danger">
+          {error}
         </p>
       ) : null}
     </ConfirmationDialog>
