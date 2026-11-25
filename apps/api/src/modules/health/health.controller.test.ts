@@ -15,6 +15,12 @@ describe('HealthController readiness', () => {
     expect(Reflect.getMetadata(IS_PUBLIC_KEY, HealthController.prototype.getReadiness)).toBe(true)
   })
 
+  it('is never cached, so a stale ok cannot hide an outage', () => {
+    expect(Reflect.getMetadata('__headers__', HealthController.prototype.getReadiness)).toEqual([
+      { name: 'Cache-Control', value: 'no-store' },
+    ])
+  })
+
   it('answers ok when the database answers', async () => {
     await expect(controller(true).getReadiness()).resolves.toEqual({ status: 'ok' })
   })

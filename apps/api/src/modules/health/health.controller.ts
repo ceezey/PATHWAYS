@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common'
+import { Controller, Get, Header, Inject, ServiceUnavailableException } from '@nestjs/common'
 import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger'
 
 import { Public } from '../../common/decorators/public.decorator'
@@ -19,6 +19,7 @@ export class HealthController {
   // Fixed bodies only: an outside monitor learns whether the database answers and nothing else.
   @Public()
   @Get('ready')
+  @Header('Cache-Control', 'no-store')
   @ApiOkResponse({ description: 'The database answers.' })
   @ApiServiceUnavailableResponse({ description: 'The database did not answer in time.' })
   async getReadiness() {

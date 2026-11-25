@@ -20,8 +20,18 @@ export class HealthService {
     }
   }
 
+  private pending?: Promise<boolean>
+
   /** True when the database answers a trivial query inside the limit. */
-  async isReady(): Promise<boolean> {
+  isReady(): Promise<boolean> {
+    // Callers that arrive during a check share it, so a slow database cannot collect one query per request.
+    this.pending ??= this.check().finally(() => {
+      this.pending = undefined
+    })
+    return this.pending
+  }
+
+  private async check(): Promise<boolean> {
     let timer: NodeJS.Timeout | undefined
     const timedOut = new Promise<false>((resolve) => {
       timer = setTimeout(() => resolve(false), READINESS_TIMEOUT_MS)

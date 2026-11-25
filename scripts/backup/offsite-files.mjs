@@ -29,6 +29,9 @@ export function assertRecipient(recipient) {
 
 export const offsiteKey = ({ bucket, name }) => `files/${bucket}/${name}.age`
 
+export const objectUrl = (supabaseUrl, { bucket, name }) =>
+  `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/${encodeURIComponent(bucket)}/${name.split('/').map(encodeURIComponent).join('/')}`
+
 export async function copyNewFiles({ recipient, listStored, listOffsite, copyOne }) {
   // Checked first, so nothing is read when it could not be encrypted.
   assertRecipient(recipient)
@@ -60,9 +63,8 @@ function required(name) {
 
 async function main() {
   const recipient = process.env.BACKUP_AGE_RECIPIENT
-  assertRecipient(recipient)
   const databaseUrl = required('BACKUP_DATABASE_URL')
-  const supabaseUrl = required('SUPABASE_URL').replace(/\/+$/, '')
+  const supabaseUrl = required('SUPABASE_URL')
   const serviceKey = required('SUPABASE_SERVICE_ROLE_KEY')
   const endpoint = required('R2_ENDPOINT')
   const bucket = required('R2_BUCKET')
@@ -82,7 +84,7 @@ async function main() {
   }
 
   const listOffsite = async () => {
-    const args = [
+    const { stdout } = await run('Listing offsite files', 'aws', [
       's3api',
       'list-objects-v2',
       '--bucket',
@@ -91,9 +93,6 @@ async function main() {
       'files/',
       '--endpoint-url',
       endpoint,
-    ]
-    const { stdout } = await run('Listing offsite files', 'aws', [
-      ...args,
       '--query',
       'Contents[].Key',
       '--output',
@@ -103,13 +102,9 @@ async function main() {
   }
 
   const copyOne = async (object, key) => {
-    const path = object.name.split('/').map(encodeURIComponent).join('/')
-    const response = await fetch(
-      `${supabaseUrl}/storage/v1/object/${encodeURIComponent(object.bucket)}/${path}`,
-      {
-        headers: { authorization: `Bearer ${serviceKey}` },
-      },
-    )
+    const response = await fetch(objectUrl(supabaseUrl, object), {
+      headers: { authorization: `Bearer ${serviceKey}` },
+    })
     if (!response.ok || !response.body) throw new Error(`download answered ${response.status}`)
     // Encrypted to a local file first, so a broken download never leaves a cut-off object offsite.
     const encrypted = path.join(process.env.RUNNER_TEMP ?? tmpdir(), 'offsite-file.age')

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { assertRecipient, copyNewFiles, offsiteKey } from './offsite-files.mjs'
+import { assertRecipient, copyNewFiles, objectUrl, offsiteKey } from './offsite-files.mjs'
 
 const recipient = `age1${'q'.repeat(58)}`
 
@@ -41,6 +41,16 @@ test('a name with a space, a slash and a non-ASCII letter keeps its exact name',
   assert.equal(
     offsiteKey({ bucket: 'pathways-private', name: 'org 1/niño file.jpg' }),
     'files/pathways-private/org 1/niño file.jpg.age',
+  )
+})
+
+test('the download address encodes each part of the name and keeps its folders', () => {
+  assert.equal(
+    objectUrl('https://example.supabase.co/', {
+      bucket: 'pathways-private',
+      name: 'org 1/niño file#1.jpg',
+    }),
+    'https://example.supabase.co/storage/v1/object/pathways-private/org%201/ni%C3%B1o%20file%231.jpg',
   )
 })
 

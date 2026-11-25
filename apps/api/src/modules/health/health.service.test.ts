@@ -24,6 +24,25 @@ describe('HealthService.isReady', () => {
     await expect(ready).resolves.toBe(false)
   })
 
+  it('shares one query between callers that arrive during a check, then checks again', async () => {
+    let release: (rows: unknown[]) => void = () => {}
+    const query = vi.fn(
+      () =>
+        new Promise<unknown[]>((resolve) => {
+          release = resolve
+        }),
+    )
+    const health = service(query)
+    const both = Promise.all([health.isReady(), health.isReady()])
+    release([])
+    await expect(both).resolves.toEqual([true, true])
+    expect(query).toHaveBeenCalledTimes(1)
+    const again = health.isReady()
+    release([])
+    await again
+    expect(query).toHaveBeenCalledTimes(2)
+  })
+
   it('leaves no timer running after the database answers', async () => {
     vi.useFakeTimers()
     await service(() => Promise.resolve([])).isReady()
