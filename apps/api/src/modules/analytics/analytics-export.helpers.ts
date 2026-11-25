@@ -31,9 +31,9 @@ const analyticsTableHeader = [
   'reason',
 ] as const
 
-/** Serializes an export table as quoted, formula-safe CSV. */
-export function analyticsTableCsv(table: AnalyticsTable): string {
-  return `${table.map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
+/** Serializes an export table as quoted, formula-safe CSV under its confidentiality label line. */
+export function analyticsTableCsv(table: AnalyticsTable, label: string): string {
+  return `${[[label], ...table].map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
 }
 
 /** Aggregate-only table: suppressed cells export as their state with an empty value. */
@@ -170,17 +170,18 @@ export async function exportArtifact(
   title: string,
   table: AnalyticsTable,
   fileBase: string,
+  label: string,
 ) {
   if (format === 'CSV')
     return {
-      bytes: Buffer.from(analyticsTableCsv(table), 'utf8'),
+      bytes: Buffer.from(analyticsTableCsv(table, label), 'utf8'),
       contentType: 'text/csv; charset=utf-8',
       fileName: `${fileBase}.csv`,
     }
   const rows = table.map((row) => row.map((cell) => (cell === null ? '' : String(cell))))
   try {
     return {
-      bytes: await createReportArtifact(title, rows, format),
+      bytes: await createReportArtifact(title, rows, format, label),
       contentType: reportMime[format],
       fileName: `${fileBase}.${format.toLowerCase()}`,
     }

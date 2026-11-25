@@ -41,11 +41,14 @@ describe('activity list CSV export', () => {
           activity('Workshop', 'WS-1'),
         ]}
         canReadBudget={false}
+        exportedBy="Ana Reyes"
         onOpen={() => undefined}
         projectId="20000000-0000-4000-8000-000000000002"
       />,
     )
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-25T16:30:00Z') })
     fireEvent.click(screen.getByRole('button', { name: /export/i }))
+    vi.useRealTimers()
     vi.unstubAllGlobals()
 
     const csv = await new Promise<string>((resolve) => {
@@ -53,6 +56,11 @@ describe('activity list CSV export', () => {
       reader.onload = () => resolve(String(reader.result))
       reader.readAsText(blobs[0])
     })
+    // The confidentiality label is the first line, above the header row.
+    expect(csv.split('\r\n').slice(0, 2)).toEqual([
+      '"Confidential. Exported by Ana Reyes on 2026-11-26 00:30 (Asia/Manila)."',
+      '"Activity","Code","Status","Due date","Beneficiaries","Indicators"',
+    ])
     expect(csv).toContain(`"'+639170000001"`)
     expect(csv).toContain(`"'=1+1"`)
     expect(csv).toContain(`"'@x"`)

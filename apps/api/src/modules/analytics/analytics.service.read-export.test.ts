@@ -74,7 +74,10 @@ describe('analytics descriptive read and export', () => {
     const result = await service.export(identity, { projectId: projectA })
     expect(result.contentType).toBe('text/csv; charset=utf-8')
     const csv = result.bytes.toString('utf8')
-    expect(csv.split('\r\n')[0]).toBe('"section","key","label","state","value","share","reason"')
+    expect(csv.split('\r\n')[0]).toMatch(
+      /^"Confidential\. Exported by Synthetic analytics fixture on \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(Asia\/Manila\)\."$/,
+    )
+    expect(csv.split('\r\n')[1]).toBe('"section","key","label","state","value","share","reason"')
     expect(csv).toContain('"SADDD_SEX","FEMALE","FEMALE","AVAILABLE","18","0.6",""')
     expect(tx.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -119,7 +122,8 @@ describe('analytics descriptive read and export', () => {
       'share',
       'reason',
     ])
-    expect(preview.totalRows).toBe(csvLines.length - 1)
+    // The CSV carries the label line and the header row above its data rows.
+    expect(preview.totalRows).toBe(csvLines.length - 2)
     expect(preview.rows.length).toBeLessThanOrEqual(50)
     expect(preview.rows).toContainEqual([
       'SADDD_SEX',
@@ -378,6 +382,7 @@ describe('analytics descriptive read and export', () => {
         ],
         indicatorSummaries: [],
       }),
+      'Confidential.',
     )
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`)
   })
@@ -437,7 +442,7 @@ describe('descriptive analytics exact release', () => {
     'count %i is %s in the read and the CSV for every person-derived count',
     (value, state, shown) => {
       const result = build(value)
-      const csv = analyticsTableCsv(descriptiveAnalyticsTable(result))
+      const csv = analyticsTableCsv(descriptiveAnalyticsTable(result), 'Confidential.')
       for (const key of personKeys) {
         const row = result.counts.find((candidate) => candidate.key === key)
         expect(row?.metric.state).toBe(state)
@@ -451,7 +456,7 @@ describe('descriptive analytics exact release', () => {
 
   it('releases a small SADDD total and every paired monitoring count exactly', () => {
     const result = build(3, sadddWith(cell(2)))
-    const csv = analyticsTableCsv(descriptiveAnalyticsTable(result))
+    const csv = analyticsTableCsv(descriptiveAnalyticsTable(result), 'Confidential.')
     expect(result.counts.find((row) => row.key === 'enrolledIndividuals')).toBeUndefined()
     for (const key of [
       'participationRecords',
