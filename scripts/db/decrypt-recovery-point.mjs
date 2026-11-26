@@ -1,4 +1,4 @@
-// Opens an encrypted recovery point, with the format copied from the API's recovery-point-encryption.ts to run standalone.
+// Opens an encrypted recovery point, with the PWRP1 and PWRP2 formats copied from the API's recovery-point-encryption.ts to run standalone.
 import { createDecipheriv, scryptSync } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -6,26 +6,35 @@ import { createInterface } from 'node:readline'
 import { Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 
-const MAGIC = Buffer.from('PWRP1', 'latin1')
+const MAGIC_V1 = Buffer.from('PWRP1', 'latin1')
+const MAGIC_V2 = Buffer.from('PWRP2', 'latin1')
+const MAGIC_LENGTH = 5
 const SALT_LENGTH = 16
 const NONCE_LENGTH = 12
 const TAG_LENGTH = 16
-const OVERHEAD = MAGIC.length + SALT_LENGTH + NONCE_LENGTH + TAG_LENGTH
+const MIN_LOG_N = 15
+const MAX_LOG_N = 20
 const OPEN_ERROR = 'The file could not be opened. Check the passphrase.'
 
 export const decryptRecoveryPoint = (file, passphrase) => {
-  if (file.length < OVERHEAD || !file.subarray(0, MAGIC.length).equals(MAGIC)) {
-    throw new Error(OPEN_ERROR)
-  }
-  const salt = file.subarray(MAGIC.length, MAGIC.length + SALT_LENGTH)
-  const nonce = file.subarray(MAGIC.length + SALT_LENGTH, MAGIC.length + SALT_LENGTH + NONCE_LENGTH)
-  const body = file.subarray(MAGIC.length + SALT_LENGTH + NONCE_LENGTH, file.length - TAG_LENGTH)
+  const magic = file.subarray(0, MAGIC_LENGTH)
+  const isV2 = magic.equals(MAGIC_V2)
+  if (!isV2 && !magic.equals(MAGIC_V1)) throw new Error(OPEN_ERROR)
+  const logN = isV2 ? (file[MAGIC_LENGTH] ?? 0) : MIN_LOG_N
+  const start = MAGIC_LENGTH + (isV2 ? 1 : 0)
+  if (file.length < start + SALT_LENGTH + NONCE_LENGTH + TAG_LENGTH) throw new Error(OPEN_ERROR)
+  if (logN < MIN_LOG_N || logN > MAX_LOG_N) throw new Error(OPEN_ERROR)
+  const salt = file.subarray(start, start + SALT_LENGTH)
+  const nonce = file.subarray(start + SALT_LENGTH, start + SALT_LENGTH + NONCE_LENGTH)
+  const body = file.subarray(start + SALT_LENGTH + NONCE_LENGTH, file.length - TAG_LENGTH)
   try {
+    // The default 32 MiB scrypt limit refuses these costs, so the limit is raised to 130 * N * r bytes.
+    const N = 2 ** logN
     const key = scryptSync(Buffer.from(passphrase.normalize('NFKC'), 'utf8'), salt, 32, {
-      N: 32768,
+      N,
       r: 8,
       p: 1,
-      maxmem: 64 * 1024 * 1024,
+      maxmem: 130 * N * 8,
     })
     const decipher = createDecipheriv('aes-256-gcm', key, nonce)
     decipher.setAuthTag(file.subarray(file.length - TAG_LENGTH))
