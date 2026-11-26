@@ -62,7 +62,11 @@ export const AUDIT_MODULES = [
   },
   { key: 'reports', label: 'Reports', entityTypes: ['Report'] },
   { key: 'dashboards', label: 'Dashboards', entityTypes: ['Dashboard'] },
-  { key: 'users', label: 'Users and sign-in', entityTypes: ['SystemUser', 'Authentication'] },
+  {
+    key: 'users',
+    label: 'Users and sign-in',
+    entityTypes: ['SystemUser', 'Authentication', 'Route'],
+  },
   { key: 'audit', label: 'Audit Log', entityTypes: ['AuditLog'] },
   { key: 'backups', label: 'Backup and recovery', entityTypes: ['RECOVERY_POINT'] },
   // On the server, any entity type not listed above counts as other.
