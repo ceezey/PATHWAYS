@@ -18,10 +18,10 @@ const navItemClass = (active: boolean) =>
     active ? 'font-bold text-white' : 'font-medium text-slate-300 hover:text-white',
   )
 
-// The label links to the organizations page; hovering or focusing it reveals each organization.
 // An absolute link to another address is never prefetched, so staff pages skip the cross-site redirect.
 const linkTo = (href: string, base?: string) => (base ? new URL(href, base).toString() : href)
 
+// The label links to the organizations page; hovering or focusing it reveals each organization.
 const OrganizationsMenu = ({ active, base }: { active: boolean; base?: string }) => (
   <div className="group relative">
     <Link
