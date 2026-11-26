@@ -4,8 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { ConfirmationDialog } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { isStepUpRequired } from '@/features/settings/backup-recovery.utils'
-import { StepUpCodeField, useStepUpCode } from '@/features/settings/components/step-up-code-field'
+import { StepUpCodeField, isStepUpRequired, useStepUpCode } from '@/features/settings'
 import { type AppSession, sessionsClient } from '@/lib/api/sessions'
 import { deviceLabel } from '../session-device'
 
