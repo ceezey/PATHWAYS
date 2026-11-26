@@ -263,6 +263,10 @@ model AuditLog {
   changes        Json?
   ipAddress      String?      @map("ip_address")
   occurredAt     DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  // Set by the 0096 chain trigger on insert; never written by the API.
+  chainSeq       BigInt?      @map("chain_seq")
+  prevHash       Bytes?       @map("prev_hash")
+  rowHash        Bytes?       @map("row_hash")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   actor          SystemUser?  @relation("AuditActor", fields: [organizationId, actorUserId], references: [organizationId, id], onDelete: Restrict, onUpdate: Cascade)
 
@@ -270,6 +274,7 @@ model AuditLog {
   @@index([organizationId, projectId, occurredAt(sort: Desc)], map: "audit_logs_org_project_occurred_idx")
   @@index([organizationId, entityType, entityId, occurredAt(sort: Desc)], map: "audit_logs_org_entity_occurred_idx")
   @@index([organizationId, actorUserId, occurredAt(sort: Desc)], map: "audit_logs_org_actor_occurred_idx")
+  @@unique([organizationId, chainSeq], map: "audit_logs_org_chain_seq_key")
   @@map("audit_logs")
   @@schema("pathways")
 }

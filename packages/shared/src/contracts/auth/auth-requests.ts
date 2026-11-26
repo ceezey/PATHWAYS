@@ -6,7 +6,12 @@ const pinText = lengthString(0, 32)
 
 // Body of POST auth/sign-in; the API adds the class-validator email rule, and the password is never logged or echoed.
 export const signInRequest = z
-  .object({ email: lengthString(0, 254), password: lengthString(1, 1024) })
+  .object({
+    email: lengthString(0, 254),
+    password: lengthString(1, 1024),
+    // The CAPTCHA answer the identity provider checks; absent while CAPTCHA is off.
+    captchaToken: lengthString(1, 4096).optional(),
+  })
   .strict()
 export type SignInRequest = z.infer<typeof signInRequest>
 

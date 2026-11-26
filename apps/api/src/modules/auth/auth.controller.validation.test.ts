@@ -96,7 +96,26 @@ describe('auth routes body validation', () => {
       JSON.stringify({ email: 'a!b@example.org', password: 'pppp-secret' }),
     )
     expect(result.status).toBe(200)
-    expect(signIns.signIn).toHaveBeenCalledWith('a!b@example.org', 'pppp-secret', expect.anything())
+    expect(signIns.signIn).toHaveBeenCalledWith(
+      'a!b@example.org',
+      'pppp-secret',
+      expect.anything(),
+      undefined,
+    )
+  })
+
+  it('forwards the CAPTCHA token from the body to the sign-in service', async () => {
+    const result = await post(
+      '/sign-in',
+      JSON.stringify({ email: 'a@example.org', password: 'pppp-secret', captchaToken: 'token-1' }),
+    )
+    expect(result.status).toBe(200)
+    expect(signIns.signIn).toHaveBeenCalledWith(
+      'a@example.org',
+      'pppp-secret',
+      expect.anything(),
+      'token-1',
+    )
   })
 
   it('answers 400 for an address class-validator refused, before any password grant', async () => {

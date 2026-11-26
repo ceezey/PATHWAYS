@@ -178,7 +178,18 @@ BEGIN
 END $counts$;`
 }
 
-/** The whole restore: wipe head, checks, replica-role staged load, counts, wipe revoke and COMMIT (ROLLBACK when dryRun). */
+/** Rechains every organization's audit rows after the day shift changed occurred_at (0096), then proves each chain verifies. */
+export const resealSql = () => `DO $reseal$
+DECLARE o uuid; v record;
+BEGIN
+  FOR o IN SELECT id FROM pathways.organizations LOOP
+    PERFORM pathways.p96_reseal_audit_chain(o);
+    SELECT * INTO v FROM pathways.p96_verify_audit_chain(o);
+    IF NOT v.ok THEN RAISE EXCEPTION 'Audit chain of % breaks at % after the restore', o, v.broken_seq; END IF;
+  END LOOP;
+END $reseal$;`
+
+/** The whole restore: wipe head, checks, replica-role staged load, counts, audit reseal, wipe revoke and COMMIT (ROLLBACK when dryRun). */
 export function buildRestoreSql({
   wipeSql,
   migration,
@@ -202,6 +213,7 @@ export function buildRestoreSql({
     'SET LOCAL session_replication_role = replica;',
     stagedLoadSql(blocks, dateColumns, delta),
     rowCountCheckSql(tables),
+    resealSql(),
     'SET LOCAL session_replication_role = origin;',
     tail,
   ].join('\n')

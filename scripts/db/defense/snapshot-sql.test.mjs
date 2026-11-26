@@ -190,6 +190,8 @@ test('buildRestoreSql keeps one transaction in the safe order', () => {
     'UPDATE pg_temp.snapshot_0',
     'INSERT INTO pathways.projects',
     '$counts$',
+    'p96_reseal_audit_chain',
+    'p96_verify_audit_chain',
     'session_replication_role = origin',
     'REVOKE',
     'COMMIT;',

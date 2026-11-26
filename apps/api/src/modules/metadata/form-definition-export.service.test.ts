@@ -8,7 +8,7 @@ import {
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { parseWorkbook } from '@pathways/imports'
+import { parseWorkbook, readImportFile } from '@pathways/imports'
 import { hasAtomicPermission, rolePermissions } from '@pathways/shared'
 import type { ApplicationIdentity } from '../../common/authz/application-identity'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
@@ -40,6 +40,21 @@ const projectId = '30000000-0000-4000-8000-000000000003'
 const otherProjectId = '30000000-0000-4000-8000-0000000000ff'
 const formId = '40000000-0000-4000-8000-000000000004'
 const updatedAt = new Date('2026-09-28T00:00:00.000Z')
+const labelPattern =
+  /^Confidential\. Exported by Synthetic M&E actor on \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(Asia\/Manila\)\.$/
+
+const arrayBuffer = (bytes: Buffer) =>
+  bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+// Reads the table below the label row the way the import reader does.
+const readTable = (bytes: Buffer, type: 'XLSX' | 'XLS') => {
+  const { sourceColumns, rows } = readImportFile(arrayBuffer(bytes), type, null)
+  return {
+    headers: sourceColumns.map((column) => column.header),
+    rows: rows.map((row) =>
+      Object.fromEntries(sourceColumns.map((column) => [column.header, row[column.key]])),
+    ),
+  }
+}
 
 const actor = (patch: Partial<ApplicationIdentity> = {}): ApplicationIdentity => ({
   id: '90000000-0000-4000-8000-000000000009',
@@ -137,8 +152,9 @@ describe('form-definition export', () => {
   it('exports CSV with the 28 blank-definition columns and neutralized formula cells', async () => {
     const result = await service.export(state.actor, projectId, formId, 'CSV')
     const text = result.bytes.toString('utf8')
-    const [header, first, second] = text.replace(/^﻿/, '').trim().split('\r\n')
+    const [label, header, first, second] = text.replace(/^﻿/, '').trim().split('\r\n')
 
+    expect(label.slice(1, -1)).toMatch(labelPattern)
     expect(header).toBe(FORM_DEFINITION_EXPORT_COLUMNS.map((name) => `"${name}"`).join(','))
     expect(first).toContain('"score"')
     expect(first).toContain(`"'+Score"`)
@@ -181,9 +197,7 @@ describe('form-definition export', () => {
     it.each(['XLSX', 'XLS'] as const)('%s quotes leading cells exactly once', async (format) => {
       tx.digitalForm.findFirst.mockResolvedValue(hostile())
       const { bytes } = await service.export(state.actor, projectId, formId, format)
-      const { rows } = parseWorkbook(
-        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
-      )
+      const { rows } = readTable(bytes, format)
       expect(rows.map((row) => row.form_name)).toEqual(["'+639170000001", "'+639170000001"])
       expect(rows.map((row) => row.field_label).sort()).toEqual(["'-x", "'=1+1"])
       expect(rows.map((row) => row.import_default).filter(Boolean)).toEqual(["'@x"])
@@ -197,7 +211,7 @@ describe('form-definition export', () => {
       .replace(/^\uFEFF/, '')
       .trim()
       .split('\r\n')
-    const [header, first, second] = lines
+    const [, header, first, second] = lines
     expect(header.split(',').slice(-4)).toEqual([
       '"source_names"',
       '"value_aliases"',
@@ -216,13 +230,9 @@ describe('form-definition export', () => {
     ['XLS', 'application/vnd.ms-excel'],
   ] as const)('exports %s through the shared workbook writer', async (format, mime) => {
     const result = await service.export(state.actor, projectId, formId, format)
-    const workbook = parseWorkbook(
-      result.bytes.buffer.slice(
-        result.bytes.byteOffset,
-        result.bytes.byteOffset + result.bytes.byteLength,
-      ) as ArrayBuffer,
-    )
+    const workbook = readTable(result.bytes, format)
 
+    expect(parseWorkbook(arrayBuffer(result.bytes)).headers[0]).toMatch(labelPattern)
     expect(workbook.headers).toEqual([...FORM_DEFINITION_EXPORT_COLUMNS])
     expect(workbook.rows).toHaveLength(2)
     expect(workbook.rows[0].field_label).toBe("'+Score")

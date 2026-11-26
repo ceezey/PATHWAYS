@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash, createHmac } from 'node:crypto'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -11,6 +12,7 @@ import {
   isLoopbackHostname,
   parseEnvFile,
   redactUrl,
+  scramVerifier,
   validateHostedEnv,
 } from './target.mjs'
 
@@ -218,4 +220,28 @@ test('validateHostedEnv rejects a prefixed prisma user on the direct host', () =
     HOSTED_DIRECT_URL: `postgresql://prisma.${ref}:pw@db.${ref}.supabase.co:5432/postgres`,
   }
   assert.throws(() => validateHostedEnv(env), HostedEnvError)
+})
+
+test('scramVerifier matches the RFC 7677 SCRAM-SHA-256 example', () => {
+  const salt = Buffer.from('W22ZaJ0SNY7soEsUEjb6gQ==', 'base64')
+  const verifier = scramVerifier('pencil', salt, 4096)
+  const [, params, keys] = verifier.split('$')
+  assert.equal(params, '4096:W22ZaJ0SNY7soEsUEjb6gQ==')
+  const [storedKey, serverKey] = keys.split(':').map((k) => Buffer.from(k, 'base64'))
+  const auth =
+    'n=user,r=rOprNGfwEbeRWgbNEkqO,' +
+    'r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096,' +
+    'c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0'
+  const hmac = (key) => createHmac('sha256', key).update(auth).digest()
+  assert.equal(hmac(serverKey).toString('base64'), '6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=')
+  const proof = Buffer.from('dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=', 'base64')
+  const clientKey = Buffer.from(proof.map((b, i) => b ^ hmac(storedKey)[i]))
+  assert.deepEqual(createHash('sha256').update(clientKey).digest(), storedKey)
+})
+
+test('scramVerifier salts each call and refuses non-ASCII passwords', () => {
+  assert.notEqual(scramVerifier('a'.repeat(24)), scramVerifier('a'.repeat(24)))
+  assert.throws(() => scramVerifier('pässword-with-umlaut-000000'), HostedEnvError)
+  const env = { ...goodEnv(), RUNTIME_ROLE_PASSWORD: 'é'.repeat(24) }
+  assert.throws(() => validateHostedEnv(env), /RUNTIME_ROLE_PASSWORD must use printable ASCII/)
 })

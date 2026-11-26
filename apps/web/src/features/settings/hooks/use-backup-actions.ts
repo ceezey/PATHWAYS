@@ -13,6 +13,7 @@ import {
   type BackupAction,
   backupFailureMessage,
   formatRecoveryPointTime,
+  isStepUpRequired,
 } from '../backup-recovery.utils'
 
 // pointId names the row the notice is about, so the page can highlight it.
@@ -27,7 +28,9 @@ export function useBackupActions(refetch: () => unknown) {
   )
   const [notice, setNotice] = useState<Notice | null>(null)
   const [links, setLinks] = useState<(RecoveryPointDownload & { pointId: string }) | null>(null)
-  const [restoreError, setRestoreError] = useState<string | null>(null)
+  // The refusal of the open download or restore dialog, and whether it asks for an authenticator code.
+  const [dialogError, setDialogError] = useState<string | null>(null)
+  const [stepUpRequired, setStepUpRequired] = useState(false)
 
   const run = async (
     action: BackupAction,
@@ -50,37 +53,70 @@ export function useBackupActions(refetch: () => unknown) {
     }
   }
 
+  /** True when the work succeeded; a failure keeps its message in dialogError for the dialog. */
+  const inDialog = async (
+    action: BackupAction,
+    point: RecoveryPointListItem,
+    work: () => Promise<void>,
+    refresh: boolean,
+  ) => {
+    if (busy.current) return false
+    busy.current = true
+    setPending({ action, pointId: point.id })
+    setNotice(null)
+    setDialogError(null)
+    setStepUpRequired(false)
+    try {
+      await work()
+      return true
+    } catch (caught) {
+      setDialogError(backupFailureMessage(action, caught))
+      setStepUpRequired(isStepUpRequired(caught))
+      return false
+    } finally {
+      busy.current = false
+      setPending(null)
+      if (refresh) refetch()
+    }
+  }
+
   return {
     pending,
     notice,
     links,
-    restoreError,
-    clearRestoreError: () => setRestoreError(null),
-    /** True when the restore succeeded; a failure keeps its message in restoreError for the dialog. */
-    restore: async (point: RecoveryPointListItem, organizationCode: string) => {
-      if (busy.current) return false
-      busy.current = true
-      setPending({ action: 'restore', pointId: point.id })
-      setNotice(null)
-      setRestoreError(null)
-      try {
-        const { filesRestored } = await backupsClient.restore(point.id, { organizationCode })
-        const files = filesRestored > 0 ? ` ${plural(filesRestored, 'file')} copied back.` : ''
-        setNotice({
-          tone: 'success',
-          text: `Restored to the recovery point from ${formatRecoveryPointTime(point)}. A recovery point of the data before the restore was saved first.${files}`,
-          pointId: point.id,
-        })
-        return true
-      } catch (caught) {
-        setRestoreError(backupFailureMessage('restore', caught))
-        return false
-      } finally {
-        busy.current = false
-        setPending(null)
-        refetch()
-      }
+    dialogError,
+    stepUpRequired,
+    clearDialogError: () => {
+      setDialogError(null)
+      setStepUpRequired(false)
     },
+    restore: (point: RecoveryPointListItem, organizationCode: string) =>
+      inDialog(
+        'restore',
+        point,
+        async () => {
+          const { filesRestored } = await backupsClient.restore(point.id, { organizationCode })
+          const files = filesRestored > 0 ? ` ${plural(filesRestored, 'file')} copied back.` : ''
+          setNotice({
+            tone: 'success',
+            text: `Restored to the recovery point from ${formatRecoveryPointTime(point)}. A recovery point of the data before the restore was saved first.${files}`,
+            pointId: point.id,
+          })
+        },
+        true,
+      ),
+    download: (point: RecoveryPointListItem, passphrase: string) =>
+      inDialog(
+        'download',
+        point,
+        async () => {
+          setLinks({
+            ...(await backupsClient.download(point.id, { passphrase })),
+            pointId: point.id,
+          })
+        },
+        false,
+      ),
     create: () =>
       run(
         'create',
@@ -108,15 +144,6 @@ export function useBackupActions(refetch: () => unknown) {
           )
         },
         true,
-      ),
-    download: (point: RecoveryPointListItem) =>
-      run(
-        'download',
-        point.id,
-        async () => {
-          setLinks({ ...(await backupsClient.download(point.id)), pointId: point.id })
-        },
-        false,
       ),
   }
 }

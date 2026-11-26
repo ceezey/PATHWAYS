@@ -3,7 +3,7 @@
 $trustLocalPlaceholder = if ($env:PHASE2_TRUST_PLACEHOLDER) { $env:PHASE2_TRUST_PLACEHOLDER } else { 'trust-local' }
 if (-not $MigrationBaseline -or -not $phase6Started -or $phase6Port -le 0 -or
     $phase6Database -cne 'pathways_phase4_phase6_replay') { throw 'Forward verification requires owned baseline replay.' }
-$forwardDatabases = @($phase6Database, 'pathways_phase4_baseline', 'pathways_phase4_forward_fault', 'pathways_phase4_forward_restore', 'pathways_phase4_core_fault', 'pathways_phase4_core_retry', 'pathways_phase4_pdf_fault', 'pathways_phase4_pdf_retry', 'pathways_phase4_pin_fault', 'pathways_phase4_pin_retry', 'pathways_phase4_import_fault', 'pathways_phase4_import_retry', 'pathways_phase4_partner_fault', 'pathways_phase4_partner_retry', 'pathways_phase4_partner_suite', 'pathways_phase4_drf_fault', 'pathways_phase4_drf_retry', 'pathways_phase4_media_fault', 'pathways_phase4_media_retry', 'pathways_phase4_psc_fault', 'pathways_phase4_psc_retry', 'pathways_phase4_oex_fault', 'pathways_phase4_oex_retry', 'pathways_phase4_prv_fault', 'pathways_phase4_prv_retry', 'pathways_phase4_f9a_fault', 'pathways_phase4_f9a_retry', 'pathways_phase4_rar_fault', 'pathways_phase4_rar_retry', 'pathways_phase4_rmt_fault', 'pathways_phase4_rmt_retry')
+$forwardDatabases = @($phase6Database, 'pathways_phase4_baseline', 'pathways_phase4_forward_fault', 'pathways_phase4_forward_restore', 'pathways_phase4_core_fault', 'pathways_phase4_core_retry', 'pathways_phase4_pdf_fault', 'pathways_phase4_pdf_retry', 'pathways_phase4_pin_fault', 'pathways_phase4_pin_retry', 'pathways_phase4_import_fault', 'pathways_phase4_import_retry', 'pathways_phase4_partner_fault', 'pathways_phase4_partner_retry', 'pathways_phase4_partner_suite', 'pathways_phase4_drf_fault', 'pathways_phase4_drf_retry', 'pathways_phase4_media_fault', 'pathways_phase4_media_retry', 'pathways_phase4_psc_fault', 'pathways_phase4_psc_retry', 'pathways_phase4_oex_fault', 'pathways_phase4_oex_retry', 'pathways_phase4_prv_fault', 'pathways_phase4_prv_retry', 'pathways_phase4_f9a_fault', 'pathways_phase4_f9a_retry', 'pathways_phase4_rar_fault', 'pathways_phase4_rar_retry', 'pathways_phase4_rmt_fault', 'pathways_phase4_rmt_retry', 'pathways_phase4_legacy_guard', 'pathways_phase4_audit_race')
 $forwardStage = Join-Path $phase6Parent 'forward-migrations'
 New-Item -ItemType Directory -Path $forwardStage | Out-Null
 foreach ($name in @($baselineName,'0027_revised_csv_rbac','0028_revised_aggregate_permission_guards')) {
@@ -81,6 +81,8 @@ $forwardInventory = @(
   '0092_rules_outcomes_freshness'
   '0093_alert_outcome_notes'
   '0094_session_management'
+  '0095_retire_legacy_public_tables'
+  '0096_audit_tamper_evidence'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -729,6 +731,28 @@ SELECT NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_ro
     if ($migration.Name -ceq '0060_rules_budget_beneficiary_survey_metrics') {
       # PRD-F10 G-F10-6: independent pre-0060 fault/retry clones, same preprovision as 0059.
       Measure-ReplayStep 'forward fault-retry 0060' { Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0060' -Token 'RMT' -FaultDatabase 'pathways_phase4_rmt_fault' -RetryDatabase 'pathways_phase4_rmt_retry' -ProvisionRulesCatalog }
+    }
+    if ($migration.Name -ceq '0095_retire_legacy_public_tables') {
+      # cr-pathways-legacy-public-schema-removal: 0095 must abort and drop nothing when a legacy table holds a row, so run it on a 0094 clone with one Role row.
+      $legacyGuardDb = 'pathways_phase4_legacy_guard'
+      Assert-ForwardTarget 'pathways_phase4_baseline'
+      Invoke-LocalSql "CREATE DATABASE $legacyGuardDb TEMPLATE pathways_phase4_baseline;" 'postgres'
+      try {
+        Assert-ForwardTarget $legacyGuardDb
+        Invoke-LocalSql 'INSERT INTO public."Role" (name) VALUES (''legacy_guard_probe'');' $legacyGuardDb
+        $savedPreference = $ErrorActionPreference
+        try {
+          $ErrorActionPreference = 'Continue'
+          $legacyGuardOutput = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p $phase6Port -U prisma -d $legacyGuardDb -v ON_ERROR_STOP=1 -f (Join-Path $migration.FullName 'migration.sql') 2>&1) -join "`n"
+          $legacyGuardExit = $LASTEXITCODE
+        } finally { $ErrorActionPreference = $savedPreference }
+        if ($legacyGuardExit -eq 0 -or $legacyGuardOutput -notmatch 'Legacy table Role is not empty') { throw '0095 did not refuse a non-empty legacy table.' }
+        if ((Read-ForwardSql $legacyGuardDb "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r';").Trim() -cne '16') { throw '0095 refusal did not leave all 16 public tables in place.' }
+      } finally {
+        Assert-ForwardTarget 'pathways_phase4_baseline'
+        Invoke-LocalSql "DROP DATABASE $legacyGuardDb;" 'postgres'
+      }
+      Write-Output 'FORWARD_0095_NONEMPTY_REFUSAL=PASS'
     }
     $forwardPin = $migration.Name -ceq '0037_step_up_pin'
     $forwardMedia = ($migration.Name -ceq '0041_activity_media_evidence') -or ($migration.Name -ceq '0056_indicator_type')
@@ -1504,6 +1528,33 @@ SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity
     if ($sessionShape.Trim() -cne 'true') { throw "0094 session management inventory differs in $db." }
   }
   Write-Output 'FORWARD_0094_SESSION_MANAGEMENT_INVENTORY=PASS'
+  # 0095 inventory: the 15 legacy tables are gone and the migration ledger is the only table left in public.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $publicTables = Read-ForwardSql $db "SELECT coalesce(string_agg(c.relname,',' ORDER BY c.relname),'') FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r';"
+    if ($publicTables.Trim() -cne '_prisma_migrations') { throw "0095 legacy public retirement inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0095_LEGACY_PUBLIC_RETIREMENT_INVENTORY=PASS'
+  # 0096 inventory: the three block triggers are on and every organization's audit chain verifies.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $auditShape = Read-ForwardSql $db "SELECT ((SELECT count(*) FROM pg_catalog.pg_trigger WHERE tgrelid='pathways.audit_logs'::pg_catalog.regclass AND tgenabled='O' AND tgname IN ('p96_audit_chain','p96_audit_no_rewrite','p96_audit_no_truncate'))=3 AND NOT EXISTS(SELECT FROM (SELECT DISTINCT organization_id FROM pathways.audit_logs) o, pathways.p96_verify_audit_chain(o.organization_id) v WHERE NOT v.ok))::text;"
+    if ($auditShape.Trim() -cne 'true') { throw "0096 audit tamper evidence inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0096_AUDIT_TAMPER_INVENTORY=PASS'
+  # cr-pathways-audit-tamper-evidence: the 200-insert race commits rows, so it runs on a throwaway clone of the finished chain.
+  $auditRaceDb = 'pathways_phase4_audit_race'
+  Assert-ForwardTarget 'pathways_phase4_baseline'
+  Invoke-LocalSql "CREATE DATABASE $auditRaceDb TEMPLATE pathways_phase4_baseline;" 'postgres'
+  $auditRaceEnvironment = @{ PHASE2_RACE_DATABASE = $auditRaceDb; PHASE2_LOCAL_PORT = "$phase6Port"; PHASE2_OWNER_PASSWORD = $trustLocalPlaceholder }
+  try {
+    Assert-ForwardTarget $auditRaceDb
+    foreach ($key in $auditRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $auditRaceEnvironment[$key] }
+    Measure-ReplayStep 'node audit-tamper-concurrency' { Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/audit-tamper-concurrency.mjs') -ExpectedMarker 'AUDIT_TAMPER_CONCURRENCY=PASS' -TimeoutMilliseconds 180000 }
+  } finally {
+    foreach ($key in $auditRaceEnvironment.Keys) { Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue }
+    Assert-ForwardTarget 'pathways_phase4_baseline'
+    Invoke-LocalSql "DROP DATABASE $auditRaceDb WITH (FORCE);" 'postgres'
+  }
+  Write-Output 'FORWARD_0096_AUDIT_TAMPER_CONCURRENCY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

@@ -18,7 +18,7 @@ export async function updateSession(request: NextRequest) {
     isPublicPath(request.nextUrl.pathname) ||
     request.nextUrl.pathname === ACCESS_UNAVAILABLE_PATH
   )
-    return NextResponse.next()
+    return NextResponse.next({ request })
   const configuredUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
   let stage: NavigationStage = 'CONFIGURATION'
   const denied = (error?: unknown) => recordNavigationDenial('MIDDLEWARE', stage, error)

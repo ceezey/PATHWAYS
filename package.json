@@ -13,7 +13,7 @@
     "lint": "pnpm exec biome check .",
     "format": "pnpm exec biome format --write .",
     "test": "pnpm -r --if-present run test",
-    "test:scripts": "node --test \"scripts/db/**/*.test.mjs\" scripts/tsconfig-aliases.test.mjs infra/supabase/security-adapter/runtime-output.test.mjs",
+    "test:scripts": "node --test \"scripts/db/**/*.test.mjs\" \"scripts/backup/**/*.test.mjs\" scripts/tsconfig-aliases.test.mjs infra/supabase/security-adapter/runtime-output.test.mjs",
     "typecheck": "pnpm -r --if-present run typecheck",
     "sad:check": "tsx scripts/sad/check.ts",
     "sad:signoff": "tsx scripts/sad/check.ts --signoff",

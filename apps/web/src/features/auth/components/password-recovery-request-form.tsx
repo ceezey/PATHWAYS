@@ -24,10 +24,13 @@ import {
   requestPasswordRecoveryEmail,
 } from '@/lib/auth/password-recovery'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
+import { CaptchaField, captchaSiteKey } from './captcha-field'
 import { StaffAuthFrame } from './staff-auth-frame'
 
 export const PasswordRecoveryRequestForm = () => {
   const [acknowledgement, setAcknowledgement] = useState<string | null>(null)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const waitingForCaptcha = Boolean(captchaSiteKey) && !captchaToken
   const form = useForm<PasswordRecoveryRequest>({
     resolver: zodResolver(passwordRecoveryRequestSchema),
     defaultValues: { email: '' },
@@ -42,8 +45,9 @@ export const PasswordRecoveryRequestForm = () => {
 
     const supabase = getBrowserSupabaseClient()
     if (supabase) {
-      await requestPasswordRecoveryEmail(supabase.auth, email, currentOrigin)
+      await requestPasswordRecoveryEmail(supabase.auth, email, currentOrigin, captchaToken)
     }
+    setCaptchaToken('')
 
     form.reset()
     setAcknowledgement(passwordRecoveryAcknowledgement)
@@ -100,7 +104,12 @@ export const PasswordRecoveryRequestForm = () => {
                   </FormItem>
                 )}
               />
-              <Button className="w-full gap-2" disabled={form.formState.isSubmitting} type="submit">
+              <CaptchaField onToken={setCaptchaToken} />
+              <Button
+                className="w-full gap-2"
+                disabled={form.formState.isSubmitting || waitingForCaptcha}
+                type="submit"
+              >
                 {form.formState.isSubmitting ? (
                   <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                 ) : (

@@ -651,6 +651,8 @@ END $$;
       Write-Output 'BACKUP_RECOVERY_RUNTIME=PASS'
       Measure-ReplayStep 'sql session-management-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/session-management-runtime.sql'))) $phase6Database }
       Write-Output 'SESSION_MANAGEMENT_RUNTIME=PASS'
+      Measure-ReplayStep 'sql audit-tamper-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/audit-tamper-runtime.sql'))) $phase6Database }
+      Write-Output 'AUDIT_TAMPER_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
@@ -661,8 +663,8 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count: 65 schema tables after 0094 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
-      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "66"
+      # Fixed pathways table count: 66 schema tables after 0096 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "67"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
       $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
@@ -681,7 +683,8 @@ END $$;
     }
     Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
   }
-  Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
+  # The forward chain of -MigrationBaseline ends with 0095 dropping the legacy public tables, so only the historical modes can preserve them.
+  if (-not $MigrationBaseline) { Write-Output 'LEGACY_TABLE_PRESERVATION=PASS' }
   if ($SaveTemplate) {
     $phase6Clones = @(& $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 `
       -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','$phase6Database')")
