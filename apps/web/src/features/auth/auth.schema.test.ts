@@ -19,4 +19,15 @@ describe('account access validation', () => {
       resetPasswordSchema.safeParse({ password: 'weak', confirmPassword: 'different' }).success,
     ).toBe(false)
   })
+
+  it('refuses a common leaked password in any case with its own message', () => {
+    const result = resetPasswordSchema.safeParse({
+      password: 'G00dPa$$w0rd',
+      confirmPassword: 'G00dPa$$w0rd',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.message).toBe(
+      'This password is too common. Choose one that is harder to guess.',
+    )
+  })
 })

@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '../../prisma/prisma.service'
+import { PublicAnalyticsService } from './public-analytics.service'
 import { PublicService } from './public.service'
 import { PublicationController } from './publication.controller'
 
@@ -20,7 +21,10 @@ let base: string
 beforeAll(async () => {
   const module = await Test.createTestingModule({
     controllers: [PublicationController],
-    providers: [{ provide: PublicService, useValue: service }],
+    providers: [
+      { provide: PublicService, useValue: service },
+      { provide: PublicAnalyticsService, useValue: {} },
+    ],
   }).compile()
   app = module.createNestApplication({ logger: false })
   // Stands in for the identity the auth guard attaches; the guard is not under test here.
@@ -71,6 +75,28 @@ describe('publication routes leave the body to the service', () => {
       expect(transition).toHaveBeenCalledWith(actor, projectId, operation, body)
     },
   )
+
+  it.each([
+    ['missing', undefined],
+    [
+      'with an item false',
+      {
+        smallGroupsChecked: true,
+        noIdentifiableMinor: false,
+        imageConsentOnFile: true,
+        pinPositionsAcceptable: true,
+      },
+    ],
+  ])('approve answers 400 with the checklist %s (0097)', async (_label, checklist) => {
+    const body = { clientRequestId: projectId, expectedRevision: 1, checklist }
+    const response = await fetch(`${base}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ message: 'Invalid publication request.' })
+  })
 
   it('submit hands a selection outside the schema to the service and answers the fixed text', async () => {
     const body = {

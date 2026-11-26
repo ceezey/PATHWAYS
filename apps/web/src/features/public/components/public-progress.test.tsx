@@ -140,4 +140,46 @@ describe('public progress section', () => {
     expect(within(popup).getByText('15')).toBeTruthy()
     expect(screen.queryByText(/budget/i)).toBeNull()
   })
+
+  describe('small counts for the approver (0097)', () => {
+    const three = {
+      ...data.saddd,
+      total: cell('3'),
+      sex: [bucket('Female', '3')],
+      age: [],
+      disability: [],
+    } as PublicAnalyticsResponse
+    const five = {
+      ...three,
+      total: cell('5'),
+      sex: [bucket('Female', '5')],
+    } as PublicAnalyticsResponse
+    it('marks a count of 3 in the review preview', () => {
+      render(<PublicProgress views={['saddd']} data={{ saddd: three }} review />)
+      const note = screen.getByRole('note')
+      expect(note.textContent).toContain('Counts under 5')
+      expect(within(note).getByText('Total people reached:', { exact: false })).toBeTruthy()
+    })
+    it('marks nothing when every count is 5 or more', () => {
+      render(<PublicProgress views={['saddd']} data={{ saddd: five }} review />)
+      expect(screen.queryByRole('note')).toBeNull()
+    })
+    it('shows the public page the exact count 3 with no marker', () => {
+      render(<PublicProgress views={['saddd']} data={{ saddd: three }} />)
+      expect(screen.queryByRole('note')).toBeNull()
+      expect(screen.getByText('Total people reached:', { exact: false }).textContent).toContain('3')
+    })
+  })
+
+  it('lists two small counts that share a label (0097)', () => {
+    const twice = {
+      ...data.saddd,
+      total: cell('30'),
+      sex: [bucket('Female', '3'), bucket('Female', '2')],
+      age: [],
+      disability: [],
+    } as PublicAnalyticsResponse
+    render(<PublicProgress views={['saddd']} data={{ saddd: twice }} review />)
+    expect(within(screen.getByRole('note')).getAllByRole('listitem')).toHaveLength(2)
+  })
 })

@@ -106,6 +106,7 @@ describe('auth request contracts', () => {
     ['no symbol', { password: 'Uniquepassword42' }],
     ['no uppercase', { password: 'unique-password-42!' }],
     ['129 characters', { password: `Aa1!${'x'.repeat(125)}` }],
+    ['a common leaked password in any case', { password: 'G00dPa$$w0rd' }],
     ['an extra field', { password: 'Unique-password-42!', email: 'user@example.org' }],
   ])('rejects the recovery password body: %s', (_label, body) => {
     expect(passwordRecoveryCompleteRequest.safeParse(body).success).toBe(false)

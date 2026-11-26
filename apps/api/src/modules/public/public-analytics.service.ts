@@ -17,7 +17,9 @@ import {
 } from '@pathways/shared'
 import { z } from 'zod'
 
-import { UUID_PATTERN } from '../../common/authz/application-identity'
+import { type ApplicationIdentity, UUID_PATTERN } from '../../common/authz/application-identity'
+import { withAuthorizedOperation } from '../../common/authz/authorized-operation'
+import { requireScopedProject } from '../../common/authz/scoped-project'
 import { applySavedPins, resolvePlaces } from '../../common/places/ph-places'
 import { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode } from '../../prisma/transaction-diagnostic'
@@ -81,6 +83,23 @@ export class PublicAnalyticsService {
     } catch (error) {
       throw this.unavailable('PATHWAYS_PUBLIC_ANALYTICS_SHAPE_FAILED', wanted.data, error)
     }
+  }
+
+  /** One chart of the revision awaiting approval, computed by the public page's body; for the approver's review (0097). */
+  async review(identity: ApplicationIdentity, requestedProjectId: string, view: string) {
+    const wanted = publicView.safeParse(view)
+    if (!wanted.success) throw new NotFoundException('View unavailable.')
+    return withAuthorizedOperation(this.prisma, identity, 'public.approve', async (tx, actor) => {
+      const projectId = await requireScopedProject(tx, actor, requestedProjectId)
+      const [row] = await tx.$queryRaw<Array<{ data: unknown }>>`
+        SELECT pathways.p97_review_view(${projectId}::uuid,${wanted.data}) AS data`
+      if (row?.data === null || row?.data === undefined)
+        throw new NotFoundException('View unavailable.')
+      return publicAnalyticsResponse.parse({
+        view: wanted.data,
+        ...this.shape(projectId, wanted.data, row.data),
+      })
+    })
   }
 
   // Fixed diagnostics only: the Prisma code or error name and the view, never the message, SQL, project id or keys.
