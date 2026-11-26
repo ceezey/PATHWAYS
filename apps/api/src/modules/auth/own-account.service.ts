@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common'
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common'
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { endOwnSessions } from '../../common/authz/app-sessions'
@@ -11,6 +11,8 @@ import { PasswordRecoveryService } from './password-recovery.service'
 
 @Injectable()
 export class OwnAccountService {
+  private readonly logger = new Logger(OwnAccountService.name)
+
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(PasswordRecoveryService) private readonly recovery: PasswordRecoveryService,
@@ -33,8 +35,9 @@ export class OwnAccountService {
     )
   }
 
-  // Ends one of the caller's own sessions, for example on a lost phone.
+  // Ends one of the caller's own sessions, for example on a lost phone; needs a fresh authenticator step.
   async endSession(actor: StepUpPinActor, sessionId: string): Promise<void> {
+    if (!evaluateBeneficiaryStepUp(actor.auth.mfaVerifiedAt).fresh) throw totpRequired()
     if (!UUID_PATTERN.test(sessionId)) throw new NotFoundException('Session unavailable.')
     await withAuthorizedOperation(
       this.prisma,
@@ -57,8 +60,12 @@ export class OwnAccountService {
     )
   }
 
-  // Ends every session of the caller except the one making this request.
-  async endOtherSessions(actor: StepUpPinActor): Promise<{ sessionsEnded: number }> {
+  // Ends every other session of the caller, then revokes them at Supabase; a refusal there rolls the whole step back.
+  async endOtherSessions(
+    actor: StepUpPinActor,
+    accessToken: string,
+  ): Promise<{ sessionsEnded: number }> {
+    if (!evaluateBeneficiaryStepUp(actor.auth.mfaVerifiedAt).fresh) throw totpRequired()
     return withAuthorizedOperation(
       this.prisma,
       actor.profile,
@@ -76,13 +83,19 @@ export class OwnAccountService {
           entityId: profile.userId,
           changes: { sessionsEnded },
         })
+        await this.recovery.revokeOtherSessions(accessToken)
         return { sessionsEnded }
       },
+      { transactionTimeoutMs: 15_000 },
     )
   }
 
   // Needs a fresh authenticator step; other sessions end and the audit row is written before the Auth call, so a refusal rolls both back.
-  async changePassword(actor: StepUpPinActor, password: string): Promise<void> {
+  async changePassword(
+    actor: StepUpPinActor,
+    password: string,
+    accessToken: string,
+  ): Promise<void> {
     if (!evaluateBeneficiaryStepUp(actor.auth.mfaVerifiedAt).fresh) throw totpRequired()
     await withAuthorizedOperation(
       this.prisma,
@@ -105,5 +118,9 @@ export class OwnAccountService {
       },
       { transactionTimeoutMs: 15_000 },
     )
+    // Best effort: the password is changed and the PATHWAYS sessions are already ended.
+    await this.recovery
+      .revokeOtherSessions(accessToken)
+      .catch(() => this.logger.warn({ event: 'PATHWAYS_OWN_PASSWORD_REVOKE_FAILED' }))
   }
 }

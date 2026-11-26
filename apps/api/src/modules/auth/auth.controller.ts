@@ -38,7 +38,7 @@ import { signInBody } from './auth.helpers'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'
 import { OwnAccountService } from './own-account.service'
-import { PasswordRecoveryService } from './password-recovery.service'
+import { PasswordRecoveryService, bearerToken } from './password-recovery.service'
 import { SignInLockoutService } from './signin-lockout.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
@@ -48,6 +48,14 @@ function pinActor(request: AuthenticatedRequest): StepUpPinActor {
     throw new ForbiddenException('Verified profile required.')
   }
   return { auth: request.auth, profile: request.user, sessionId: request.authSessionId }
+}
+
+// The verified request's own access token, for Supabase calls made on the caller's behalf.
+function accessToken(request: AuthenticatedRequest): string {
+  const header = request.headers.authorization
+  const token = typeof header === 'string' ? bearerToken(header) : undefined
+  if (!token) throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
+  return token
 }
 
 @ApiTags('auth')
@@ -117,7 +125,7 @@ export class AuthController {
     @Req() request: AuthenticatedRequest,
     @Body(new ZodPipe(changeOwnPasswordRequest)) body: ChangeOwnPasswordRequest,
   ) {
-    return this.account.changePassword(pinActor(request), body.password)
+    return this.account.changePassword(pinActor(request), body.password, accessToken(request))
   }
 
   @Get('sessions')
@@ -150,7 +158,7 @@ export class AuthController {
   @Header('Cache-Control', 'private, no-store')
   @ApiOkResponse({ description: 'Ends every session of the caller except this one.' })
   endOtherSessions(@Req() request: AuthenticatedRequest) {
-    return this.account.endOtherSessions(pinActor(request))
+    return this.account.endOtherSessions(pinActor(request), accessToken(request))
   }
 
   @Post('sessions/:sessionId/end')
