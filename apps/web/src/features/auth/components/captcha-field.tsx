@@ -74,6 +74,7 @@ export function CaptchaField({ onToken }: { onToken: (token: string) => void }) 
       The security check could not load. Refresh the page.
     </p>
   ) : (
-    <div ref={holder} />
+    // Turnstile draws a fixed-width box, so the holder centers it under the full-width fields.
+    <div className="flex justify-center" ref={holder} />
   )
 }
