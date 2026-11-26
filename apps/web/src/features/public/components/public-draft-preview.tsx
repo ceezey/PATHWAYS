@@ -2,6 +2,7 @@
 
 import { Eye } from 'lucide-react'
 
+import { AsyncState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,6 +16,7 @@ import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
 import { publicMediaClient } from '@/lib/api/public-media'
 import { publicationClient } from '@/lib/api/publication'
+import { isAuthorizationFailure } from '@/providers/authorized-query-provider'
 import type { ProjectSummary } from '@/types/pathways'
 import type { PublicView, PublicationSelection } from '@pathways/shared'
 
@@ -63,17 +65,37 @@ const DraftPreviewBody = ({
             async (view) =>
               [
                 view,
-                await publicationClient.review(project.id, view, signal).catch(() => null),
+                // One unavailable chart becomes a notice; a refused authorization fails the whole read.
+                await publicationClient.review(project.id, view, signal).catch((error) => {
+                  if (isAuthorizationFailure(error)) throw error
+                  return null
+                }),
               ] as const,
           ),
         ),
       ),
     reviewing,
   )
+  const failedCharts = Object.values(review.data ?? {}).filter((chart) => chart === null).length
+  if (current && !edited && reviewing && review.isError)
+    return (
+      <AsyncState
+        status="error"
+        title="Review figures unavailable"
+        description="Your access to the figures of this revision could not be verified. Reload before approving."
+        onRetry={() => void review.refetch()}
+      />
+    )
   if (current && !edited)
     return (
       <PreviewFrame
         analytics={reviewing && review.data ? review.data : undefined}
+        reviewNotice={
+          failedCharts
+            ? `Small counts could not be checked for ${failedCharts} ${failedCharts === 1 ? 'chart' : 'charts'}. Reload before approving.`
+            : undefined
+        }
+        reviewPending={reviewing && !review.data}
         project={{
           ...current.snapshot,
           publishedAt: current.state === 'PUBLISHED' ? current.updatedAt : undefined,

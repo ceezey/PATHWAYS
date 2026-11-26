@@ -72,7 +72,7 @@ const approveWithChecklist = () => {
   fireEvent.click(screen.getByRole('button', { name: 'Approve visit.jpg' }))
   const dialog = within(screen.getByRole('dialog', { name: 'Approve media' }))
   for (const label of Object.values(mediaChecklistItems))
-    fireEvent.click(dialog.getByLabelText(label))
+    fireEvent.click(dialog.getByLabelText(label, { exact: false }))
   fireEvent.click(dialog.getByRole('button', { name: 'Approve media' }))
 }
 
@@ -133,11 +133,13 @@ describe('public media queue', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve visit.jpg' }))
     const dialog = within(screen.getByRole('dialog', { name: 'Approve media' }))
     const confirm = dialog.getByRole('button', { name: 'Approve media' }) as HTMLButtonElement
-    fireEvent.click(dialog.getByLabelText(mediaChecklistItems.noIdentifiableMinor))
+    fireEvent.click(
+      dialog.getByLabelText(mediaChecklistItems.noIdentifiableMinor, { exact: false }),
+    )
     expect(confirm.disabled).toBe(true)
     fireEvent.click(confirm)
     expect(state.approve).not.toHaveBeenCalled()
-    fireEvent.click(dialog.getByLabelText(mediaChecklistItems.imageConsentOnFile))
+    fireEvent.click(dialog.getByLabelText(mediaChecklistItems.imageConsentOnFile, { exact: false }))
     expect(confirm.disabled).toBe(false)
   })
 

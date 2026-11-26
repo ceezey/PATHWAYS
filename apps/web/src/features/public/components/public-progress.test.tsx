@@ -170,4 +170,16 @@ describe('public progress section', () => {
       expect(screen.getByText('Total people reached:', { exact: false }).textContent).toContain('3')
     })
   })
+
+  it('lists two small counts that share a label (0097)', () => {
+    const twice = {
+      ...data.saddd,
+      total: cell('30'),
+      sex: [bucket('Female', '3'), bucket('Female', '2')],
+      age: [],
+      disability: [],
+    } as PublicAnalyticsResponse
+    render(<PublicProgress views={['saddd']} data={{ saddd: twice }} review />)
+    expect(within(screen.getByRole('note')).getAllByRole('listitem')).toHaveLength(2)
+  })
 })

@@ -198,7 +198,7 @@ describe('publication current project and revision boundaries', () => {
   const confirmApproval = () => {
     const dialog = within(screen.getByRole('dialog', { name: 'Approve this revision?' }))
     for (const label of Object.values(publicationChecklistItems))
-      fireEvent.click(dialog.getByLabelText(label))
+      fireEvent.click(dialog.getByLabelText(label, { exact: false }))
     fireEvent.click(dialog.getByRole('button', { name: 'Confirm approval' }))
   }
   it('keeps Confirm approval disabled until all four items are ticked, then sends them (0097)', async () => {
@@ -209,11 +209,12 @@ describe('publication current project and revision boundaries', () => {
     const dialog = within(screen.getByRole('dialog', { name: 'Approve this revision?' }))
     const confirm = dialog.getByRole('button', { name: 'Confirm approval' }) as HTMLButtonElement
     const labels = Object.values(publicationChecklistItems)
-    for (const label of labels.slice(0, 3)) fireEvent.click(dialog.getByLabelText(label))
+    for (const label of labels.slice(0, 3))
+      fireEvent.click(dialog.getByLabelText(label, { exact: false }))
     expect(confirm.disabled).toBe(true)
     fireEvent.click(confirm)
     expect(state.transition).not.toHaveBeenCalled()
-    fireEvent.click(dialog.getByLabelText(labels[3]))
+    fireEvent.click(dialog.getByLabelText(labels[3], { exact: false }))
     expect(confirm.disabled).toBe(false)
     fireEvent.click(confirm)
     await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
@@ -224,6 +225,24 @@ describe('publication current project and revision boundaries', () => {
       imageConsentOnFile: true,
       pinPositionsAcceptable: true,
     })
+  })
+  it('clears the ticks when the approval dialog is cancelled', () => {
+    state.publicationState = 'FOR_REVIEW'
+    render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Approve revision' }))
+    let dialog = within(screen.getByRole('dialog', { name: 'Approve this revision?' }))
+    for (const label of Object.values(publicationChecklistItems))
+      fireEvent.click(dialog.getByLabelText(label, { exact: false }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve revision' }))
+    dialog = within(screen.getByRole('dialog', { name: 'Approve this revision?' }))
+    for (const label of Object.values(publicationChecklistItems))
+      expect((dialog.getByLabelText(label, { exact: false }) as HTMLInputElement).checked).toBe(
+        false,
+      )
+    expect(
+      (dialog.getByRole('button', { name: 'Confirm approval' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
   })
   const confirmPublish = () =>
     fireEvent.click(

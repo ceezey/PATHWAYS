@@ -19,7 +19,7 @@ export const mediaChecklistItems: Record<keyof MediaApprovalChecklist, string> =
 export const checklistComplete = (items: Record<string, string>, ticked: ReadonlySet<string>) =>
   Object.keys(items).every((key) => ticked.has(key))
 
-// The approver's confirmations; the parent enables Approve only once every box is ticked.
+// The approver's confirmations; the parent enables Approve only once every box is ticked, and the hint says why.
 export const ApprovalChecklist = ({
   idPrefix,
   items,
@@ -32,31 +32,50 @@ export const ApprovalChecklist = ({
   ticked: ReadonlySet<string>
   disabled?: boolean
   onChange: (next: Set<string>) => void
-}) => (
-  <fieldset className="space-y-2">
-    <legend className="mb-2 text-sm font-semibold text-foreground">Confirm before approving</legend>
-    {Object.entries(items).map(([key, label]) => (
-      <Label
-        className="flex items-center gap-3 rounded-md border border-border bg-card p-3 text-sm"
-        htmlFor={`${idPrefix}-${key}`}
-        key={key}
-      >
-        <input
-          aria-required
-          checked={ticked.has(key)}
-          className="h-4 w-4 rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          disabled={disabled}
-          id={`${idPrefix}-${key}`}
-          onChange={(event) => {
-            const next = new Set(ticked)
-            if (event.target.checked) next.add(key)
-            else next.delete(key)
-            onChange(next)
-          }}
-          type="checkbox"
-        />
-        <span>{label}</span>
-      </Label>
-    ))}
-  </fieldset>
-)
+}) => {
+  const total = Object.keys(items).length
+  const done = Object.keys(items).filter((key) => ticked.has(key)).length
+  const hintId = `${idPrefix}-hint`
+  return (
+    <fieldset aria-describedby={hintId} className="space-y-2">
+      <legend className="mb-1 text-sm font-semibold text-foreground">
+        Confirm before approving
+      </legend>
+      <output aria-live="polite" className="mb-2 block text-xs text-muted-foreground" id={hintId}>
+        {done === total
+          ? `All ${total} items confirmed.`
+          : `Tick every item to enable approval (${done} of ${total} ticked).`}
+      </output>
+      {Object.entries(items).map(([key, label]) => (
+        <Label
+          className="flex items-center gap-3 rounded-md border border-border bg-card p-3 text-sm"
+          htmlFor={`${idPrefix}-${key}`}
+          key={key}
+        >
+          <input
+            aria-describedby={hintId}
+            aria-required
+            checked={ticked.has(key)}
+            className="h-4 w-4 rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            disabled={disabled}
+            id={`${idPrefix}-${key}`}
+            onChange={(event) => {
+              const next = new Set(ticked)
+              if (event.target.checked) next.add(key)
+              else next.delete(key)
+              onChange(next)
+            }}
+            type="checkbox"
+          />
+          <span>
+            {label}
+            <span aria-hidden="true" className="ml-1 text-danger">
+              *
+            </span>
+            <span className="sr-only"> (required)</span>
+          </span>
+        </Label>
+      ))}
+    </fieldset>
+  )
+}

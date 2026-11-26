@@ -138,6 +138,8 @@ export const PublicTrackerDetail = ({
   analytics,
   draft,
   review,
+  reviewPending,
+  reviewNotice,
 }: {
   project: Snapshot
   state?: string
@@ -148,6 +150,8 @@ export const PublicTrackerDetail = ({
   draft?: boolean
   // The approver's preview: charts use the review figures and mark counts under 5.
   review?: boolean
+  reviewPending?: boolean
+  reviewNotice?: string
 }) => (
   <div className="bg-surface-subtle" data-public-mode={state ? 'staff-preview' : 'public'}>
     <PublicNotice preview={Boolean(state)} draft={draft} />
@@ -243,6 +247,8 @@ export const PublicTrackerDetail = ({
       data={analytics}
       placeholder={Boolean(state) && !analytics}
       review={review}
+      pending={reviewPending}
+      notice={reviewNotice}
     />
   </div>
 )

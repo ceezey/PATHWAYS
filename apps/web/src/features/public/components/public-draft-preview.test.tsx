@@ -10,6 +10,7 @@ const read = vi.hoisted(() => ({
   enabled: [] as boolean[],
   items: [] as unknown[],
   review: undefined as unknown,
+  reviewError: false,
 }))
 const client = vi.hoisted(() => ({ contentBlob: vi.fn(), list: vi.fn() }))
 
@@ -18,7 +19,12 @@ vi.mock('echarts-for-react', () => ({ default: () => <div>chart</div> }))
 vi.mock('@/hooks/use-permission', () => ({ usePermission: () => () => true }))
 vi.mock('@/hooks/use-authorized-read', () => ({
   useAuthorizedRead: (key: string, _id: string, _p: string, _f: unknown, enabled: boolean) => {
-    if (key === 'publication-review') return { data: enabled ? read.review : undefined }
+    if (key === 'publication-review')
+      return {
+        data: enabled ? read.review : undefined,
+        isError: enabled && read.reviewError,
+        refetch: vi.fn(),
+      }
     read.enabled.push(enabled)
     return { data: enabled ? { items: read.items } : undefined }
   },
@@ -70,6 +76,7 @@ describe('public draft staff preview', () => {
     read.enabled = []
     read.items = []
     read.review = undefined
+    read.reviewError = false
     client.contentBlob.mockReturnValue(new Promise(() => {}))
   })
   afterEach(cleanup)
@@ -181,5 +188,52 @@ describe('public draft staff preview', () => {
     open()
     expect(screen.getByRole('note').textContent).toContain('Counts under 5')
     expect(screen.queryByText('Live chart appears here once published')).toBeNull()
+  })
+
+  describe('review read states (0097)', () => {
+    const underReview = {
+      ...current,
+      state: 'FOR_REVIEW' as const,
+      snapshot: { ...current.snapshot, views: ['saddd' as const, 'participation' as const] },
+    }
+    const show = () => {
+      render(
+        <PublicDraftPreview
+          current={underReview}
+          edited={false}
+          media={[{ id: photo(1).id, caption: 'Photo 1' }]}
+          project={project}
+          summary="Submitted summary."
+          views={['saddd', 'participation']}
+        />,
+      )
+      open()
+    }
+    it('shows a loading state while the figures load', () => {
+      show()
+      expect(screen.getAllByText('Loading the figures for review')).toHaveLength(2)
+      expect(screen.queryByText('Live chart appears here once published')).toBeNull()
+    })
+    it('warns above the charts when a chart could not be read', () => {
+      read.review = {
+        saddd: {
+          view: 'saddd',
+          total: { state: 'AVAILABLE', value: '30', reason: null },
+          sex: [],
+          age: [],
+          disability: [],
+        },
+        participation: null,
+      }
+      show()
+      expect(screen.getByRole('alert').textContent).toBe(
+        'Small counts could not be checked for 1 chart. Reload before approving.',
+      )
+    })
+    it('shows an access error when the review read is refused', () => {
+      read.reviewError = true
+      show()
+      expect(screen.getByText('Review figures unavailable')).toBeTruthy()
+    })
   })
 })

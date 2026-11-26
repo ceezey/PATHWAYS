@@ -151,8 +151,8 @@ const SmallCountMarker = ({
         Counts under 5: check that none of these can identify a person
       </p>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground">
-        {counts.map((count) => (
-          <li key={count.label}>
+        {counts.map((count, index) => (
+          <li key={`${index}:${count.label}`}>
             {count.label}: <span className="tabular-nums">{count.value}</span>
           </li>
         ))}
@@ -168,11 +168,17 @@ export const PublicProgress = ({
   data,
   placeholder,
   review,
+  pending,
+  notice,
 }: {
   views: PublicView[]
   data?: Partial<Record<PublicView, PublicAnalyticsResponse | null>>
   placeholder?: boolean
   review?: boolean
+  // The approver's review figures are loading; each chart says so instead of the placeholder.
+  pending?: boolean
+  // A review warning above the charts, such as charts whose small counts could not be checked.
+  notice?: string
 }) =>
   views.length === 0 ? null : (
     <section className={`${shell} pb-8 sm:pb-12`}>
@@ -185,9 +191,21 @@ export const PublicProgress = ({
             Live
           </span>
         </div>
+        {notice ? (
+          <p
+            className="rounded-md border border-warning/40 bg-warning-subtle p-3 text-sm font-medium text-foreground"
+            role="alert"
+          >
+            {notice}
+          </p>
+        ) : null}
         {views.map((view) => (
           <ChartPanel key={view} title={titles[view]}>
-            {placeholder ? (
+            {pending ? (
+              <output className="block text-sm text-muted-foreground">
+                Loading the figures for review
+              </output>
+            ) : placeholder ? (
               <p className="text-sm text-muted-foreground">
                 Live chart appears here once published
               </p>

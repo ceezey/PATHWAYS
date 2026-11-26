@@ -54,4 +54,48 @@ describe('smallCounts', () => {
   it('marks nothing on views without people counts', () => {
     expect(smallCounts({ view: 'kpi', indicators: [] } as PublicAnalyticsResponse)).toEqual([])
   })
+
+  it('names the province and numbers repeated places and activities', () => {
+    const reach = (total: string) => ({
+      total: cell(total),
+      sex: [],
+      disability: { state: 'ZERO', value: '0', reason: null },
+    })
+    const place = (province: string, total: string) => ({
+      name: 'San Jose',
+      province,
+      longitude: 124,
+      latitude: 11,
+      saved: false,
+      locked: false,
+      reach: reach(total),
+    })
+    expect(
+      smallCounts({
+        view: 'map',
+        places: [place('Leyte', '2'), place('Antique', '3'), place('Antique', '4')],
+      } as unknown as PublicAnalyticsResponse).map((count) => count.label),
+    ).toEqual([
+      'San Jose, Leyte: people reached',
+      'San Jose, Antique (1): people reached',
+      'San Jose, Antique (2): people reached',
+    ])
+    const activity = (n: number) => ({
+      activityId: `2000000${n}-0000-4000-8000-000000000002`,
+      activityName: 'Training',
+      count: n,
+      suppressed: false,
+    })
+    expect(
+      smallCounts({
+        view: 'participation',
+        projectId: '10000000-0000-4000-8000-000000000001',
+        total: 9,
+        totalSuppressed: false,
+        byActivity: [activity(1), activity(2)],
+        byMonth: [],
+        byAttendanceStatus: [],
+      } as unknown as PublicAnalyticsResponse).map((count) => count.label),
+    ).toEqual(['Training (1)', 'Training (2)'])
+  })
 })

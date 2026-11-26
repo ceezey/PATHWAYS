@@ -158,6 +158,11 @@ export const PublicationQueueWorkspace = ({
       setBusy(false)
     }
   }, [approveOwner?.key, approveOwner?.generation, publishOwner?.key, publishOwner?.generation])
+  // Every close, including Cancel, a dismissed dialog and Confirm, starts the next approval unticked.
+  const closeApprove = () => {
+    setApproving(false)
+    setTicked(new Set())
+  }
   const edit = (change: {
     summary?: string
     media?: PublicationSelection['media']
@@ -212,7 +217,6 @@ export const PublicationQueueWorkspace = ({
       if (!currentOwner()) return
       requests.acknowledge(clientRequestId)
       setDraft(null)
-      setTicked(new Set())
       setPendingView(undefined)
       await publication.refetch()
       if (currentOwner())
@@ -418,10 +422,10 @@ export const PublicationQueueWorkspace = ({
                 confirmVariant="default"
                 description={`Open the staff preview first: it marks every count under 5. Approving revision ${revision} lets it be published.`}
                 onConfirm={() => {
-                  setApproving(false)
+                  closeApprove()
                   void act('approve')
                 }}
-                onOpenChange={setApproving}
+                onOpenChange={(open) => (open ? setApproving(true) : closeApprove())}
                 open={approving}
                 title="Approve this revision?"
               >
