@@ -26,8 +26,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 70 rows (baseline plus 0027-0057 and 0058-0095) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 70)
+  // ledger has 71 rows (baseline plus 0027-0057 and 0058-0096) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 71)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -140,6 +140,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'cleanup:alert-notes',
     'deploy:0094_session_management',
     'deploy:0095_retire_legacy_public_tables',
+    'deploy:0096_audit_tamper_evidence',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -725,7 +726,14 @@ test('planIndexForAppliedCount on a 0000-0094 ledger resumes at the 0095 deploy'
   ])
 })
 
-test('planIndexForAppliedCount on a complete 0000-0095 ledger resumes at alter-runtime-role', () => {
+test('planIndexForAppliedCount on a 0000-0095 ledger resumes at the 0096 deploy', () => {
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0095_retire_legacy_public_tables') + 1
+  assert.deepEqual(buildPlan()[planIndexForAppliedCount(applied)].migrations, [
+    '0096_audit_tamper_evidence',
+  ])
+})
+
+test('planIndexForAppliedCount on a complete 0000-0096 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   assert.equal(
     plan[planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)].type,

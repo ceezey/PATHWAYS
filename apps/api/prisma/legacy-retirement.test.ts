@@ -104,6 +104,7 @@ describe('Legacy public table retirement contract', () => {
       '0093_alert_outcome_notes',
       '0094_session_management',
       '0095_retire_legacy_public_tables',
+      '0096_audit_tamper_evidence',
     ])
     expect(migration).toContain("migration_name='0094_session_management'")
     expect(migration).toContain("current_user <> 'prisma'")

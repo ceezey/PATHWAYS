@@ -8,6 +8,9 @@ ALTER TABLE "pathways"."alert_rules" DROP CONSTRAINT "f10_rule_project_scope";
 ALTER TABLE "pathways"."alert_rules" DROP CONSTRAINT "f10_rule_template_scope";
 
 -- DropForeignKey
+ALTER TABLE "pathways"."audit_chain_heads" DROP CONSTRAINT "audit_chain_heads_organization_id_fkey";
+
+-- DropForeignKey
 ALTER TABLE "pathways"."decision_recommendations" DROP CONSTRAINT "f10_private_review_scope";
 
 -- DropForeignKey
@@ -189,6 +192,9 @@ DROP TABLE "auth"."users";
 
 -- DropTable
 DROP TABLE "pathways"."app_sessions";
+
+-- DropTable
+DROP TABLE "pathways"."audit_chain_heads";
 
 -- DropTable
 DROP TABLE "pathways"."public_project_views";
