@@ -84,6 +84,7 @@ $forwardInventory = @(
   '0095_retire_legacy_public_tables'
   '0096_audit_tamper_evidence'
   '0097_publication_checklist'
+  '0098_rate_limiting'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1564,6 +1565,55 @@ SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity
     if ($checklistShape.Trim() -cne 'true') { throw "0097 publication checklist inventory differs in $db." }
   }
   Write-Output 'FORWARD_0097_PUBLICATION_CHECKLIST_INVENTORY=PASS'
+  # 0098 inventory: the counter table (RLS, prisma-owned, no API role privilege, hash check, window index) and the SECURITY DEFINER
+  # hit function with an empty search_path, executable by pathways_runtime only.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $rateShape = Read-ForwardSql $db @'
+SELECT ((SELECT c.relrowsecurity AND pg_catalog.pg_get_userbyid(c.relowner)='prisma' FROM pg_catalog.pg_class c WHERE c.oid='pathways.rate_limit_counters'::pg_catalog.regclass)
+ AND NOT EXISTS(SELECT FROM unnest(ARRAY['public','anon','authenticated','service_role','pathways_runtime']) r WHERE has_table_privilege(r,'pathways.rate_limit_counters','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'))
+ AND (SELECT count(*) FROM pg_catalog.pg_constraint WHERE convalidated AND conrelid='pathways.rate_limit_counters'::pg_catalog.regclass AND conname IN ('rate_limit_counters_hash','rate_limit_counters_hits'))=2
+ AND EXISTS(SELECT FROM pg_catalog.pg_indexes WHERE schemaname='pathways' AND indexname='rate_limit_counters_window_idx')
+ AND (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid='pathways.rate_limit_hit(text,integer,integer)'::pg_catalog.regprocedure
+   AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'])=1
+ AND has_function_privilege('pathways_runtime','pathways.rate_limit_hit(text,integer,integer)','EXECUTE')
+ AND NOT EXISTS(SELECT FROM unnest(ARRAY['public','anon','authenticated','service_role']) r WHERE has_function_privilege(r,'pathways.rate_limit_hit(text,integer,integer)','EXECUTE')))::text;
+'@
+    if ($rateShape.Trim() -cne 'true') { throw "0098 rate limiting inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0098_RATE_LIMITING_INVENTORY=PASS'
+  # 0098 behaviour as pathways_runtime on a rolled-back transaction: the limit holds, buckets are independent, only hashes are stored.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $rateRuntime = Read-ForwardSql $db @'
+BEGIN;
+SET LOCAL ROLE pathways_runtime;
+DO $$
+DECLARE r integer; i integer; refused boolean;
+BEGIN
+ FOR i IN 1..30 LOOP
+  IF pathways.rate_limit_hit('rl-check-one',30,60)<>0 THEN RAISE EXCEPTION 'hit % refused early',i; END IF;
+ END LOOP;
+ r:=pathways.rate_limit_hit('rl-check-one',30,60);
+ IF r NOT BETWEEN 1 AND 60 THEN RAISE EXCEPTION 'hit 31 gave %',r; END IF;
+ FOR i IN 1..20 LOOP
+  IF pathways.rate_limit_hit('rl-check-many-'||i,30,60)<>0 THEN RAISE EXCEPTION 'bucket % refused',i; END IF;
+ END LOOP;
+ FOR i IN 1..4 LOOP
+  refused:=false;
+  BEGIN
+   PERFORM CASE i WHEN 1 THEN pathways.rate_limit_hit('',30,60) WHEN 2 THEN pathways.rate_limit_hit('rl-check-bad',0,60)
+    WHEN 3 THEN pathways.rate_limit_hit('rl-check-bad',30,3601) ELSE pathways.rate_limit_hit(repeat('x',513),30,60) END;
+  EXCEPTION WHEN SQLSTATE '22023' THEN refused:=true; END;
+  IF NOT refused THEN RAISE EXCEPTION 'invalid arguments case % accepted',i; END IF;
+ END LOOP;
+END $$;
+RESET ROLE;
+SELECT (NOT EXISTS(SELECT FROM pathways.rate_limit_counters WHERE key_hash !~ '^[0-9a-f]{64}$' OR key_hash LIKE 'rl-check%')
+ AND (SELECT count(*) FROM pathways.rate_limit_counters WHERE hits=31)=1)::text;
+ROLLBACK;
+'@
+    if ($rateRuntime.Trim() -cne 'true') { throw "0098 rate limiting runtime check differs in $db." }
+  }
+  Write-Output 'FORWARD_0098_RATE_LIMITING_RUNTIME=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

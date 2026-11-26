@@ -50,7 +50,9 @@ export const LoginForm = () => {
     },
   })
   const identifier = form.watch('identifier')
-  const [lock, setLock] = useState<{ until: number; email: string } | null>(null)
+  const [lock, setLock] = useState<{ until: number; email: string; rateLimited: boolean } | null>(
+    null,
+  )
   const [remaining, setRemaining] = useState(0)
   const locked = remaining > 0
   const [captchaToken, setCaptchaToken] = useState('')
@@ -116,6 +118,7 @@ export const LoginForm = () => {
         setLock({
           until: Date.now() + outcome.retryAfterSeconds * 1000,
           email: values.identifier.trim().toLowerCase(),
+          rateLimited: Boolean(outcome.rateLimited),
         })
         return
       }
@@ -164,9 +167,16 @@ export const LoginForm = () => {
         <>
           {locked && (
             <p id="staff-login-error" className="text-sm text-destructive" role="alert">
-              <span className="sr-only">Sign-in is locked for 15 minutes. </span>
+              <span className="sr-only">
+                {lock?.rateLimited
+                  ? 'Too many sign-in requests. '
+                  : 'Sign-in is locked for 15 minutes. '}
+              </span>
               <span aria-hidden="true">
-                Too many failed sign-in attempts. Try again in {formatLockRemaining(remaining)}.
+                {lock?.rateLimited
+                  ? 'Too many sign-in requests'
+                  : 'Too many failed sign-in attempts'}
+                . Try again in {formatLockRemaining(remaining)}.
               </span>
             </p>
           )}

@@ -5,7 +5,8 @@ type SignInOutcome =
   | { kind: 'session'; accessToken: string; refreshToken: string }
   | { kind: 'invalid' }
   | { kind: 'captcha' }
-  | { kind: 'locked'; retryAfterSeconds: number }
+  // rateLimited is the per-minute request limit, not the 15 minute failure lockout.
+  | { kind: 'locked'; retryAfterSeconds: number; rateLimited?: true }
 
 const maxLockSeconds = 900
 
@@ -15,11 +16,10 @@ export const formatLockRemaining = (seconds: number) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
-// Falls back to the full lock window when the body value is missing or invalid.
-const parseRetryAfter = async (response: Response) => {
-  const body: unknown = await response.json().catch(() => null)
-  const value = (body as Record<string, unknown> | null)?.retryAfterSeconds
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return maxLockSeconds
+// Falls back to the given window when the body value is missing or invalid.
+const parseRetryAfter = (body: Record<string, unknown> | null, fallback: number) => {
+  const value = body?.retryAfterSeconds
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback
   return Math.min(maxLockSeconds, Math.ceil(value))
 }
 
@@ -41,7 +41,11 @@ export async function requestSignIn(
     signal: AbortSignal.timeout(15000),
   })
   if (response.status === 429) {
-    return { kind: 'locked', retryAfterSeconds: await parseRetryAfter(response) }
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null
+    // Only SIGN_IN_LOCKED is the 15 minute lockout; any other 429, such as the firewall's bodyless one, is a short request limit.
+    if (body?.code === 'SIGN_IN_LOCKED')
+      return { kind: 'locked', retryAfterSeconds: parseRetryAfter(body, maxLockSeconds) }
+    return { kind: 'locked', retryAfterSeconds: parseRetryAfter(body, 60), rateLimited: true }
   }
   if (response.status === 400) {
     const body: unknown = await response.json().catch(() => null)

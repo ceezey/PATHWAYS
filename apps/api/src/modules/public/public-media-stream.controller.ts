@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common'
 
 import { Public } from '../../common/decorators/public.decorator'
+import { RateLimit } from '../../common/rate-limit/rate-limit.guard'
 import { PublicMediaStreamService, RangeNotSatisfiable } from './public-media-stream.service'
 
 @Controller('public/projects/:projectId/media')
@@ -19,6 +20,7 @@ export class PublicMediaStreamController {
 
   @Get(':mediaId')
   @Public()
+  @RateLimit('public-media')
   @Header('Cache-Control', 'no-store')
   @Header('X-Content-Type-Options', 'nosniff')
   @Header('Cross-Origin-Resource-Policy', 'cross-origin')

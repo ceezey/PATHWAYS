@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/env', () => ({
-  webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api/' },
+const incoming = vi.hoisted(() => ({ realIp: null as string | null }))
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers(incoming.realIp ? { 'x-real-ip': incoming.realIp } : {}),
 }))
+vi.mock('@/lib/env', () => ({
+  webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api/', VISITOR_FORWARD_TOKEN: '' },
+}))
+
+import { webEnv } from '@/lib/env'
 
 import { readPublicAnalytics, readPublicSnapshots } from './public'
 
@@ -27,7 +33,12 @@ const reply = (body: unknown, status = 200) => {
   return fetcher
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+  webEnv.VISITOR_FORWARD_TOKEN = ''
+  incoming.realIp = null
+})
 
 describe('public snapshot client', () => {
   it('reads the list anonymously with a limit of 100 and no cookies, referrer or redirects', async () => {
@@ -151,5 +162,46 @@ describe('public analytics client', () => {
   it('refuses a body that is not the requested view', async () => {
     reply(body)
     await expect(readPublicAnalytics(snapshot.id, 'kpi')).rejects.toThrow()
+  })
+})
+
+describe('public analytics visitor forwarding', () => {
+  const token = 'f'.repeat(64)
+  const sentHeaders = async () => {
+    const fetcher = reply({ view: 'map', places: [] })
+    await readPublicAnalytics(snapshot.id, 'map')
+    return (fetcher.mock.calls[0]?.[1] as { headers?: Record<string, string> }).headers
+  }
+
+  it('sends the visitor address and token on Vercel when the token is set', async () => {
+    vi.stubEnv('VERCEL', '1')
+    webEnv.VISITOR_FORWARD_TOKEN = token
+    incoming.realIp = '203.0.113.7'
+    expect(await sentHeaders()).toEqual({
+      'x-pathways-visitor-address': '203.0.113.7',
+      'x-pathways-visitor-token': token,
+    })
+  })
+
+  it.each([
+    ['the token is empty', () => ({ vercel: '1', token: '', ip: '203.0.113.7' })],
+    ['it is not on Vercel', () => ({ vercel: '', token, ip: '203.0.113.7' })],
+    ['the visitor address is unknown', () => ({ vercel: '1', token, ip: null })],
+    ['the visitor address is not an address', () => ({ vercel: '1', token, ip: 'evil, 1.1.1.1' })],
+  ])('sends nothing extra when %s', async (_label, setup) => {
+    const { vercel, token: configured, ip } = setup()
+    vi.stubEnv('VERCEL', vercel)
+    webEnv.VISITOR_FORWARD_TOKEN = configured
+    incoming.realIp = ip
+    expect(await sentHeaders()).toBeUndefined()
+  })
+
+  it('never sends the token with the snapshot reads', async () => {
+    vi.stubEnv('VERCEL', '1')
+    webEnv.VISITOR_FORWARD_TOKEN = token
+    incoming.realIp = '203.0.113.7'
+    const fetcher = reply([snapshot])
+    await readPublicSnapshots()
+    expect(fetcher.mock.calls[0]?.[1]).not.toHaveProperty('headers')
   })
 })

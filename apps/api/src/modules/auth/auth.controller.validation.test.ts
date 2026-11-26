@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { RateLimitService } from '../../common/rate-limit/rate-limit.service'
 import { AppSessionsService } from './app-sessions.service'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
@@ -41,6 +42,7 @@ beforeAll(async () => {
       { provide: WorkspaceResolutionService, useValue: {} },
       { provide: BeneficiaryStepUpPinService, useValue: pins },
       { provide: SignInLockoutService, useValue: signIns },
+      { provide: RateLimitService, useValue: { hit: async () => 0 } },
       { provide: PasswordRecoveryService, useValue: recovery },
       { provide: OwnAccountService, useValue: account },
       { provide: AppSessionsService, useValue: sessions },
@@ -168,9 +170,11 @@ describe('auth routes body validation', () => {
   })
 
   it('changes the own password with 204 and no body', async () => {
-    const result = await post('/password/change', JSON.stringify({ password: GOOD }))
+    const result = await post('/password/change', JSON.stringify({ password: GOOD }), {
+      authorization: 'Bearer header.payload.signature',
+    })
     expect(result).toEqual({ status: 204, text: '' })
-    expect(account.changePassword).toHaveBeenCalledWith(pinActor, GOOD)
+    expect(account.changePassword).toHaveBeenCalledWith(pinActor, GOOD, 'header.payload.signature')
   })
 
   it.each([JSON.stringify({ password: 'short' }), JSON.stringify({ password: GOOD, extra: 1 })])(
@@ -252,10 +256,23 @@ describe('session routes', () => {
   })
 
   it('ends every other own session and returns the count', async () => {
-    const result = await post('/sessions/end-others', '')
+    const result = await post('/sessions/end-others', '', {
+      authorization: 'Bearer header.payload.signature',
+    })
     expect(result.status).toBe(200)
     expect(JSON.parse(result.text)).toEqual({ sessionsEnded: 2 })
-    expect(account.endOtherSessions).toHaveBeenCalledWith(pinActor)
+    expect(account.endOtherSessions).toHaveBeenCalledWith(pinActor, 'header.payload.signature')
+  })
+
+  it('reads the bearer scheme in any case, as the auth guard does', async () => {
+    await post('/sessions/end-others', '', { authorization: 'bearer header.payload.signature' })
+    expect(account.endOtherSessions).toHaveBeenCalledWith(pinActor, 'header.payload.signature')
+  })
+
+  it('answers 401 without calling the service when the request carries no bearer token', async () => {
+    const result = await post('/sessions/end-others', '')
+    expect(result.status).toBe(401)
+    expect(account.endOtherSessions).not.toHaveBeenCalled()
   })
 })
 
