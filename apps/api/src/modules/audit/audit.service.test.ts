@@ -175,6 +175,26 @@ describe('audit projection and cursor boundary', () => {
         Object.fromEntries(keys.map((key) => [key, stored[key as keyof typeof stored]])),
       )
   })
+  it('returns the confirmed checklist names of a publication or media approval (0097)', async () => {
+    const names = 'smallGroupsChecked,noIdentifiableMinor,imageConsentOnFile,pinPositionsAcceptable'
+    tx.auditLog.findMany.mockResolvedValue([
+      {
+        ...row('1'),
+        action: 'PUBLICATION_APPROVE',
+        changes: { revision: 2, state: 'APPROVED', liveRevision: null, checklist: names },
+      },
+      {
+        ...row('2'),
+        action: 'PUBLIC_MEDIA_APPROVED',
+        changes: { checklist: 'noIdentifiableMinor,imageConsentOnFile', fullName: 'Fictional' },
+      },
+    ])
+    const result = await service.list(identity, {})
+    expect(result.rows.map((item) => item.details)).toStrictEqual([
+      { revision: 2, checklist: names },
+      { checklist: 'noIdentifiableMinor,imageConsentOnFile' },
+    ])
+  })
   it('resolves the actor name from the same organization-scoped relation', async () => {
     tx.auditLog.findMany.mockResolvedValue([row('1')])
     const result = await service.list(identity, {})

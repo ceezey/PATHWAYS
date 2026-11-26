@@ -25,6 +25,11 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import {
+  ApprovalChecklist,
+  checklistComplete,
+  publicationChecklistItems,
+} from './approval-checklist'
 import { PublicDraftPreview } from './public-draft-preview'
 import { PublicMediaPicker } from './public-media-picker'
 import { PublicMediaQueue } from './public-media-queue'
@@ -51,6 +56,8 @@ export const PublicationQueueWorkspace = ({
   const [busy, setBusy] = useState(false)
   const [mediaBlocked, setMediaBlocked] = useState(false)
   const [confirmingPublish, setConfirmingPublish] = useState(false)
+  const [approving, setApproving] = useState(false)
+  const [ticked, setTicked] = useState<Set<string>>(() => new Set())
   const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
   const projects = useAuthorizedRead('publication-projects', null, 'public.preview', (signal) =>
     projectsClient.getProjects(signal),
@@ -128,11 +135,20 @@ export const PublicationQueueWorkspace = ({
     current?.state === 'APPROVED' &&
     !edited &&
     permitted('public.publish')
+  const approveReady =
+    Boolean(owner) &&
+    !busy &&
+    current?.state === 'FOR_REVIEW' &&
+    current.submittedById !== profile?.userId &&
+    !edited &&
+    permitted('public.approve')
   // biome-ignore lint/correctness/useExhaustiveDependencies: Clear transient state when its authorization ownership changes.
   useEffect(() => {
     setDraft(null)
     setBusy(false)
     setConfirmingPublish(false)
+    setApproving(false)
+    setTicked(new Set())
     activeOperation.current = null
   }, [owner?.key, owner?.generation])
   // biome-ignore lint/correctness/useExhaustiveDependencies: A revoked purpose owner must release the pending UI even while preview remains available.
@@ -174,7 +190,16 @@ export const PublicationQueueWorkspace = ({
               views,
             },
           }
-        : {}
+        : operation === 'approve'
+          ? {
+              checklist: {
+                smallGroupsChecked: true,
+                noIdentifiableMinor: true,
+                imageConsentOnFile: true,
+                pinPositionsAcceptable: true,
+              } as const,
+            }
+          : {}
     const body = { operation, expectedRevision: revision, ...submission }
     const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
     setBusy(true)
@@ -187,6 +212,7 @@ export const PublicationQueueWorkspace = ({
       if (!currentOwner()) return
       requests.acknowledge(clientRequestId)
       setDraft(null)
+      setTicked(new Set())
       setPendingView(undefined)
       await publication.refetch()
       if (currentOwner())
@@ -363,15 +389,8 @@ export const PublicationQueueWorkspace = ({
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={
-                    !owner ||
-                    busy ||
-                    current?.state !== 'FOR_REVIEW' ||
-                    current.submittedById === profile?.userId ||
-                    edited ||
-                    !permitted('public.approve')
-                  }
-                  onClick={() => void act('approve')}
+                  disabled={!approveReady}
+                  onClick={() => setApproving(true)}
                 >
                   <ShieldCheck className="mr-2 h-4 w-4" />
                   Approve revision
@@ -391,6 +410,29 @@ export const PublicationQueueWorkspace = ({
                   </Button>
                 )}
               </div>
+              <ConfirmationDialog
+                confirmDisabled={
+                  !approveReady || !checklistComplete(publicationChecklistItems, ticked)
+                }
+                confirmLabel="Confirm approval"
+                confirmVariant="default"
+                description={`Open the staff preview first: it marks every count under 5. Approving revision ${revision} lets it be published.`}
+                onConfirm={() => {
+                  setApproving(false)
+                  void act('approve')
+                }}
+                onOpenChange={setApproving}
+                open={approving}
+                title="Approve this revision?"
+              >
+                <ApprovalChecklist
+                  disabled={busy}
+                  idPrefix="publication-approval"
+                  items={publicationChecklistItems}
+                  onChange={setTicked}
+                  ticked={ticked}
+                />
+              </ConfirmationDialog>
               <ConfirmationDialog
                 confirmDisabled={!publishReady}
                 confirmLabel="Publish revision"

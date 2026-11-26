@@ -137,6 +137,7 @@ export const PublicTrackerDetail = ({
   mediaPlaceholder,
   analytics,
   draft,
+  review,
 }: {
   project: Snapshot
   state?: string
@@ -145,6 +146,8 @@ export const PublicTrackerDetail = ({
   analytics?: Partial<Record<PublicView, PublicAnalyticsResponse | null>>
   // Unsubmitted editor content: the notice says so and there is no link away from the editor.
   draft?: boolean
+  // The approver's preview: charts use the review figures and mark counts under 5.
+  review?: boolean
 }) => (
   <div className="bg-surface-subtle" data-public-mode={state ? 'staff-preview' : 'public'}>
     <PublicNotice preview={Boolean(state)} draft={draft} />
@@ -235,6 +238,11 @@ export const PublicTrackerDetail = ({
         placeholder: mediaPlaceholder?.(id),
       }))}
     />
-    <PublicProgress views={project.views} data={analytics} placeholder={Boolean(state)} />
+    <PublicProgress
+      views={project.views}
+      data={analytics}
+      placeholder={Boolean(state) && !analytics}
+      review={review}
+    />
   </div>
 )

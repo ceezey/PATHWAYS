@@ -22,6 +22,9 @@ const detailKeys = new Map<string, readonly string[]>([
   ],
   ['BACKUP_RESTORE_FAILED', ['code', 'filesRestored']],
   ['BACKUP_RESTORE_REFUSED', ['code']],
+  // 0097: the approver's confirmed checklist item names.
+  ['PUBLICATION_APPROVE', ['revision', 'checklist']],
+  ['PUBLIC_MEDIA_APPROVED', ['checklist']],
 ])
 const auditDetails = (action: string, changes: unknown) => {
   const stored =

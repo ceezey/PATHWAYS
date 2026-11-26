@@ -96,7 +96,17 @@ describe('publicMediaClient staff media requests', () => {
     )
   })
 
-  it.each(['finalize', 'submit', 'approve'] as const)('posts %s by an encoded id', async (step) => {
+  it('approves with the confirmed checklist in the body (0097)', async () => {
+    request.requestFoundation.mockResolvedValue({})
+    const checklist = { noIdentifiableMinor: true, imageConsentOnFile: true } as const
+    await publicMediaClient.approve(projectId, mediaId, checklist)
+    expect(request.requestFoundation).toHaveBeenCalledWith(`${path}/${mediaId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ checklist }),
+    })
+  })
+
+  it.each(['finalize', 'submit'] as const)('posts %s by an encoded id', async (step) => {
     request.requestFoundation.mockResolvedValue({})
     await publicMediaClient[step](projectId, 'a b')
     expect(request.requestFoundation).toHaveBeenCalledWith(`${path}/a%20b/${step}`, {

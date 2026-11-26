@@ -121,6 +121,17 @@ export async function stagePublishing(ctx: DemoContext) {
           ...(operation === 'SUBMIT'
             ? { summary: wanted.summary, selection: wanted.selection }
             : {}),
+          // The synthetic approver confirms the checklist that 0097 requires.
+          ...(operation === 'APPROVE'
+            ? {
+                checklist: {
+                  smallGroupsChecked: true,
+                  noIdentifiableMinor: true,
+                  imageConsentOnFile: true,
+                  pinPositionsAcceptable: true,
+                } as const,
+              }
+            : {}),
         }),
       )
       changed += 1

@@ -196,6 +196,13 @@ describe('publication canonical request recovery', () => {
   })
 })
 const otherUser = 'abcdefab-0000-4000-8000-000000000003'
+// The four items an approver confirms (0097).
+const checklist = {
+  smallGroupsChecked: true,
+  noIdentifiableMinor: true,
+  imageConsentOnFile: true,
+  pinPositionsAcceptable: true,
+} as const
 const row = (stateName: string, submittedById = otherUser, live = stateName === 'PUBLISHED') => ({
   revision: 2,
   state: stateName,
@@ -233,14 +240,18 @@ describe('publication state machine (QAD-T74, QAD-T75)', () => {
   const body = { clientRequestId: requestId, expectedRevision: 2 }
   it('lets a distinct reviewer approve a revision under review', async () => {
     current = row('FOR_REVIEW')
-    await expect(service.transition(actor, projectId, 'APPROVE', body)).resolves.toMatchObject({
+    await expect(
+      service.transition(actor, projectId, 'APPROVE', { ...body, checklist }),
+    ).resolves.toMatchObject({
       state: 'APPROVED',
       revision: 2,
     })
   })
   it('refuses approval by the reviewer who submitted the revision', async () => {
     current = row('FOR_REVIEW', actor.userId)
-    await expect(service.transition(actor, projectId, 'APPROVE', body)).rejects.toMatchObject({
+    await expect(
+      service.transition(actor, projectId, 'APPROVE', { ...body, checklist }),
+    ).rejects.toMatchObject({
       status: 409,
     })
     expect(updates).toHaveLength(0)
@@ -251,7 +262,8 @@ describe('publication state machine (QAD-T74, QAD-T75)', () => {
     ['WITHDRAW', 'APPROVED'],
   ] as const)('refuses %s from %s without a write', async (operation, from) => {
     current = row(from)
-    await expect(service.transition(actor, projectId, operation, body)).rejects.toMatchObject({
+    const input = operation === 'APPROVE' ? { ...body, checklist } : body
+    await expect(service.transition(actor, projectId, operation, input)).rejects.toMatchObject({
       status: 409,
     })
     expect(updates).toHaveLength(0)
@@ -440,6 +452,7 @@ describe('publication body parse', () => {
     clientRequestId: upper,
     expectedRevision: operation === 'SUBMIT' ? 0 : 2,
     ...(operation === 'SUBMIT' ? { summary: validSummary, selection } : {}),
+    ...(operation === 'APPROVE' ? { checklist } : {}),
     ...extra,
   })
   let writes: Array<{ values: unknown[] }>
@@ -505,6 +518,37 @@ describe('publication body parse', () => {
       await bad(operation, valid(operation, { summary: validSummary }))
     for (const operation of ['APPROVE', 'PUBLISH', 'WITHDRAW'] as const)
       await bad(operation, valid(operation, { selection }))
+  })
+
+  it('requires the full checklist on APPROVE and forbids it on the other operations', async () => {
+    const { checklist: _gone, ...bare } = valid('APPROVE')
+    await bad('APPROVE', bare)
+    for (const key of Object.keys(checklist))
+      await bad('APPROVE', valid('APPROVE', { checklist: { ...checklist, [key]: false } }))
+    for (const operation of ['SUBMIT', 'PUBLISH', 'WITHDRAW'] as const)
+      await bad(operation, valid(operation, { checklist }))
+  })
+
+  it('writes the confirmed checklist with the approval', async () => {
+    currentOperation = 'APPROVE'
+    await service.transition(actor, projectId, 'APPROVE', valid('APPROVE'))
+    expect(writes[0].values).toContain(JSON.stringify(checklist))
+  })
+
+  it('reports the guard refusing an approval without the checklist as 400', async () => {
+    currentOperation = 'APPROVE'
+    const base = tx.$queryRaw.getMockImplementation()
+    tx.$queryRaw.mockImplementation((query: { sql?: string } | string[]) => {
+      const text = Array.isArray(query) ? query.join('') : (query.sql ?? '')
+      if (text.includes('UPDATE pathways.project_publications'))
+        throw Object.assign(new Error('guard'), {
+          meta: { code: '23514', message: 'Publication checklist required (0097)' },
+        })
+      return base?.(query)
+    })
+    await expect(service.transition(actor, projectId, 'APPROVE', valid('APPROVE'))).rejects.toThrow(
+      'Confirm every approval checklist item.',
+    )
   })
 
   it('bounds the summary after trimming, for SUBMIT and for the forbidden case alike', async () => {

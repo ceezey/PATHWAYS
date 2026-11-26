@@ -14,7 +14,7 @@ import {
 import { useAuthorizedRead } from '@/hooks/use-authorized-read'
 import { usePermission } from '@/hooks/use-permission'
 import { publicMediaClient } from '@/lib/api/public-media'
-import type { publicationClient } from '@/lib/api/publication'
+import { publicationClient } from '@/lib/api/publication'
 import type { ProjectSummary } from '@/types/pathways'
 import type { PublicView, PublicationSelection } from '@pathways/shared'
 
@@ -48,9 +48,32 @@ const DraftPreviewBody = ({
     (signal) => publicMediaClient.list(project.id, signal),
     edited && permitted('evidence.read'),
   )
+  // An approver sees the figures of the revision awaiting approval or publication, with small counts marked.
+  const reviewing = Boolean(
+    current && !edited && current.state !== 'PUBLISHED' && permitted('public.approve'),
+  )
+  const review = useAuthorizedRead(
+    'publication-review',
+    project.id,
+    'public.approve',
+    async (signal) =>
+      Object.fromEntries(
+        await Promise.all(
+          (current?.snapshot.views ?? []).map(
+            async (view) =>
+              [
+                view,
+                await publicationClient.review(project.id, view, signal).catch(() => null),
+              ] as const,
+          ),
+        ),
+      ),
+    reviewing,
+  )
   if (current && !edited)
     return (
       <PreviewFrame
+        analytics={reviewing && review.data ? review.data : undefined}
         project={{
           ...current.snapshot,
           publishedAt: current.state === 'PUBLISHED' ? current.updatedAt : undefined,

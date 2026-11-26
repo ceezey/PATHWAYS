@@ -1,7 +1,8 @@
 /* @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mediaChecklistItems } from './approval-checklist'
 import { PublicMediaQueue } from './public-media-queue'
 
 const projectId = '10000000-0000-4000-8000-000000000001'
@@ -66,6 +67,15 @@ vi.mock('sonner', () => ({
 }))
 vi.mock('./public-media-thumb', () => ({ PublicMediaThumb: () => <span data-testid="thumb" /> }))
 
+// Opens the approval dialog for the item, ticks both items and confirms.
+const approveWithChecklist = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Approve visit.jpg' }))
+  const dialog = within(screen.getByRole('dialog', { name: 'Approve media' }))
+  for (const label of Object.values(mediaChecklistItems))
+    fireEvent.click(dialog.getByLabelText(label))
+  fireEvent.click(dialog.getByRole('button', { name: 'Approve media' }))
+}
+
 describe('public media queue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -106,11 +116,29 @@ describe('public media queue', () => {
     expect(screen.getAllByTestId('thumb')).toHaveLength(1)
   })
 
-  it('approves one item and reloads the list', async () => {
+  it('approves one item with both checklist items and reloads the list', async () => {
+    render(<PublicMediaQueue projectId={projectId} />)
+    approveWithChecklist()
+    await waitFor(() =>
+      expect(state.approve).toHaveBeenCalledWith(projectId, mediaId, {
+        noIdentifiableMinor: true,
+        imageConsentOnFile: true,
+      }),
+    )
+    await waitFor(() => expect(state.refetch).toHaveBeenCalled())
+  })
+
+  it('keeps Approve media disabled until both checklist items are ticked (0097)', () => {
     render(<PublicMediaQueue projectId={projectId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Approve visit.jpg' }))
-    await waitFor(() => expect(state.approve).toHaveBeenCalledWith(projectId, mediaId))
-    await waitFor(() => expect(state.refetch).toHaveBeenCalled())
+    const dialog = within(screen.getByRole('dialog', { name: 'Approve media' }))
+    const confirm = dialog.getByRole('button', { name: 'Approve media' }) as HTMLButtonElement
+    fireEvent.click(dialog.getByLabelText(mediaChecklistItems.noIdentifiableMinor))
+    expect(confirm.disabled).toBe(true)
+    fireEvent.click(confirm)
+    expect(state.approve).not.toHaveBeenCalled()
+    fireEvent.click(dialog.getByLabelText(mediaChecklistItems.imageConsentOnFile))
+    expect(confirm.disabled).toBe(false)
   })
 
   it.each([
@@ -150,7 +178,7 @@ describe('public media queue', () => {
   it('shows the server message when approval fails', async () => {
     state.approve.mockRejectedValue(new Error('A different reviewer must approve this media.'))
     render(<PublicMediaQueue projectId={projectId} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Approve visit.jpg' }))
+    approveWithChecklist()
     await waitFor(() =>
       expect(state.toastError).toHaveBeenCalledWith(
         'A different reviewer must approve this media.',

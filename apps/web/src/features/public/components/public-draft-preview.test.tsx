@@ -6,13 +6,19 @@ import type { ProjectSummary } from '@/types/pathways'
 import { PublicDraftPreview } from './public-draft-preview'
 
 const projectId = '10000000-0000-4000-8000-000000000002'
-const read = vi.hoisted(() => ({ enabled: [] as boolean[], items: [] as unknown[] }))
+const read = vi.hoisted(() => ({
+  enabled: [] as boolean[],
+  items: [] as unknown[],
+  review: undefined as unknown,
+}))
 const client = vi.hoisted(() => ({ contentBlob: vi.fn(), list: vi.fn() }))
 
 vi.mock('@/lib/api/public-media', () => ({ publicMediaClient: client }))
+vi.mock('echarts-for-react', () => ({ default: () => <div>chart</div> }))
 vi.mock('@/hooks/use-permission', () => ({ usePermission: () => () => true }))
 vi.mock('@/hooks/use-authorized-read', () => ({
-  useAuthorizedRead: (_key: string, _id: string, _p: string, _f: unknown, enabled: boolean) => {
+  useAuthorizedRead: (key: string, _id: string, _p: string, _f: unknown, enabled: boolean) => {
+    if (key === 'publication-review') return { data: enabled ? read.review : undefined }
     read.enabled.push(enabled)
     return { data: enabled ? { items: read.items } : undefined }
   },
@@ -63,6 +69,7 @@ describe('public draft staff preview', () => {
     vi.clearAllMocks()
     read.enabled = []
     read.items = []
+    read.review = undefined
     client.contentBlob.mockReturnValue(new Promise(() => {}))
   })
   afterEach(cleanup)
@@ -144,5 +151,35 @@ describe('public draft staff preview', () => {
     )
     expect(screen.getAllByText('Synthetic area').length).toBeGreaterThan(0)
     expect(screen.getByText('First summary.')).toBeTruthy()
+  })
+
+  it('shows the approver the revision under review with counts under 5 marked (0097)', () => {
+    const metric = (value: string) => ({ state: 'AVAILABLE', value, reason: null })
+    read.review = {
+      saddd: {
+        view: 'saddd',
+        total: metric('3'),
+        sex: [{ key: 'FEMALE', label: 'Female', metric: metric('3') }],
+        age: [],
+        disability: [],
+      },
+    }
+    render(
+      <PublicDraftPreview
+        current={{
+          ...current,
+          state: 'FOR_REVIEW',
+          snapshot: { ...current.snapshot, views: ['saddd'] },
+        }}
+        edited={false}
+        media={[{ id: photo(1).id, caption: 'Photo 1' }]}
+        project={project}
+        summary="Submitted summary."
+        views={['saddd']}
+      />,
+    )
+    open()
+    expect(screen.getByRole('note').textContent).toContain('Counts under 5')
+    expect(screen.queryByText('Live chart appears here once published')).toBeNull()
   })
 })
