@@ -170,6 +170,60 @@ BEGIN
  RETURN NEW;
 END $$;
 
+-- 3b. The review guard (marked 0097): the media checklist may change with the public approval columns, as they do.
+CREATE OR REPLACE FUNCTION pathways.p3_guard_review() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE allowed text[] := ARRAY['updated_at','status','verified_by_id','verified_at','approved_by_id','approved_at','rejected_by_id','rejected_at','rejection_reason']; proof pathways.evidence_media;
+BEGIN
+ IF TG_OP='INSERT' THEN
+  IF NEW.status<>'PENDING' THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Review records must begin PENDING'; END IF;
+ ELSE
+  IF TG_TABLE_NAME='evidence_media' THEN
+   -- 0097: the media approval checklist is written with the public approval.
+   allowed:=allowed||ARRAY['storage_ready','public_visibility_status','public_submitted_by_id','public_submitted_at','public_approved_by_id','public_approved_at','published_by_id','published_at','public_approval_checklist'];
+   IF OLD.storage_ready AND NOT NEW.storage_ready THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Stored evidence cannot be unfinalized'; END IF;
+  ELSIF OLD.status='PENDING' THEN allowed:=allowed||ARRAY['receipt_evidence_id']; END IF;
+  IF (to_jsonb(NEW)-allowed) IS DISTINCT FROM (to_jsonb(OLD)-allowed) THEN
+   RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Submitted financial/evidence provenance is immutable';
+  END IF;
+  IF NEW.status=OLD.status THEN
+   IF (to_jsonb(NEW)-ARRAY['updated_at','storage_ready','receipt_evidence_id','public_visibility_status','public_submitted_by_id','public_submitted_at','public_approved_by_id','public_approved_at','published_by_id','published_at','public_approval_checklist'])
+    IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['updated_at','storage_ready','receipt_evidence_id','public_visibility_status','public_submitted_by_id','public_submitted_at','public_approved_by_id','public_approved_at','published_by_id','published_at','public_approval_checklist']) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Review actor history cannot be rewritten';
+   END IF;
+  ELSE
+   IF NOT ((OLD.status='PENDING' AND NEW.status IN ('VERIFIED','REJECTED')) OR (OLD.status='VERIFIED' AND NEW.status IN ('APPROVED','REJECTED'))) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Invalid review transition';
+   END IF;
+   IF OLD.status='VERIFIED' AND (NEW.verified_by_id IS DISTINCT FROM OLD.verified_by_id OR NEW.verified_at IS DISTINCT FROM OLD.verified_at) THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Verification history is immutable';
+   END IF;
+   IF OLD.status='PENDING' AND NEW.status='REJECTED' AND NEW.verified_by_id IS NOT NULL THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Cannot manufacture earlier verification';
+   END IF;
+  END IF;
+ END IF;
+ IF TG_TABLE_NAME='budget_expense_entries' THEN
+  PERFORM 1 FROM pathways.project_budget_records WHERE id=NEW.budget_record_id AND archived_at IS NULL FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Expense requires a nonarchived budget'; END IF;
+  IF NEW.receipt_evidence_id IS NOT NULL THEN
+   SELECT * INTO proof FROM pathways.evidence_media WHERE id=NEW.receipt_evidence_id FOR SHARE;
+   IF NOT FOUND OR proof.organization_id<>NEW.organization_id OR proof.project_id<>NEW.project_id OR proof.expense_id IS DISTINCT FROM NEW.id
+    OR proof.submitted_by_id<>NEW.submitted_by_id THEN
+    RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Receipt must belong to this expense, scope and submitter';
+   END IF;
+  END IF;
+  IF NEW.status IN ('VERIFIED','APPROVED') AND (NEW.receipt_evidence_id IS NULL OR proof.status NOT IN ('VERIFIED','APPROVED')) THEN
+   RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Verified private receipt evidence is required';
+  END IF;
+ ELSIF NEW.status='REJECTED' AND EXISTS(SELECT FROM pathways.budget_expense_entries WHERE receipt_evidence_id=NEW.id AND status IN ('VERIFIED','APPROVED')) THEN
+  RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Receipt supporting verified financial history cannot be rejected';
+ END IF;
+ RETURN NEW;
+END $$;
+
 -- 4. One view body for the public page and the review read; it reads with its caller's (prisma) rights and no API role may call it.
 CREATE FUNCTION pathways.p97_view_payload(p_org uuid, p_project uuid, p_snap jsonb, p_status text, p_start date, p_end date, p_view text)
  RETURNS jsonb LANGUAGE plpgsql STABLE SET search_path='' AS $$
@@ -262,6 +316,8 @@ BEGIN
   OR (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p34_guard_publication()'::pg_catalog.regprocedure,
       'pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure) AND p.prosrc LIKE '%(0097)%' AND NOT p.prosecdef
       AND pg_catalog.pg_get_userbyid(p.proowner)='prisma') <> 2
+  OR (SELECT p.prosrc LIKE '%0097%public_approval_checklist%' AND NOT p.prosecdef AND pg_catalog.pg_get_userbyid(p.proowner)='prisma'
+      FROM pg_catalog.pg_proc p WHERE p.oid='pathways.p3_guard_review()'::pg_catalog.regprocedure) IS NOT TRUE
   OR (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.oid IN ('pathways.p87_public_view(uuid,text)'::pg_catalog.regprocedure,
       'pathways.p97_review_view(uuid,text)'::pg_catalog.regprocedure) AND p.prosecdef AND p.proconfig=ARRAY['search_path=""']
       AND pg_catalog.pg_get_userbyid(p.proowner)='prisma'
