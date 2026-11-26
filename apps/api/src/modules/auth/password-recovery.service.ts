@@ -15,6 +15,11 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { verifiedAuthOrigin } from '../users/auth-directory.service'
 
 const bearerPattern = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/
+
+// The access token of an Authorization header, or undefined when it is not a bearer JWT.
+export const bearerToken = (authorization: string | undefined) =>
+  bearerPattern.exec(authorization ?? '')?.[1]
+
 const unconfirmed = () =>
   new ServiceUnavailableException('The password change could not be confirmed.')
 
@@ -26,7 +31,7 @@ export class PasswordRecoveryService {
 
   // Sets the password through the admin API, so a recovery session works with or without MFA enrolled.
   async complete(authorization: string | undefined, password: string) {
-    const token = bearerPattern.exec(authorization ?? '')?.[1]
+    const token = bearerToken(authorization)
     if (!token) throw new UnauthorizedException('Invalid or expired recovery session.')
     const client = this.client()
     const userId = await this.recoveryUserId(client, token)
@@ -42,6 +47,13 @@ export class PasswordRecoveryService {
       // The password change is committed even when ending the sessions is unconfirmed.
     }
     return { ok: true as const, sessionsClosed }
+  }
+
+  // Revokes every Supabase session of the token's user except the token's own; Supabase has no revoke by session id.
+  async revokeOtherSessions(accessToken: string): Promise<void> {
+    const { error } = await this.client().auth.admin.signOut(accessToken, 'others')
+    if (error)
+      throw new ServiceUnavailableException('Other devices could not be signed out. Try again.')
   }
 
   // Sets the password of an Auth user through the admin client; the caller proves who the user is.

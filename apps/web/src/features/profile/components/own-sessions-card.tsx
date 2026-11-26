@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { ConfirmationDialog } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { isStepUpRequired } from '@/features/settings/backup-recovery.utils'
+import { StepUpCodeField, useStepUpCode } from '@/features/settings/components/step-up-code-field'
 import { type AppSession, sessionsClient } from '@/lib/api/sessions'
 import { deviceLabel } from '../session-device'
 
@@ -13,11 +16,17 @@ const timeFormatter = new Intl.DateTimeFormat('en-PH', {
 })
 const formatTime = (value: string) => timeFormatter.format(new Date(value))
 
-// The caller's signed-in devices, with sign-out per device and for every other device.
+type Target = { kind: 'one'; session: AppSession } | { kind: 'others' }
+
+// The caller's signed-in devices, with sign-out per device and for every other device, each behind an authenticator code.
 export const OwnSessionsCard = () => {
   const [sessions, setSessions] = useState<AppSession[] | null>(null)
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [target, setTarget] = useState<Target | null>(null)
+  const [required, setRequired] = useState(false)
+  const [dialogNotice, setDialogNotice] = useState('')
+  const step = useStepUpCode(target !== null, required)
 
   const load = useCallback(async () => {
     try {
@@ -31,14 +40,34 @@ export const OwnSessionsCard = () => {
     void load()
   }, [load])
 
-  const run = async (action: () => Promise<void>, done: string) => {
+  const close = () => {
+    setTarget(null)
+    setRequired(false)
+    setDialogNotice('')
+  }
+
+  const confirm = async () => {
+    if (!target || !(await step.verify())) return
     setBusy(true)
-    setNotice('')
+    setDialogNotice('')
     try {
-      await action()
-      setNotice(done)
-    } catch {
-      setNotice('Signing out could not be completed. Try again.')
+      if (target.kind === 'one') await sessionsClient.end(target.session.id)
+      else await sessionsClient.endOthers()
+      setNotice(
+        target.kind === 'one'
+          ? 'That device was signed out.'
+          : 'Your other devices were signed out.',
+      )
+      close()
+    } catch (caught) {
+      if (isStepUpRequired(caught)) {
+        // The dialog stays open with the code field, since the API asked for a fresh code.
+        setRequired(true)
+        setDialogNotice('Enter the code from your authenticator app to continue.')
+      } else {
+        setNotice('Signing out could not be completed. Try again.')
+        close()
+      }
     } finally {
       // Reloaded either way: a device that already signed out leaves the list.
       await load()
@@ -75,9 +104,7 @@ export const OwnSessionsCard = () => {
                   size="sm"
                   type="button"
                   variant="outline"
-                  onClick={() =>
-                    void run(() => sessionsClient.end(session.id), 'That device was signed out.')
-                  }
+                  onClick={() => setTarget({ kind: 'one', session })}
                 >
                   Sign out
                 </Button>
@@ -91,14 +118,30 @@ export const OwnSessionsCard = () => {
           disabled={busy}
           type="button"
           variant="outline"
-          onClick={() =>
-            void run(() => sessionsClient.endOthers(), 'Your other devices were signed out.')
-          }
+          onClick={() => setTarget({ kind: 'others' })}
         >
           Sign out other devices
         </Button>
       )}
       {notice && <output className="block text-sm">{notice}</output>}
+      <ConfirmationDialog
+        open={target !== null}
+        // A running code check or sign-out keeps its dialog, so its result is never lost.
+        onOpenChange={(next) => step.checking || busy || next || close()}
+        title={
+          target?.kind === 'one'
+            ? `Sign out ${deviceLabel(target.session.device)}?`
+            : 'Sign out other devices?'
+        }
+        description="You will need to sign in again on that device."
+        confirmLabel="Sign out"
+        confirmVariant="default"
+        confirmDisabled={busy || step.checking || step.incomplete}
+        onConfirm={() => void confirm()}
+      >
+        <StepUpCodeField step={step} />
+        {dialogNotice && <p className="text-sm">{dialogNotice}</p>}
+      </ConfirmationDialog>
     </div>
   )
 }
