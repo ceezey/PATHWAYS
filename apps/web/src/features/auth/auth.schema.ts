@@ -1,3 +1,4 @@
+import { commonPasswordMessage, isCommonPassword } from '@pathways/shared'
 import { z } from 'zod'
 
 const passwordMessage =
@@ -11,6 +12,7 @@ export const strongPasswordSchema = z
   .regex(/[A-Z]/, passwordMessage)
   .regex(/[0-9]/, passwordMessage)
   .regex(/[^A-Za-z0-9]/, passwordMessage)
+  .refine((value) => !isCommonPassword(value), commonPasswordMessage)
 
 export const recoveryRequestSchema = z.object({
   email: z.string().trim().email('Enter a valid staff email address.'),
