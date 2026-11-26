@@ -5,7 +5,8 @@ export default function AuthLayout({ children }: Readonly<{ children: React.Reac
   return (
     <div className="min-h-screen">
       <SkipLink />
-      <SiteHeader />
+      {/* These pages live on the staff address, so public links name the public address. */}
+      <SiteHeader publicSiteUrl={process.env.NEXT_PUBLIC_PUBLIC_SITE_BASE_URL} />
       <main
         className="mx-auto flex min-h-[calc(100vh-73px)] w-full max-w-6xl items-center px-6 py-12"
         id="main-content"
