@@ -32,7 +32,7 @@ class Routes {
 type Call = { headers?: Record<string, string>; body?: unknown; ip?: string }
 
 function caller(route: keyof Routes, env: Record<string, string> = {}) {
-  vi.stubEnv('PUBLIC_VISITOR_TOKEN', env.PUBLIC_VISITOR_TOKEN ?? '')
+  vi.stubEnv('VISITOR_FORWARD_TOKEN', env.VISITOR_FORWARD_TOKEN ?? '')
   if (env.VERCEL) vi.stubEnv('VERCEL', env.VERCEL)
   const { service, hits } = counter()
   const guard = new RateLimitGuard(service as unknown as RateLimitService, new Reflector())
@@ -136,7 +136,7 @@ describe('public analytics limit', () => {
   })
 
   it('gives each forwarded visitor their own 120 per minute', async () => {
-    const { call } = caller('analytics', { PUBLIC_VISITOR_TOKEN: TOKEN })
+    const { call } = caller('analytics', { VISITOR_FORWARD_TOKEN: TOKEN })
     for (let i = 0; i < 120; i++)
       expect(await call({ headers: visitor('198.51.100.1') })).toMatchObject({ allowed: true })
     expect(await call({ headers: visitor('198.51.100.1') })).toMatchObject({ status: 429 })
@@ -144,7 +144,7 @@ describe('public analytics limit', () => {
   })
 
   it('ignores the visitor header without the right token', async () => {
-    const { call, hits } = caller('analytics', { PUBLIC_VISITOR_TOKEN: TOKEN })
+    const { call, hits } = caller('analytics', { VISITOR_FORWARD_TOKEN: TOKEN })
     await call({ headers: visitor('198.51.100.1', 'd'.repeat(64)) })
     expect([...hits.keys()]).toEqual(['analytics:10.0.0.1'])
   })
@@ -175,7 +175,7 @@ describe('over HTTP', () => {
         return { ok: true }
       }
     }
-    vi.stubEnv('PUBLIC_VISITOR_TOKEN', '')
+    vi.stubEnv('VISITOR_FORWARD_TOKEN', '')
     const module = await Test.createTestingModule({
       controllers: [Limited],
       providers: [{ provide: RateLimitService, useValue: { hit: async () => 17 } }],

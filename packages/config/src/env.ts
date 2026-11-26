@@ -18,7 +18,7 @@ export const webEnvSchema = z.object({
   // Any other value enforces, so a typo fails to the strict side.
   CSP_MODE: z.enum(['enforce', 'report-only']).catch('enforce'),
   // Server-only; must equal the API setting of the same name. Empty sends no visitor address.
-  PUBLIC_VISITOR_TOKEN: optionalString,
+  VISITOR_FORWARD_TOKEN: optionalString,
   WEB_PORT: z.coerce.number().default(3000),
 })
 
@@ -48,7 +48,7 @@ export const apiEnvSchema = z
     BACKUP_JOB_TOKEN: optionalString,
     BACKUP_JOB_DATABASE_URL: optionalString,
     // Shared with the public web server so it can forward each visitor's address; empty turns the analytics limit off.
-    PUBLIC_VISITOR_TOKEN: optionalString,
+    VISITOR_FORWARD_TOKEN: optionalString,
     DATABASE_URL: optionalString,
     DIRECT_URL: optionalString,
     SUPABASE_URL: optionalUrl,
@@ -93,13 +93,13 @@ export const apiEnvSchema = z
       issue('BACKUP_JOB_DATABASE_URL', 'Dedicated backup job database configuration is invalid.')
     if (backupToken && !backupUrl)
       issue('BACKUP_JOB_DATABASE_URL', 'A dedicated backup job credential is required.')
-    const visitorToken = env.PUBLIC_VISITOR_TOKEN
+    const visitorToken = env.VISITOR_FORWARD_TOKEN
     if (
       visitorToken &&
       (!token.test(visitorToken) ||
         [env.RULES_DRAIN_TOKEN, env.RULES_SWEEP_TOKEN, backupToken].includes(visitorToken))
     )
-      issue('PUBLIC_VISITOR_TOKEN', 'A dedicated visitor forwarding credential is required.')
+      issue('VISITOR_FORWARD_TOKEN', 'A dedicated visitor forwarding credential is required.')
     if (!env.RULES_WORKER_ENABLED) return
     if (!token.test(env.RULES_DRAIN_TOKEN))
       issue('RULES_DRAIN_TOKEN', 'A fixed dedicated drain credential is required.')

@@ -13,7 +13,7 @@ import { z } from 'zod'
 
 // Visitor address for the API per-visitor limit; next/headers keeps this server-only, and only Vercel x-real-ip is trusted, with the shared token.
 async function visitorHeaders(): Promise<Record<string, string> | undefined> {
-  const token = webEnv.PUBLIC_VISITOR_TOKEN
+  const token = webEnv.VISITOR_FORWARD_TOKEN
   if (!token || process.env.VERCEL !== '1') return undefined
   const address = (await headers()).get('x-real-ip')?.trim()
   if (!address || !isIP(address)) return undefined
