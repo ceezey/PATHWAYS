@@ -21,6 +21,8 @@ describe('env readers', () => {
     const env = readApiEnv({})
 
     expect(env.API_PORT).toBe(4000)
+    expect(env.ENABLE_SWAGGER).toBe(false)
+    expect(readApiEnv({ ENABLE_SWAGGER: 'true' }).ENABLE_SWAGGER).toBe(true)
     expect(env).not.toHaveProperty('DEV_ADMIN_EMAIL')
     expect(env).not.toHaveProperty('DEV_ADMIN_SUPABASE_ID')
   })

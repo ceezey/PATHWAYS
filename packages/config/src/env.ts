@@ -24,9 +24,10 @@ export const apiEnvSchema = z
   .object({
     API_PORT: z.coerce.number().default(4000),
     API_PREFIX: z.string().default('api'),
+    // Off unless set to true, so no environment serves the API docs by mistake.
     ENABLE_SWAGGER: z
       .enum(['true', 'false'])
-      .default('true')
+      .default('false')
       .transform((value) => value === 'true'),
     RULES_WORKER_ENABLED: z
       .enum(['true', 'false'])
