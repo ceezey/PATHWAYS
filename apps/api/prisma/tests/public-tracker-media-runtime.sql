@@ -71,7 +71,7 @@ $$;
 CREATE FUNCTION pg_temp.queue_approved(media_n integer) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
  PERFORM pg_temp.media_move(21,media_n,format($a$public_visibility_status='FOR_REVIEW',public_submitted_by_id=%L,public_submitted_at=now()$a$,pg_temp.u(21)));
- PERFORM pg_temp.media_move(23,media_n,format($a$public_visibility_status='APPROVED',public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(23)));
+ PERFORM pg_temp.media_move(23,media_n,format($a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(23)));
 END $$;
 -- A selection item as the API sends it.
 CREATE FUNCTION pg_temp.pick(media_n integer, caption text) RETURNS jsonb LANGUAGE sql AS $$
@@ -119,7 +119,7 @@ SELECT pg_temp.ok('catalog', (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.
   AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE')
   AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE'))=2
  AND EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::regclass AND conname='p3_evidence_public' AND convalidated)
- AND (SELECT md5(prosrc)='32c52a969c76775b0a86b6731c3d6fff' AND NOT prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::regprocedure)
+ AND (SELECT md5(prosrc)='0a3bbf27aa39aa691d7ba0cd57c876cc' AND NOT prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::regprocedure)
  AND (SELECT md5(prosrc)='2e377c27df955be9547b46648b7c32d9' AND prosecdef FROM pg_catalog.pg_proc WHERE oid='pathways.p85_public_projects(uuid,integer,integer)'::regprocedure)
  AND EXISTS(SELECT FROM pg_catalog.pg_trigger WHERE tgname='p3_40_public' AND tgenabled='O' AND tgrelid='pathways.evidence_media'::regclass));
 
@@ -177,20 +177,20 @@ SELECT pg_temp.media_move(21,101,format($a$public_visibility_status='FOR_REVIEW'
 SELECT pg_temp.ok('queue_upload_flow queued', (SELECT storage_ready AND public_visibility_status='FOR_REVIEW'
  AND public_submitted_by_id=pg_temp.u(21) FROM pg_temp.media(101)));
 SELECT pg_temp.act_as(21);
-SELECT pg_temp.refused('queue_upload_flow uploader cannot approve', pg_temp.media_sql(101,format($a$public_visibility_status='APPROVED',
+SELECT pg_temp.refused('queue_upload_flow uploader cannot approve', pg_temp.media_sql(101,format($a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',
  public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(21))),'23514','p3_evidence_public');
 -- The approval must be recorded: no approver fails the CHECK even with the session binding bypassed, and as runtime the
 -- approver must be the acting user.
 RESET SESSION AUTHORIZATION;
-SELECT pg_temp.refused('queue_upload_flow approver required', pg_temp.media_sql(101,$a$public_visibility_status='APPROVED'$a$),
+SELECT pg_temp.refused('queue_upload_flow approver required', pg_temp.media_sql(101,$a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}'$a$),
  '23514','p3_evidence_public');
 SET LOCAL SESSION AUTHORIZATION pathways_runtime;
 SELECT pg_temp.act_as(22);
-SELECT pg_temp.refused('queue_upload_flow approver unrecorded', pg_temp.media_sql(101,$a$public_visibility_status='APPROVED'$a$),
+SELECT pg_temp.refused('queue_upload_flow approver unrecorded', pg_temp.media_sql(101,$a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}'$a$),
  '42501','acting user');
-SELECT pg_temp.refused('queue_upload_flow approver is the session user', pg_temp.media_sql(101,format($a$public_visibility_status='APPROVED',
+SELECT pg_temp.refused('queue_upload_flow approver is the session user', pg_temp.media_sql(101,format($a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',
  public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(23))),'42501','acting user');
-SELECT pg_temp.media_move(22,101,format($a$public_visibility_status='APPROVED',public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(22)));
+SELECT pg_temp.media_move(22,101,format($a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(22)));
 SELECT pg_temp.ok('queue_upload_flow approved', (SELECT public_visibility_status='APPROVED' AND public_approved_by_id=pg_temp.u(22)
  FROM pg_temp.media(101)));
 -- The approved upload is pickable: the first SUBMIT freezes it with its type, content type and trimmed caption.
@@ -209,12 +209,12 @@ SELECT pg_temp.refused('beneficiary_media_queue sender is the session user', pg_
  public_submitted_by_id=%L,public_submitted_at=now()$a$,pg_temp.u(21))),'42501','acting user');
 SELECT pg_temp.media_move(22,102,format($a$public_visibility_status='FOR_REVIEW',public_submitted_by_id=%L,public_submitted_at=now()$a$,pg_temp.u(22)));
 SELECT pg_temp.act_as(21);
-SELECT pg_temp.refused('beneficiary_media_queue uploader cannot approve', pg_temp.media_sql(102,format($a$public_visibility_status='APPROVED',
+SELECT pg_temp.refused('beneficiary_media_queue uploader cannot approve', pg_temp.media_sql(102,format($a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',
  public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(21))),'23514','p3_evidence_public');
 SELECT pg_temp.act_as(22);
-SELECT pg_temp.refused('beneficiary_media_queue sender cannot approve', pg_temp.media_sql(102,format($a$public_visibility_status='APPROVED',
+SELECT pg_temp.refused('beneficiary_media_queue sender cannot approve', pg_temp.media_sql(102,format($a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',
  public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(22))),'23514','p3_evidence_public');
-SELECT pg_temp.media_move(23,102,format($a$public_visibility_status='APPROVED',public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(23)));
+SELECT pg_temp.media_move(23,102,format($a$public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',public_approved_by_id=%L,public_approved_at=now()$a$,pg_temp.u(23)));
 SELECT pg_temp.ok('beneficiary_media_queue', (SELECT public_visibility_status='APPROVED' AND enrollment_id IS NOT NULL AND status='PENDING'
  FROM pg_temp.media(102)));
 
@@ -279,7 +279,7 @@ SELECT pg_temp.refused('published_state_unused', pg_temp.media_sql(101,format($a
 -- public_media_live_only: revision with approved uploads 101 and 112 is approved and published by B.
 SELECT pg_temp.queue_approved(112);
 SELECT pg_temp.submit(jsonb_build_array(pg_temp.pick(101,'Live photo'),pg_temp.pick(112,'Second photo')));
-SELECT pg_temp.pub_move(22,$$state='APPROVED'$$);
+SELECT pg_temp.pub_move(22,$$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$$);
 SELECT pg_temp.pub_move(22,$$state='PUBLISHED'$$);
 SELECT pg_temp.act_as(0);
 SELECT pg_temp.ok('public_media_live_only live', (SELECT pathways.p86_public_media(pg_temp.u(41),pg_temp.u(101))=jsonb_build_object(

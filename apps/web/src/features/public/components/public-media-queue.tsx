@@ -14,6 +14,7 @@ import { usePermission } from '@/hooks/use-permission'
 import { publicMediaClient } from '@/lib/api/public-media'
 import type { PublicMediaListItem } from '@pathways/shared'
 
+import { ApprovalChecklist, checklistComplete, mediaChecklistItems } from './approval-checklist'
 import { PublicMediaStepUpNote } from './public-media-step-up-note'
 import { PublicMediaThumb } from './public-media-thumb'
 
@@ -35,6 +36,8 @@ export const PublicMediaQueue = ({ projectId }: { projectId: string }) => {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<PublicMediaListItem | null>(null)
   const [reason, setReason] = useState('')
+  const [approving, setApproving] = useState<PublicMediaListItem | null>(null)
+  const [ticked, setTicked] = useState<Set<string>>(() => new Set())
   const waiting =
     list.data?.items.filter(
       (item) => item.publicStatus === 'FOR_REVIEW' && item.status !== 'REJECTED',
@@ -52,6 +55,10 @@ export const PublicMediaQueue = ({ projectId }: { projectId: string }) => {
     } finally {
       setBusyId(null)
     }
+  }
+  const closeApprove = () => {
+    setApproving(null)
+    setTicked(new Set())
   }
   const closeReject = () => {
     setRejecting(null)
@@ -105,13 +112,7 @@ export const PublicMediaQueue = ({ projectId }: { projectId: string }) => {
                     <Button
                       aria-label={`Approve ${item.fileName}`}
                       disabled={busyId !== null}
-                      onClick={() =>
-                        void act(
-                          item,
-                          () => publicMediaClient.approve(projectId, item.id),
-                          'Media approved.',
-                        )
-                      }
+                      onClick={() => setApproving(item)}
                       size="sm"
                       type="button"
                       variant="outline"
@@ -141,6 +142,36 @@ export const PublicMediaQueue = ({ projectId }: { projectId: string }) => {
       ) : (
         <p className="text-sm text-muted-foreground">No media is waiting for approval.</p>
       )}
+      <ConfirmationDialog
+        confirmDisabled={busyId !== null || !checklistComplete(mediaChecklistItems, ticked)}
+        confirmLabel="Approve media"
+        confirmVariant="default"
+        description={`Approving ${approving?.fileName ?? 'this media'} lets it be picked for the public page.`}
+        onConfirm={() => {
+          if (!approving) return
+          const target = approving
+          closeApprove()
+          void act(
+            target,
+            () =>
+              publicMediaClient.approve(projectId, target.id, {
+                noIdentifiableMinor: true,
+                imageConsentOnFile: true,
+              }),
+            'Media approved.',
+          )
+        }}
+        onOpenChange={(open) => !open && closeApprove()}
+        open={approving !== null}
+        title="Approve media"
+      >
+        <ApprovalChecklist
+          idPrefix="public-media-approval"
+          items={mediaChecklistItems}
+          onChange={setTicked}
+          ticked={ticked}
+        />
+      </ConfirmationDialog>
       <ConfirmationDialog
         confirmDisabled={!reason.trim() || busyId !== null}
         confirmLabel="Reject media"

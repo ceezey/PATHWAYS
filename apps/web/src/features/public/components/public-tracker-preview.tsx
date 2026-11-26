@@ -73,7 +73,20 @@ export const PreviewFrame = ({
   project,
   state,
   draft,
-}: { project: Project; state: string; draft?: boolean }) => {
+  analytics,
+  reviewPending,
+  reviewNotice,
+}: {
+  project: Project
+  state: string
+  draft?: boolean
+  // The approver's review figures; given, the charts show them with counts under 5 marked.
+  analytics?: Parameters<typeof PublicTrackerDetail>[0]['analytics']
+  // The review figures are still loading.
+  reviewPending?: boolean
+  // Shown above the charts when some review figures could not be read.
+  reviewNotice?: string
+}) => {
   const preview = usePreviewMedia(project.id, project.media)
   return (
     <div className="-mx-4 overflow-hidden rounded-lg border border-border sm:mx-0">
@@ -83,6 +96,10 @@ export const PreviewFrame = ({
         mediaSrc={preview.src}
         mediaPlaceholder={preview.placeholder}
         draft={draft}
+        analytics={analytics}
+        review={Boolean(analytics)}
+        reviewPending={reviewPending}
+        reviewNotice={reviewNotice}
       />
     </div>
   )

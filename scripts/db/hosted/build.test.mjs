@@ -144,7 +144,7 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
     )
   }
   assert.ok(kinds.includes('resolve'))
-  assert.equal(kinds.filter((k) => k === 'deploy').length, 62)
+  assert.equal(kinds.filter((k) => k === 'deploy').length, 63)
   assert.equal(kinds.filter((k) => k === 'psqlFile').length, 35) // 18 preprovision + 17 cleanup
 })
 

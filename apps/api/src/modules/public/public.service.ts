@@ -34,14 +34,10 @@ type PublicationRow = {
   publishedById: string | null
   updatedAt: Date
 }
-// The publication guard's refusal of a chosen photo or video that is no longer pickable (0086 p85_publication_media).
-const mediaNotPublishable = (error: unknown) => {
+// A publication guard refusal (23514) whose message names the given reason.
+const guardRefusal = (error: unknown, reason: string) => {
   const meta = (error as { meta?: { code?: unknown; message?: unknown } } | null)?.meta
-  return (
-    meta?.code === '23514' &&
-    typeof meta.message === 'string' &&
-    meta.message.includes('Media not publishable')
-  )
+  return meta?.code === '23514' && typeof meta.message === 'string' && meta.message.includes(reason)
 }
 const permissions = {
   SUBMIT: 'public.preview',
@@ -130,7 +126,8 @@ export class PublicService {
     if (
       !parsed.success ||
       (operation === 'SUBMIT') !== (parsed.data.summary !== undefined) ||
-      (operation === 'SUBMIT') !== (parsed.data.selection !== undefined)
+      (operation === 'SUBMIT') !== (parsed.data.selection !== undefined) ||
+      (operation === 'APPROVE') !== (parsed.data.checklist !== undefined)
     )
       throw new BadRequestException('Invalid publication request.')
     const body = { ...parsed.data, clientRequestId: parsed.data.clientRequestId.toLowerCase() }
@@ -202,8 +199,10 @@ export class PublicService {
           try {
             return await tx.$queryRaw<PublicationRow[]>(query)
           } catch (error) {
-            if (mediaNotPublishable(error))
+            if (guardRefusal(error, 'Media not publishable'))
               throw new BadRequestException('A chosen photo or video is no longer publishable.')
+            if (guardRefusal(error, 'Publication checklist required'))
+              throw new BadRequestException('Confirm every approval checklist item.')
             throw error
           }
         }
@@ -231,6 +230,9 @@ export class PublicService {
               : [Prisma.sql`revision=${revision}`, Prisma.sql`state=${state}`]
           if (operation === 'SUBMIT')
             sets.push(Prisma.sql`summary=${body.summary}`, Prisma.sql`snapshot=${picked}`)
+          // The guard refuses an approval without the full checklist (0097).
+          if (operation === 'APPROVE')
+            sets.push(Prisma.sql`approval_checklist=${JSON.stringify(body.checklist)}::jsonb`)
           if (operation === 'WITHDRAW')
             sets.push(
               Prisma.sql`live_revision=NULL,live_snapshot=NULL,live_published_at=NULL,live_published_by_id=NULL`,

@@ -70,7 +70,11 @@ export async function ensurePublicMedia(ctx: DemoContext, key: keyof typeof publ
     }
     if (row.publicVisibilityStatus === 'FOR_REVIEW') {
       const id = row.id
-      await step(`approve ${file.fileName}`, () => service.approve(approver, projectId, id))
+      // The synthetic approver confirms the checklist that 0097 requires.
+      const checklist = { noIdentifiableMinor: true, imageConsentOnFile: true } as const
+      await step(`approve ${file.fileName}`, () =>
+        service.approve(approver, projectId, id, checklist),
+      )
       row.publicVisibilityStatus = 'APPROVED'
       approved += 1
     }

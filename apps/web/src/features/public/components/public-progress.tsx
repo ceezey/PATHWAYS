@@ -17,6 +17,7 @@ import { overviewMetricLabel } from '@/features/projects'
 import type { PublicAnalyticsResponse, PublicView } from '@pathways/shared'
 
 import { shell } from './public-sections'
+import { smallCounts } from './small-counts'
 
 type Body<V extends PublicView> = Extract<PublicAnalyticsResponse, { view: V }>
 
@@ -136,15 +137,48 @@ const body = (
   }
 }
 
+// The approver's marker above one chart: every people count under 5, so a small group is checked before approval.
+const SmallCountMarker = ({
+  response,
+}: { response: PublicAnalyticsResponse | null | undefined }) => {
+  const counts = response ? smallCounts(response) : []
+  return counts.length ? (
+    <div
+      className="mb-4 rounded-md border border-warning/40 bg-warning-subtle p-3 text-sm"
+      role="note"
+    >
+      <p className="font-semibold text-foreground">
+        Counts under 5: check that none of these can identify a person
+      </p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground">
+        {counts.map((count, index) => (
+          <li key={`${index}:${count.label}`}>
+            {count.label}: <span className="tabular-nums">{count.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : null
+}
+
 // The live charts a published page chose, one card per view; a failed view shows only its own notice.
+// review marks small counts for the approver; the public page never passes it, so it shows exact counts unmarked.
 export const PublicProgress = ({
   views,
   data,
   placeholder,
+  review,
+  pending,
+  notice,
 }: {
   views: PublicView[]
   data?: Partial<Record<PublicView, PublicAnalyticsResponse | null>>
   placeholder?: boolean
+  review?: boolean
+  // The approver's review figures are loading; each chart says so instead of the placeholder.
+  pending?: boolean
+  // A review warning above the charts, such as charts whose small counts could not be checked.
+  notice?: string
 }) =>
   views.length === 0 ? null : (
     <section className={`${shell} pb-8 sm:pb-12`}>
@@ -157,14 +191,29 @@ export const PublicProgress = ({
             Live
           </span>
         </div>
+        {notice ? (
+          <p
+            className="rounded-md border border-warning/40 bg-warning-subtle p-3 text-sm font-medium text-foreground"
+            role="alert"
+          >
+            {notice}
+          </p>
+        ) : null}
         {views.map((view) => (
           <ChartPanel key={view} title={titles[view]}>
-            {placeholder ? (
+            {pending ? (
+              <output className="block text-sm text-muted-foreground">
+                Loading the figures for review
+              </output>
+            ) : placeholder ? (
               <p className="text-sm text-muted-foreground">
                 Live chart appears here once published
               </p>
             ) : (
-              body(view, data?.[view])
+              <>
+                {review ? <SmallCountMarker response={data?.[view]} /> : null}
+                {body(view, data?.[view])}
+              </>
             )}
           </ChartPanel>
         ))}

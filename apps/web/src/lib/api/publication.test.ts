@@ -211,6 +211,27 @@ describe('publicationClient publication transition', () => {
   })
 })
 
+describe('publicationClient review read (0097)', () => {
+  it('reads one chart of the revision under review and refuses a different view', async () => {
+    const saddd = {
+      view: 'saddd',
+      total: { state: 'AVAILABLE', value: '3', reason: null },
+      sex: [],
+      age: [],
+      disability: [],
+    }
+    fetcher.mockResolvedValueOnce(json(saddd))
+    await expect(publicationClient.review(projectId, 'saddd')).resolves.toEqual(saddd)
+    expect(String(fetcher.mock.calls[0][0])).toBe(
+      `http://127.0.0.1:4000/api/projects/${projectId}/publication/review/saddd`,
+    )
+    fetcher.mockResolvedValueOnce(json(saddd))
+    await expect(publicationClient.review(projectId, 'participation')).rejects.toThrow(
+      'could not be validated',
+    )
+  })
+})
+
 describe('publicationClient request and strict response boundaries', () => {
   it('accepts only the allowlisted publication snapshot for the requested project', async () => {
     fetcher.mockResolvedValueOnce(read(publication))
