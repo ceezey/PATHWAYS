@@ -166,9 +166,9 @@ SELECT pg_temp.reject($q$UPDATE pathways.evidence_media SET public_visibility_st
 
 UPDATE pathways.evidence_media SET public_visibility_status='FOR_REVIEW',public_submitted_by_id=pg_temp.u(11),public_submitted_at=now() WHERE id=pg_temp.u(422);
 
-SELECT pg_temp.reject($q$UPDATE pathways.evidence_media SET public_visibility_status='APPROVED',public_approved_by_id=pg_temp.u(11),public_approved_at=now() WHERE id=pg_temp.u(422)$q$,'23514','Public self-approval rejected');
+SELECT pg_temp.reject($q$UPDATE pathways.evidence_media SET public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',public_approved_by_id=pg_temp.u(11),public_approved_at=now() WHERE id=pg_temp.u(422)$q$,'23514','Public self-approval rejected');
 
-UPDATE pathways.evidence_media SET public_visibility_status='APPROVED',public_approved_by_id=pg_temp.u(13),public_approved_at=now() WHERE id=pg_temp.u(422);
+UPDATE pathways.evidence_media SET public_visibility_status='APPROVED',public_approval_checklist='{"noIdentifiableMinor":true,"imageConsentOnFile":true}',public_approved_by_id=pg_temp.u(13),public_approved_at=now() WHERE id=pg_temp.u(422);
 
 SELECT pg_temp.ok((SELECT public_visibility_status='APPROVED' AND published_at IS NULL AND bucket='pathways-private' FROM pathways.evidence_media WHERE id=pg_temp.u(422)),'Approval is not publication and bucket stays private');
 

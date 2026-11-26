@@ -83,6 +83,7 @@ $forwardInventory = @(
   '0094_session_management'
   '0095_retire_legacy_public_tables'
   '0096_audit_tamper_evidence'
+  '0097_publication_checklist'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -1266,13 +1267,13 @@ SELECT ((SELECT count(*) FROM pg_catalog.pg_attribute WHERE attrelid='pathways.p
     if ($liveShape.Trim() -cne 'true') { throw "0085 public tracker live inventory differs in $db." }
   }
   Write-Output 'FORWARD_0085_PUBLIC_TRACKER_LIVE_INVENTORY=PASS'
-  # 0086 inventory: the validated public media queue CHECK, the 0086 validator and evidence guard bodies, the runtime-only
-  # p86 lookup, the public read body (replaced by 0089, so its 0089 md5), and every upgraded evidence row still PRIVATE.
+  # 0086 inventory: the validated public media queue CHECK, the 0086 validator and the evidence guard body (replaced by 0097, so its
+  # 0097 md5), the runtime-only p86 lookup, the public read body (replaced by 0089, so its 0089 md5), and every evidence row still PRIVATE.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
     $mediaShape = Read-ForwardSql $db @"
 SELECT (EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.evidence_media'::pg_catalog.regclass AND conname='p3_evidence_public' AND convalidated)
  AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p85_publication_media(jsonb,uuid)'::pg_catalog.regprocedure)='60613af01de09c839c3408f0193ceb82'
- AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure)='32c52a969c76775b0a86b6731c3d6fff'
+ AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure)='0a3bbf27aa39aa691d7ba0cd57c876cc'
  AND (SELECT pg_catalog.md5(prosrc) FROM pg_catalog.pg_proc WHERE oid='pathways.p85_public_projects(uuid,integer,integer)'::pg_catalog.regprocedure)='2e377c27df955be9547b46648b7c32d9'
  AND (SELECT pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef AND has_function_privilege('pathways_runtime',p.oid,'EXECUTE')
   AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE')
@@ -1332,7 +1333,8 @@ SELECT (SELECT pg_catalog.md5(p.prosrc)='8f38e72b2d04a29694bd514ca6b4317d' AND p
   }
   Write-Output 'FORWARD_0088_SMART_MAPPING_V5_INVENTORY=PASS'
   # 0089 inventory: the prisma-owned forced-RLS pins table with its keys, checks, policies and column grants, the pins-aware snapshot
-  # check, and the three replaced publication bodies under prisma with their modes and the runtime-only public ACLs.
+  # check, and the three replaced publication bodies under prisma with their modes and the runtime-only public ACLs (guard and public
+  # read at their 0097 md5).
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
     $pinsShape = Read-ForwardSql $db @"
 SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity AND relforcerowsecurity
@@ -1350,9 +1352,9 @@ SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity
  AND NOT has_table_privilege('service_role','pathways.project_map_pins','SELECT,INSERT,UPDATE,DELETE')
  AND EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid='pathways.project_publications'::pg_catalog.regclass
   AND conname='publication_snapshot_shape' AND convalidated AND pg_catalog.pg_get_constraintdef(oid) LIKE '%pins%')
- AND (SELECT count(*) FROM (VALUES ('pathways.p34_guard_publication()','2d5c0d23902592338d987e8d8c4dc1fa',false),
+ AND (SELECT count(*) FROM (VALUES ('pathways.p34_guard_publication()','98cfb36b48ee1d1299db3910be6eab97',false),
    ('pathways.p85_public_projects(uuid,integer,integer)','2e377c27df955be9547b46648b7c32d9',true),
-   ('pathways.p87_public_view(uuid,text)','ac69bf9b641ce7374b5f1ce9ebc93e6f',true)) w(sig,md5,secdef)
+   ('pathways.p87_public_view(uuid,text)','065e0225b531038d92328a473acdbc4a',true)) w(sig,md5,secdef)
   JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(w.sig)
   WHERE pg_catalog.md5(p.prosrc)=w.md5 AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef=w.secdef
    AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""']
@@ -1555,6 +1557,13 @@ SELECT ((SELECT pg_catalog.pg_get_userbyid(relowner)='prisma' AND relrowsecurity
     Invoke-LocalSql "DROP DATABASE $auditRaceDb WITH (FORCE);" 'postgres'
   }
   Write-Output 'FORWARD_0096_AUDIT_TAMPER_CONCURRENCY=PASS'
+  # 0097 inventory: both checklist checks, both guards marked 0097, the review read for pathways_runtime only, the shared view body
+  # for no API role, and prisma's review policy.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore')) {
+    $checklistShape = Read-ForwardSql $db "SELECT ((SELECT count(*) FROM pg_catalog.pg_constraint WHERE convalidated AND conname IN ('p97_publication_checklist_shape','p97_media_checklist_shape'))=2 AND (SELECT count(*) FROM pg_catalog.pg_proc WHERE oid IN ('pathways.p34_guard_publication()'::pg_catalog.regprocedure,'pathways.p3_guard_public_evidence()'::pg_catalog.regprocedure) AND prosrc LIKE '%(0097)%')=2 AND has_function_privilege('pathways_runtime','pathways.p97_review_view(uuid,text)','EXECUTE') AND NOT has_function_privilege('anon','pathways.p97_review_view(uuid,text)','EXECUTE') AND NOT has_function_privilege('pathways_runtime','pathways.p97_view_payload(uuid,uuid,jsonb,text,date,date,text)','EXECUTE') AND EXISTS(SELECT FROM pg_catalog.pg_policy WHERE polname='p97_prisma_review_read' AND polrelid='pathways.project_publications'::pg_catalog.regclass))::text;"
+    if ($checklistShape.Trim() -cne 'true') { throw "0097 publication checklist inventory differs in $db." }
+  }
+  Write-Output 'FORWARD_0097_PUBLICATION_CHECKLIST_INVENTORY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

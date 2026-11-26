@@ -2381,6 +2381,7 @@ model EvidenceMedia {
   publicSubmittedAt                  DateTime?                     @map("public_submitted_at") @db.Timestamptz(3)
   publicApprovedById                 String?                       @map("public_approved_by_id") @db.Uuid
   publicApprovedAt                   DateTime?                     @map("public_approved_at") @db.Timestamptz(3)
+  publicApprovalChecklist            Json?                         @map("public_approval_checklist")
   publishedById                      String?                       @map("published_by_id") @db.Uuid
   publishedAt                        DateTime?                     @map("published_at") @db.Timestamptz(3)
   createdAt                          DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -2497,6 +2498,8 @@ model ProjectPublication {
   liveSnapshot      Json?             @map("live_snapshot")
   livePublishedAt   DateTime?         @map("live_published_at") @db.Timestamptz(3)
   livePublishedById String?           @map("live_published_by_id") @db.Uuid
+  // The approver's confirmed checklist (0097); NULL before approval and for approvals made before 0097.
+  approvalChecklist Json?             @map("approval_checklist")
   project        Project              @relation("ProjectPublication_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_project_id_fkey")
   submittedBy    SystemUser           @relation("ProjectPublication_submittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_submitted_by_id_fkey")
   approvedBy     SystemUser?          @relation("ProjectPublication_approvedBy", fields: [organizationId, approvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_approved_by_id_fkey")

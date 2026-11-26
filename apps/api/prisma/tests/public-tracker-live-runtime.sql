@@ -114,7 +114,7 @@ SELECT pg_temp.refused('insert with views refused', format($s$INSERT INTO pathwa
 
 -- Project 41: revision 1 is submitted, approved and published.
 SELECT pg_temp.submit_first(41,'Summary one');
-SELECT pg_temp.move(22,41,$$state='APPROVED'$$);
+SELECT pg_temp.move(22,41,$$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$$);
 SELECT pg_temp.move(22,41,$$state='PUBLISHED'$$);
 SELECT pg_temp.ok('publish sets live', (SELECT live_revision=1 AND live_snapshot=snapshot AND live_published_by_id=pg_temp.u(22)
  AND live_published_at=published_at AND snapshot->'media'='[]' AND snapshot->'views'='[]' FROM pg_temp.pub(41)));
@@ -126,7 +126,7 @@ SELECT pg_temp.ok('submit_while_published_keeps_live', (SELECT state='FOR_REVIEW
  AND last_operation='SUBMIT' FROM pg_temp.pub(41)));
 
 -- publish_moves_live: B approves and publishes revision 2.
-SELECT pg_temp.move(22,41,$$state='APPROVED'$$);
+SELECT pg_temp.move(22,41,$$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$$);
 SELECT pg_temp.ok('approve keeps live', (SELECT live_revision=1 FROM pg_temp.pub(41)));
 SELECT pg_temp.move(22,41,$$state='PUBLISHED'$$);
 SELECT pg_temp.ok('publish_moves_live', (SELECT live_revision=2 AND live_published_by_id=pg_temp.u(22)
@@ -171,10 +171,10 @@ SELECT pg_temp.ok('public_read_live_only withdrawn', (SELECT pathways.p85_public
 
 -- Project 42: revision 1 is live, revision 2 is approved, and A edits again before it is published.
 SELECT pg_temp.submit_first(42,'Live summary');
-SELECT pg_temp.move(22,42,$$state='APPROVED'$$);
+SELECT pg_temp.move(22,42,$$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$$);
 SELECT pg_temp.move(22,42,$$state='PUBLISHED'$$);
 SELECT pg_temp.move(21,42,$$revision=2,state='FOR_REVIEW',summary='Draft summary'$$);
-SELECT pg_temp.move(22,42,$$state='APPROVED'$$);
+SELECT pg_temp.move(22,42,$$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$$);
 SELECT set_config('ptl.live42',(SELECT row_to_json(x)::text FROM (SELECT live_revision,live_snapshot,live_published_at,live_published_by_id
  FROM pg_temp.pub(42)) x),true);
 SELECT pg_temp.move(21,42,$$revision=3,state='FOR_REVIEW',summary='Edited draft summary'$$);
@@ -183,7 +183,7 @@ SELECT pg_temp.ok('resubmit_clears_approval', (SELECT state='FOR_REVIEW' AND rev
  AND live_revision=1 FROM pg_temp.pub(42)));
 
 -- withdraw_when_published: revision 3 goes live, then B withdraws it the way it is done today.
-SELECT pg_temp.move(22,42,$$state='APPROVED'$$);
+SELECT pg_temp.move(22,42,$$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$$);
 SELECT pg_temp.move(22,42,$$state='PUBLISHED'$$);
 SELECT set_config('ptl.snapshot42',(SELECT snapshot::text FROM pg_temp.pub(42)),true);
 SELECT pg_temp.move(22,42,$$revision=4,state='FOR_REVIEW',live_snapshot=NULL$$);
@@ -193,7 +193,7 @@ SELECT pg_temp.ok('withdraw_when_published', (SELECT state='FOR_REVIEW' AND revi
 
 -- archived_project_hidden: project 43 is live, then archived.
 SELECT pg_temp.submit_first(43,'Archived summary');
-SELECT pg_temp.move(22,43,$$state='APPROVED'$$);
+SELECT pg_temp.move(22,43,$$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$$);
 SELECT pg_temp.move(22,43,$$state='PUBLISHED'$$);
 SELECT pg_temp.act_as(0);
 SELECT pg_temp.ok('archived project listed while active', (SELECT jsonb_array_length(pathways.p85_public_projects(pg_temp.u(43)))=1));
