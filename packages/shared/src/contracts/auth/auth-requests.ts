@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { lengthString } from '../common/field-schemas'
+import { isCommonPassword } from './common-passwords'
 
 const pinText = lengthString(0, 32)
 
@@ -15,6 +16,9 @@ export const signInRequest = z
   .strict()
 export type SignInRequest = z.infer<typeof signInRequest>
 
+export const commonPasswordMessage =
+  'This password is too common. Choose one that is harder to guess.'
+
 // The staff password rule, shared by the web form and the API.
 export const strongPassword = z
   .string()
@@ -24,6 +28,7 @@ export const strongPassword = z
   .regex(/[A-Z]/, 'Add at least one uppercase letter.')
   .regex(/[0-9]/, 'Add at least one number.')
   .regex(/[^A-Za-z0-9]/, 'Add at least one symbol.')
+  .refine((value) => !isCommonPassword(value), commonPasswordMessage)
 
 // A password may be set only this long after the recovery or invite link was opened.
 export const passwordRecoveryWindowSeconds = 10 * 60
