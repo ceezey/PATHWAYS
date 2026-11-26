@@ -32,6 +32,15 @@ describe('requestSignIn', () => {
     await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({ kind: 'invalid' })
   })
 
+  it('marks the request limit apart from the failure lockout', async () => {
+    reply(429, { code: 'RATE_LIMITED', retryAfterSeconds: 42 })
+    await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({
+      kind: 'locked',
+      retryAfterSeconds: 42,
+      rateLimited: true,
+    })
+  })
+
   it.each([
     ['missing', {}],
     ['oversized', { retryAfterSeconds: 5000 }],

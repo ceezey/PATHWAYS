@@ -1,3 +1,4 @@
+import { isIP } from 'node:net'
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { webEnv } from '@/lib/env'
 import {
@@ -7,15 +8,26 @@ import {
   publicAnalyticsResponse,
   publicProjectResponse,
 } from '@pathways/shared'
+import { headers } from 'next/headers'
 import { z } from 'zod'
 
+// Visitor address for the API per-visitor limit; next/headers keeps this server-only, and only Vercel x-real-ip is trusted, with the shared token.
+async function visitorHeaders(): Promise<Record<string, string> | undefined> {
+  const token = webEnv.PUBLIC_VISITOR_TOKEN
+  if (!token || process.env.VERCEL !== '1') return undefined
+  const address = (await headers()).get('x-real-ip')?.trim()
+  if (!address || !isIP(address)) return undefined
+  return { 'x-pathways-visitor-address': address, 'x-pathways-visitor-token': token }
+}
+
 // One anonymous read of the public API; throws PUBLIC_NOT_FOUND or PUBLIC_UNAVAILABLE.
-async function readPublic(path: string): Promise<unknown> {
+async function readPublic(path: string, extraHeaders?: Record<string, string>): Promise<unknown> {
   const base = approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL)
   // Anonymous reads never carry a staff bearer token, workspace context, cookies, or redirects.
   const response = await fetch(`${base.toString().replace(/\/$/, '')}/public/projects${path}`, {
     cache: 'no-store',
     credentials: 'omit',
+    ...(extraHeaders ? { headers: extraHeaders } : {}),
     redirect: 'error',
     referrerPolicy: 'no-referrer',
     signal: AbortSignal.timeout(10000),
@@ -42,7 +54,9 @@ export async function readPublicAnalytics(
   view: PublicView,
 ): Promise<PublicAnalyticsResponse> {
   if (!z.guid().safeParse(projectId).success) throw new Error('PUBLIC_NOT_FOUND')
-  const body = publicAnalyticsResponse.parse(await readPublic(`/${projectId}/analytics/${view}`))
+  const body = publicAnalyticsResponse.parse(
+    await readPublic(`/${projectId}/analytics/${view}`, await visitorHeaders()),
+  )
   if (body.view !== view) throw new Error('PUBLIC_UNAVAILABLE')
   return body
 }

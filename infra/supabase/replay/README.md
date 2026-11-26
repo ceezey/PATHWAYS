@@ -47,6 +47,11 @@ approval require the approver's checklist, and moves the public view body into
 `p97_view_payload` so the approver's review read and the public page compute the
 same figures. The `-MigrationBaseline` chain runs `publication-checklist-runtime.sql`.
 
+Migration `0098_rate_limiting` adds the fixed-window request counters behind the
+sign-in, public analytics and public media limits (`pathways.rate_limit_hit`).
+`Verify-Forward.ps1` checks the table and function grants and, as
+`pathways_runtime`, that the limit holds and only hashes are stored.
+
 Session liveness ships as migration-managed SQL; its historical deployment runner was removed on 2026-10-09 and remains in git history.
 
 ## Replay through Project/Activity creation-contract migration 0025

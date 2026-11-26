@@ -5,7 +5,8 @@ type SignInOutcome =
   | { kind: 'session'; accessToken: string; refreshToken: string }
   | { kind: 'invalid' }
   | { kind: 'captcha' }
-  | { kind: 'locked'; retryAfterSeconds: number }
+  // rateLimited is the per-minute request limit, not the 15 minute failure lockout.
+  | { kind: 'locked'; retryAfterSeconds: number; rateLimited?: true }
 
 const maxLockSeconds = 900
 
@@ -16,9 +17,8 @@ export const formatLockRemaining = (seconds: number) => {
 }
 
 // Falls back to the full lock window when the body value is missing or invalid.
-const parseRetryAfter = async (response: Response) => {
-  const body: unknown = await response.json().catch(() => null)
-  const value = (body as Record<string, unknown> | null)?.retryAfterSeconds
+const parseRetryAfter = (body: Record<string, unknown> | null) => {
+  const value = body?.retryAfterSeconds
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return maxLockSeconds
   return Math.min(maxLockSeconds, Math.ceil(value))
 }
@@ -41,7 +41,12 @@ export async function requestSignIn(
     signal: AbortSignal.timeout(15000),
   })
   if (response.status === 429) {
-    return { kind: 'locked', retryAfterSeconds: await parseRetryAfter(response) }
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null
+    return {
+      kind: 'locked',
+      retryAfterSeconds: parseRetryAfter(body),
+      ...(body?.code === 'RATE_LIMITED' ? { rateLimited: true as const } : {}),
+    }
   }
   if (response.status === 400) {
     const body: unknown = await response.json().catch(() => null)

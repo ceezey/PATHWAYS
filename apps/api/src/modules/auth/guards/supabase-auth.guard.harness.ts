@@ -23,6 +23,7 @@ import { RequireBeneficiaryStepUp } from '../../../common/decorators/beneficiary
 import { RequirePermission } from '../../../common/decorators/permission.decorator'
 import { Public } from '../../../common/decorators/public.decorator'
 import { RequireTotpStepUp } from '../../../common/decorators/totp-step-up.decorator'
+import { RateLimitService } from '../../../common/rate-limit/rate-limit.service'
 import {
   PrismaService,
   type VerifiedDatabaseContext,
@@ -270,6 +271,7 @@ export function useBoundaryApp() {
         BeneficiaryStepUpService,
         BeneficiaryStepUpPinService,
         SignInLockoutService,
+        { provide: RateLimitService, useValue: { hit: async () => 0 } },
         PasswordRecoveryService,
         OwnAccountService,
         { provide: AppSessionsService, useValue: appSessions },
