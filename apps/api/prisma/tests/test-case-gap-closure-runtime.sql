@@ -147,7 +147,10 @@ VALUES (pg_temp.u(1),pg_temp.u(23),'DASHBOARD_VIEWED','Dashboard','home',now()-i
 SET LOCAL SESSION AUTHORIZATION pathways_runtime;
 SELECT pg_temp.ok('view 29 minutes ago is not due', NOT pathways.p90_dashboard_view_due(pg_temp.u(23),pg_temp.u(1),'home'));
 RESET SESSION AUTHORIZATION;
+-- audit_logs is append-only after 0096, so the fixture moves the row under the replica role, which skips the block.
+SET LOCAL session_replication_role = replica;
 UPDATE pathways.audit_logs SET occurred_at=now()-interval '31 minutes' WHERE actor_user_id=pg_temp.u(23) AND action='DASHBOARD_VIEWED';
+SET LOCAL session_replication_role = origin;
 INSERT INTO pathways.audit_logs(organization_id,actor_user_id,action,entity_type,entity_id,occurred_at)
 VALUES (pg_temp.u(1),pg_temp.u(21),'DASHBOARD_VIEWED','Dashboard','home',now()-interval '1 minute'),
  (pg_temp.u(1),pg_temp.u(23),'DASHBOARD_VIEWED','Dashboard','other',now()-interval '1 minute');

@@ -483,6 +483,8 @@ SELECT pg_temp.same('backup table list is complete',
     AND EXISTS(SELECT FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attname='organization_id' AND NOT a.attisdropped)
    EXCEPT SELECT unnest(ARRAY['pathways.system_users','pathways.user_step_up_pins','pathways.beneficiary_step_up_grants',
     'pathways.recovery_points',
+    -- 0096 chain heads follow audit_logs, which restore never touches.
+    'pathways.audit_chain_heads',
     -- Rules context tables hold transaction-scoped operation context, valid only inside the writing transaction.
     'pathways_rules_internal.configuration_context','pathways_rules_internal.projection_context',
     'pathways_rules_internal.feature_operation_context','pathways_rules_internal.source_operation_context',

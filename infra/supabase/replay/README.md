@@ -37,6 +37,11 @@ tables. It runs only in the `-MigrationBaseline` forward chain, which therefore
 prints no `LEGACY_TABLE_PRESERVATION=PASS`; the historical modes still require
 the 15 tables through 0025.
 
+Migration `0096_audit_tamper_evidence` makes `pathways.audit_logs` append-only
+and hash-chained per organization. The `-MigrationBaseline` chain runs
+`audit-tamper-runtime.sql` and, on a throwaway clone it drops afterwards, the
+200-insert race `audit-tamper-concurrency.mjs`.
+
 Session liveness ships as migration-managed SQL; its historical deployment runner was removed on 2026-10-09 and remains in git history.
 
 ## Replay through Project/Activity creation-contract migration 0025
@@ -62,4 +67,4 @@ Clears all domain data before a reseed and keeps users and reference data.
 - `hosted-defense-demo-wipe-dry-run.sql` prints row counts per table (KEEP or WIPE), proves `postgres` can truncate every target table through temporary owner-role membership, then rolls back.
 - `hosted-defense-demo-wipe.sql` runs one `TRUNCATE ... RESTART IDENTITY` (no CASCADE) over every `pathways` and `pathways_rules_internal` table except the keep list, resets `sweep_cursor`, revokes the temporary memberships, verifies the wiped tables are empty and commits.
 
-Run order: dry run, then wipe, both in the Supabase SQL editor as `postgres`. Set `RULES_DISPATCH_ENABLED=false` and let the scheduler stop first. Preview and Production share devV2, so the wipe hits both. `audit_logs` is cleared and `storage.objects` is not touched. Kept tables: `pathways` organizations, roles, permissions, role_permissions, system_users, user_step_up_pins, signin_lockouts and `pathways_rules_internal` source_operation_catalog, calendar_configuration, sweep_cursor. `node --test scripts/db/defense/demo-wipe.test.mjs` checks the list against the migrations.
+Run order: dry run, then wipe, both in the Supabase SQL editor as `postgres`. Set `RULES_DISPATCH_ENABLED=false` and let the scheduler stop first. Preview and Production share devV2, so the wipe hits both. `audit_logs` and `audit_chain_heads` are cleared (the TRUNCATE runs under the replica role, since 0096 blocks it otherwise) and `storage.objects` is not touched. Kept tables: `pathways` organizations, roles, permissions, role_permissions, system_users, user_step_up_pins, signin_lockouts and `pathways_rules_internal` source_operation_catalog, calendar_configuration, sweep_cursor. `node --test scripts/db/defense/demo-wipe.test.mjs` checks the list against the migrations.

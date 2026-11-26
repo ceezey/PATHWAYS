@@ -18,6 +18,7 @@ BEGIN
     RAISE EXCEPTION 'Expected kept tables missing';
   END IF;
   IF to_regclass('pathways.import_value_rejections') IS NULL THEN RAISE EXCEPTION 'Migrations through 0080 not applied'; END IF;
+  IF to_regclass('pathways.audit_chain_heads') IS NULL THEN RAISE EXCEPTION 'Migration 0096 not applied'; END IF;
 END $$;
 
 -- Temporary membership only in owner roles postgres does not already inherit.
