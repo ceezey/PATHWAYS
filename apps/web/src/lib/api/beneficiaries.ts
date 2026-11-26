@@ -16,6 +16,29 @@ import type { PathwaysRole } from '@/types/pathways-role'
 
 import { mapBeneficiary, parseRegistrationContext } from './beneficiaries.schema'
 
+// Reads one page of the list; a search term goes in a POST body so it never reaches an address.
+const requestBeneficiaryPage = (
+  projectId: string,
+  filters: Record<string, string>,
+  limit: number,
+  search: string | undefined,
+  cursor: string | null,
+  signal?: AbortSignal,
+) => {
+  const path = `/beneficiaries/projects/${encodeURIComponent(projectId)}`
+  const tail: Record<string, string> = cursor ? { cursor } : {}
+  return search
+    ? requestFoundation(`${path}/search`, {
+        method: 'POST',
+        body: JSON.stringify({ search, ...filters, limit, ...tail }),
+        signal,
+      })
+    : requestFoundation(
+        `${path}?${new URLSearchParams({ ...filters, limit: String(limit), ...tail })}`,
+        { signal },
+      )
+}
+
 export const beneficiariesClient = {
   async getBeneficiaryRecordsForRole(
     _role: PathwaysRole,
@@ -24,29 +47,25 @@ export const beneficiariesClient = {
     signal?: AbortSignal,
   ): Promise<BeneficiaryRecord[]> {
     if (!projectId) return []
-    const params = new URLSearchParams()
-
     const search = filters?.search?.trim()
+    const filterValues: Record<string, string> = {}
+    if (filters?.sex) filterValues.sex = filters.sex
+    if (filters?.ageBand) filterValues.ageBand = filters.ageBand
+    if (filters?.disabilityStatus) filterValues.disabilityStatus = filters.disabilityStatus
+    if (filters?.enrollmentStatus) filterValues.enrollmentStatus = filters.enrollmentStatus
 
-    if (search) params.set('search', search)
-    if (filters?.sex) params.set('sex', filters.sex)
-    if (filters?.ageBand) params.set('ageBand', filters.ageBand)
-    if (filters?.disabilityStatus) params.set('disabilityStatus', filters.disabilityStatus)
-
-    if (filters?.enrollmentStatus) {
-      params.set('enrollmentStatus', filters.enrollmentStatus)
-    }
-
-    params.set('limit', '50')
     const records: BeneficiaryRecord[] = []
     const seenCursors = new Set<string>()
     let cursor: string | null = null
 
     do {
-      if (cursor) params.set('cursor', cursor)
-      const value = (await requestFoundation(
-        `/beneficiaries/projects/${encodeURIComponent(projectId)}?${params.toString()}`,
-        { signal },
+      const value = (await requestBeneficiaryPage(
+        projectId,
+        filterValues,
+        50,
+        search,
+        cursor,
+        signal,
       )) as { items?: unknown; nextCursor?: unknown }
       if (
         !Array.isArray(value.items) ||
@@ -81,12 +100,13 @@ export const beneficiariesClient = {
       (cursor !== undefined && !uuid.test(cursor))
     )
       throw new PathwaysClientError('Invalid contributor search.', 'invalid')
-    const params = new URLSearchParams({ enrollmentStatus: 'ACTIVE', limit: '25' })
-    if (search.trim()) params.set('search', search.trim())
-    if (cursor) params.set('cursor', cursor)
-    const page = (await requestFoundation(
-      `/beneficiaries/projects/${encodeURIComponent(projectId)}?${params}`,
-      { signal },
+    const page = (await requestBeneficiaryPage(
+      projectId,
+      { enrollmentStatus: 'ACTIVE' },
+      25,
+      search.trim() || undefined,
+      cursor ?? null,
+      signal,
     )) as { items?: unknown; nextCursor?: unknown }
     if (
       !page ||

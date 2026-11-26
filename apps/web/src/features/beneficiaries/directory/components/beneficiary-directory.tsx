@@ -67,7 +67,8 @@ export const BeneficiaryDirectory = ({
     () => (role ? scopeBeneficiariesForRole(beneficiaries, role, assignedProjectIds) : []),
     [beneficiaries, role, assignedProjectIds],
   )
-  const [search, setSearch] = useState(readParam('q') ?? '')
+  // The term stays in state only, so a name or code never reaches the address or browser history.
+  const [search, setSearch] = useState('')
   const [location, setLocation] = useState(readParam('location') ?? allValue)
   const [sex, setSex] = useState(() =>
     safeFilterValue(readParam('sex'), [
@@ -168,7 +169,6 @@ export const BeneficiaryDirectory = ({
 
   const beneficiaryHref = (beneficiaryId: string) => {
     const returning = new URLSearchParams()
-    if (search) returning.set('q', search)
     if (projectId) returning.set('project', projectId)
     if (location !== allValue) returning.set('location', location)
     if (sex !== allValue) returning.set('sex', sex)

@@ -44,6 +44,7 @@ export const BeneficiaryDirectoryLoader = () => {
     const next = new URLSearchParams(searchParams?.toString())
     next.set('project', id)
     next.delete('page')
+    next.delete('q')
     router.replace(`/beneficiaries?${next}`, { scroll: false })
   }
   // Starts empty so nothing loads until asked for, unless there is only one project to choose.

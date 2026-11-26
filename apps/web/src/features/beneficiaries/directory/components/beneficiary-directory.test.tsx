@@ -19,9 +19,11 @@ vi.mock('@/providers/current-role-provider', () => ({
   useCurrentRole: () => ({ role: 'Project Manager', assignedProjectIds: ['futuremakers-ncr'] }),
 }))
 
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
+const address = vi.hoisted(() => ({ query: '' }))
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(address.query) }))
 
 afterEach(() => {
+  address.query = ''
   cleanup()
   window.localStorage.clear()
 })
@@ -109,6 +111,22 @@ describe('BeneficiaryDirectory', () => {
     expect(search.value).toBe('')
     await waitFor(() => expect(screen.getByText(/Page 1 of \d+/)).toBeTruthy())
     expect(clear.hasAttribute('disabled')).toBe(true)
+  })
+})
+
+describe('BeneficiaryDirectory search term', () => {
+  it('keeps the term out of the profile link and ignores one left in the address', () => {
+    address.query = 'q=Fictional'
+    renderDirectory({})
+    const search = screen.getByLabelText('Search by name or code') as HTMLInputElement
+    expect(search.value).toBe('')
+    fireEvent.change(search, { target: { value: 'Beneficiary' } })
+    const hrefs = screen
+      .getAllByRole('link', { name: /^Open / })
+      .map((link) => link.getAttribute('href'))
+    expect(hrefs.length).toBeGreaterThan(0)
+    for (const href of hrefs)
+      expect(decodeURIComponent(href ?? '')).not.toMatch(/Beneficiary|Fictional|q=/)
   })
 })
 
