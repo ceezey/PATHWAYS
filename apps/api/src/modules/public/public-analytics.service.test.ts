@@ -8,6 +8,18 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import { resolvePlaces } from '../../common/places/ph-places'
 import { PublicAnalyticsService } from './public-analytics.service'
 
+// The review read's operation boundary: records the permission and hands the shared query stub over as the transaction.
+const operation = vi.hoisted(() => ({ permission: '' }))
+vi.mock('../../common/authz/authorized-operation', () => ({
+  withAuthorizedOperation: vi.fn(async (prisma, _identity, permission: string, work) => {
+    operation.permission = permission
+    return work(prisma, { organizationId: 'org', userId: 'user' })
+  }),
+}))
+vi.mock('../../common/authz/scoped-project', () => ({
+  requireScopedProject: vi.fn(async (_tx, _actor, id: string) => id),
+}))
+
 const projectId = '20000000-0000-4000-8000-000000000002'
 const queryRaw = vi.fn()
 const service = new PublicAnalyticsService({ $queryRaw: queryRaw } as unknown as PrismaService)
@@ -191,5 +203,23 @@ describe('public analytics', () => {
     sql(null)
     await expect(service.read(projectId, 'saddd')).rejects.toMatchObject({ status: 404 })
     expect(queryRaw).toHaveBeenCalledTimes(2)
+  })
+
+  it('reviews the revision awaiting approval through the same shape, for public.approve only (0097)', async () => {
+    const identity = {} as Parameters<typeof service.review>[0]
+    sql({ total: cell('3'), sex: [bucket('FEMALE', '3')], age: [], disability: [] })
+    await expect(service.review(identity, projectId, 'saddd')).resolves.toMatchObject({
+      view: 'saddd',
+      total: cell('3'),
+    })
+    expect(operation.permission).toBe('public.approve')
+    expect(String(queryRaw.mock.calls.at(-1)?.[0].join('?'))).toContain('p97_review_view')
+    sql(null)
+    await expect(service.review(identity, projectId, 'saddd')).rejects.toMatchObject({
+      status: 404,
+    })
+    await expect(service.review(identity, projectId, 'budget')).rejects.toMatchObject({
+      status: 404,
+    })
   })
 })

@@ -1,6 +1,7 @@
 import {
   type BeneficiaryMediaLimitsResponse,
   type BeneficiaryMediaReservedFileResponse,
+  type MediaApprovalChecklist,
   publicMediaListResponse,
 } from '@pathways/shared'
 
@@ -54,8 +55,15 @@ export const publicMediaClient = {
     await requestFoundation(`${itemPath(projectId, mediaId)}/submit`, { method: 'POST' })
   },
 
-  async approve(projectId: string, mediaId: string): Promise<void> {
-    await requestFoundation(`${itemPath(projectId, mediaId)}/approve`, { method: 'POST' })
+  async approve(
+    projectId: string,
+    mediaId: string,
+    checklist: MediaApprovalChecklist,
+  ): Promise<void> {
+    await requestFoundation(`${itemPath(projectId, mediaId)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ checklist }),
+    })
   },
 
   async reject(projectId: string, mediaId: string, reason: string): Promise<void> {

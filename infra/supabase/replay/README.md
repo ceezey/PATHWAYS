@@ -42,6 +42,11 @@ and hash-chained per organization. The `-MigrationBaseline` chain runs
 `audit-tamper-runtime.sql` and, on a throwaway clone it drops afterwards, the
 200-insert race `audit-tamper-concurrency.mjs`.
 
+Migration `0097_publication_checklist` makes publication and public media
+approval require the approver's checklist, and moves the public view body into
+`p97_view_payload` so the approver's review read and the public page compute the
+same figures. The `-MigrationBaseline` chain runs `publication-checklist-runtime.sql`.
+
 Session liveness ships as migration-managed SQL; its historical deployment runner was removed on 2026-10-09 and remains in git history.
 
 ## Replay through Project/Activity creation-contract migration 0025

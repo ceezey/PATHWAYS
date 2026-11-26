@@ -11,7 +11,12 @@ import {
   StreamableFile,
 } from '@nestjs/common'
 
-import { type ReservePublicMediaRequest, reservePublicMediaRequest } from '@pathways/shared'
+import {
+  type ApprovePublicMediaRequest,
+  type ReservePublicMediaRequest,
+  approvePublicMediaRequest,
+  reservePublicMediaRequest,
+} from '@pathways/shared'
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { requestIdentity } from '../../common/authz/request-identity'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
@@ -84,8 +89,15 @@ export class PublicMediaController {
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('mediaId') mediaId: string,
+    @Body(new ZodPipe(approvePublicMediaRequest)) body: ApprovePublicMediaRequest,
   ) {
-    return this.media.approve(requestIdentity(request), projectId, mediaId, session(request))
+    return this.media.approve(
+      requestIdentity(request),
+      projectId,
+      mediaId,
+      body.checklist,
+      session(request),
+    )
   }
 
   @Post(':mediaId/reject')

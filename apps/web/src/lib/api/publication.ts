@@ -1,4 +1,9 @@
-import { type PublicationTransitionRequest, publicProjectResponse } from '@pathways/shared'
+import {
+  type PublicView,
+  type PublicationTransitionRequest,
+  publicAnalyticsResponse,
+  publicProjectResponse,
+} from '@pathways/shared'
 import { z } from 'zod'
 
 import { ownedJsonRead, projectPath } from '@/lib/api/core/owned-json-read'
@@ -39,6 +44,13 @@ export const publicationClient = {
         .strict(),
       { signal },
     ).then((body) => body.publication),
+  // One chart of the revision awaiting approval, as the public page will compute it (approvers only).
+  review: (id: string, view: PublicView, signal?: AbortSignal) =>
+    ownedJsonRead(
+      `${projectPath(id)}/publication/review/${view}`,
+      publicAnalyticsResponse.refine((body) => body.view === view),
+      { signal },
+    ),
   transition: (
     id: string,
     operation: 'submit' | 'approve' | 'publish' | 'withdraw',

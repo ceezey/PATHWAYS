@@ -73,7 +73,7 @@ BEGIN
  PERFORM pg_temp.act_as(21);
  INSERT INTO pathways.project_publications(organization_id,project_id,revision,state,last_operation,summary,snapshot,submitted_by_id)
  VALUES(pg_temp.u(1),pg_temp.u(project_n),1,'FOR_REVIEW','SUBMIT','Pins summary','{"media":[],"views":["map"]}',pg_temp.u(21));
- PERFORM pg_temp.move(22,project_n,$s$state='APPROVED'$s$);
+ PERFORM pg_temp.move(22,project_n,$s$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$s$);
  PERFORM pg_temp.move(22,project_n,$s$state='PUBLISHED'$s$);
 END $$;
 -- The public read of one view, as the API calls it with no app context.
@@ -214,7 +214,7 @@ SELECT pg_temp.move(21,41,$$revision=2,state='FOR_REVIEW',summary='Pins summary 
  snapshot='{"media":[],"views":["map"],"pins":[{"name":"Fake","province":"Fake","longitude":120,"latitude":10}]}'$$);
 SELECT pg_temp.same('new revision pins', (SELECT snapshot->'pins' FROM pathways.project_publications WHERE project_id=pg_temp.u(41)),
  '[{"name":"Borongan City","province":"Eastern Samar","longitude":126,"latitude":11.61}]');
-SELECT pg_temp.move(22,41,$$state='APPROVED'$$);
+SELECT pg_temp.move(22,41,$$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$$);
 SELECT pg_temp.move(22,41,$$state='PUBLISHED'$$);
 
 -- public_pins: the map view returns the live revision's pins beside the area and towns, and the project payload has no pins key.

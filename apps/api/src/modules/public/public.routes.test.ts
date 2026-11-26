@@ -52,6 +52,7 @@ describe('public and publication routes', () => {
       'GET /projects/:projectId/public-media/:mediaId/content public.preview private, no-store',
       'GET /projects/:projectId/public-media/limits public.preview private, no-store',
       'GET /projects/:projectId/publication public.preview private, no-store',
+      'GET /projects/:projectId/publication/review/:view public.approve private, no-store',
       'GET /public/projects public no-store',
       'GET /public/projects/:projectId public no-store',
       'GET /public/projects/:projectId/analytics/:view public no-store',
@@ -104,6 +105,17 @@ describe('public and publication routes', () => {
     }
   })
 
+  it('passes the profile, the project and the view to the review read', () => {
+    const publication = controllers().find(
+      (controller) => controller.name === 'PublicationController',
+    ) as unknown as { new (service: unknown, analytics: unknown): Record<string, Handler> }
+    const reader = { review: vi.fn() }
+    const instance = new publication({}, reader)
+    const user = { id: 'profile' }
+    instance.review({ headers: {}, user }, 'p1', 'saddd')
+    expect(reader.review).toHaveBeenLastCalledWith(user, 'p1', 'saddd')
+  })
+
   it('declares the four publication bodies as the third argument with no pipe', () => {
     const publication = controllers().find(
       (controller) => controller.name === 'PublicationController',
@@ -138,10 +150,11 @@ describe('public and publication routes', () => {
     const session = { auth, sessionId: 'session-1' }
     instance.list(request, 'p1')
     expect(service.list).toHaveBeenLastCalledWith(user, 'p1', session)
-    for (const name of ['submit', 'approve'] as const) {
-      instance[name](request, 'p1', 'm1')
-      expect(service[name]).toHaveBeenLastCalledWith(user, 'p1', 'm1', session)
-    }
+    instance.submit(request, 'p1', 'm1')
+    expect(service.submit).toHaveBeenLastCalledWith(user, 'p1', 'm1', session)
+    const checklist = { noIdentifiableMinor: true, imageConsentOnFile: true }
+    instance.approve(request, 'p1', 'm1', { checklist })
+    expect(service.approve).toHaveBeenLastCalledWith(user, 'p1', 'm1', checklist, session)
     instance.reject(request, 'p1', 'm1', { reason: 'No' })
     expect(service.reject).toHaveBeenLastCalledWith(user, 'p1', 'm1', { reason: 'No' }, session)
     await instance.content(request, 'p1', 'm1')

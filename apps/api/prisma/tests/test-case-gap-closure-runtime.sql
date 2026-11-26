@@ -63,7 +63,7 @@ BEGIN
  PERFORM pg_temp.act_as(21);
  INSERT INTO pathways.project_publications(organization_id,project_id,revision,state,last_operation,summary,snapshot,submitted_by_id)
  VALUES(pg_temp.u(1),pg_temp.u(project_n),1,'FOR_REVIEW','SUBMIT','Gap summary','{"media":[],"views":["map"]}',pg_temp.u(21));
- PERFORM pg_temp.move(22,project_n,$s$state='APPROVED'$s$);
+ PERFORM pg_temp.move(22,project_n,$s$state='APPROVED',approval_checklist='{"smallGroupsChecked":true,"noIdentifiableMinor":true,"imageConsentOnFile":true,"pinPositionsAcceptable":true}'$s$);
  PERFORM pg_temp.move(22,project_n,$s$state='PUBLISHED'$s$);
 END $$;
 

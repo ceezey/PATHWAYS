@@ -653,6 +653,8 @@ END $$;
       Write-Output 'SESSION_MANAGEMENT_RUNTIME=PASS'
       Measure-ReplayStep 'sql audit-tamper-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/audit-tamper-runtime.sql'))) $phase6Database }
       Write-Output 'AUDIT_TAMPER_RUNTIME=PASS'
+      Measure-ReplayStep 'sql publication-checklist-runtime' { Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/publication-checklist-runtime.sql'))) $phase6Database }
+      Write-Output 'PUBLICATION_CHECKLIST_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'

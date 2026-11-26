@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { publicationApprovalChecklist } from './publication-checklist'
+
 // One photo or video the public page shows; the database checks ids are unique and pickable.
 export const publicMediaItem = z
   .object({
@@ -49,6 +51,8 @@ export const publicationTransitionRequest = z
     expectedRevision: z.number().int().min(0).max(2147483646),
     summary: z.string().trim().min(1).max(4000).optional(),
     selection: publicationSelection.optional(),
+    // Required on APPROVE and refused on every other operation; the service checks the pairing.
+    checklist: publicationApprovalChecklist.optional(),
   })
   .strict()
 export type PublicationTransitionRequest = z.infer<typeof publicationTransitionRequest>

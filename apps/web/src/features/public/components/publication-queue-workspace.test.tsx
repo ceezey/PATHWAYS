@@ -2,6 +2,7 @@ import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { publicationChecklistItems } from './approval-checklist'
 import { PublicationQueueWorkspace } from './publication-queue-workspace'
 
 const state = vi.hoisted(() => ({
@@ -193,6 +194,56 @@ describe('publication current project and revision boundaries', () => {
     expect(screen.queryByText('Revision 1')).toBeNull()
     expect(screen.getByText('Publication unavailable')).toBeTruthy()
   })
+  // Ticks the four approval items in the dialog and confirms.
+  const confirmApproval = () => {
+    const dialog = within(screen.getByRole('dialog', { name: 'Approve this revision?' }))
+    for (const label of Object.values(publicationChecklistItems))
+      fireEvent.click(dialog.getByLabelText(label, { exact: false }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Confirm approval' }))
+  }
+  it('keeps Confirm approval disabled until all four items are ticked, then sends them (0097)', async () => {
+    state.publicationState = 'FOR_REVIEW'
+    state.transition.mockResolvedValue({ revision: 1, state: 'APPROVED' })
+    render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Approve revision' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Approve this revision?' }))
+    const confirm = dialog.getByRole('button', { name: 'Confirm approval' }) as HTMLButtonElement
+    const labels = Object.values(publicationChecklistItems)
+    for (const label of labels.slice(0, 3))
+      fireEvent.click(dialog.getByLabelText(label, { exact: false }))
+    expect(confirm.disabled).toBe(true)
+    fireEvent.click(confirm)
+    expect(state.transition).not.toHaveBeenCalled()
+    fireEvent.click(dialog.getByLabelText(labels[3], { exact: false }))
+    expect(confirm.disabled).toBe(false)
+    fireEvent.click(confirm)
+    await waitFor(() => expect(state.transition).toHaveBeenCalledOnce())
+    expect(state.transition.mock.calls[0][1]).toBe('approve')
+    expect(state.transition.mock.calls[0][2].checklist).toEqual({
+      smallGroupsChecked: true,
+      noIdentifiableMinor: true,
+      imageConsentOnFile: true,
+      pinPositionsAcceptable: true,
+    })
+  })
+  it('clears the ticks when the approval dialog is cancelled', () => {
+    state.publicationState = 'FOR_REVIEW'
+    render(<PublicationQueueWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Approve revision' }))
+    let dialog = within(screen.getByRole('dialog', { name: 'Approve this revision?' }))
+    for (const label of Object.values(publicationChecklistItems))
+      fireEvent.click(dialog.getByLabelText(label, { exact: false }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve revision' }))
+    dialog = within(screen.getByRole('dialog', { name: 'Approve this revision?' }))
+    for (const label of Object.values(publicationChecklistItems))
+      expect((dialog.getByLabelText(label, { exact: false }) as HTMLInputElement).checked).toBe(
+        false,
+      )
+    expect(
+      (dialog.getByRole('button', { name: 'Confirm approval' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+  })
   const confirmPublish = () =>
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Publish this revision?' })).getByRole('button', {
@@ -255,6 +306,8 @@ describe('publication current project and revision boundaries', () => {
         }),
       )
       if (purpose === 'publish') confirmPublish()
+      else confirmApproval()
+      expect(state.transition).toHaveBeenCalledOnce()
       if (purpose === 'approve') state.canApprove = false
       else state.canPublish = false
       view.rerender(<PublicationQueueWorkspace />)

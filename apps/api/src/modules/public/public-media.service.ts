@@ -14,6 +14,7 @@ import type { Prisma } from '@prisma/client'
 import {
   MAX_BENEFICIARY_MEDIA_FILES,
   MAX_PUBLIC_MEDIA_LISTED,
+  type MediaApprovalChecklist,
   type PublicMediaListResponse,
   type ReservePublicMediaRequest,
   aggregateOnlyRoles,
@@ -430,11 +431,12 @@ export class PublicMediaService {
     )
   }
 
-  /** Approves a queued row for someone other than its uploader and its queue sender. */
+  /** Approves a queued row for someone other than its uploader and its queue sender, with the confirmed checklist. */
   approve(
     identity: ApplicationIdentity,
     requestedProjectId: string,
     mediaId: string,
+    checklist: MediaApprovalChecklist,
     session: StepUpSession = {},
   ) {
     return this.withStepUp(identity, session, requestedProjectId, 'approve', (steppedUp) =>
@@ -467,6 +469,7 @@ export class PublicMediaService {
             publicVisibilityStatus: 'APPROVED',
             publicApprovedById: actor.userId,
             publicApprovedAt: new Date(),
+            publicApprovalChecklist: checklist,
           },
         })
         if (moved.count !== 1) throw new ConflictException('Media changed. Reload and retry.')
@@ -475,7 +478,7 @@ export class PublicMediaService {
           action: 'PUBLIC_MEDIA_APPROVED',
           entityType: 'EvidenceMedia',
           entityId: row.id,
-          changes: {},
+          changes: { checklist: Object.keys(checklist).join(',') },
         })
         return { mediaId: row.id, publicStatus: 'APPROVED' as const }
       }),

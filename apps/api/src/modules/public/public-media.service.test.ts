@@ -34,6 +34,9 @@ vi.mock('@app/common/authz/authorized-operation', () => ({
 
 import { PublicMediaService } from './public-media.service'
 
+// The two media items the approver confirms (0097).
+const checklist = { noIdentifiableMinor: true, imageConsentOnFile: true } as const
+
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
 const mediaId = '50000000-0000-4000-8000-000000000005'
@@ -266,7 +269,7 @@ describe('public media queue', () => {
   it('approve records the reviewer', async () => {
     state.actor = reviewer
     tx.evidenceMedia.findFirst.mockResolvedValue(queued())
-    await expect(service.approve(reviewer, projectId, mediaId)).resolves.toEqual({
+    await expect(service.approve(reviewer, projectId, mediaId, checklist)).resolves.toEqual({
       mediaId,
       publicStatus: 'APPROVED',
     })
@@ -276,16 +279,20 @@ describe('public media queue', () => {
         publicVisibilityStatus: 'APPROVED',
         publicApprovedById: reviewerId,
         publicApprovedAt: expect.any(Date),
+        publicApprovalChecklist: checklist,
       },
     })
-    expect(tx.auditLog.create.mock.calls[0][0].data.action).toBe('PUBLIC_MEDIA_APPROVED')
+    expect(tx.auditLog.create.mock.calls[0][0].data).toMatchObject({
+      action: 'PUBLIC_MEDIA_APPROVED',
+      changes: { checklist: 'noIdentifiableMinor,imageConsentOnFile' },
+    })
   })
 
   it('approve refuses the uploader and the queue submitter', async () => {
     for (const userId of [uploaderId, senderId]) {
       state.actor = identity(userId, ['public.approve'])
       tx.evidenceMedia.findFirst.mockResolvedValue(queued())
-      await expect(service.approve(state.actor, projectId, mediaId)).rejects.toThrow(
+      await expect(service.approve(state.actor, projectId, mediaId, checklist)).rejects.toThrow(
         'A different reviewer must approve this media.',
       )
     }
@@ -299,7 +306,7 @@ describe('public media queue', () => {
   ])('approve gives 409 for %s', async (_name, overrides) => {
     state.actor = reviewer
     tx.evidenceMedia.findFirst.mockResolvedValue(queued(overrides))
-    await expect(service.approve(reviewer, projectId, mediaId)).rejects.toMatchObject({
+    await expect(service.approve(reviewer, projectId, mediaId, checklist)).rejects.toMatchObject({
       status: 409,
     })
   })
@@ -353,15 +360,15 @@ describe('public media queue', () => {
 
   it('answers 404 for an unknown media id or project', async () => {
     state.actor = reviewer
-    await expect(service.approve(reviewer, projectId, 'not-a-uuid')).rejects.toBeInstanceOf(
-      NotFoundException,
-    )
+    await expect(
+      service.approve(reviewer, projectId, 'not-a-uuid', checklist),
+    ).rejects.toBeInstanceOf(NotFoundException)
     tx.evidenceMedia.findFirst.mockResolvedValue(null)
-    await expect(service.approve(reviewer, projectId, mediaId)).rejects.toBeInstanceOf(
+    await expect(service.approve(reviewer, projectId, mediaId, checklist)).rejects.toBeInstanceOf(
       NotFoundException,
     )
     tx.project.findFirst.mockResolvedValue(null)
-    await expect(service.approve(reviewer, projectId, mediaId)).rejects.toBeInstanceOf(
+    await expect(service.approve(reviewer, projectId, mediaId, checklist)).rejects.toBeInstanceOf(
       NotFoundException,
     )
   })
@@ -517,7 +524,7 @@ describe('beneficiary media gates', () => {
       for (const call of [
         () => service.content(actor, projectId, mediaId),
         () => service.submit(actor, projectId, mediaId),
-        () => service.approve(actor, projectId, mediaId),
+        () => service.approve(actor, projectId, mediaId, checklist),
         () => service.reject(actor, projectId, mediaId, { reason: 'No' }),
       ])
         await expect(call()).rejects.toThrow('Beneficiary media access is required.')
@@ -533,7 +540,7 @@ describe('beneficiary media gates', () => {
     await expect(service.content(reviewer, projectId, mediaId)).resolves.toMatchObject({
       body: 'stream',
     })
-    await expect(service.approve(reviewer, projectId, mediaId)).resolves.toMatchObject({
+    await expect(service.approve(reviewer, projectId, mediaId, checklist)).resolves.toMatchObject({
       publicStatus: 'APPROVED',
     })
   })
@@ -594,7 +601,7 @@ describe('beneficiary media step-up', () => {
     for (const [handler, call] of [
       ['content', () => service.content(reviewer, projectId, mediaId, session)],
       ['submit', () => service.submit(reviewer, projectId, mediaId, session)],
-      ['approve', () => service.approve(reviewer, projectId, mediaId, session)],
+      ['approve', () => service.approve(reviewer, projectId, mediaId, checklist, session)],
       ['reject', () => service.reject(reviewer, projectId, mediaId, { reason: 'No' }, session)],
     ] as const) {
       tx.evidenceMedia.findFirst.mockResolvedValue(
@@ -619,7 +626,9 @@ describe('beneficiary media step-up', () => {
   it('approves enrollment-linked media after a fresh step-up', async () => {
     state.actor = reviewer
     tx.evidenceMedia.findFirst.mockResolvedValue(beneficiaryRow)
-    await expect(service.approve(reviewer, projectId, mediaId, session)).resolves.toMatchObject({
+    await expect(
+      service.approve(reviewer, projectId, mediaId, checklist, session),
+    ).resolves.toMatchObject({
       publicStatus: 'APPROVED',
     })
     expect(stepUp.enforce).toHaveBeenCalledOnce()
@@ -631,7 +640,7 @@ describe('beneficiary media step-up', () => {
     tx.evidenceMedia.findFirst.mockResolvedValue(queued())
     reader.release.mockResolvedValue('stream')
     await service.content(reviewer, projectId, mediaId, session)
-    await service.approve(reviewer, projectId, mediaId, session)
+    await service.approve(reviewer, projectId, mediaId, checklist, session)
     expect(stepUp.enforce).not.toHaveBeenCalled()
   })
 })
