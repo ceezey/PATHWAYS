@@ -176,7 +176,8 @@ export const BeneficiaryDirectory = ({
     if (disabilityStatus !== allValue) returning.set('disability', disabilityStatus)
     if (enrollmentStatus !== allValue) returning.set('status', enrollmentStatus)
     const page = table.getState().pagination.pageIndex + 1
-    if (page > 1) returning.set('page', String(page))
+    // A searched page is not restored, since the term is never carried back.
+    if (page > 1 && !search) returning.set('page', String(page))
     const directoryPath = returning.size ? `/beneficiaries?${returning}` : '/beneficiaries'
 
     return `/beneficiaries/${beneficiaryId}?projectId=${encodeURIComponent(projectId)}&returnTo=${encodeURIComponent(directoryPath)}`

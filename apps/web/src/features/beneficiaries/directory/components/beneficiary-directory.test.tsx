@@ -115,6 +115,27 @@ describe('BeneficiaryDirectory', () => {
 })
 
 describe('BeneficiaryDirectory search term', () => {
+  it('returns to page 1 after a searched page, since the term is not restored', async () => {
+    const extraRecords = Array.from({ length: 9 }, (_, index) => ({
+      ...testBeneficiaries[0],
+      code: `BEN-NCR-${index + 10}`,
+      displayName: `Beneficiary NCR-${index + 10}`,
+      id: `ben-extra-${index + 10}`,
+    }))
+    renderDirectory({ beneficiaries: [...testBeneficiaries, ...extraRecords] })
+    fireEvent.change(screen.getByLabelText('Search by name or code'), {
+      target: { value: 'Beneficiary' },
+    })
+    const next = screen.getByRole('button', { name: 'Next' })
+    await waitFor(() => expect(next.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(next)
+    await waitFor(() => expect(screen.getByText(/Page 2 of \d+/)).toBeTruthy())
+    const hrefs = screen
+      .getAllByRole('link', { name: /^Open / })
+      .map((link) => decodeURIComponent(link.getAttribute('href') ?? ''))
+    for (const href of hrefs) expect(href).not.toMatch(/page=/)
+  })
+
   it('keeps the term out of the profile link and ignores one left in the address', () => {
     address.query = 'q=Fictional'
     renderDirectory({})
