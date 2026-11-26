@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common'
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common'
 
 import { writeAuditLog } from '../../common/audit/write-audit-log'
 import { endOwnSessions } from '../../common/authz/app-sessions'
@@ -11,6 +11,8 @@ import { PasswordRecoveryService } from './password-recovery.service'
 
 @Injectable()
 export class OwnAccountService {
+  private readonly logger = new Logger(OwnAccountService.name)
+
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(PasswordRecoveryService) private readonly recovery: PasswordRecoveryService,
@@ -117,6 +119,8 @@ export class OwnAccountService {
       { transactionTimeoutMs: 15_000 },
     )
     // Best effort: the password is changed and the PATHWAYS sessions are already ended.
-    await this.recovery.revokeOtherSessions(accessToken).catch(() => undefined)
+    await this.recovery
+      .revokeOtherSessions(accessToken)
+      .catch(() => this.logger.warn({ event: 'PATHWAYS_OWN_PASSWORD_REVOKE_FAILED' }))
   }
 }

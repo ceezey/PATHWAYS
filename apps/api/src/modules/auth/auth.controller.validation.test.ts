@@ -264,6 +264,11 @@ describe('session routes', () => {
     expect(account.endOtherSessions).toHaveBeenCalledWith(pinActor, 'header.payload.signature')
   })
 
+  it('reads the bearer scheme in any case, as the auth guard does', async () => {
+    await post('/sessions/end-others', '', { authorization: 'bearer header.payload.signature' })
+    expect(account.endOtherSessions).toHaveBeenCalledWith(pinActor, 'header.payload.signature')
+  })
+
   it('answers 401 without calling the service when the request carries no bearer token', async () => {
     const result = await post('/sessions/end-others', '')
     expect(result.status).toBe(401)

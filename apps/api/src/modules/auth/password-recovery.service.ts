@@ -14,7 +14,7 @@ import { UUID_PATTERN } from '../../common/authz/application-identity'
 import { PrismaService } from '../../prisma/prisma.service'
 import { verifiedAuthOrigin } from '../users/auth-directory.service'
 
-const bearerPattern = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/
+const bearerPattern = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i
 
 // The access token of an Authorization header, or undefined when it is not a bearer JWT.
 export const bearerToken = (authorization: string | undefined) =>

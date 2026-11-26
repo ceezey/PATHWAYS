@@ -77,15 +77,35 @@ describe('signed-in devices', () => {
     expect(await screen.findByText('Your other devices were signed out.')).toBeTruthy()
   })
 
-  it('keeps the dialog open and asks for a code when the API requires one', async () => {
+  it('keeps the dialog open when the API requires a code, then retries with the code', async () => {
     client.endOthers.mockRejectedValueOnce(stepUpRefusal())
     render(<OwnSessionsCard />)
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out other devices' }))
     await waitFor(() => expect(confirmButton().disabled).toBe(false))
     fireEvent.click(confirmButton())
     expect(await screen.findByRole('group', { name: 'Authenticator code' })).toBeTruthy()
-    expect(screen.getByText('Enter the code from your authenticator app to continue.')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Enter the code from your authenticator app to continue.',
+    )
     expect(screen.queryByText('Your other devices were signed out.')).toBeNull()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Digit 1 of 6' }), {
+      target: { value: '123456' },
+    })
+    fireEvent.click(confirmButton())
+    await waitFor(() => expect(client.endOthers).toHaveBeenCalledTimes(2))
+    expect(stepUp.verify).toHaveBeenCalledWith('123456')
+    expect(await screen.findByText('Your other devices were signed out.')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('closes the dialog and reports a failure that is not a code request', async () => {
+    client.end.mockRejectedValueOnce(new Error('offline'))
+    render(<OwnSessionsCard />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out Chrome on Android' }))
+    await waitFor(() => expect(confirmButton().disabled).toBe(false))
+    fireEvent.click(confirmButton())
+    expect(await screen.findByText('Signing out could not be completed. Try again.')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('hides the bulk action when this is the only device, and reports a failed load', async () => {

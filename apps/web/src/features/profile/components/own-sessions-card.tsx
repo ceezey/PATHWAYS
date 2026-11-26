@@ -133,14 +133,22 @@ export const OwnSessionsCard = () => {
             ? `Sign out ${deviceLabel(target.session.device)}?`
             : 'Sign out other devices?'
         }
-        description="You will need to sign in again on that device."
+        description={
+          target?.kind === 'others'
+            ? 'You will need to sign in again on those devices.'
+            : 'You will need to sign in again on that device.'
+        }
         confirmLabel="Sign out"
         confirmVariant="default"
         confirmDisabled={busy || step.checking || step.incomplete}
         onConfirm={() => void confirm()}
       >
         <StepUpCodeField step={step} />
-        {dialogNotice && <p className="text-sm">{dialogNotice}</p>}
+        {dialogNotice && (
+          <p role="alert" className="text-sm text-danger">
+            {dialogNotice}
+          </p>
+        )}
       </ConfirmationDialog>
     </div>
   )
