@@ -18,13 +18,16 @@ const navItemClass = (active: boolean) =>
     active ? 'font-bold text-white' : 'font-medium text-slate-300 hover:text-white',
   )
 
+// An absolute link to another address is never prefetched, so staff pages skip the cross-site redirect.
+const linkTo = (href: string, base?: string) => (base ? new URL(href, base).toString() : href)
+
 // The label links to the organizations page; hovering or focusing it reveals each organization.
-const OrganizationsMenu = ({ active }: { active: boolean }) => (
+const OrganizationsMenu = ({ active, base }: { active: boolean; base?: string }) => (
   <div className="group relative">
     <Link
       aria-current={active ? 'page' : undefined}
       className={cn(navItemClass(active), 'gap-1')}
-      href={organizationsHref}
+      href={linkTo(organizationsHref, base)}
     >
       Organizations
       <ChevronDown
@@ -38,7 +41,7 @@ const OrganizationsMenu = ({ active }: { active: boolean }) => (
           <li key={organization.slug}>
             <Link
               className="flex min-h-10 items-center rounded-sm px-3 text-sm transition-colors hover:bg-primary-subtle hover:text-light-blue-foreground focus-visible:bg-primary-subtle focus-visible:outline-none"
-              href={`/organizations/${organization.slug}`}
+              href={linkTo(`/organizations/${organization.slug}`, base)}
             >
               {organization.name}
             </Link>
@@ -49,7 +52,8 @@ const OrganizationsMenu = ({ active }: { active: boolean }) => (
   </div>
 )
 
-export const SiteHeader = () => {
+/** The public header; staff sign-in pages pass the public address so its links go straight there. */
+export const SiteHeader = ({ publicSiteUrl }: { publicSiteUrl?: string }) => {
   const pathname = usePathname()
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`)
@@ -57,7 +61,11 @@ export const SiteHeader = () => {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-navy">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <Link aria-label="PATHWAYS home" className={cn('w-fit rounded-sm', focusRing)} href="/">
+        <Link
+          aria-label="PATHWAYS home"
+          className={cn('w-fit rounded-sm', focusRing)}
+          href={linkTo('/', publicSiteUrl)}
+        >
           <p className="font-heading text-3xl leading-8 text-white">pathways</p>
         </Link>
         <nav
@@ -67,12 +75,12 @@ export const SiteHeader = () => {
           {publicNavigation.map((item) => (
             <Fragment key={item.href}>
               {item.href === '/about' ? (
-                <OrganizationsMenu active={isActive(organizationsHref)} />
+                <OrganizationsMenu active={isActive(organizationsHref)} base={publicSiteUrl} />
               ) : null}
               <Link
                 aria-current={isActive(item.href) ? 'page' : undefined}
                 className={navItemClass(isActive(item.href))}
-                href={item.href}
+                href={linkTo(item.href, publicSiteUrl)}
               >
                 {item.label}
               </Link>
