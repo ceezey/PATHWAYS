@@ -165,3 +165,29 @@ describe('backup settings', () => {
       ).toThrow('backup job database')
   })
 })
+
+describe('public visitor token', () => {
+  it('is optional, so the public analytics limit is off when it is empty', () => {
+    expect(readApiEnv({}).PUBLIC_VISITOR_TOKEN).toBe('')
+    expect(readWebEnv({}).PUBLIC_VISITOR_TOKEN).toBe('')
+  })
+
+  it('must be 64 lowercase hex and distinct from the other tokens', () => {
+    expect(readApiEnv({ PUBLIC_VISITOR_TOKEN: 'e'.repeat(64) }).PUBLIC_VISITOR_TOKEN).toBe(
+      'e'.repeat(64),
+    )
+    for (const value of ['E'.repeat(64), 'e'.repeat(63), 'not-a-token'])
+      expect(() => readApiEnv({ PUBLIC_VISITOR_TOKEN: value })).toThrow('visitor forwarding')
+    for (const key of ['RULES_DRAIN_TOKEN', 'RULES_SWEEP_TOKEN'])
+      expect(() =>
+        readApiEnv({ PUBLIC_VISITOR_TOKEN: 'e'.repeat(64), [key]: 'e'.repeat(64) }),
+      ).toThrow('visitor forwarding')
+    expect(() =>
+      readApiEnv({
+        PUBLIC_VISITOR_TOKEN: 'e'.repeat(64),
+        BACKUP_JOB_TOKEN: 'e'.repeat(64),
+        BACKUP_JOB_DATABASE_URL: 'postgresql://pathways_backup_job@127.0.0.1/local',
+      }),
+    ).toThrow('visitor forwarding')
+  })
+})

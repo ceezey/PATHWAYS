@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
+import { RateLimitService } from '../../common/rate-limit/rate-limit.service'
 import { AppSessionsService } from './app-sessions.service'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
@@ -41,6 +42,7 @@ beforeAll(async () => {
       { provide: WorkspaceResolutionService, useValue: {} },
       { provide: BeneficiaryStepUpPinService, useValue: pins },
       { provide: SignInLockoutService, useValue: signIns },
+      { provide: RateLimitService, useValue: { hit: async () => 0 } },
       { provide: PasswordRecoveryService, useValue: recovery },
       { provide: OwnAccountService, useValue: account },
       { provide: AppSessionsService, useValue: sessions },

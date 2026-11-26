@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 
+import { RateLimitModule } from '../../common/rate-limit/rate-limit.module'
 import { AppSessionsService } from './app-sessions.service'
 import { ApplicationProfileService } from './application-profile.service'
 import { AuthController } from './auth.controller'
@@ -18,6 +19,7 @@ import { TokenAuthService } from './token-auth.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
 @Module({
+  imports: [RateLimitModule],
   controllers: [AuthController, AuthorizedDataController, RouteAccessController],
   providers: [
     AuthService,

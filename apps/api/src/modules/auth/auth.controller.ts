@@ -31,6 +31,7 @@ import {
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
 import { Public } from '../../common/decorators/public.decorator'
+import { RateLimit } from '../../common/rate-limit/rate-limit.guard'
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import { AppSessionsService } from './app-sessions.service'
 import { signInBody } from './auth.helpers'
@@ -64,10 +65,12 @@ export class AuthController {
 
   @Post('sign-in')
   @Public()
+  @RateLimit('sign-in')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   @ApiOkResponse({
-    description: 'Identity-provider session; 429 SIGN_IN_LOCKED after repeated failures.',
+    description:
+      'Identity-provider session; 429 SIGN_IN_LOCKED after repeated failures, 429 RATE_LIMITED past the per-minute limits.',
   })
   signIn(
     @Body(new ZodPipe(signInBody)) body: SignInRequest,
