@@ -24,4 +24,6 @@ export interface AuthenticatedRequest {
   user?: ApplicationIdentity
   /** Verified Supabase session claim; set by the guard with `user`, never from client input. */
   authSessionId?: string
+  /** The resolved identity of a request the guard refused with 403; read only by the refusal filter. */
+  refusedUser?: ApplicationIdentity
 }

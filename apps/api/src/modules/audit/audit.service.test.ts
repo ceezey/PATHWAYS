@@ -367,7 +367,7 @@ describe('audit server filters', () => {
     expect(tx.auditLog.findMany.mock.calls[0][0].where).toEqual({
       organizationId: org,
       projectId: { in: [projectId] },
-      entityType: { in: ['SystemUser', 'Authentication'] },
+      entityType: { in: ['SystemUser', 'Authentication', 'Route'] },
     })
   })
   it.each([

@@ -204,6 +204,7 @@ export class SupabaseAuthGuard implements CanActivate {
             ),
           ))
     ) {
+      request.refusedUser = request.user
       request.user = undefined
       request.authSessionId = undefined
       throw new ForbiddenException('Required application permission is missing.')
@@ -213,6 +214,7 @@ export class SupabaseAuthGuard implements CanActivate {
       this.reflector.getAllAndOverride<boolean>(TOTP_STEP_UP_KEY, handlers) &&
       !evaluateBeneficiaryStepUp(identity.mfaVerifiedAt).fresh
     ) {
+      request.refusedUser = request.user
       request.user = undefined
       request.authSessionId = undefined
       throw totpRequired()
@@ -230,6 +232,7 @@ export class SupabaseAuthGuard implements CanActivate {
           verified.sessionId,
         )
       } catch (error) {
+        request.refusedUser = request.user
         request.user = undefined
         request.authSessionId = undefined
         throw error
