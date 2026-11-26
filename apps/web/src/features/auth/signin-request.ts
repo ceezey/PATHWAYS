@@ -16,10 +16,10 @@ export const formatLockRemaining = (seconds: number) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
-// Falls back to the full lock window when the body value is missing or invalid.
-const parseRetryAfter = (body: Record<string, unknown> | null) => {
+// Falls back to the given window when the body value is missing or invalid.
+const parseRetryAfter = (body: Record<string, unknown> | null, fallback: number) => {
   const value = body?.retryAfterSeconds
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return maxLockSeconds
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback
   return Math.min(maxLockSeconds, Math.ceil(value))
 }
 
@@ -42,11 +42,10 @@ export async function requestSignIn(
   })
   if (response.status === 429) {
     const body = (await response.json().catch(() => null)) as Record<string, unknown> | null
-    return {
-      kind: 'locked',
-      retryAfterSeconds: parseRetryAfter(body),
-      ...(body?.code === 'RATE_LIMITED' ? { rateLimited: true as const } : {}),
-    }
+    // Only SIGN_IN_LOCKED is the 15 minute lockout; any other 429, such as the firewall's bodyless one, is a short request limit.
+    if (body?.code === 'SIGN_IN_LOCKED')
+      return { kind: 'locked', retryAfterSeconds: parseRetryAfter(body, maxLockSeconds) }
+    return { kind: 'locked', retryAfterSeconds: parseRetryAfter(body, 60), rateLimited: true }
   }
   if (response.status === 400) {
     const body: unknown = await response.json().catch(() => null)

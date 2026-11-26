@@ -42,7 +42,7 @@ const POLICY_KEY = 'pathways:rate-limit'
 
 @Injectable()
 export class RateLimitGuard implements CanActivate {
-  private readonly visitorToken = readApiEnv(process.env).PUBLIC_VISITOR_TOKEN
+  private readonly visitorToken = readApiEnv(process.env).VISITOR_FORWARD_TOKEN
 
   constructor(
     @Inject(RateLimitService) private readonly limits: RateLimitService,

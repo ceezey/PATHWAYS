@@ -5,7 +5,7 @@ vi.mock('next/headers', () => ({
   headers: async () => new Headers(incoming.realIp ? { 'x-real-ip': incoming.realIp } : {}),
 }))
 vi.mock('@/lib/env', () => ({
-  webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api/', PUBLIC_VISITOR_TOKEN: '' },
+  webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api/', VISITOR_FORWARD_TOKEN: '' },
 }))
 
 import { webEnv } from '@/lib/env'
@@ -36,7 +36,7 @@ const reply = (body: unknown, status = 200) => {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
-  webEnv.PUBLIC_VISITOR_TOKEN = ''
+  webEnv.VISITOR_FORWARD_TOKEN = ''
   incoming.realIp = null
 })
 
@@ -175,7 +175,7 @@ describe('public analytics visitor forwarding', () => {
 
   it('sends the visitor address and token on Vercel when the token is set', async () => {
     vi.stubEnv('VERCEL', '1')
-    webEnv.PUBLIC_VISITOR_TOKEN = token
+    webEnv.VISITOR_FORWARD_TOKEN = token
     incoming.realIp = '203.0.113.7'
     expect(await sentHeaders()).toEqual({
       'x-pathways-visitor-address': '203.0.113.7',
@@ -191,14 +191,14 @@ describe('public analytics visitor forwarding', () => {
   ])('sends nothing extra when %s', async (_label, setup) => {
     const { vercel, token: configured, ip } = setup()
     vi.stubEnv('VERCEL', vercel)
-    webEnv.PUBLIC_VISITOR_TOKEN = configured
+    webEnv.VISITOR_FORWARD_TOKEN = configured
     incoming.realIp = ip
     expect(await sentHeaders()).toBeUndefined()
   })
 
   it('never sends the token with the snapshot reads', async () => {
     vi.stubEnv('VERCEL', '1')
-    webEnv.PUBLIC_VISITOR_TOKEN = token
+    webEnv.VISITOR_FORWARD_TOKEN = token
     incoming.realIp = '203.0.113.7'
     const fetcher = reply([snapshot])
     await readPublicSnapshots()
