@@ -1068,6 +1068,12 @@ describe('Beneficiary step-up denial', () => {
     ])
   })
 
+  it('treats a Beneficiary search as no data write, so cached reads are kept', async () => {
+    const dispatchEvent = setup({}, 200)
+    await requestFoundationResponse('/beneficiaries/projects/p/search', { method: 'POST' })
+    expect(dispatchEvent).not.toHaveBeenCalled()
+  })
+
   it('keeps an ordinary 403 as a plain denial with no prompt', async () => {
     const dispatchEvent = setup({ statusCode: 403, message: 'Missing permission.' })
     const error = await requestFoundationResponse('/beneficiaries/projects/p').catch((e) => e)
