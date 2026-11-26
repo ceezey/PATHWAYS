@@ -17,6 +17,7 @@ const identity = {
   id: 'u1',
   userId: 'u1',
   organizationId: 'o1',
+  fullName: 'Synthetic fixture',
   roles: ['PROJECT_MANAGER'],
   permissions: [...rolePermissions.PROJECT_MANAGER],
   assignedProjectIds: [projectId],

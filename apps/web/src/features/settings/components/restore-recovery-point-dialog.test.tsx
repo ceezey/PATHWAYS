@@ -1,8 +1,18 @@
 /* @vitest-environment jsdom */
 
 import type { RecoveryPointListItem } from '@pathways/shared'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const stepUp = vi.hoisted(() => ({ status: vi.fn(), verify: vi.fn() }))
+
+vi.mock('@/lib/auth/beneficiary-step-up', async (original) => ({
+  ...(await original<typeof import('@/lib/auth/beneficiary-step-up')>()),
+  getBeneficiaryStepUpStatus: stepUp.status,
+  verifyBeneficiaryStepUp: stepUp.verify,
+}))
+
+import { BeneficiaryStepUpError } from '@/lib/auth/beneficiary-step-up'
 import { RestoreRecoveryPointDialog } from './restore-recovery-point-dialog'
 
 const point: RecoveryPointListItem = {
@@ -27,6 +37,7 @@ const renderDialog = (props: Partial<Parameters<typeof RestoreRecoveryPointDialo
       organizationCode="ORG1"
       pending={false}
       error={null}
+      stepUpRequired={false}
       onConfirm={onConfirm}
       onOpenChange={vi.fn()}
       {...props}
@@ -39,6 +50,10 @@ const renderDialog = (props: Partial<Parameters<typeof RestoreRecoveryPointDialo
 }
 
 describe('RestoreRecoveryPointDialog', () => {
+  beforeEach(() => {
+    stepUp.status.mockReset().mockResolvedValue({ fresh: true, method: 'TOTP' })
+    stepUp.verify.mockReset().mockResolvedValue(undefined)
+  })
   afterEach(cleanup)
 
   it('names the point and its time and says what is replaced and kept', () => {
@@ -55,7 +70,7 @@ describe('RestoreRecoveryPointDialog', () => {
     expect(screen.queryByText(/copied back from the recovery point/)).toBeNull()
   })
 
-  it('requires the typed organization code and sends it trimmed', () => {
+  it('requires the typed organization code and sends it trimmed', async () => {
     const { onConfirm, confirm } = renderDialog()
     const input = screen.getByLabelText('Type ORG1 to confirm')
     expect(input.getAttribute('autocomplete')).toBe('off')
@@ -63,9 +78,9 @@ describe('RestoreRecoveryPointDialog', () => {
     fireEvent.change(input, { target: { value: '   ' } })
     expect(confirm().disabled).toBe(true)
     fireEvent.change(input, { target: { value: 'ORG1 ' } })
-    expect(confirm().disabled).toBe(false)
+    await waitFor(() => expect(confirm().disabled).toBe(false))
     fireEvent.click(confirm())
-    expect(onConfirm).toHaveBeenCalledWith('ORG1')
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('ORG1'))
   })
 
   it('mentions file copies only for a copy point', () => {
@@ -84,5 +99,37 @@ describe('RestoreRecoveryPointDialog', () => {
     fireEvent.change(screen.getByLabelText('Type ORG1 to confirm'), { target: { value: 'ORG1' } })
     expect(confirm().disabled).toBe(true)
     expect(confirm().textContent).toBe('Restoring')
+  })
+
+  it('ties the server error to the organization code field', () => {
+    renderDialog({ error: 'The organization code does not match.' })
+    const alert = screen.getByRole('alert')
+    expect(alert.id).toBe('restore-error')
+    const input = screen.getByLabelText('Type ORG1 to confirm')
+    expect(input.getAttribute('aria-describedby')).toBe('restore-error')
+  })
+
+  it('leaves the organization code field untied when there is no server error', () => {
+    renderDialog()
+    const input = screen.getByLabelText('Type ORG1 to confirm')
+    expect(input.getAttribute('aria-describedby')).toBeNull()
+  })
+
+  it('shows a rejected code once, tied to the code field', async () => {
+    stepUp.status.mockResolvedValue({ fresh: false, method: null })
+    stepUp.verify.mockRejectedValue(new BeneficiaryStepUpError('Rejected.', 'rejected'))
+    const { onConfirm, confirm } = renderDialog()
+    fireEvent.change(screen.getByLabelText('Type ORG1 to confirm'), { target: { value: 'ORG1' } })
+    await screen.findByRole('group', { name: 'Authenticator code' })
+    const box = screen.getByRole('textbox', { name: 'Digit 1 of 6' })
+    fireEvent.change(box, { target: { value: '123456' } })
+    fireEvent.click(confirm())
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('The code was not accepted. Try the next authenticator code.')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(alert.id).toBe('step-up-code-error')
+    expect(box.getAttribute('aria-invalid')).toBe('true')
+    expect(box.getAttribute('aria-describedby')).toBe('step-up-code-error')
+    expect(onConfirm).not.toHaveBeenCalled()
   })
 })

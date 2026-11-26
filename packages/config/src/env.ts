@@ -12,7 +12,11 @@ export const webEnvSchema = z.object({
     .or(z.string().startsWith('/'))
     .default('http://127.0.0.1:4000/api'),
   NEXT_PUBLIC_SENTRY_DSN: optionalString,
+  // Empty keeps CAPTCHA off in the web app.
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: optionalString,
   STAFF_PORTAL_BASE_URL: optionalUrl,
+  // Any other value enforces, so a typo fails to the strict side.
+  CSP_MODE: z.enum(['enforce', 'report-only']).catch('enforce'),
   WEB_PORT: z.coerce.number().default(3000),
 })
 
@@ -20,9 +24,10 @@ export const apiEnvSchema = z
   .object({
     API_PORT: z.coerce.number().default(4000),
     API_PREFIX: z.string().default('api'),
+    // Off unless set to true, so no environment serves the API docs by mistake.
     ENABLE_SWAGGER: z
       .enum(['true', 'false'])
-      .default('true')
+      .default('false')
       .transform((value) => value === 'true'),
     RULES_WORKER_ENABLED: z
       .enum(['true', 'false'])

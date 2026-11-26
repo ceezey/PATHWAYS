@@ -74,23 +74,28 @@ describe('backupsClient', () => {
     expect(init?.body).toBeUndefined()
   })
 
-  it.each([
-    ['verify', { point, problem: null }],
-    [
-      'download',
-      {
+  it('verifies with POST /backups/:id/verify and no body', async () => {
+    fetcher.mockResolvedValueOnce(json({ point, problem: null }))
+    await backupsClient.verify(pointId)
+    const [url, init] = fetcher.mock.calls[0] ?? []
+    expect(String(url)).toBe(`http://127.0.0.1:4000/api/backups/${pointId}/verify`)
+    expect(init?.method).toBe('POST')
+    expect(init?.body).toBeUndefined()
+  })
+
+  it('downloads with the passphrase as the JSON body', async () => {
+    fetcher.mockResolvedValueOnce(
+      json({
         dataUrl: 'https://storage.invalid/data',
         manifestUrl: 'https://storage.invalid/manifest',
         expiresAt: '2026-11-12T06:02:00.000Z',
-      },
-    ],
-  ] as const)('%s posts to /backups/:id/%s', async (action, body) => {
-    fetcher.mockResolvedValueOnce(json(body))
-    await backupsClient[action](pointId)
+      }),
+    )
+    await backupsClient.download(pointId, { passphrase: 'correct horse battery' })
     const [url, init] = fetcher.mock.calls[0] ?? []
-    expect(String(url)).toBe(`http://127.0.0.1:4000/api/backups/${pointId}/${action}`)
+    expect(String(url)).toBe(`http://127.0.0.1:4000/api/backups/${pointId}/download`)
     expect(init?.method).toBe('POST')
-    expect(init?.body).toBeUndefined()
+    expect(init?.body).toBe(JSON.stringify({ passphrase: 'correct horse battery' }))
   })
 
   it('restores with the typed organization code as the JSON body', async () => {

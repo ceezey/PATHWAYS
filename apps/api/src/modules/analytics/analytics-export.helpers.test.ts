@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as reportArtifact from '../reports/report-artifact'
 import {
   type AnalyticsTable,
+  analyticsTableCsv,
   descriptiveAnalyticsTable,
   exportArtifact,
   parseExportFormat,
@@ -11,6 +12,7 @@ import {
   timelineAnalyticsTable,
 } from './analytics-export.helpers'
 
+const label = 'Confidential. Exported by Ana Reyes on 2026-11-26 00:30 (Asia/Manila).'
 const header = ['section', 'key', 'label', 'state', 'value', 'share', 'reason']
 const cell = { state: 'MISSING', value: null, reason: 'NO_DATA' }
 const group = {
@@ -80,7 +82,7 @@ describe('analytics export file names, formats and empty cells', () => {
   ] as const)(
     'names the %s file base plus its lowercase extension',
     async (format, fileName, contentType) => {
-      const result = await exportArtifact(format, 'Synthetic', table, 'synthetic-base')
+      const result = await exportArtifact(format, 'Synthetic', table, 'synthetic-base', label)
       expect(result.fileName).toBe(fileName)
       expect(result.contentType).toBe(contentType)
     },
@@ -104,10 +106,33 @@ describe('analytics export file names, formats and empty cells', () => {
       const render = vi
         .spyOn(reportArtifact, 'createReportArtifact')
         .mockResolvedValue(Buffer.from('synthetic'))
-      await exportArtifact(format, 'Synthetic', [['A', null, 7]], 'synthetic-base')
-      expect(render).toHaveBeenCalledWith('Synthetic', [['A', '', '7']], format)
+      await exportArtifact(format, 'Synthetic', [['A', null, 7]], 'synthetic-base', label)
+      expect(render).toHaveBeenCalledWith('Synthetic', [['A', '', '7']], format, label)
     },
   )
+})
+
+describe('analytics export label', () => {
+  const table: AnalyticsTable = [
+    ['a', 'b'],
+    ['x', 1],
+  ]
+
+  it('is the first CSV line, then the table', () => {
+    expect(analyticsTableCsv(table, label)).toBe(`"${label}"\r\n"a","b"\r\n"x","1"\r\n`)
+  })
+
+  it('stays one inert quoted cell for a name with a comma, quotes, brackets or a formula', () => {
+    const hostile = 'Confidential. Exported by =cmd, "Ana" <b> on 2026-11-26 00:30 (Asia/Manila).'
+    expect(analyticsTableCsv(table, hostile).split('\r\n')[0]).toBe(
+      `"${hostile.replaceAll('"', '""')}"`,
+    )
+  })
+
+  it('reaches the CSV file bytes from exportArtifact', async () => {
+    const { bytes } = await exportArtifact('CSV', 'Synthetic', table, 'base', label)
+    expect(bytes.toString('utf8').split('\r\n')[0]).toBe(`"${label}"`)
+  })
 })
 
 describe('analytics export abuse', () => {
@@ -119,17 +144,19 @@ describe('analytics export abuse', () => {
   ]
 
   it('quotes formula-like text in CSV and leaves a typed number alone', async () => {
-    const csv = (await exportArtifact('CSV', 'Synthetic', table, 'base')).bytes.toString('utf8')
+    const csv = (await exportArtifact('CSV', 'Synthetic', table, 'base', label)).bytes.toString(
+      'utf8',
+    )
     for (const value of risky) expect(csv).toContain(`"'${value}","'${value}"`)
     expect(csv).toContain('"typed number","-5"')
   })
 
   it.each(['XLSX', 'XLS'] as const)('quotes formula-like text in %s', async (format) => {
-    const { bytes } = await exportArtifact(format, 'Synthetic', table, 'base')
+    const { bytes } = await exportArtifact(format, 'Synthetic', table, 'base', label)
     const workbook = parseWorkbook(
       bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
     )
-    expect(workbook.rows.slice(0, risky.length).map((row) => row.label)).toEqual(
+    expect(workbook.rows.slice(1, risky.length + 1).map((row) => row[label])).toEqual(
       risky.map((value) => `'${value}`),
     )
   })
@@ -139,7 +166,9 @@ describe('analytics export abuse', () => {
       overall: { ...group, label: '=cmd' },
       byActivity: [],
     } as unknown as SurveyAnalytics)
-    const csv = (await exportArtifact('CSV', 'Synthetic', survey, 'base')).bytes.toString('utf8')
+    const csv = (await exportArtifact('CSV', 'Synthetic', survey, 'base', label)).bytes.toString(
+      'utf8',
+    )
     expect(csv).toContain(`"'=cmd - Paired assessments"`)
   })
 })

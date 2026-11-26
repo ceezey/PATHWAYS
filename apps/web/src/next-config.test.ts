@@ -12,6 +12,7 @@ import createNextConfig, {
   publicSiteHostname,
   sensitiveIncomingRequestPaths,
 } from '../next.config'
+import { securityHeaders } from './lib/security/csp'
 
 describe('Next build-directory isolation', () => {
   it('omits authentication and private route-check URLs from request logs', () => {
@@ -70,9 +71,11 @@ describe('Next build-directory isolation', () => {
         permanent: false,
         missing,
       })
-      const headers = (await config.headers?.()) ?? []
-      expect(headers).toHaveLength(privateAuthSurfacePaths.length)
-      for (const rule of headers) expect(rule.missing).toEqual(missing)
+      const [everywhere, ...staff] = (await config.headers?.()) ?? []
+      // The fixed security headers go to both addresses; only the staff rules skip the public one.
+      expect(everywhere).toEqual({ source: '/:path*', headers: securityHeaders })
+      expect(staff).toHaveLength(privateAuthSurfacePaths.length)
+      for (const rule of staff) expect(rule.missing).toEqual(missing)
     } finally {
       vi.unstubAllEnvs()
     }
@@ -100,13 +103,15 @@ describe('Next build-directory isolation', () => {
   })
 
   it('marks password login and recovery surfaces private and non-referring', async () => {
-    const headers = await createNextConfig(PHASE_DEVELOPMENT_SERVER).headers?.()
-    expect(headers).toEqual(
-      privateAuthSurfacePaths.map((source) => ({
+    const config = createNextConfig(PHASE_DEVELOPMENT_SERVER)
+    expect(config.poweredByHeader).toBe(false)
+    expect(await config.headers?.()).toEqual([
+      { source: '/:path*', headers: securityHeaders },
+      ...privateAuthSurfacePaths.map((source) => ({
         source,
         headers: passwordRecoveryResponseHeaders,
       })),
-    )
+    ])
     expect(privateAuthSurfacePaths).toContain('/staff/login')
     expect(privateAuthSurfacePaths).toContain('/auth/mfa')
     expect(privateAuthSurfacePaths).toContain('/auth/access-unavailable')

@@ -2,7 +2,7 @@
 -- Run hosted-defense-demo-wipe-dry-run.sql first, in the Supabase SQL editor as postgres, with RULES_DISPATCH_ENABLED=false.
 -- Kept: pathways organizations, roles, permissions, role_permissions, system_users, user_step_up_pins, signin_lockouts, app_sessions;
 -- pathways_rules_internal source_operation_catalog, calendar_configuration, sweep_cursor (cursor ids reset).
--- audit_logs is cleared and storage.objects is untouched. The list is closed under FKs, so there is no CASCADE.
+-- audit_logs and its chain heads are cleared and storage.objects is untouched. The list is closed under FKs, so there is no CASCADE.
 -- postgres gets temporary role membership in owner roles it lacks; this needs its ADMIN on them. If the grant fails,
 -- connect as the owner roles (prisma, report_projection_owner, rules_store_owner) and run the TRUNCATE per owner instead.
 BEGIN;
@@ -23,6 +23,7 @@ BEGIN
     RAISE EXCEPTION 'Expected kept tables missing';
   END IF;
   IF to_regclass('pathways.import_value_rejections') IS NULL THEN RAISE EXCEPTION 'Migrations through 0080 not applied'; END IF;
+  IF to_regclass('pathways.audit_chain_heads') IS NULL THEN RAISE EXCEPTION 'Migration 0096 not applied'; END IF;
 END $$;
 
 -- Temporary membership only in owner roles postgres does not already inherit.
@@ -40,6 +41,8 @@ BEGIN
   END LOOP;
 END $$;
 
+-- audit_logs is append-only (0096): its truncate block does not fire under the replica role, which ends right after this statement.
+SET LOCAL session_replication_role = replica;
 TRUNCATE TABLE
   pathways.activity_escalations,
   pathways.activity_extension_requests,
@@ -51,6 +54,7 @@ TRUNCATE TABLE
   pathways.alert_rule_recommendations,
   pathways.alert_rules,
   pathways.assessment_results,
+  pathways.audit_chain_heads,
   pathways.audit_logs,
   pathways.beneficiaries,
   pathways.beneficiary_activity_participations,
@@ -124,6 +128,7 @@ TRUNCATE TABLE
   pathways_rules_internal.work_coverage,
   pathways_rules_internal.work_items
   RESTART IDENTITY;
+SET LOCAL session_replication_role = origin;
 
 -- Reset the sweep cursor so the scheduler restarts from the first project.
 UPDATE pathways_rules_internal.sweep_cursor SET last_organization_id=NULL, last_project_id=NULL, exhausted=false;

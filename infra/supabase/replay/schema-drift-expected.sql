@@ -8,7 +8,13 @@ ALTER TABLE "pathways"."alert_rules" DROP CONSTRAINT "f10_rule_project_scope";
 ALTER TABLE "pathways"."alert_rules" DROP CONSTRAINT "f10_rule_template_scope";
 
 -- DropForeignKey
+ALTER TABLE "pathways"."audit_chain_heads" DROP CONSTRAINT "audit_chain_heads_organization_id_fkey";
+
+-- DropForeignKey
 ALTER TABLE "pathways"."decision_recommendations" DROP CONSTRAINT "f10_private_review_scope";
+
+-- DropForeignKey
+ALTER TABLE "pathways"."public_project_views" DROP CONSTRAINT "public_project_views_project_fk";
 
 -- DropForeignKey
 ALTER TABLE "pathways"."rule_based_alerts" DROP CONSTRAINT "f10_alert_latest_evaluation";
@@ -145,57 +151,6 @@ ALTER TABLE "pathways_rules_internal"."work_coverage" DROP CONSTRAINT "work_cove
 -- DropForeignKey
 ALTER TABLE "pathways_rules_internal"."work_items" DROP CONSTRAINT "work_items_organization_id_project_id_fkey";
 
--- DropForeignKey
-ALTER TABLE "AuditLog" DROP CONSTRAINT "AuditLog_actorId_fkey";
-
--- DropForeignKey
-ALTER TABLE "MetadataField" DROP CONSTRAINT "MetadataField_formMetadataId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ParticipantCard" DROP CONSTRAINT "ParticipantCard_participantId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ParticipantJourney" DROP CONSTRAINT "ParticipantJourney_participantId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ParticipantJourney" DROP CONSTRAINT "ParticipantJourney_programId_fkey";
-
--- DropForeignKey
-ALTER TABLE "ParticipantJourney" DROP CONSTRAINT "ParticipantJourney_projectId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Project" DROP CONSTRAINT "Project_programId_fkey";
-
--- DropForeignKey
-ALTER TABLE "Report" DROP CONSTRAINT "Report_createdById_fkey";
-
--- DropForeignKey
-ALTER TABLE "Report" DROP CONSTRAINT "Report_programId_fkey";
-
--- DropForeignKey
-ALTER TABLE "UploadBatch" DROP CONSTRAINT "UploadBatch_formMetadataId_fkey";
-
--- DropForeignKey
-ALTER TABLE "UploadBatch" DROP CONSTRAINT "UploadBatch_projectId_fkey";
-
--- DropForeignKey
-ALTER TABLE "UploadBatch" DROP CONSTRAINT "UploadBatch_uploadedById_fkey";
-
--- DropForeignKey
-ALTER TABLE "UploadRow" DROP CONSTRAINT "UploadRow_participantId_fkey";
-
--- DropForeignKey
-ALTER TABLE "UploadRow" DROP CONSTRAINT "UploadRow_uploadBatchId_fkey";
-
--- DropForeignKey
-ALTER TABLE "UploadRowError" DROP CONSTRAINT "UploadRowError_uploadRowId_fkey";
-
--- DropForeignKey
-ALTER TABLE "UserRole" DROP CONSTRAINT "UserRole_roleId_fkey";
-
--- DropForeignKey
-ALTER TABLE "UserRole" DROP CONSTRAINT "UserRole_userId_fkey";
-
 -- DropIndex
 DROP INDEX "pathways"."f10_rule_scoped_id";
 
@@ -237,6 +192,12 @@ DROP TABLE "auth"."users";
 
 -- DropTable
 DROP TABLE "pathways"."app_sessions";
+
+-- DropTable
+DROP TABLE "pathways"."audit_chain_heads";
+
+-- DropTable
+DROP TABLE "pathways"."public_project_views";
 
 -- DropTable
 DROP TABLE "pathways"."signin_lockouts";
@@ -324,51 +285,6 @@ DROP TABLE "pathways_rules_internal"."work_coverage";
 
 -- DropTable
 DROP TABLE "pathways_rules_internal"."work_items";
-
--- DropTable
-DROP TABLE "AuditLog";
-
--- DropTable
-DROP TABLE "FormMetadata";
-
--- DropTable
-DROP TABLE "MetadataField";
-
--- DropTable
-DROP TABLE "Participant";
-
--- DropTable
-DROP TABLE "ParticipantCard";
-
--- DropTable
-DROP TABLE "ParticipantJourney";
-
--- DropTable
-DROP TABLE "Program";
-
--- DropTable
-DROP TABLE "Project";
-
--- DropTable
-DROP TABLE "Report";
-
--- DropTable
-DROP TABLE "Role";
-
--- DropTable
-DROP TABLE "UploadBatch";
-
--- DropTable
-DROP TABLE "UploadRow";
-
--- DropTable
-DROP TABLE "UploadRowError";
-
--- DropTable
-DROP TABLE "User";
-
--- DropTable
-DROP TABLE "UserRole";
 
 -- DropTable
 DROP TABLE "storage"."objects";

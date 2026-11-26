@@ -11,10 +11,18 @@ describe('env readers', () => {
     expect(env.NEXT_PUBLIC_API_BASE_URL).toBe('http://127.0.0.1:4000/api')
   })
 
+  it('enforces the content security policy unless report-only is spelled exactly', () => {
+    expect(readWebEnv({}).CSP_MODE).toBe('enforce')
+    expect(readWebEnv({ CSP_MODE: 'report-only' }).CSP_MODE).toBe('report-only')
+    expect(readWebEnv({ CSP_MODE: 'report_only' }).CSP_MODE).toBe('enforce')
+  })
+
   it('applies defaults for api envs', () => {
     const env = readApiEnv({})
 
     expect(env.API_PORT).toBe(4000)
+    expect(env.ENABLE_SWAGGER).toBe(false)
+    expect(readApiEnv({ ENABLE_SWAGGER: 'true' }).ENABLE_SWAGGER).toBe(true)
     expect(env).not.toHaveProperty('DEV_ADMIN_EMAIL')
     expect(env).not.toHaveProperty('DEV_ADMIN_SUPABASE_ID')
   })

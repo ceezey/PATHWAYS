@@ -27,6 +27,32 @@ describe('project codes', () => {
     expect(projectCodeBase({ title: 'Nutrition', startDate: '2027-05-01' })).toBe('NU-2027')
   })
 
+  it('splits a title on a dash with any amount of space around it', () => {
+    expect(projectCodeBase({ title: 'Clean Water   -   Leyte', startDate: '2026-01-01' })).toBe(
+      'CW-LE-2026',
+    )
+    expect(projectCodeBase({ title: 'Clean Water - Leyte', startDate: '2026-01-01' })).toBe(
+      'CW-LE-2026',
+    )
+  })
+
+  it('keeps the old parts when a dash follows the separator after extra spaces', () => {
+    // The old greedy split read 'Water -  - Leyte' as name 'Water' and suffix '- Leyte'.
+    expect(projectCodeBase({ title: 'Water -  - Leyte', startDate: '2026-01-01' })).toBe(
+      'WA-LE-2026',
+    )
+    expect(projectCodeBase({ title: 'Water - Leyte - Phase 2', startDate: '2026-01-01' })).toBe(
+      'WA-LE-2026',
+    )
+    expect(projectCodeBase({ title: ' - Leyte', startDate: '2026-01-01' })).toBe('PRJ-LE-2026')
+  })
+
+  it('stays fast on a title with a long run of spaces and no dash', () => {
+    const started = performance.now()
+    projectCodeBase({ title: `A${' '.repeat(200_000)}B`, startDate: '2026-01-01' })
+    expect(performance.now() - started).toBeLessThan(200)
+  })
+
   it('adds a numeric suffix when the code is taken', () => {
     expect(uniqueProjectCode('TP-PA-2026', [])).toBe('TP-PA-2026')
     expect(uniqueProjectCode('TP-PA-2026', ['tp-pa-2026', 'TP-PA-2026-2'])).toBe('TP-PA-2026-3')
