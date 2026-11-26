@@ -41,7 +41,11 @@ function caller(route: keyof Routes, env: Record<string, string> = {}) {
     hits,
     call: async (request: Call) => {
       const headers: Record<string, string> = {}
-      const response = { setHeader: (name: string, value: string) => (headers[name] = value) }
+      const response = {
+        setHeader: (name: string, value: string) => {
+          headers[name] = value
+        },
+      }
       const context = {
         getHandler: () => Routes.prototype[route],
         switchToHttp: () => ({
