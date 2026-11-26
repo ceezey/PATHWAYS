@@ -15,9 +15,12 @@ vi.mock('@/lib/env', () => ({
   },
 }))
 
-vi.mock('@/providers/current-role-provider', () => ({
-  useCurrentRole: () => ({ role: 'Project Manager', assignedProjectIds: ['futuremakers-ncr'] }),
+// One stable object, so re-renders keep the table's page index as the app does.
+const currentRole = vi.hoisted(() => ({
+  role: 'Project Manager',
+  assignedProjectIds: ['futuremakers-ncr'],
 }))
+vi.mock('@/providers/current-role-provider', () => ({ useCurrentRole: () => currentRole }))
 
 const address = vi.hoisted(() => ({ query: '' }))
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(address.query) }))
@@ -115,7 +118,8 @@ describe('BeneficiaryDirectory', () => {
 })
 
 describe('BeneficiaryDirectory search term', () => {
-  it('returns to page 1 after a searched page, since the term is not restored', async () => {
+  // Opens page 2, after an optional search, and returns the decoded profile links.
+  const profileLinksOnPageTwo = async (term?: string) => {
     const extraRecords = Array.from({ length: 9 }, (_, index) => ({
       ...testBeneficiaries[0],
       code: `BEN-NCR-${index + 10}`,
@@ -123,16 +127,27 @@ describe('BeneficiaryDirectory search term', () => {
       id: `ben-extra-${index + 10}`,
     }))
     renderDirectory({ beneficiaries: [...testBeneficiaries, ...extraRecords] })
-    fireEvent.change(screen.getByLabelText('Search by name or code'), {
-      target: { value: 'Beneficiary' },
-    })
+    if (term)
+      fireEvent.change(screen.getByLabelText('Search by name or code'), {
+        target: { value: term },
+      })
     const next = screen.getByRole('button', { name: 'Next' })
     await waitFor(() => expect(next.hasAttribute('disabled')).toBe(false))
     fireEvent.click(next)
     await waitFor(() => expect(screen.getByText(/Page 2 of \d+/)).toBeTruthy())
-    const hrefs = screen
+    return screen
       .getAllByRole('link', { name: /^Open / })
       .map((link) => decodeURIComponent(link.getAttribute('href') ?? ''))
+  }
+
+  it('carries the page number back when no search is active', async () => {
+    const hrefs = await profileLinksOnPageTwo()
+    for (const href of hrefs) expect(href).toMatch(/page=2/)
+  })
+
+  it('returns to page 1 after a searched page, since the term is not restored', async () => {
+    const hrefs = await profileLinksOnPageTwo('Beneficiary')
+    expect(hrefs.length).toBeGreaterThan(0)
     for (const href of hrefs) expect(href).not.toMatch(/page=/)
   })
 
