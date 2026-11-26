@@ -6,8 +6,10 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = path.resolve(currentDir, '../../..')
 const temporaryRoot = path.join(repositoryRoot, '.tmp')
 const migrations = path.resolve(env('PATHWAYS_PHASE6_REPLAY_MIGRATIONS'))
+// path.relative compares Windows drive letters and folders case-insensitively, so c:\ and C:\ match.
+const staged = path.relative(temporaryRoot, migrations)
 
-if (!migrations.startsWith(`${temporaryRoot}${path.sep}`)) {
+if (staged === '' || staged.startsWith('..') || path.isAbsolute(staged)) {
   throw new Error('Phase 6 replay migrations must be staged below the repository .tmp directory.')
 }
 
