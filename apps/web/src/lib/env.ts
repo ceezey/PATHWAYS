@@ -18,6 +18,7 @@ export const webEnv = readWebEnv({
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   STAFF_PORTAL_BASE_URL: process.env.STAFF_PORTAL_BASE_URL,
   CSP_MODE: process.env.CSP_MODE,
+  VISITOR_FORWARD_TOKEN: process.env.VISITOR_FORWARD_TOKEN,
   WEB_PORT: process.env.WEB_PORT,
 })
 

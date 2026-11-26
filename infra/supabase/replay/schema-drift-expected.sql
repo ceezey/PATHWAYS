@@ -200,6 +200,9 @@ DROP TABLE "pathways"."audit_chain_heads";
 DROP TABLE "pathways"."public_project_views";
 
 -- DropTable
+DROP TABLE "pathways"."rate_limit_counters";
+
+-- DropTable
 DROP TABLE "pathways"."signin_lockouts";
 
 -- DropTable

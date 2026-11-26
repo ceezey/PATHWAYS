@@ -32,16 +32,34 @@ describe('requestSignIn', () => {
     await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({ kind: 'invalid' })
   })
 
+  it('marks the request limit apart from the failure lockout', async () => {
+    reply(429, { code: 'RATE_LIMITED', retryAfterSeconds: 42 })
+    await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({
+      kind: 'locked',
+      retryAfterSeconds: 42,
+      rateLimited: true,
+    })
+  })
+
   it.each([
     ['missing', {}],
     ['oversized', { retryAfterSeconds: 5000 }],
     ['non-number', { retryAfterSeconds: '60' }],
     ['negative', { retryAfterSeconds: -5 }],
-  ])('falls back to 900 seconds when retryAfterSeconds is %s', async (_name, body) => {
-    reply(429, body)
+  ])('caps the lockout at 900 seconds when retryAfterSeconds is %s', async (_name, body) => {
+    reply(429, { code: 'SIGN_IN_LOCKED', ...body })
     await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({
       kind: 'locked',
       retryAfterSeconds: 900,
+    })
+  })
+
+  it('treats a 429 without a known code, such as the firewall rule, as a one-minute request limit', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 429 })))
+    await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({
+      kind: 'locked',
+      retryAfterSeconds: 60,
+      rateLimited: true,
     })
   })
 

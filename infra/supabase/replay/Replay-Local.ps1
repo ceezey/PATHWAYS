@@ -665,8 +665,8 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count: 66 schema tables after 0096 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
-      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "67"
+      # Fixed pathways table count: 67 schema tables after 0098 plus the harness probe table baseline_compatibility_probe (the saved template lacks it), so a missing or extra table fails the guard.
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "68"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
       $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'

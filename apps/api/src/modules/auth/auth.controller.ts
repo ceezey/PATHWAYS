@@ -31,13 +31,14 @@ import {
 import type { AuthenticatedRequest } from '../../common/authz/application-identity'
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
 import { Public } from '../../common/decorators/public.decorator'
+import { RateLimit } from '../../common/rate-limit/rate-limit.guard'
 import { ZodPipe } from '../../common/validation/zod-pipe'
 import { AppSessionsService } from './app-sessions.service'
 import { signInBody } from './auth.helpers'
 import { AuthService } from './auth.service'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'
 import { OwnAccountService } from './own-account.service'
-import { PasswordRecoveryService } from './password-recovery.service'
+import { PasswordRecoveryService, bearerToken } from './password-recovery.service'
 import { SignInLockoutService } from './signin-lockout.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
@@ -47,6 +48,14 @@ function pinActor(request: AuthenticatedRequest): StepUpPinActor {
     throw new ForbiddenException('Verified profile required.')
   }
   return { auth: request.auth, profile: request.user, sessionId: request.authSessionId }
+}
+
+// The verified request's own access token, for Supabase calls made on the caller's behalf.
+function accessToken(request: AuthenticatedRequest): string {
+  const header = request.headers.authorization
+  const token = typeof header === 'string' ? bearerToken(header) : undefined
+  if (!token) throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
+  return token
 }
 
 @ApiTags('auth')
@@ -64,10 +73,12 @@ export class AuthController {
 
   @Post('sign-in')
   @Public()
+  @RateLimit('sign-in')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
   @ApiOkResponse({
-    description: 'Identity-provider session; 429 SIGN_IN_LOCKED after repeated failures.',
+    description:
+      'Identity-provider session; 429 SIGN_IN_LOCKED after repeated failures, 429 RATE_LIMITED past the per-minute limits.',
   })
   signIn(
     @Body(new ZodPipe(signInBody)) body: SignInRequest,
@@ -114,7 +125,7 @@ export class AuthController {
     @Req() request: AuthenticatedRequest,
     @Body(new ZodPipe(changeOwnPasswordRequest)) body: ChangeOwnPasswordRequest,
   ) {
-    return this.account.changePassword(pinActor(request), body.password)
+    return this.account.changePassword(pinActor(request), body.password, accessToken(request))
   }
 
   @Get('sessions')
@@ -147,7 +158,7 @@ export class AuthController {
   @Header('Cache-Control', 'private, no-store')
   @ApiOkResponse({ description: 'Ends every session of the caller except this one.' })
   endOtherSessions(@Req() request: AuthenticatedRequest) {
-    return this.account.endOtherSessions(pinActor(request))
+    return this.account.endOtherSessions(pinActor(request), accessToken(request))
   }
 
   @Post('sessions/:sessionId/end')

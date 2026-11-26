@@ -185,6 +185,18 @@ describe('PasswordRecoveryService', () => {
     expect(provider.updateUserById).not.toHaveBeenCalled()
   })
 
+  describe('revokeOtherSessions', () => {
+    it("revokes every Supabase session but the token's own", async () => {
+      await expect(service().revokeOtherSessions(token)).resolves.toBeUndefined()
+      expect(provider.signOut).toHaveBeenCalledExactlyOnceWith(token, 'others')
+    })
+
+    it('answers 503 when Supabase refuses', async () => {
+      provider.signOut.mockResolvedValueOnce({ data: null, error: { status: 500 } })
+      await expect(service().revokeOtherSessions(token)).rejects.toMatchObject({ status: 503 })
+    })
+  })
+
   describe('setPassword', () => {
     it('sets the password of the given Auth user without touching the database', async () => {
       await expect(service().setPassword(userId, password)).resolves.toBeUndefined()
