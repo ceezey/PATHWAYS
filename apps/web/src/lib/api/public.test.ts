@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const incoming = vi.hoisted(() => ({ realIp: null as string | null }))
-vi.mock('server-only', () => ({}))
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(incoming.realIp ? { 'x-real-ip': incoming.realIp } : {}),
 }))

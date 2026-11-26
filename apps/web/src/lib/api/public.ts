@@ -1,4 +1,3 @@
-import 'server-only'
 import { isIP } from 'node:net'
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { webEnv } from '@/lib/env'
@@ -12,7 +11,7 @@ import {
 import { headers } from 'next/headers'
 import { z } from 'zod'
 
-// The visitor's address for the API's per-visitor limit; only Vercel's x-real-ip is trusted, and only with the shared token.
+// Visitor address for the API per-visitor limit; next/headers keeps this server-only, and only Vercel x-real-ip is trusted, with the shared token.
 async function visitorHeaders(): Promise<Record<string, string> | undefined> {
   const token = webEnv.PUBLIC_VISITOR_TOKEN
   if (!token || process.env.VERCEL !== '1') return undefined
