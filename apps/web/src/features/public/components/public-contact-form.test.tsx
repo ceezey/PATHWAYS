@@ -24,4 +24,9 @@ describe('contact form', () => {
     expect(screen.getByText('Thank you for reaching out.')).toBeTruthy()
     expect(screen.getByText(/it was not sent/)).toBeTruthy()
   })
+
+  it('posts natively so a submit before scripts load keeps the fields out of the URL', () => {
+    const { container } = render(<ContactForm />)
+    expect(container.querySelector('form')?.getAttribute('method')).toBe('post')
+  })
 })

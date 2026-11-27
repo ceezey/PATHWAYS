@@ -12,6 +12,12 @@ export const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'no-referrer' },
+  // The app uses no device features; fullscreen stays for its own videos, and Turnstile's token features are left alone.
+  {
+    key: 'Permissions-Policy',
+    value:
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=(), fullscreen=(self)',
+  },
 ]
 
 /** The Content-Security-Policy for one request; empty origins are left out. */
