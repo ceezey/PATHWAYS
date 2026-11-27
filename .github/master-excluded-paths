@@ -3,6 +3,7 @@ CLAUDE.md
 CODEX.md
 .claude
 .codex
+.agents
 docs
 supabase
 scripts/sad
