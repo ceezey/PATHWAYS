@@ -6,5 +6,5 @@ For Gemini CLI and Antigravity CLI. The line above imports [AGENTS.md](AGENTS.md
 
 - All PATHWAYS docs live in the AI Memory Vault (`C:\AI Agentic Memory`), not in this repo. Read `docs/index.md` (the pointer to the vault), the vault project index `01_Developer/01_Projects/PATHWAYS/00_Project_Index.md`, and the relevant registered contracts before work. Create and edit docs only in the vault.
 - Write session notes, decisions and lessons in `C:\AI Agentic Memory\01_Developer\01_Projects\PATHWAYS\Memory\`, never in an agent memory folder or in `docs/`.
-- Project review roles are defined for Claude Code (`.claude/agents/`) and Codex (`.codex/agents/`), not for Gemini. Route reviews by the vault SAD (`C:/AI Agentic Memory/01_Developer/03_Resources/Blueprints/PATHWAYS/sad-pathways.md`); never claim a role ran without its returned evidence.
+- Project review roles are adapted for Antigravity in `.agents/agents/` (alongside Claude Code `.claude/agents/` and Codex `.codex/agents/`). Route reviews by the vault SAD (`C:/AI Agentic Memory/01_Developer/03_Resources/Blueprints/PATHWAYS/sad-pathways.md`); never claim a role ran without its returned evidence.
 - Do not commit, push, deploy, publish designs or apply hosted changes merely to install agent guidance.
