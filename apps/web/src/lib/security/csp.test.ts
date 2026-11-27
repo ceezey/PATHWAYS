@@ -61,10 +61,15 @@ describe('buildCsp', () => {
   })
 })
 
-it('fixes the three headers every response carries', () => {
+it('fixes the four headers every response carries', () => {
   expect(securityHeaders).toEqual([
     { key: 'X-Frame-Options', value: 'DENY' },
     { key: 'X-Content-Type-Options', value: 'nosniff' },
     { key: 'Referrer-Policy', value: 'no-referrer' },
+    {
+      key: 'Permissions-Policy',
+      value:
+        'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=(), fullscreen=(self)',
+    },
   ])
 })
