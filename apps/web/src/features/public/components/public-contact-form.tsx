@@ -77,7 +77,7 @@ export const ContactForm = () => {
     )
 
   return (
-    <form noValidate className="grid gap-5 sm:grid-cols-2" onSubmit={submit}>
+    <form method="post" noValidate className="grid gap-5 sm:grid-cols-2" onSubmit={submit}>
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
         <Input
