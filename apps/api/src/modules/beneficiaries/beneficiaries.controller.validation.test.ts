@@ -73,7 +73,11 @@ async function send(method: string, url: string, body?: string) {
     headers: { 'content-type': 'application/json' },
     body,
   })
-  return { status: response.status, body: await response.json() }
+  return {
+    status: response.status,
+    body: await response.json(),
+    cacheControl: response.headers.get('cache-control'),
+  }
 }
 
 const badRequest = {
@@ -86,9 +90,34 @@ const badRequest = {
 }
 
 describe('beneficiary request validation', () => {
-  it('defaults the page size and trims the search on the list query', async () => {
-    expect((await send('GET', `${base}?search=%20Ana%20`)).status).toBe(200)
-    expect(beneficiaries.list).toHaveBeenCalledWith(actor, projectId, { search: 'Ana', limit: 25 })
+  it('defaults the page size on the list query', async () => {
+    expect((await send('GET', base)).status).toBe(200)
+    expect(beneficiaries.list).toHaveBeenCalledWith(actor, projectId, { limit: 25 })
+  })
+
+  it('refuses a search term in the address of the list', async () => {
+    expect(await send('GET', `${base}?search=Ana`)).toMatchObject(badRequest)
+    expect(beneficiaries.list).not.toHaveBeenCalled()
+  })
+
+  it('searches from the body, trimmed, answering 200 with no caching', async () => {
+    const result = await send(
+      'POST',
+      `${base}/search`,
+      JSON.stringify({ search: ' Ana ', limit: 10 }),
+    )
+    expect(result.status).toBe(200)
+    expect(result.cacheControl).toBe('private, no-store')
+    expect(beneficiaries.list).toHaveBeenCalledWith(actor, projectId, { search: 'Ana', limit: 10 })
+  })
+
+  it.each([
+    ['no term', {}],
+    ['a blank term', { search: '   ' }],
+    ['an unknown key', { search: 'Ana', page: 2 }],
+  ])('answers 400 for a search body with %s', async (_label, body) => {
+    expect(await send('POST', `${base}/search`, JSON.stringify(body))).toMatchObject(badRequest)
+    expect(beneficiaries.list).not.toHaveBeenCalled()
   })
 
   it('coerces a numeric page size from the query string', async () => {
@@ -101,7 +130,7 @@ describe('beneficiary request validation', () => {
     ['the retired 5-9 age band', '?ageBand=5-9'],
     ['an unknown filter', '?page=2'],
   ])('answers 400 for %s without listing', async (_label, query) => {
-    expect(await send('GET', `${base}${query}`)).toEqual(badRequest)
+    expect(await send('GET', `${base}${query}`)).toMatchObject(badRequest)
     expect(beneficiaries.list).not.toHaveBeenCalled()
   })
 
@@ -128,9 +157,9 @@ describe('beneficiary request validation', () => {
     ['an unparseable version', 'POST', '/archive', { expectedUpdatedAt: 'yesterday' }],
     ['an impossible enrollment date', 'POST', '/enrollments', { enrollmentDate: '2026-02-29' }],
   ])('answers 400 for %s without calling the service', async (_label, method, path, body) => {
-    expect(await send(method, `${base}/${beneficiaryId}${path}`, JSON.stringify(body))).toEqual(
-      badRequest,
-    )
+    expect(
+      await send(method, `${base}/${beneficiaryId}${path}`, JSON.stringify(body)),
+    ).toMatchObject(badRequest)
     for (const mock of Object.values(beneficiaries)) expect(mock).not.toHaveBeenCalled()
   })
 
@@ -149,7 +178,7 @@ describe('beneficiary request validation', () => {
     expect((await send('POST', url, JSON.stringify(body))).status).toBe(201)
     expect(review.resolve).toHaveBeenCalledWith(actor, projectId, body)
     review.resolve.mockClear()
-    expect(await send('POST', url, JSON.stringify({ ...body, decision: 'MERGE' }))).toEqual(
+    expect(await send('POST', url, JSON.stringify({ ...body, decision: 'MERGE' }))).toMatchObject(
       badRequest,
     )
     expect(review.resolve).not.toHaveBeenCalled()

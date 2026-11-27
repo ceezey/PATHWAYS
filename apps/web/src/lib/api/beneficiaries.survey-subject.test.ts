@@ -56,8 +56,15 @@ describe('survey contributor scoped consumed response boundary', () => {
       nextCursor: otherId,
     })
     expect(fetcher).toHaveBeenCalledWith(
-      `http://127.0.0.1:4000/api/beneficiaries/projects/${projectId}?enrollmentStatus=ACTIVE&limit=25&search=Fictional&cursor=${otherId}`,
+      `http://127.0.0.1:4000/api/beneficiaries/projects/${projectId}/search`,
       expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          search: 'Fictional',
+          enrollmentStatus: 'ACTIVE',
+          limit: 25,
+          cursor: otherId,
+        }),
         cache: 'no-store',
         credentials: 'omit',
         redirect: 'error',

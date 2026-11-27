@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   archiveBeneficiaryRequest,
   beneficiaryListQuery,
+  beneficiarySearchRequest,
   enrollBeneficiaryRequest,
   registerBeneficiaryRequest,
   resolveDuplicateRequest,
@@ -18,12 +19,28 @@ const person = {
 }
 
 describe('beneficiary request contracts', () => {
-  it('defaults the page size, coerces it from a string and trims the search', () => {
+  it('defaults the page size and coerces it from a string', () => {
     expect(beneficiaryListQuery.parse({})).toEqual({ limit: 25 })
-    expect(beneficiaryListQuery.parse({ limit: '10', search: '  Ana ' })).toEqual({
-      limit: 10,
+    expect(beneficiaryListQuery.parse({ limit: '10' })).toEqual({ limit: 10 })
+  })
+
+  it('trims the search term of the search body and keeps the list filters', () => {
+    expect(beneficiarySearchRequest.parse({ search: '  Ana ', limit: 10, sex: 'FEMALE' })).toEqual({
       search: 'Ana',
+      limit: 10,
+      sex: 'FEMALE',
     })
+    expect(beneficiarySearchRequest.parse({ search: 'Ana' })).toEqual({ search: 'Ana', limit: 25 })
+  })
+
+  it.each([
+    {},
+    { search: '   ' },
+    { search: null },
+    { search: 'Ana', page: 2 },
+    { search: 'x'.repeat(81) },
+  ])('rejects the search body %j', (body) => {
+    expect(beneficiarySearchRequest.safeParse(body).success).toBe(false)
   })
 
   it.each([
@@ -42,7 +59,7 @@ describe('beneficiary request contracts', () => {
     },
   )
 
-  it.each([{ limit: '0' }, { limit: '51' }, { search: '   ' }, { ageBand: '5-9' }, { page: '2' }])(
+  it.each([{ limit: '0' }, { limit: '51' }, { search: 'Ana' }, { ageBand: '5-9' }, { page: '2' }])(
     'rejects the list query %j',
     (query) => {
       expect(beneficiaryListQuery.safeParse(query).success).toBe(false)

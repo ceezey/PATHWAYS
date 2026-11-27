@@ -1,13 +1,27 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common'
 
 import {
   type ArchiveBeneficiaryRequest,
   type BeneficiaryListQuery,
+  type BeneficiarySearchRequest,
   type EnrollBeneficiaryRequest,
   type RegisterBeneficiaryRequest,
   type UpdateBeneficiaryRequest,
   archiveBeneficiaryRequest,
   beneficiaryListQuery,
+  beneficiarySearchRequest,
   enrollBeneficiaryRequest,
   registerBeneficiaryRequest,
   updateBeneficiaryRequest,
@@ -32,6 +46,20 @@ export class BeneficiariesController {
     @Query(new ZodPipe(beneficiaryListQuery)) query: BeneficiaryListQuery,
   ) {
     return this.beneficiaries.list(requestIdentity(request), projectId, query)
+  }
+
+  // Search reads data, so it answers 200 and is never cached; the term stays out of the address.
+  @Post('search')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('beneficiaries.records.read')
+  @RequireBeneficiaryStepUp()
+  search(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Body(new ZodPipe(beneficiarySearchRequest)) body: BeneficiarySearchRequest,
+  ) {
+    return this.beneficiaries.list(requestIdentity(request), projectId, body)
   }
 
   @Post('registrations')

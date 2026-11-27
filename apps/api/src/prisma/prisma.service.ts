@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks'
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common'
+import { Injectable, type OnModuleDestroy, type OnModuleInit, Optional } from '@nestjs/common'
 import { type Prisma, PrismaClient } from '@prisma/client'
 
 import {
@@ -7,6 +7,7 @@ import {
   inspectionTransactionPlan,
   setInspectionTransactionBudget,
 } from '../common/network/inspection-request-budget'
+import { verifiedDatabaseUrl } from './database-tls'
 
 /** Internal backend context only. The caller must first verify the Auth subject.
  * Authorized operations recheck current permissions and active assignments in this context.
@@ -81,6 +82,12 @@ function verifiedTransactionTimeout(options?: VerifiedTransactionOptions) {
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  // Explicit options are for scripts and local tests; the injected service always verifies DATABASE_URL.
+  constructor(@Optional() options?: Prisma.PrismaClientOptions) {
+    const url = process.env.DATABASE_URL?.trim()
+    super(options ?? (url ? { datasourceUrl: verifiedDatabaseUrl(url) } : undefined))
+  }
+
   async onModuleInit() {
     if (!process.env.DATABASE_URL?.trim()) {
       throw new Error('DATABASE_URL is required to initialize Prisma.')

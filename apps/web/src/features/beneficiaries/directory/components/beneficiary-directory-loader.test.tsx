@@ -118,11 +118,11 @@ describe('BeneficiaryDirectoryLoader', () => {
     expect(await screen.findByText('[] success 0')).toBeTruthy()
   })
 
-  it('puts the chosen project in the address, so going back returns to it', async () => {
-    access.query = `project=${second}&q=ana&page=3`
+  it('puts the chosen project in the address, dropping the page and any search term', async () => {
+    access.query = `project=${second}&q=ana&sex=Female&page=3`
     renderLoader()
     fireEvent.click(await screen.findByRole('button', { name: 'Choose first' }))
-    expect(router.replace).toHaveBeenLastCalledWith(`/beneficiaries?project=${first}&q=ana`, {
+    expect(router.replace).toHaveBeenLastCalledWith(`/beneficiaries?project=${first}&sex=Female`, {
       scroll: false,
     })
   })

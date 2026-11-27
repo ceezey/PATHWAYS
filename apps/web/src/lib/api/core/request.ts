@@ -16,6 +16,8 @@ import { STEP_UP_REQUIRED_CODE } from '@pathways/shared'
 
 // POSTs that change no data, so cached reads must not refetch after them.
 const SIGNAL_ONLY_PATHS = new Set(['/auth/sessions/activity'])
+const isReadOnlyPost = (path: string) =>
+  SIGNAL_ONLY_PATHS.has(path) || /^\/beneficiaries\/projects\/[^/?]+\/search$/.test(path)
 
 export class PathwaysClientError extends Error {
   constructor(
@@ -93,7 +95,7 @@ export async function requestFoundationResponse(
   if (
     response.ok &&
     !['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase()) &&
-    !SIGNAL_ONLY_PATHS.has(path)
+    !isReadOnlyPost(path)
   )
     announceWriteCommitted()
   if (!response.ok) {

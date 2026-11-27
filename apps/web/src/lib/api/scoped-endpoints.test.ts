@@ -303,8 +303,10 @@ describe('PATHWAYS C2/C4 browser client', () => {
       expectedUpdatedAt: row.updatedAt,
     })
 
-    expect(fetcher.mock.calls[0]?.[0]).toContain(
-      `/beneficiaries/projects/${projectId}?search=BEN-C3&limit=50`,
+    expect(fetcher.mock.calls[0]?.[0]).toContain(`/beneficiaries/projects/${projectId}/search`)
+    expect(fetcher.mock.calls[0]?.[0]).not.toContain('BEN-C3')
+    expect((fetcher.mock.calls[0]?.[1] as RequestInit).body).toBe(
+      JSON.stringify({ search: 'BEN-C3', limit: 50 }),
     )
     expect(fetcher.mock.calls[1]?.[0]).toContain(
       `/beneficiaries/projects/${projectId}/${beneficiaryId}`,

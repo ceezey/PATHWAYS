@@ -100,10 +100,19 @@ describe('beneficiariesClient beneficiary requests', () => {
       },
       signal,
     )
-    expect(request.requestFoundation).toHaveBeenCalledWith(
-      `${base}?search=BEN&sex=FEMALE&ageBand=25%2B&disabilityStatus=NOT_SPECIFIED&enrollmentStatus=ACTIVE&limit=50`,
-      { signal },
-    )
+    expect(request.requestFoundation).toHaveBeenCalledWith(`${base}/search`, {
+      method: 'POST',
+      body: JSON.stringify({
+        search: 'BEN',
+        sex: 'FEMALE',
+        ageBand: '25+',
+        disabilityStatus: 'NOT_SPECIFIED',
+        enrollmentStatus: 'ACTIVE',
+        limit: 50,
+      }),
+      signal,
+    })
+    expect(JSON.stringify(request.requestFoundation.mock.calls)).not.toContain('?')
     expect(records).toStrictEqual([
       {
         id: beneficiaryId,
@@ -164,6 +173,27 @@ describe('beneficiariesClient beneficiary requests', () => {
     ).rejects.toThrow('Invalid beneficiary pagination.')
   })
 
+  it('follows the cursor of a search through the body, never the address', async () => {
+    request.requestFoundation
+      .mockResolvedValueOnce({ items: [row], nextCursor: cursor })
+      .mockResolvedValueOnce({ items: [], nextCursor: null })
+    await beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer', projectId, {
+      search: 'Ana',
+    })
+    expect(request.requestFoundation.mock.calls.map(([path, init]) => [path, init.body])).toEqual([
+      [`${base}/search`, JSON.stringify({ search: 'Ana', limit: 50 })],
+      [`${base}/search`, JSON.stringify({ search: 'Ana', limit: 50, cursor })],
+    ])
+  })
+
+  it('uses the plain list when the term is blank', async () => {
+    request.requestFoundation.mockResolvedValue({ items: [], nextCursor: null })
+    await beneficiariesClient.getBeneficiaryRecordsForRole('Project Officer', projectId, {
+      search: '  ',
+    })
+    expect(request.requestFoundation.mock.calls[0]?.[0]).toBe(`${base}?limit=50`)
+  })
+
   it('refuses a page that is not a list of at most 50 rows', async () => {
     request.requestFoundation.mockResolvedValue({ items: 'rows', nextCursor: null })
     await expect(
@@ -210,10 +240,16 @@ describe('beneficiariesClient beneficiary requests', () => {
       items: [{ id: beneficiaryId, code: 'BEN-S4B-001', displayName: 'Fictional Person' }],
       nextCursor: otherId,
     })
-    expect(request.requestFoundation).toHaveBeenCalledWith(
-      `${base}?enrollmentStatus=ACTIVE&limit=25&search=Fictional&cursor=${otherId}`,
-      { signal },
-    )
+    expect(request.requestFoundation).toHaveBeenCalledWith(`${base}/search`, {
+      method: 'POST',
+      body: JSON.stringify({
+        search: 'Fictional',
+        enrollmentStatus: 'ACTIVE',
+        limit: 25,
+        cursor: otherId,
+      }),
+      signal,
+    })
     request.requestFoundation.mockClear()
     await expect(beneficiariesClient.getSurveySubjectPage('bad')).rejects.toThrow(
       'Invalid contributor search.',

@@ -3,11 +3,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { type INestApplication, Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { readApiEnv } from '@pathways/config'
 import { Logger, LoggerModule } from 'nestjs-pino'
 
+import { RefusalLoggingFilter } from './common/filters/refusal-logging.filter'
 import { SentryInterceptor } from './common/interceptors/sentry.interceptor'
+import { RateLimitModule } from './common/rate-limit/rate-limit.module'
 import { ActivitiesModule } from './modules/activities/activities.module'
 import { ActivityEscalationsModule } from './modules/activity-escalations/activity-escalations.module'
 import { ActivityExtensionsModule } from './modules/activity-extensions/activity-extensions.module'
@@ -179,6 +181,7 @@ export function usePathwaysLogger(app: INestApplication) {
     RulesHumanModule,
     RulesSourceOperationsModule,
     PrismaModule,
+    RateLimitModule,
     HealthModule,
     AuthModule,
     ProfileModule,
@@ -209,6 +212,10 @@ export function usePathwaysLogger(app: INestApplication) {
     {
       provide: APP_GUARD,
       useClass: SupabaseAuthGuard,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: RefusalLoggingFilter,
     },
     {
       provide: APP_INTERCEPTOR,
