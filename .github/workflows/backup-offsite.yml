@@ -49,11 +49,27 @@ jobs:
           sudo apt-get install --no-install-recommends -y age postgresql-client-18
           echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
 
+      # libpq lets a URL parameter beat PGSSLMODE, so the URL's own sslmode is replaced.
+      - name: Make the database connection verify the server certificate
+        shell: bash
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          ca="$GITHUB_WORKSPACE/apps/api/src/prisma/supabase-root-2021-ca.crt"
+          test -s "$ca"
+          base="${BACKUP_DATABASE_URL%%\?*}"
+          query=""
+          if [[ "$BACKUP_DATABASE_URL" == *\?* ]]; then query="${BACKUP_DATABASE_URL#*\?}"; fi
+          query="$(printf '%s' "$query" | tr '&' '\n' | { grep -v -E '^(sslmode|sslrootcert)=' || true; } | paste -sd '&' -)"
+          verified="$base?${query:+$query&}sslmode=verify-full&sslrootcert=$ca"
+          echo "::add-mask::$verified"
+          echo "BACKUP_DATABASE_URL=$verified" >> "$GITHUB_ENV"
+
       # Encrypted to a local file first, so a dump cut off midway is never uploaded.
       - name: Dump the database, encrypt it and send it offsite
         shell: bash
         env:
-          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
         run: |
@@ -66,7 +82,6 @@ jobs:
 
       - name: Copy new stored files offsite, encrypted
         env:
-          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
           SUPABASE_URL: ${{ vars.BACKUP_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.BACKUP_SUPABASE_SERVICE_ROLE_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
