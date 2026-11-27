@@ -22,23 +22,29 @@ export const disabilityStatuses = [
   'NOT_SPECIFIED',
 ] as const
 
-// Query of GET beneficiaries/projects/:projectId; limit defaults to 25 and arrives as a string.
-export const beneficiaryListQuery = z
-  .object({
-    search: trimmedInput(lengthString(1, 80)).nullish(),
-    status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).nullish(),
-    sex: z.enum(beneficiarySexes).nullish(),
-    disabilityStatus: z.enum(disabilityStatuses).nullish(),
-    ageBand: z.enum(sadddAgeBands).nullish(),
-    enrollmentStatus: z.enum(['ACTIVE', 'COMPLETED', 'EXITED']).nullish(),
-    cursor: uuidString.nullish(),
-    limit: z.preprocess(
-      (value) => (value === undefined ? 25 : Number(value)),
-      z.number().int().min(1).max(50),
-    ),
-  })
-  .strict()
+// Filters and paging shared by the list query and the search body; limit defaults to 25 and may arrive as a string.
+const beneficiaryListFilters = {
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).nullish(),
+  sex: z.enum(beneficiarySexes).nullish(),
+  disabilityStatus: z.enum(disabilityStatuses).nullish(),
+  ageBand: z.enum(sadddAgeBands).nullish(),
+  enrollmentStatus: z.enum(['ACTIVE', 'COMPLETED', 'EXITED']).nullish(),
+  cursor: uuidString.nullish(),
+  limit: z.preprocess(
+    (value) => (value === undefined ? 25 : Number(value)),
+    z.number().int().min(1).max(50),
+  ),
+}
+
+// Query of GET beneficiaries/projects/:projectId; a search term never travels in the address.
+export const beneficiaryListQuery = z.object(beneficiaryListFilters).strict()
 export type BeneficiaryListQuery = z.infer<typeof beneficiaryListQuery>
+
+// Body of POST beneficiaries/projects/:projectId/search: the term plus the list filters.
+export const beneficiarySearchRequest = z
+  .object({ search: trimmedInput(lengthString(1, 80)), ...beneficiaryListFilters })
+  .strict()
+export type BeneficiarySearchRequest = z.infer<typeof beneficiarySearchRequest>
 
 // Body of POST beneficiaries/projects/:projectId/registrations.
 export const registerBeneficiaryRequest = z

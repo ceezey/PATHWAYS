@@ -15,13 +15,18 @@ vi.mock('@/lib/env', () => ({
   },
 }))
 
-vi.mock('@/providers/current-role-provider', () => ({
-  useCurrentRole: () => ({ role: 'Project Manager', assignedProjectIds: ['futuremakers-ncr'] }),
+// One stable object, so re-renders keep the table's page index as the app does.
+const currentRole = vi.hoisted(() => ({
+  role: 'Project Manager',
+  assignedProjectIds: ['futuremakers-ncr'],
 }))
+vi.mock('@/providers/current-role-provider', () => ({ useCurrentRole: () => currentRole }))
 
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
+const address = vi.hoisted(() => ({ query: '' }))
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(address.query) }))
 
 afterEach(() => {
+  address.query = ''
   cleanup()
   window.localStorage.clear()
 })
@@ -109,6 +114,55 @@ describe('BeneficiaryDirectory', () => {
     expect(search.value).toBe('')
     await waitFor(() => expect(screen.getByText(/Page 1 of \d+/)).toBeTruthy())
     expect(clear.hasAttribute('disabled')).toBe(true)
+  })
+})
+
+describe('BeneficiaryDirectory search term', () => {
+  // Opens page 2, after an optional search, and returns the decoded profile links.
+  const profileLinksOnPageTwo = async (term?: string) => {
+    const extraRecords = Array.from({ length: 9 }, (_, index) => ({
+      ...testBeneficiaries[0],
+      code: `BEN-NCR-${index + 10}`,
+      displayName: `Beneficiary NCR-${index + 10}`,
+      id: `ben-extra-${index + 10}`,
+    }))
+    renderDirectory({ beneficiaries: [...testBeneficiaries, ...extraRecords] })
+    if (term)
+      fireEvent.change(screen.getByLabelText('Search by name or code'), {
+        target: { value: term },
+      })
+    const next = screen.getByRole('button', { name: 'Next' })
+    await waitFor(() => expect(next.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(next)
+    await waitFor(() => expect(screen.getByText(/Page 2 of \d+/)).toBeTruthy())
+    return screen
+      .getAllByRole('link', { name: /^Open / })
+      .map((link) => decodeURIComponent(link.getAttribute('href') ?? ''))
+  }
+
+  it('carries the page number back when no search is active', async () => {
+    const hrefs = await profileLinksOnPageTwo()
+    for (const href of hrefs) expect(href).toMatch(/page=2/)
+  })
+
+  it('returns to page 1 after a searched page, since the term is not restored', async () => {
+    const hrefs = await profileLinksOnPageTwo('Beneficiary')
+    expect(hrefs.length).toBeGreaterThan(0)
+    for (const href of hrefs) expect(href).not.toMatch(/page=/)
+  })
+
+  it('keeps the term out of the profile link and ignores one left in the address', () => {
+    address.query = 'q=Fictional'
+    renderDirectory({})
+    const search = screen.getByLabelText('Search by name or code') as HTMLInputElement
+    expect(search.value).toBe('')
+    fireEvent.change(search, { target: { value: 'Beneficiary' } })
+    const hrefs = screen
+      .getAllByRole('link', { name: /^Open / })
+      .map((link) => link.getAttribute('href'))
+    expect(hrefs.length).toBeGreaterThan(0)
+    for (const href of hrefs)
+      expect(decodeURIComponent(href ?? '')).not.toMatch(/Beneficiary|Fictional|q=/)
   })
 })
 

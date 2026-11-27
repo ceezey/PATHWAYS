@@ -9,7 +9,7 @@ import {
   Req,
   ValidationPipe,
 } from '@nestjs/common'
-import { APP_GUARD, Reflector } from '@nestjs/core'
+import { APP_FILTER, APP_GUARD, Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import { RulesMachineBoundary } from '../../rules/rules-machine-boundary'
@@ -23,6 +23,7 @@ import { RequireBeneficiaryStepUp } from '../../../common/decorators/beneficiary
 import { RequirePermission } from '../../../common/decorators/permission.decorator'
 import { Public } from '../../../common/decorators/public.decorator'
 import { RequireTotpStepUp } from '../../../common/decorators/totp-step-up.decorator'
+import { RefusalLoggingFilter } from '../../../common/filters/refusal-logging.filter'
 import { RateLimitService } from '../../../common/rate-limit/rate-limit.service'
 import {
   PrismaService,
@@ -248,7 +249,8 @@ export const get = (path: string, headers: Record<string, string> = {}) =>
     request.on('error', reject)
     request.end()
   })
-export function useBoundaryApp() {
+// Pass true to also register the global refusal filter, which writes audit rows the other suites do not expect.
+export function useBoundaryApp(withRefusalFilter = false) {
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [AuthController, BoundaryTestController, RouteAccessController],
@@ -277,6 +279,7 @@ export function useBoundaryApp() {
         { provide: AppSessionsService, useValue: appSessions },
         { provide: AuthService, useValue: { getStatus: () => ({ authenticated: true }) } },
         { provide: APP_GUARD, useClass: SupabaseAuthGuard },
+        ...(withRefusalFilter ? [{ provide: APP_FILTER, useClass: RefusalLoggingFilter }] : []),
       ],
     }).compile()
     app = module.createNestApplication({ logger: false })

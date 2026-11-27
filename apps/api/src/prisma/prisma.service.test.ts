@@ -1,3 +1,5 @@
+import 'reflect-metadata'
+import { Test } from '@nestjs/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -12,6 +14,30 @@ afterEach(() => {
 })
 
 describe('PrismaService', () => {
+  it('is injectable without options', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://example.invalid/database')
+    const module = await Test.createTestingModule({ providers: [PrismaService] }).compile()
+    expect(typeof module.get(PrismaService).onModuleInit).toBe('function')
+  })
+
+  it('verifies a hosted database server, refusing to start without the CA, and leaves local alone', async () => {
+    vi.resetModules()
+    vi.doMock('node:fs', async (original) => ({
+      ...(await original<typeof import('node:fs')>()),
+      existsSync: () => false,
+    }))
+    try {
+      const { PrismaService: Isolated } = await import('./prisma.service.js')
+      vi.stubEnv('DATABASE_URL', '  postgresql://u:p@db.example.org:5432/postgres  ')
+      expect(() => new Isolated()).toThrow('Database CA certificate is missing')
+      vi.stubEnv('DATABASE_URL', 'postgresql://u:p@127.0.0.1:5432/postgres')
+      expect(() => new Isolated()).not.toThrow()
+    } finally {
+      vi.doUnmock('node:fs')
+      vi.resetModules()
+    }
+  })
+
   it('fails clearly when DATABASE_URL is missing', async () => {
     vi.stubEnv('DATABASE_URL', '')
     const prisma = new PrismaService()

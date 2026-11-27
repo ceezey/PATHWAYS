@@ -54,7 +54,11 @@ export class BeneficiariesService {
     private readonly registration: BeneficiaryRegistrationService,
   ) {}
 
-  list(identity: ApplicationIdentity, projectId: string, query: BeneficiaryListQuery) {
+  list(
+    identity: ApplicationIdentity,
+    projectId: string,
+    query: BeneficiaryListQuery & { search?: string },
+  ) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
