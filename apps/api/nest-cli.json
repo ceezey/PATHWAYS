@@ -9,6 +9,10 @@
         "include": "modules/reports/assets/**/*",
         "outDir": "dist/apps/api/src",
         "watchAssets": true
+      },
+      {
+        "include": "prisma/*.crt",
+        "outDir": "dist/apps/api/src"
       }
     ]
   }

@@ -1,3 +1,5 @@
+import 'reflect-metadata'
+import { Test } from '@nestjs/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -12,6 +14,12 @@ afterEach(() => {
 })
 
 describe('PrismaService', () => {
+  it('is injectable without options', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://example.invalid/database')
+    const module = await Test.createTestingModule({ providers: [PrismaService] }).compile()
+    expect(typeof module.get(PrismaService).onModuleInit).toBe('function')
+  })
+
   it('fails clearly when DATABASE_URL is missing', async () => {
     vi.stubEnv('DATABASE_URL', '')
     const prisma = new PrismaService()

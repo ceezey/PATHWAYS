@@ -165,6 +165,11 @@ describe('fixed dedicated machine SQL transport', () => {
     expect(
       machineDatabaseUrl(url(`pathways_rules_worker.${ref}`), 'pathways_rules_worker'),
     ).toContain(`pathways_rules_worker.${ref}`)
+    const verified = new URL(
+      machineDatabaseUrl(url(`pathways_rules_worker.${ref}`), 'pathways_rules_worker'),
+    )
+    expect(verified.searchParams.get('sslaccept')).toBe('strict')
+    expect(verified.searchParams.get('sslcert')).toMatch(/supabase-root-2021-ca\.crt$/)
     for (const user of [
       `pathways_rules_sweeper.${ref}`,
       `pathways_rules_worker.${ref}1`,

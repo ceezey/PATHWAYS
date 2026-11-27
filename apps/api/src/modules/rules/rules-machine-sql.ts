@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks'
 import { Prisma, PrismaClient } from '@prisma/client'
+import { DatabaseCaMissingError, verifiedDatabaseUrl } from '../../prisma/database-tls'
 import { faultCause } from '../../prisma/transaction-diagnostic'
 import { type RulesPhase, rulesPhaseBudget } from './rules-dispatch-budget'
 import type { MachineInvocation } from './rules-machine-boundary'
@@ -57,8 +58,9 @@ export function machineDatabaseUrl(
     url.searchParams.set('connection_limit', '1')
     url.searchParams.set('connect_timeout', '1')
     url.searchParams.set('pool_timeout', '1')
-    return url.toString()
-  } catch {
+    return verifiedDatabaseUrl(url.toString())
+  } catch (error) {
+    if (error instanceof DatabaseCaMissingError) throw error
     throw new Error('Dedicated rule database configuration is invalid.')
   }
 }
