@@ -27,7 +27,7 @@ describe('PrismaService', () => {
       existsSync: () => false,
     }))
     try {
-      const { PrismaService: Isolated } = await import('./prisma.service')
+      const { PrismaService: Isolated } = await import('./prisma.service.js')
       vi.stubEnv('DATABASE_URL', '  postgresql://u:p@db.example.org:5432/postgres  ')
       expect(() => new Isolated()).toThrow('Database CA certificate is missing')
       vi.stubEnv('DATABASE_URL', 'postgresql://u:p@127.0.0.1:5432/postgres')
